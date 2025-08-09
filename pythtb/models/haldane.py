@@ -1,8 +1,13 @@
 from pythtb import TBModel
-from numpy import sqrt
+import numpy as np
 
 
-def haldane(delta: float, t1: float, t2: float) -> TBModel:
+def haldane(
+        delta: float, 
+        t1: float, 
+        t2: float, 
+        phi: float=np.pi/2
+        ) -> TBModel:
     r"""Haldane tight-binding model.
 
     .. versionadded:: 2.0.0
@@ -56,7 +61,7 @@ def haldane(delta: float, t1: float, t2: float) -> TBModel:
         *Physical Review Letters*, 61(20), 2015–2018.
     """
 
-    lat = [[1, 0], [1/2, sqrt(3) / 2]]
+    lat = [[1, 0], [1/2, np.sqrt(3) / 2]]
     orb = [[1/3, 1/3], [2/3, 2/3]]
 
     model = TBModel(2, 2, lat, orb)
@@ -67,7 +72,8 @@ def haldane(delta: float, t1: float, t2: float) -> TBModel:
         model.set_hop(t1, 0, 1, lvec, mode="set")
 
     for lvec in ([1, 0], [-1, 1], [0, -1]):
-        model.set_hop(t2 * 1j, 0, 0, lvec, mode="set")
-        model.set_hop(t2 * -1j, 1, 1, lvec, mode="set")
+        model.set_hop(t2 * np.exp(1j*phi), 0, 0, lvec, mode="set")
+    for lvec in ([-1, 0], [1, -1], [0, 1]):
+        model.set_hop(t2 * np.exp(1j*phi), 1, 1, lvec, mode="set")
 
     return model
