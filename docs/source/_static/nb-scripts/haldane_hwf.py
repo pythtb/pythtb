@@ -53,8 +53,8 @@ my_model.set_hop(t2c, 0, 0, [0, 1])
 nk0 = 300
 nk1 = 100
 
-mesh = Mesh(my_model)
-mesh.build_grid(shape_k=(nk0, nk1), full_grid=True)
+mesh = Mesh(dim_k=2, dim_param=0, axis_types=['k', 'k'])
+mesh.build_full_grid(shape=(nk0, nk1))
 
 
 # This allows us to initialize the `WFArray` which we will use to store the energy eigenstates. With this class, we can compute Berry phases and hybrid Wannier centers.
@@ -63,7 +63,7 @@ mesh.build_grid(shape_k=(nk0, nk1), full_grid=True)
 
 
 my_array = WFArray(my_model, mesh)
-my_array.solve_k_mesh()
+my_array.solve_mesh()
 
 
 # To compute the Berry phase, we will use the `berry_phase` method from the `WFArray` class. This method takes the occupied band indices (`occ`) and the direction of the mesh grid that will form the closed loop of states (`dir`). Optionally, we can also set `contin=True` which picks a branch of the Berry phase such that the phase at neighboring k-points are continuous.

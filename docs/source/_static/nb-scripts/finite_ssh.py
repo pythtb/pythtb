@@ -9,7 +9,8 @@
 # In[1]:
 
 
-from pythtb import TBModel
+from pythtb import TBModel, WFArray, Mesh
+from pythtb.utils import pauli_decompose
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -25,7 +26,7 @@ import numpy as np
 
 def ssh(v, w):
     lat = [[1]]
-    orb = [[0], [1/2]]
+    orb = [[-1/4], [1/4]]
     my_model = TBModel(1, 1, lat, orb)
 
     my_model.set_hop(v, 0, 1, [0])
@@ -34,16 +35,26 @@ def ssh(v, w):
     return my_model
 
 
-# Get the eigenvalues and eigenvectors for each intracell hopping $w$
-
 # In[3]:
 
 
-w_values = np.linspace(0, 1, 100)
+model = ssh(1, 1)
+model.visualize()
+
+
+# ## Finite Model
+# 
+# Get the eigenvalues and eigenvectors for each intracell hopping $w$
+
+# In[4]:
+
+
+nlam = 100
+w_values = np.linspace(0, 1, nlam)
 v = 0.5
 evals_w = []
 evecs_w = []
-n_cells = 20
+n_cells = 30
 for w in w_values:
     finite_model = ssh(v, w).cut_piece(n_cells, 0)
     evals, evecs = finite_model.solve_ham(return_eigvecs=True)
@@ -54,7 +65,7 @@ for w in w_values:
 # Plotting the energies as a function of $w$ shows that two zero-energy levels emerge at the topological phase transition where $|w| > |v|$.
 # These zero energy states are edge modes, as visible in the edge state density plot.
 
-# In[4]:
+# In[5]:
 
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
@@ -73,11 +84,43 @@ ax1.set_title(f"Finite SSH Chain with {n_cells} unit cells")
 ax1.legend()
 
 # Plot edge state density at last w=1.0
-band_idx = 20
+band_idx = n_cells
 density = np.abs(evecs_w[-1][band_idx, :])**2
 position = np.arange(len(density)) / 2
 ax2.plot(position, density)
 ax2.set_xlabel(r"$x$")
 ax2.set_ylabel(rf"$\psi_{{{band_idx}}}(x)$")
 ax2.set_title(r"Edge state density at $w=1.0$")
+
+
+# ## Bulk polarization and Berry phase
+
+# In[10]:
+
+
+model = ssh(v, 0)
+nk = 100
+
+mesh = Mesh(model, axis_types=['k'])
+mesh.build_full_grid(shape=(nk,))
+
+wfa = WFArray(mesh)
+wfa.solve_mesh()
+P1 = wfa.berry_phase([1], 0) / (2 * np.pi)
+P1
+
+
+# In[12]:
+
+
+model = ssh(v, 1)
+nk = 100
+
+mesh = Mesh(model, axis_types=['k'])
+mesh.build_full_grid(shape=(nk,))
+
+wfa = WFArray(mesh)
+wfa.solve_mesh()
+P2 = wfa.berry_phase([0], 0) / (2 * np.pi)
+P2
 

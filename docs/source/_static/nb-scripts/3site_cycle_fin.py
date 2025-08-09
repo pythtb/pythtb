@@ -41,50 +41,60 @@ def set_model(t, delta, lmbd):
     return model
 
 
-# In[3]:
+# ## `Mesh` and `WFArray`
+# 
+# Next, we construct the `Mesh` object for a 1D parameter path and 1D k-space. 
+# 
+# When using a parameter space with the mesh, we must define a model building function as we've done above. The model parameters are defined by the arguments of the function. Some of these arguments may be fixed, while others may vary. 
+# 
+# :::{warning}
+# The argument that we plan to vary must be named appropriately in the mesh via the `axis_names` argument in the `Mesh` constructor. If the name of the model parameter we are varying does not match the corresponding axis name in the mesh, the parameter will not be varied correctly. Here we are varying the `lmbd` parameter.
+# :::
+
+# In[ ]:
 
 
-# set model parameters
-delta = 2.0
-t = -1.3
+mesh = Mesh(
+    dim_k=1, dim_param=1, axis_types=["k", "param"], axis_names=["kx", "lmbd"]
+    )
 
+
+# We next populate the `Mesh` with grid points. To do so, we use the `build_full_grid` helper function, specifying the desired shape of the grid and whether to center it around the gamma point in k-space.
 
 # In[4]:
 
 
-# get model at arbitrary lambda for initializations
-my_model = set_model(t, delta, 0)
-
-# set up 1d Brillouin zone mesh
-num_kpt = 31
-(k_vec, k_dist, k_node) = my_model.k_path([[-0.5], [0.5]], num_kpt, report=False)
-
-path_steps = 21
-all_lambda = np.linspace(0, 1, path_steps, endpoint=True)
+mesh.build_full_grid(shape=(31, 21), gamma_centered=True)
 
 
-# In[5]:
+# Now, we initialize the `WFArray` object with the mesh we created. To solve the tight-binding model on this mesh, we can use `solve_mesh`. 
+# 
+# In the situation where one of the axes in the mesh is a model parameter, we need to pass the function that returns the model given the set of parameters, and optionally the function arguments that we keep fixed.
+# 
+# ::: {warning}
+# Once again, the names matter here as well. The keys in the `fixed_params` dictionary must match the names of the arguments in the model function exactly.
+# :::
+
+# In[ ]:
 
 
-mesh = Mesh(my_model)
-mesh.build_grid(shape_k=(31,), shape_param=(21,), full_grid=True, gamma_centered=True)
+# Used for initializing the Mesh
+ref_model = set_model(0,0,0)
+
+wfa = WFArray(ref_model, mesh)
 
 
 # In[6]:
 
 
-wf_kpt_lambda = WFArray(my_model, mesh)
+fixed_params = {"t": -1.3, "delta": 2.0}
+wfa.solve_mesh(set_model, fixed_params)
 
 
 # In[7]:
 
 
-# evolve tight-binding parameter lambda along a path
-for i, lmbd in enumerate(all_lambda):
-    my_model = set_model(t, delta, lmbd)
-    evals, evecs = my_model.solve_ham(k_vec, return_eigvecs=True)
-    for j in range(num_kpt):
-        wf_kpt_lambda[j, i] = evecs[j]
+wfa.shape
 
 
 # :::{versionadded} 2.0.0
@@ -96,11 +106,11 @@ for i, lmbd in enumerate(all_lambda):
 
 
 # compute integrated curvature
-chern_0 = wf_kpt_lambda.chern_num(state_idx=[0], plane=(0,1))
-chern_1 = wf_kpt_lambda.chern_num(state_idx=[1], plane=(0,1))
-chern_2 = wf_kpt_lambda.chern_num(state_idx=[2], plane=(0,1))
-chern_01 = wf_kpt_lambda.chern_num(state_idx=[0,1], plane=(0,1))
-chern_012 = wf_kpt_lambda.chern_num(state_idx=[0,1,2], plane=(0,1))
+chern_0 = wfa.chern_num(state_idx=[0], plane=(0,1))
+chern_1 = wfa.chern_num(state_idx=[1], plane=(0,1))
+chern_2 = wfa.chern_num(state_idx=[2], plane=(0,1))
+chern_01 = wfa.chern_num(state_idx=[0,1], plane=(0,1))
+chern_012 = wfa.chern_num(state_idx=[0,1,2], plane=(0,1))
 
 print("Chern numbers for rising fillings")
 print(f"  Band  0     = {chern_0:5.2f}")
@@ -111,58 +121,86 @@ print("Chern numbers for individual bands")
 print(f"  Band  0 = {chern_0:5.2f}")
 print(f"  Band  1 = {chern_1:5.2f}")
 print(f"  Band  2 = {chern_2:5.2f}")
-print("")
 
+
+# ## Finite model
+
+# Here, we will define a new model function for the finite system. This function will take the model parameters as input and return the corresponding `TBModel`. In this case, it will be the same as before except we cut out a finite chain of the periodic model. We do this using the `TBModel.cut_piece` method, passing the number of unit cells and the direction in which to cut.
 
 # In[9]:
 
-
-# now loop over parameter again, this time for finite chains
-path_steps = 241
-all_lambda = np.linspace(0, 1, path_steps, endpoint=True)
 
 # length of chain, in unit cells
 num_cells = 10
 num_orb = 3 * num_cells
 
-# initialize array for chain eigenvalues and x expectations
-ch_eval = np.zeros([num_orb, path_steps], dtype=float)
-ch_xexp = np.zeros([num_orb, path_steps], dtype=float)
-
-for i_lambda in range(path_steps):
-    lmbd = all_lambda[i_lambda]
-
-    # construct and solve model
-    my_model = set_model(t, delta, lmbd)
-    ch_model = my_model.cut_piece(num_cells, 0)
-    (eval, evec) = ch_model.solve_ham(return_eigvecs=True)
-
-    # save eigenvalues
-    ch_eval[:, i_lambda] = eval
-    ch_xexp[:, i_lambda] = ch_model.position_expectation(evec, 0)
+def finite_model_builder(t, delta, lmbd):
+    model = set_model(t, delta, lmbd)
+    model = model.cut_piece(num_cells, 0)
+    return model
 
 
-# Plot eigenvalues vs. $\lambda$
+# Here, we do the same thing as before to create the `Mesh`. 
 # 
 # :::{note}
-# Symbol size is reduced for states localized near left end
+# The only difference now is we no longer have a k-axis since our model is finite. Notice that `axis_types` only contains the `param` axis.
 # :::
+# 
+# In the `shape` argument of `build_full_grid`, we only need to specify the size of the array of `lmbd` points. 
 
-# In[10]:
+# In[11]:
+
+
+mesh = Mesh(dim_k=0, dim_param=1, axis_types=["param"], axis_names=["lmbd"])
+mesh.build_full_grid(shape=(241,))
+
+
+# Same as before, we create the `WFArray` to store our states with the mesh, and use `solve_mesh` to populate the `WFArray` with the wave functions and energies.
+
+# In[13]:
+
+
+ref_model = finite_model_builder(0, 0, 0)
+
+wfa = WFArray(ref_model,mesh)
+wfa.solve_mesh(model_func=finite_model_builder, fixed_params=fixed_params)
+
+
+# ## Position expectation value
+# 
+# Getting the expectation value of the position operator is as simple as calling `WFArray.position_expectation(...)`. We only need to pass the real-space direction to compute the expectation value. This will return the expectation value for each state index, at each point in the mesh array.
+
+# In[14]:
+
+
+x_expec = wfa.position_expectation(dir=0)
+
+
+# ### Plot eigenvalues vs. $\lambda$
+# 
+# We will indicate the position expectation value by the size of the markers in the plot. Notice in the finite chain the appearance of gapless edge modes. This is topologically protected, as evident by the Chern numbers we calculated earlier in the bulk case. 
+
+# In[15]:
 
 
 fig, ax = plt.subplots()
 
-# loop over "bands"
-for n in range(num_orb):
-    # diminish the size of the ones on the borderline
-    xcut = 2  # discard points below this
-    xfull = 4 # use sybols of full size above this
-    size = (ch_xexp[n, :] - xcut) / (xfull - xcut)
-    for i in range(path_steps):
-        size[i] = min(size[i], 1.0)
-        size[i] = max(size[i], 0.1)
-    ax.scatter(all_lambda[:], ch_eval[n, :], edgecolors="none", s=size * 6.0, c="k")
+xcut = 2  # discard points below this
+xfull = 4 # use symbols of full size above this
+
+sizes = np.divide(
+    x_expec - xcut,
+    xfull - xcut,
+    out=np.empty_like(x_expec, dtype=float),
+    where=(xfull != xcut)
+)
+
+# clamp to [0.1, 1.0] in-place
+np.clip(sizes, 0.1, 1.0, out=sizes)
+
+all_lambda = mesh.get_param_points()
+for o in range(num_orb):
+    ax.scatter(all_lambda[:, 0], wfa.energies[:, o], edgecolors="none", s=sizes[:, o]*6.0, c="k")
 
 # annotate gaps with bulk Chern numbers calculated earlier
 ax.text(0.20, -1.7, f"C of band [0] = {chern_0:3.0f}")

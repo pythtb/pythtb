@@ -83,10 +83,10 @@ print(f"CB min, max = {np.min(en_conduction):6.3f} , {np.max(en_conduction):6.3f
 
 nk = 9
 
-mesh = Mesh(model=slab_model)
-mesh.build_grid(shape_k=(nk, nk), full_grid=True)
+mesh = Mesh(dim_k=2, dim_param=0, axis_types=['k', 'k'])
+mesh.build_full_grid(shape=(nk, nk))
 bloch_arr = WFArray(slab_model, mesh)
-bloch_arr.solve_k_mesh()
+bloch_arr.solve_mesh()
 
 
 # In[7]:
@@ -138,7 +138,7 @@ print("\n  Ave    " + num_layers * "%8.4f" % tuple(px_mean))
 
 # Similar calculations along $y$ give zero due to $M_y$ mirror symmetry.
 
-# In[ ]:
+# In[9]:
 
 
 nlh = num_layers // 2

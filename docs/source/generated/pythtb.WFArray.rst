@@ -54,7 +54,9 @@
       ~WFArray.position_expectation
       ~WFArray.position_hwf
       ~WFArray.position_matrix
+      ~WFArray.set_ham
       ~WFArray.solve_k_mesh
+      ~WFArray.solve_mesh
       ~WFArray.solve_on_grid
       ~WFArray.solve_on_one_point
       ~WFArray.solve_on_path
@@ -73,13 +75,19 @@
       ~WFArray.__doc__
       ~WFArray.__module__
       ~WFArray.__weakref__
-      ~WFArray.dim_mesh
+      ~WFArray.dim_k
+      ~WFArray.dim_lambda
       ~WFArray.energies
-      ~WFArray.flat_k_mesh
-      ~WFArray.k_mesh
+      ~WFArray.hamiltonian
+      ~WFArray.k_flat
+      ~WFArray.k_grid
       ~WFArray.loop_axes
-      ~WFArray.mesh_size
+      ~WFArray.mesh
+      ~WFArray.mesh_shape
       ~WFArray.model
+      ~WFArray.ndims
+      ~WFArray.nks
+      ~WFArray.nlams
       ~WFArray.norb
       ~WFArray.nspin
       ~WFArray.nstates

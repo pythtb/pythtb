@@ -94,10 +94,10 @@ def run_model(model, panel, title):
     ax[panel].set_title(title)
     ax[panel].set_xticklabels([-0.5, 0.5])
 
-    mesh = Mesh(model)
-    mesh.build_path(nodes_k=k_vec, n_interp=1)
-    wf = WFArray(model, mesh)
-    wf.solve_k_mesh()
+    mesh = Mesh(model, axis_types=["k"])
+    mesh.build_path(nodes=k_vec, n_interp=1)
+    wf = WFArray(mesh)
+    wf.solve_mesh()
 
     n_occ = model.nstate // 2
     berry_phase = wf.berry_phase(range(n_occ), dir=0)
@@ -130,3 +130,5 @@ plt.show()
 # displaced along $y$ as the hopping $t$ is changed, so the Berry
 # phase calculation gets "contaminated" by this displacement.
 # :::
+
+# 

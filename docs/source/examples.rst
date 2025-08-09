@@ -42,6 +42,7 @@ Electronic Structure Theory <https:/www.cambridge.org/9781107157651>`_
    examples_ipynb/boron_nitride
    examples_ipynb/graphene_cone
    examples_ipynb/haldane_bp
+   examples_ipynb/3site_cycle
    examples_ipynb/3site_cycle_fin
 
 .. toctree::
@@ -50,8 +51,8 @@ Electronic Structure Theory <https:/www.cambridge.org/9781107157651>`_
 
    examples_ipynb/haldane_hwf
    examples_ipynb/slab_hwf
-   examples_ipynb/3site_cycle
    examples_ipynb/kane_mele
+   examples_ipynb/fkm_model
 
 .. toctree::
    :maxdepth: 1

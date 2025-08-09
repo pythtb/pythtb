@@ -69,9 +69,11 @@
       ~Bloch.position_hwf
       ~Bloch.position_matrix
       ~Bloch.set_Bloch_ham
+      ~Bloch.set_ham
       ~Bloch.set_pbc_lam
       ~Bloch.set_wfs
       ~Bloch.solve_k_mesh
+      ~Bloch.solve_mesh
       ~Bloch.solve_model
       ~Bloch.solve_on_grid
       ~Bloch.solve_on_one_point
@@ -92,13 +94,19 @@
       ~Bloch.__doc__
       ~Bloch.__module__
       ~Bloch.__weakref__
-      ~Bloch.dim_mesh
+      ~Bloch.dim_k
+      ~Bloch.dim_lambda
       ~Bloch.energies
-      ~Bloch.flat_k_mesh
-      ~Bloch.k_mesh
+      ~Bloch.hamiltonian
+      ~Bloch.k_flat
+      ~Bloch.k_grid
       ~Bloch.loop_axes
-      ~Bloch.mesh_size
+      ~Bloch.mesh
+      ~Bloch.mesh_shape
       ~Bloch.model
+      ~Bloch.ndims
+      ~Bloch.nks
+      ~Bloch.nlams
       ~Bloch.norb
       ~Bloch.nspin
       ~Bloch.nstates

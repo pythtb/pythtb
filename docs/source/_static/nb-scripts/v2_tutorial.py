@@ -63,7 +63,11 @@ print(my_model)
 
 # ## Band plotting
 # 
-# A new feature to `TBModel`'s is a convience function for quickly plotting band structures. Instead of explictly creating the k-path, marking the high-symmetry k-points, and so-on, now we just call `plot_bands` and pass the high-symmetry points in reduced units.
+# A new feature to `TBModel`'s is a convience function for quickly plotting band structures. Instead of explictly creating the k-path and making the matplotlib figure, we can just call `plot_bands` and pass the high-symmetry points in reduced units.
+# 
+# :::{note}
+# We may also pass the `k_labels` argument to specify the labels for the high-symmetry points.
+# :::
 
 # In[ ]:
 

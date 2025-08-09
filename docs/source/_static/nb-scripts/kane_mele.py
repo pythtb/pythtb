@@ -9,7 +9,7 @@
 # non-trivial topological properties. The examples demonstrate
 # how to define the model, compute its band structure, and compute 
 # the 1D Wannier centers along $x$ as a function of $k_y$,
-# illustrating the determination of the $Z_2$ invariant.
+# illustrating the determination of the $\mathbb{Z}_2$ invariant.
 # 
 
 # In[1]:
@@ -56,11 +56,11 @@ model_topo = get_kane_mele("odd")
 
  # list of nodes (high-symmetry points) that will be connected
 path = [
-    [0.0, 0.0],
-    [2.0 / 3.0, 1.0 / 3.0],
-    [0.5, 0.5],
-    [1.0 / 3.0, 2.0 / 3.0],
-    [0.0, 0.0],
+    [0, 0],
+    [2/3, 1/3],
+    [1/2, 1/2],
+    [1/3, 2/3],
+    [0, 0],
 ]
 
 # labels of the nodes
@@ -91,19 +91,19 @@ ax2.set_ylabel("Energy")
 
 
 # calculate my-array
-mesh = Mesh(model_topo)
-mesh.build_grid(shape_k=(41, 41), gamma_centered=True, full_grid=True)
+mesh = Mesh(dim_k=2, dim_param=0, axis_types=['k', 'k'])
+mesh.build_full_grid(shape=(41, 41), gamma_centered=True)
 
 wf_array_topo = WFArray(model_topo, mesh)
-wf_array_topo.solve_k_mesh()
+wf_array_topo.solve_mesh()
 
 wf_array_triv = WFArray(model_triv, mesh)
-wf_array_triv.solve_k_mesh()
+wf_array_triv.solve_mesh()
 
 
 # Calculate Berry phases around the BZ in the $k_x$ direction. This can be interpreted as the 1D hybrid Wannier centers in the $x$ direction and plotted as a function of $k_y$. Following the ideas in _A.A. Soluyanov and D. Vanderbilt, PRB 83, 235401 (2011) and R. Yu, X.L. Qi, A. Bernevig, Z. Fang and X. Dai, PRB 84, 075119 (2011)_, the connectivity of these curves determines the $Z_2$ index.
 
-# In[10]:
+# In[7]:
 
 
 wan_cent_topo = wf_array_topo.berry_phase(occ=[0, 1], dir=1, contin=True, berry_evals=True)
@@ -113,7 +113,7 @@ wan_cent_triv = wf_array_triv.berry_phase(occ=[0, 1], dir=1, contin=True, berry_
 wan_cent_triv /= 2 * np.pi
 
 
-# In[14]:
+# In[8]:
 
 
 fig, ax = plt.subplots(1, 2, figsize=(12, 4))
@@ -152,10 +152,4 @@ ax[1].set_xlim(0.0, 1.0)
 ax[1].set_xticklabels([r"$0$", r"$\pi$", r"$2\pi$"])
 ax[1].axvline(x=0.5, linewidth=0.5, color="k")
 ax[1].set_title("1D Wannier centers: topological phase")
-
-
-# In[ ]:
-
-
-
 
