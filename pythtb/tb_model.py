@@ -4,8 +4,8 @@ import logging
 from itertools import product
 import warnings
 import functools
+from itertools import combinations_with_replacement as comb
 from .plotting import plot_bands, plot_tb_model, plot_tb_model_3d
-from .mesh import k_path, k_uniform_mesh
 from .utils import _is_int, _offdiag_approximation_warning_and_stop, is_Hermitian
 
 # set up logging
@@ -38,6 +38,53 @@ def deprecated(message: str, category=FutureWarning):
         return wrapper
 
     return decorator
+
+
+
+
+def _report(k_list, lat_per, k_metric, k_node, node_index):
+    """
+    Print a concise report of the k-path construction, including
+    segment distances and the start/end node coordinates.
+    """
+    print("----- k_path report -----")
+    np.set_printoptions(precision=5)
+    print("Real-space lattice vectors:\n", lat_per)
+    print("K-space metric tensor:\n", k_metric)
+    print("Nodes (reduced coords):\n", k_list)
+    if lat_per.shape[0] == lat_per.shape[1]:
+        gvecs = np.linalg.inv(lat_per).T
+        print("Reciprocal-space vectors:\n", gvecs)
+        print("Nodes (Cartesian coords):\n", k_list @ gvecs)
+
+    print("Segments:")
+    for n in range(1, len(k_node)):
+        length = k_node[n] - k_node[n - 1]
+        print(
+            f"  Node {n-1} {k_list[n-1]} to Node {n} {k_list[n]}: "
+            f"distance = {length:.5f}"
+        )
+
+    print("Node distances (cumulative):", k_node)
+    print("Node indices in path:", node_index)
+    print("-------------------------")
+
+def _parse_kpts(kpts, dim):
+    """
+    Parse special string cases for 1D and ensure array shape (n_nodes, dim).
+    """
+    if isinstance(kpts, str) and dim == 1:
+        presets = {
+            "full": [[0.0], [0.5], [1.0]],
+            "fullc": [[-0.5], [0.0], [0.5]],
+            "half": [[0.0], [0.5]],
+        }
+        return np.array(presets[kpts], float)
+
+    arr = np.array(kpts, float)
+    if arr.ndim == 1 and dim == 1:
+        arr = arr[:, None]
+    return arr
 
 
 class TBModel:
@@ -170,7 +217,7 @@ class TBModel:
             logger.info(
                 f"Orbital positions is an integer. Assuming {orb} orbitals at the origin"
             )
-        elif isinstance(lat, (list, np.ndarray)):
+        elif isinstance(orb, (list, np.ndarray)):
             orb = np.array(orb, dtype=float)
             if orb.ndim != 2:
                 raise ValueError(
@@ -737,7 +784,31 @@ class TBModel:
         # Calculate the volume of the reciprocal lattice
         # The volume is the absolute value of the determinant of the reciprocal lattice vectors
         return abs(np.linalg.det(recip_lat_vecs))
-    
+
+    def get_cell_vol(self):
+        """Returns the volume of a 2D unit cell. 
+
+        Returns
+        -------
+        float
+            Volume of the 2D unit cell.
+        """
+        if self.dim_r == 0:
+            logger.warning(
+                "Cell volume is not defined for zero-dimensional real-space."
+            )
+            return 0.0
+        
+        lat_vecs = self.lat_vecs
+        if self.dim_r == 1:
+            return np.linalg.norm(lat_vecs[0])
+        elif self.dim_r == 2:
+            lat_vecs = self.lat_vecs
+            return np.linalg.norm(np.cross(lat_vecs[0], lat_vecs[1]))
+        elif self.dim_r == 3:
+            return abs(np.linalg.det(lat_vecs))
+        else:
+            raise NotImplementedError("Cell volume is only defined for 1D, 2D, and 3D systems.")
 
     def set_onsite(self, onsite_en, ind_i=None, mode="set"):
         r"""Define on-site energies for tight-binding orbitals.
@@ -1081,11 +1152,13 @@ class TBModel:
                 "For spinful models, value should be a scalar, length-4 iterable, or 2x2 array."
             )
         return block
+    
 
-    def get_velocity(self, k_pts, cartesian=False):
-        r"""Generate the velocity operator
+    def grad_ham(self, k_pts, cartesian=False):
+        r"""Generate the gradient of the Hamiltonian
 
-        The velocity operator is defined via the commutator :math:`v_k = \partial_k H_k` for an array of k-points.
+        The gradient is the derivative of the block Hamiltonian along each reciprocal
+        lattice direction :math:`v_k = \partial_k H_k` for an array of k-points.
 
         .. versionadded:: 2.0.0
 
@@ -1108,9 +1181,7 @@ class TBModel:
         with respect to k, i.e.,
 
         .. math::
-            v_k = \frac{\partial H(k)}{\partial k}
-
-        The imaginary number is omitted.
+            v_k^{\mu} = i \frac{\partial H(k)}{\partial k_{\mu}}
         """
         dim_k = self._dim_k
 
@@ -1198,6 +1269,7 @@ class TBModel:
         np.add(vel, temp, out=vel)
 
         return vel
+    
 
     def hamiltonian(self, k_pts=None):
         r"""Generate the Bloch Hamiltonian for an array of k-points in reduced coordinates.
@@ -1361,21 +1433,6 @@ class TBModel:
                     ham[..., orb, :, orb, :] += site_energies[orb]
 
             return ham
-
-    def _get_periodic_H(self, H_flat, k_vals):
-        """
-        Applies periodic boundary conditions to the Hamiltonian.
-        This function modifies the Hamiltonian by multiplying it with a phase factor
-        that depends on the orbital positions and the k-values.
-        """
-        orb_vecs = self.get_orb()
-        orb_vec_diff = orb_vecs[:, None, :] - orb_vecs[None, :, :]
-        # orb_phase = np.exp(1j * 2 * np.pi * np.einsum('ijm, ...m->...ij', orb_vec_diff, k_vals))
-        orb_phase = np.exp(
-            1j * 2 * np.pi * np.matmul(orb_vec_diff, k_vals.T)
-        ).transpose(2, 0, 1)
-        H_per_flat = H_flat * orb_phase
-        return H_per_flat
 
     def _sol_ham(self, ham, return_eigvecs=False, keep_spin_ax=True):
         """Solves Hamiltonian and returns eigenvectors, eigenvalues"""
@@ -1684,6 +1741,29 @@ class TBModel:
                         )
 
         return fin_model
+
+    def make_finite(self, lx, ly):
+        """Returns a finite model with open boundary conditions.
+
+        Parameters
+        ----------
+        lx : int
+            Number of unit cells of the sample along the :math:`\mathbf{a}_1` direction.
+        ly : int
+            Number of unit cells of the sample along the :math:`\mathbf{a}_2` direction.
+
+        Returns
+        -------
+        finite : :class:`pythtb.TBModel`
+                A model whose periodic hoppings have been removed (OBC model).
+        """
+        if not (lx > 0 and ly > 0):
+            raise ValueError("Number of sites along finite direction must be greater than 0")
+
+        ribbon = self.cut_piece(num = ly, fin_dir = 1, glue_edgs = False)
+        finite = ribbon.cut_piece(num = lx, fin_dir = 0, glue_edgs = False)
+
+        return finite
 
     def reduce_dim(self, remove_k, value_k) -> "TBModel":
         r"""Reduces dimensionality of the model by taking a reciprocal-space slice
@@ -2413,8 +2493,18 @@ class TBModel:
         >>> my_model.solve_ham(k_vec)
 
         """
+        use_mesh = np.array(list(map(round, mesh_size)), dtype=int)
+        if use_mesh.shape != (self.dim_k,):
+            print(use_mesh.shape)
+            raise Exception("\n\nIncorrect size of the specified k-mesh!")
+        if np.min(use_mesh) <= 0:
+            raise Exception("\n\nMesh must have positive non-zero number of elements.")
 
-        return k_uniform_mesh(self, mesh_size)
+        axes = [np.linspace(0, 1, n, endpoint=False) for n in use_mesh]
+        mesh = np.meshgrid(*axes, indexing="ij")
+        k_vec = np.stack(mesh, axis=-1).reshape(-1, len(use_mesh))
+
+        return k_vec
 
     def k_path(self, kpts, nk:int, report:bool=True):
         r"""Interpolates a path in reciprocal space.
@@ -2488,8 +2578,217 @@ class TBModel:
 
         >>> evals = tb.solve_all(k_vec)
         """
+        dim = self.dim_k
 
-        return k_path(self, kpts, nk, report)
+        # Parse kpts and validate
+        k_list = _parse_kpts(kpts, dim)
+        if k_list.shape[1] != dim:
+            raise ValueError(
+                f"Dimension mismatch: kpts shape {k_list.shape}, model dim {dim}"
+            )
+        if nk < len(k_list):
+            raise ValueError("nk must be >= number of nodes in kpts")
+
+        # Extract periodic lattice and compute k-space metric
+        lat_per = self.lat_vecs[self.per]
+        k_metric = np.linalg.inv(lat_per @ lat_per.T)
+
+        # Compute segment vectors and lengths in Cartesian metric
+        diffs = k_list[1:] - k_list[:-1]
+        seg_lengths = np.sqrt(np.einsum("ij,ij->i", diffs @ k_metric, diffs))
+
+        # Accumulated node distances
+        k_node = np.concatenate(([0.0], np.cumsum(seg_lengths)))
+
+        # Determine indices in the final array corresponding to each node
+        node_index = np.rint(k_node / k_node[-1] * (nk - 1)).astype(int)
+
+        # Initialize output arrays
+        k_vec = np.empty((nk, dim))
+        k_dist = np.empty(nk)
+
+        # Interpolate each segment
+        for i, (start, end) in enumerate(zip(node_index[:-1], node_index[1:])):
+            length = end - start
+            t = np.linspace(0, 1, length + 1)
+            k_vec[start : end + 1] = k_list[i] + np.outer(t, diffs[i])
+            k_dist[start : end + 1] = k_node[i] + t * seg_lengths[i]
+
+        # Trim any round-off overshoot
+        k_vec = k_vec[:nk]
+        k_dist = k_dist[:nk]
+
+        if report:
+            _report(k_list, lat_per, k_metric, k_node, node_index)
+
+        return k_vec, k_dist, k_node    
+
+    
+    def get_k_shell(self, N_sh: int, report: bool = False):
+        """Generates shells of k-points around the Gamma point.
+
+        Returns array of vectors connecting the origin to nearest neighboring k-points
+        in the mesh, along with vectors of reduced coordinates.
+
+        Parameters
+        ----------
+        N_sh : int
+            Number of nearest neighbor shells.
+        report : bool
+            If True, prints a summary of the k-shell.
+
+        Returns
+        -------
+            k_shell : list[np.ndarray[float]]
+                List of arrays of vectors in inverse units of lattice vectors 
+                connecting nearest neighbor k-mesh points.
+            idx_shell : list[np.ndarray[int]]
+                List of arrays of vectors of integers used for indexing the nearest
+                neighboring k-mesh points to a given k-mesh point.
+        """
+        recip_lat_vecs = self.recip_lat_vecs
+        # basis vectors connecting neighboring mesh points (in inverse Cartesian units)
+        dk = np.array([recip_lat_vecs[i] / nk for i, nk in enumerate(self.nks)])
+        # array of integers e.g. in 2D for N_sh = 1 would be [0,1], [1,0], [0,-1], [-1,0]
+        nnbr_idx = list(product(list(range(-N_sh, N_sh + 1)), repeat=self.dim))
+        nnbr_idx.remove((0,) * self.dim)
+        nnbr_idx = np.array(nnbr_idx)
+        # vectors connecting k-points near Gamma point (in inverse lattice vector units)
+        b_vecs = np.array([nnbr_idx[i] @ dk for i in range(nnbr_idx.shape[0])])
+        # distances to points around Gamma
+        dists = np.array(
+            [np.vdot(b_vecs[i], b_vecs[i]) for i in range(b_vecs.shape[0])]
+        )
+        # remove numerical noise
+        dists = dists.round(10)
+
+        # sorting by distance
+        sorted_idxs = np.argsort(dists)
+        dists_sorted = dists[sorted_idxs]
+        b_vecs_sorted = b_vecs[sorted_idxs]
+        nnbr_idx_sorted = nnbr_idx[sorted_idxs]
+
+        unique_dists = sorted(list(set(dists)))  # removes repeated distances
+        keep_dists = unique_dists[:N_sh]  # keep only distances up to N_sh away
+        # keep only b_vecs in N_sh shells
+        k_shell = [
+            b_vecs_sorted[np.isin(dists_sorted, keep_dists[i])]
+            for i in range(len(keep_dists))
+        ]
+        idx_shell = [
+            nnbr_idx_sorted[np.isin(dists_sorted, keep_dists[i])]
+            for i in range(len(keep_dists))
+        ]
+
+        if report:
+            dist_degen = {ud: len(k_shell[i]) for i, ud in enumerate(keep_dists)}
+            print("k-shell report:")
+            print("--------------")
+            print(f"Reciprocal lattice vectors: {self._recip_vecs}")
+            print(f"Distances and degeneracies: {dist_degen}")
+            print(f"k-shells: {k_shell}")
+            print(f"idx-shells: {idx_shell}")
+
+        return k_shell, idx_shell
+
+    def get_weights(self, N_sh=1, report=False):
+        """Generates the finite difference weights on a k-shell."""
+        k_shell, idx_shell = self.get_k_shell(N_sh=N_sh, report=report)
+        dim_k = len(self.nks)
+        Cart_idx = list(comb(range(dim_k), 2))
+        n_comb = len(Cart_idx)
+
+        A = np.zeros((n_comb, N_sh))
+        q = np.zeros((n_comb))
+
+        for j, (alpha, beta) in enumerate(Cart_idx):
+            if alpha == beta:
+                q[j] = 1
+            for s in range(N_sh):
+                b_star = k_shell[s]
+                for i in range(b_star.shape[0]):
+                    b = b_star[i]
+                    A[j, s] += b[alpha] * b[beta]
+
+        U, D, Vt = np.linalg.svd(A, full_matrices=False)
+        w = (Vt.T @ np.linalg.inv(np.diag(D)) @ U.T) @ q
+        if report:
+            print(f"Finite difference weights: {w}")
+        return w, k_shell, idx_shell
+
+    def get_boundary_phase(self):
+        """
+        Get phase factors to multiply the cell periodic states in the first BZ
+        related by the pbc u_{n, k+G} = u_{n, k} exp(-i G . r)
+
+        Returns:
+            bc_phase (np.ndarray):
+                The shape is [...k(s), shell_idx] where shell_idx is an integer
+                corresponding to a particular idx_vec where the convention is to go
+                counter-clockwise (e.g. square lattice 0 --> [1, 0], 1 --> [0, 1] etc.)
+
+        """
+        # --- unpack everything ---
+        nks = np.array(self.nks)  # (dim,)
+        orb_vecs = self.model.orb_vecs  # (n_orb, dim)
+        nbrs = np.array(self.nnbr_idx_shell[0])  # (N_nbr, dim)
+        idx_arr = self.idx_arr  # (Nk, dim)
+        Nk, dim = idx_arr.shape
+        N_nbr = nbrs.shape[0]
+        n_orb = orb_vecs.shape[0]
+        nspin = self.model.nspin
+
+        # --- compute neighbor indices and how many cells we jumped over ---
+        shifted_idx = idx_arr[:, None, :] + nbrs[None, :, :]  # (Nk, N_nbr, dim)
+        mask_pos = shifted_idx >= nks  # True where you stepped >= +1 cell
+        mask_neg = shifted_idx < 0  # True where you stepped <= –1 cell
+        cross = (mask_pos | mask_neg).any(axis=2)  # (Nk, N_nbr)
+        G = mask_pos.astype(np.int8) - mask_neg.astype(np.int8)
+
+        # build output filled with 1’s
+        if nspin == 1:
+            bc_shape = (Nk, N_nbr, n_orb)
+        elif nspin == 2:
+            bc_shape = (Nk, N_nbr, n_orb, 2)
+        else:
+            raise ValueError("Wrong spin value, must be either 1 or 2")
+        bc = np.ones(bc_shape, complex)
+
+        # only for the True positions compute phase
+        ki, ni = np.nonzero(cross)  # lists of length M << Nk*N_nbr
+        if ki.size:
+            # extract only the G’s at those positions: (M, dim)
+            Gc = G[ki, ni, :]  # shape (M, dim)
+
+            # dot with each orbital coordinate: (M, n_orb)
+            dot = Gc.dot(orb_vecs.T)
+
+            # complex phase for each of those M×n_orb points
+            phase = np.exp(-2j * np.pi * dot)  # shape (M, n_orb)
+            if nspin == 1:
+                bc[ki, ni] = phase
+            elif nspin == 2:
+                bc[ki, ni] = phase[..., None]
+
+        return bc.reshape(*nks, N_nbr, n_orb * nspin)
+
+    def get_orb_phases(self, inverse=False):
+        r"""Returns exp(\pm i k.tau) factors
+
+        Args:
+            Inverse (bool):
+                If True, multiplies factor of -1 for mutiplying Bloch states to get cell-periodic states.
+        """
+        lam = -1 if inverse else 1  # overall minus if getting cell periodic from Bloch
+        per_dir = list(range(self.flat_mesh.shape[-1]))  # list of periodic dimensions
+        # slice second dimension to only keep only periodic dimensions in orb
+        per_orb = self.model.orb_vecs[:, per_dir]
+
+        # compute a list of phase factors [k_val, orbital]
+        wf_phases = np.exp(
+            lam * 1j * 2 * np.pi * per_orb @ self.flat_mesh.T, dtype=complex
+        ).T
+        return wf_phases  # 1D numpy array of dimension norb
 
     def ignore_position_operator_offdiagonal(self):
         """Set flag to ignore off-diagonal elements of the position operator.
@@ -2874,7 +3173,7 @@ class TBModel:
                 """
             )
 
-        v_k = self.get_velocity(k_pts, cartesian=cartesian)  # (Nk, dim_k, n_orb, n_orb)
+        v_k = self.grad_ham(k_pts, cartesian=cartesian)  # (Nk, dim_k, n_orb, n_orb)
         # flatten spin axis if present
         new_shape = (v_k.shape[:2]) + (self._nstate, self._nstate)
         v_k = v_k.reshape(*new_shape)
@@ -2946,7 +3245,7 @@ class TBModel:
         else:
             return b_curv[dirs]
 
-    def chern(self, occ_idxs=None, dirs=(0, 1), nk=100):
+    def chern(self, occ_idxs=None, dirs=(0, 1), nk=200):
         """Computes Chern number for occupied manifold.
 
         Parameters
@@ -2964,19 +3263,83 @@ class TBModel:
         float
             Chern number for the occupied manifold.
         """
-        from .mesh2 import Mesh
 
-        nks = (nk,) * self._dim_k
-        k_mesh = Mesh(self, *nks)
-        flat_mesh = k_mesh.flat_mesh
-
-        Omega = self.berry_curvature(flat_mesh, occ_idxs=occ_idxs)
+        nks = (nk,) * self.dim_k
+        k_grid = self.k_uniform_mesh(nks)
+        k_flat = k_grid.reshape(-1, self.dim_k)
+        
+        Omega = self.berry_curvature(k_flat, occ_idxs=occ_idxs)
 
         Nk = Omega.shape[2]
         dk_sq = 1 / Nk
         Chern = np.sum(Omega[dirs]) * dk_sq / (2 * np.pi)
 
         return Chern.real
+
+    def local_chern_marker(self, occ_idxs=None):
+        """Bianco–Resta local Chern marker.
+
+        The local Chern marker is a per-site quantity that captures the
+        topological character of the occupied manifold in real space.
+        It is defined as
+
+        .. math::
+            C_i = -4\pi \, \mathrm{Im} [P[X,P][Y,P]]_{ii},
+
+        where P is the projector onto occupied states, and X,Y are position
+        operators.
+
+        Returns
+        -------
+        C_local : np.ndarray of shape (N,)
+            Per-site local Chern marker
+        """
+        if self.dim_k != 0:
+            raise ValueError("Local Chern marker is only defined for real-space models (dim_k=0).")
+        
+        H = self.hamiltonian()
+        coords = self.get_orb(cartesian=True)
+        uc_vol = self.get_cell_vol()
+
+        N = H.shape[0]
+
+        # coords: x, y (Cartesian)
+        if isinstance(coords, tuple) and len(coords) == 2:
+            x = np.asarray(coords[0], float).reshape(N)
+            y = np.asarray(coords[1], float).reshape(N)
+        else:
+            coords = np.asarray(coords, float)
+            if coords.ndim != 2 or coords.shape != (N, 2):
+                raise ValueError("coords must be (N,2) or a tuple (x,y) of length N.")
+            x, y = coords[:, 0], coords[:, 1]
+
+        # Dense eigensolve and projector
+        evals, evecs = np.linalg.eigh(H)  # returns sorted ascending
+        if occ_idxs is None:
+            # Default to half filling (robust for particle-hole symmetric models like Haldane).
+            occ_idxs = np.arange(N // 2)
+
+        Uocc = evecs[:, occ_idxs]  # (N, k_occ)
+        P = Uocc @ Uocc.conj().T  # (N,N) dense projector
+
+        # Position operators (dense diagonals)
+        X = np.diag(x.astype(complex))
+        Y = np.diag(y.astype(complex))
+
+        # Commutators (explicit dense)
+        XP = X @ P
+        PX = P @ X
+        YP = Y @ P
+        PY = P @ Y
+        CX = XP - PX
+        CY = YP - PY
+
+        # A = P [X,P] [Y,P]
+        A = P @ (CX @ CY)
+
+        # Local marker from diagonal of A
+        C_local = 4 * np.pi * np.diag(np.imag(A)) / uc_vol
+        return C_local
 
     ##### Plotting functions #####
     # These plotting functions are wrappers to the functions in plotting.py
