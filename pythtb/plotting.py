@@ -212,12 +212,24 @@ def plot_tb_model(
 
     # Projection function: projects a vector onto the 2D plane
     def proj(v):
-        if proj_plane is not None:
-            coord_x = v[proj_plane[0]]
-            coord_y = v[proj_plane[1]]
-        else:
+        v = np.array(v, dtype=float)
+        if v.ndim != 1:
+            raise ValueError("Input vector must be 1D.")
+        if v.shape[0] <= 1:
+            coord_x = v[0]
+            coord_y = 0
+        elif v.shape[0] == 2:
             coord_x = v[0]
             coord_y = v[1]
+        elif v.shape[0] == 3:
+            if proj_plane is not None:
+                coord_x = v[proj_plane[0]]
+                coord_y = v[proj_plane[1]]
+            else:
+                coord_x = v[0]
+                coord_y = v[1]
+        else:
+            raise ValueError("Input vector must have 1, 2, or 3 elements.")
         return [coord_x, coord_y]
 
     # Convert reduced coordinates to Cartesian coordinates
@@ -233,7 +245,6 @@ def plot_tb_model(
     all_coords.append(origin)
 
     # Draw lattice (unit cell) vectors as arrows and label them
-    # TODO: Fix lattice vectors to appear in hybrid finite/periodic models
     ends = []
     for i in model._per:
         start = origin
@@ -478,11 +489,11 @@ def plot_tb_model(
     # Final plot adjustments
     ax.set_aspect("equal")
     if proj_plane is not None:
-        ax.set_xlabel(f"Cartesian coordinate {proj_plane[0]}")
-        ax.set_ylabel(f"Cartesian coordinate {proj_plane[1]}")
+        ax.set_xlabel(fr"x_{proj_plane[0]}")
+        ax.set_ylabel(f"x_{proj_plane[1]}")
     else:
-        ax.set_xlabel(f"Cartesian coordinate {0}")
-        ax.set_ylabel(f"Cartesian coordinate {1}")
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
 
     # ax.legend(loc="upper right", fontsize=10)
     # plt.tight_layout()
