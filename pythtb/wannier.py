@@ -1,10 +1,10 @@
 import numpy as np
-from .bloch import Bloch
+from .wf_array import WFArray
+from .mesh import Mesh
 from itertools import product
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .mesh2 import KMesh
     from .tb_model import TBModel
 
 __all__ = ["Wannier"]
@@ -17,33 +17,27 @@ class Wannier:
     ----------
     model : TBModel
         The tight-binding model associated with these Wannier functions.
-    energy_eigstates : Bloch
+    energy_eigstates : WFArray
         The Bloch wavefunctions corresponding to the energy eigenstates.
     nks : list
         The k-point mesh dimensions.
     """
-    def __init__(self, model: "TBModel", energy_eigstates: Bloch, *nks):
+    def __init__(self, model: "TBModel", energy_eigstates: WFArray):
         self.model: "TBModel" = model
-        self.model.set_k_mesh(*nks)
-        self.k_mesh: "KMesh" = model.k_mesh
-        self._nks: list = nks
-        # self.k_mesh: K_mesh = K_mesh(model, *nks)
+        self.energy_eigstates: WFArray = energy_eigstates
 
-        # self.energy_eigstates: Bloch = Bloch(model, *nks)
-        # self.energy_eigstates.solve_model()
-        self.energy_eigstates: Bloch = energy_eigstates
-        self.k_mesh = energy_eigstates.k_mesh
-        assert hasattr(
-            self.energy_eigstates, "is_energy_eigstate"
-        ), "Energy eigenstates must be solved with 'solve_model' before Wannierization"
-        self.tilde_states: Bloch = Bloch(model, *nks)
+        self.k_mesh: Mesh = energy_eigstates.mesh
+        self._nks: list = self.k_mesh.shape_k
 
-        halfs = [nk // 2 for nk in nks]
+        self.tilde_states: WFArray = WFArray(model, self.k_mesh)
+        self.tilde_states.solve_mesh(use_metal=True)
+
+        halfs = [nk // 2 for nk in self._nks]
         ranges = [np.arange(-h, h) for h in halfs]
         mesh = np.meshgrid(*ranges, indexing="ij")
         # used for real space looping of WFs
         self.supercell = np.stack(mesh, axis=-1).reshape(  # (..., len(nks))
-            -1, len(nks)
+            -1, len(self._nks)
         )  # (product, dims)
         # list(product(*[range(-int((nk-nk%2)/2), int((nk-nk%2)/2)) for nk in nks]))  # used for real space looping of WFs
 
@@ -72,8 +66,8 @@ class Wannier:
         # number of trial functions to define
         num_tf = len(tf_list)
 
-        if self.model._nspin == 2:
-            tfs = np.zeros([num_tf, self.model._norb, 2], dtype=complex)
+        if self.model.nspin == 2:
+            tfs = np.zeros([num_tf, self.model.norb, 2], dtype=complex)
             for j, tf in enumerate(tf_list):
                 assert isinstance(
                     tf, (list, np.ndarray)
@@ -82,9 +76,9 @@ class Wannier:
                     tfs[j, orb, spin] = amp
                 tfs[j] /= np.linalg.norm(tfs[j])
 
-        elif self.model._nspin == 1:
+        elif self.model.nspin == 1:
             # initialize array containing tfs = "trial functions"
-            tfs = np.zeros([num_tf, self.model._norb], dtype=complex)
+            tfs = np.zeros([num_tf, self.model.norb], dtype=complex)
             for j, tf in enumerate(tf_list):
                 assert isinstance(
                     tf, (list, np.ndarray)
@@ -116,18 +110,7 @@ class Wannier:
         """
         if psi_wfs is None:
             # get Bloch psi_nk energy eigenstates
-            psi_wfs = self.energy_eigstates.get_states()["Bloch"]
-
-        # flatten along spin dimension in case spin is considered
-        n_spin = self.model._nspin
-        dim_k = self.k_mesh.dim
-        num_axes = len(psi_wfs.shape)
-        if num_axes != dim_k + 2 + n_spin - 1:
-            # we have psi_wf defined on a 1D path in dim_k BZ
-            new_shape = (*psi_wfs.shape[:2], -1)
-        else:
-            new_shape = (*psi_wfs.shape[: self.k_mesh.dim + 1], -1)
-        psi_wfs = psi_wfs.reshape(*new_shape)
+            psi_wfs = self.energy_eigstates.get_bloch_states(flatten_spin=True)["bloch"]
 
         # only keep band_idxs
         psi_wfs = np.take(psi_wfs, band_idxs, axis=-2)
