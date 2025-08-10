@@ -3365,10 +3365,11 @@ class TBModel:
         use_tf_speedup : bool, optional
             Whether to use TensorFlow for speedup. Default is True.
         """
-        from .wannier import Wannier
         from .mesh import Mesh
         from .wf_array import WFArray
-        from .utils import levi_civita, fin_diff
+
+        if self.dim_k != 3:
+            raise ValueError("Axion angle is only defined for 3D k-space models.")
 
         model = self
 

@@ -2082,16 +2082,43 @@ class WFArray:
         dirs=None,
         state_idx=None,
         non_abelian=False,
-        delta_lam=1,
         return_flux=False,
         Kubo=False
     ):
+        """Berry curvature tensor.
+
+        .. versionadded:: 2.0.0
+
+        The difference between this function and :func:`berry_flux` is that this function computes a dimensionful
+        Berry curvature tensor, while :func:`berry_flux` is dimensionless. Effectively, this function divides by
+        the area of the plaquette (in reduced units) in parameter space. The reduced units are set by the mesh spacing
+        in each direction.
+
+        Parameters
+        ----------
+        dirs : list or 'all', optional
+            Directions in parameter space to compute the Berry curvature. If 'all', compute for all pairs of directions.
+            By default None, which is equivalent to 'all'.
+        state_idx : int or list of int, optional
+            Index or indices of the states to compute the Berry curvature for. By default None, which computes for all states.
+        non_abelian : bool, optional
+            Whether to compute the non-Abelian Berry curvature. By default False.
+        return_flux : bool, optional
+            Whether to return the Berry flux instead of the curvature. By default False.
+        Kubo : bool, optional
+            Whether to use the Kubo formula for the Berry curvature. By default False.
+
+        Returns
+        -------
+        np.ndarray
+            Berry curvature tensor with shape depending on input parameters.
+        """
 
         nks = self.nks  # Number of mesh points per direction
         n_lambda = self.nlams  # Number of adiabatic parameters
-        dim_k = len(nks)      # Number of k-space dimensions
-        dim_lam = len(n_lambda)  # Number of adiabatic dimensions
-        dim_total = dim_k + dim_lam          # Total number of dimensions
+        dim_k = self.dim_k      # Number of k-space dimensions
+        dim_lam = self.dim_lambda   # Number of adiabatic dimensions
+        dim_total = dim_k + dim_lam  # Total number of dimensions
 
         if dim_k < 2:
             raise ValueError("Berry curvature only defined for dim_k >= 2.")
@@ -2103,7 +2130,7 @@ class WFArray:
             #     raise ValueError("Must diagonalize model first to set wavefunctions and energies.")
             if state_idx is not None:
                 print("Berry curvature in Kubo formula is for all occupied bands. Using half filling for occupied bands.")
-            if dim_lam != 0 or delta_lam != 1:
+            if dim_lam != 0:
                 raise ValueError("Adiabatic dimensions not yet supported for Kubo formula.")
             if return_flux:
                 print("Kubo formula doesn't support flux. Will return dimensionful Berry curvature only.")
@@ -2131,18 +2158,25 @@ class WFArray:
 
             return b_curv
 
-
         Berry_flux = self.berry_flux(state_idx=state_idx, non_abelian=non_abelian)
         Berry_curv = np.zeros_like(Berry_flux, dtype=complex)
 
-        dim = Berry_flux.shape[0]  # Number of dimensions in parameter space
+        # Get delta vectors for each dimension in parameter space
         recip_lat_vecs = self.model.get_recip_lat()  # Expressed in cartesian (x,y,z) coordinates
-    
         dks = np.zeros((dim_total, dim_total))
         dks[:dim_k, :dim_k] = recip_lat_vecs / np.array([nk-1 for nk in self.nks])[:, None]
-        if dim_lam > 0:
-            np.fill_diagonal(dks[dim_k:, dim_k:], delta_lam / np.array(self.nlams))
 
+        # set delta lam to be difference between 0th and last points along each adiabatic axis
+        if dim_lam != 0:
+            param_points = self.mesh.get_param_points()
+            delta_lam = np.zeros(dim_lam)
+            for i in range(dim_lam):
+                # shape of param_points is (nl1, nl2, ..., nld, d)
+                # FIX: Need to index param_points correctly for each adiabatic axis
+                delta_lam[i] = param_points[(0,)*i + (-1,) + (0,)*(dim_lam - i - 1), dim_k + i] - param_points[(0,)*dim_lam, dim_k + i]
+                dks[dim_k + i, dim_k + i] = delta_lam[i] / (n_lambda[i] - 1)
+
+        dim = Berry_flux.shape[0]  # Number of dimensions in parameter space
         # Divide by area elements for the (mu, nu)-plane
         for mu in range(dim):
             for nu in range(mu+1, dim):
@@ -2229,6 +2263,40 @@ class WFArray:
         ):
         r"""Compute the axion angle from the Berry curvature.
 
+        .. versionadded:: 2.0.0
+
+        The axion angle is a topological invariant in three-dimensional insulators,
+        related to the magnetoelectric response. It is defined as 
+
+        .. math::
+
+            \theta = -\frac{1}{4\pi} \epsilon^{\mu\nu\rho} 
+            \int d^3k \, \text{Tr} 
+            \left[ \mathcal{A}_{\mu} \partial_{\nu} \mathcal{A}_{\rho} 
+            - \frac{2i}{3} \mathcal{A}_{\mu} \mathcal{A}_{\nu} \mathcal{A}_{\rho} \right]
+
+        Alternatively, it may be expressed 
+
+        .. math::
+
+        \theta = -\frac{1}{4\pi} \epsilon^{\mu\nu\rho} 
+            \int d^3k \, \text{Tr} 
+            \left[ \frac{1}{2} \mathcal{A}_{\mu} \hat{\Omega}_{\nu\rho} 
+            + \frac{i}{3} \mathcal{A}_{\mu} \mathcal{A}_{\nu} \mathcal{A}_{\rho} \right]
+
+        The latter form has the benefit that errors introduced by finite difference approximations
+        of :math:`\partial_{\nu} \mathcal{A}_{\rho}` can be avoided by using the Kubo formula for
+        computing the Berry curvature :math:`\hat{\Omega}_{\nu\rho}` directly.
+
+        The axion angle is only gauge-invariant modulo :math:`2\pi`, and its precise value can depend 
+        on the choice of gauge. Because of this, we must fix the gauge
+        choice by using the projection method, often used in the context of Wannier functions. This
+        involves projecting the occupied (and conduction) states onto a set of trial wavefunctions to 
+        obtain a smooth gauge. The trial wavefunctions should be chosen to have the same symmetry
+        properties as the occupied states, and should be linearly independent to ensure a well-defined
+        projection. They should be chosen to capture the essential features of the occupied subspace,
+        such as the orbital character and spatial localization.
+
         Parameters
         ----------
         tf_list : list
@@ -2241,9 +2309,30 @@ class WFArray:
             Order of the finite difference used in the calculation. Default is 3.
         use_tf_speedup : bool, optional
             Whether to use TensorFlow for speedup. Default is True.
+
+        Returns
+        -------
+        theta : float
+            The computed axion angle.
+
+        Notes
+        ------
+        The axion angle is only defined for three-dimensional k-space models. It must be ensured by the user
+        that the `WFArray` is defined on a 3D k-space mesh, and the underlying model is also 3D. It must also
+        be ensured that the `WFArray` is populated by energy eigenstates on the mesh.
+
+        If the system has a non-trivial :math:`\mathbb{Z}_2` index, there is an obstruction to choosing a smooth
+        and periodic gauge choice. In this case, one must pick a set of trial wavefunctions that break time-reversal
+        symmetry. 
+
         """
         from .wannier import Wannier
         from .utils import levi_civita, fin_diff
+
+        if self.dim_k != 3:
+            raise ValueError("Axion angle is only defined for 3D k-space models.")
+        if self.dim_lambda != 0:
+            raise ValueError("Adiabatic dimensions not yet supported for axion angle.")
 
         model = self.model
         wfa = self
