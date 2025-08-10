@@ -9,10 +9,10 @@ authors:
     given-names: Sinisa
   - family-names: Vanderbilt
     given-names: David
-date-released: 2022-01-01
+date-released: 2025-10-01
 version: "2.0.0"
 doi: 10.5281/zenodo.12721315
 url: https://zenodo.org/records/12721315
-repository: https://github.com/sinisacoh/pythtb
+repository: https://github.com/pythtb/pythtb
 license: GPL-3.0-or-later
 type: software
