@@ -154,6 +154,16 @@ def finite_diff_coeffs(order_eps, derivative_order=1, mode="central"):
     coeffs = np.linalg.solve(A, b)  # Solve system Ax = b
     return coeffs, stencil
 
+def fin_diff(U_k, mu, dk_mu, order_eps, mode='central'):
+    coeffs, stencil = finite_diff_coeffs(order_eps=order_eps, mode=mode)
+
+    fd_sum = np.zeros_like(U_k)
+
+    for s, c in zip(stencil, coeffs):
+        fd_sum += c * np.roll(U_k, shift=-s, axis=mu)
+
+    v = fd_sum / (dk_mu)
+    return v
 
 def is_Hermitian(M):
     """
