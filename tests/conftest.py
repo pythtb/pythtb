@@ -3,6 +3,7 @@ import pytest
 from pathlib import Path
 from collections import defaultdict
 from datetime import datetime
+from copy import deepcopy
 import re
 
 results = defaultdict(list)
@@ -96,22 +97,33 @@ def format_tree_with_time(node, indent=0):
     return lines
 
 
+def render_markdown(tree, updated_at):
+    output = [
+        "# 📋 Test Status Report",
+        "",
+        f"Last updated on **{updated_at}**",
+        "",
+        "---",
+        ""
+    ]
+    output.extend(format_tree_with_time(tree))
+    return "\n".join(output)
+
 @pytest.hookimpl(trylast=True)
 def pytest_sessionfinish(session, exitstatus):
     out_path = Path(session.config.rootdir) / "tests" / "README.md"
     existing_tree = load_existing_tree(out_path)
     new_tree = build_nested_tree(results)
-    merge_trees(existing_tree, new_tree)
 
-    output = [
-        "# 📋 Test Status Report",
-        "",
-        f"Last updated on **{datetime.now().strftime('%Y-%m-%d at %H:%M:%S')}**",
-        "",
-        "---",
-        ""
-    ]
+    # Merge into a copy so we can detect real changes
+    merged_tree = deepcopy(existing_tree)
+    merge_trees(merged_tree, new_tree)
 
-    output.extend(format_tree_with_time(existing_tree))
-    out_path.write_text("\n".join(output), encoding="utf-8")
+    # If nothing changed, don't touch the file (prevents spurious diffs)
+    if merged_tree == existing_tree:
+        print(f"\nℹ️ No test result changes; leaving {out_path} untouched.")
+        return
+
+    ts = datetime.now().strftime('%Y-%m-%d at %H:%M:%S')
+    out_path.write_text(render_markdown(merged_tree, ts), encoding="utf-8")
     print(f"\n✅ Updated test results in {out_path}")
