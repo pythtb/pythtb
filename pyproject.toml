@@ -49,7 +49,7 @@ speedup = [
 
 [project.urls]
 "Homepage" = "http://www.physics.rutgers.edu/pythtb"
-"Download" = "http://www.physics.rutgers.edu/pythtb"
+"Download" = "https://github.com/pythtb/pythtb"
 
 [tool.setuptools]
 py-modules = ["pythtb"]

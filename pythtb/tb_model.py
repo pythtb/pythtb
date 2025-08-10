@@ -3341,7 +3341,7 @@ class TBModel:
         C_local = 4 * np.pi * np.diag(np.imag(A)) / uc_vol
         return C_local
     
-    def get_axion_angle(
+    def axion_angle(
             self,
             tf_list,
             nks: tuple,

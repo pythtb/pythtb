@@ -14,8 +14,8 @@ import warnings
 logging.getLogger("pythtb").setLevel(logging.WARNING)
 
 project = u'PythTB'
-copyright = '2025, Trey Cole, Sinisa Coh, and David Vanderbilt'
-author = 'Trey Cole, Sinisa Coh, and David Vanderbilt'
+copyright = '2025, PythTB team'
+author = 'PythTB team'
 version = pythtb.__version__
 
 # preamble for latex formulas
@@ -76,7 +76,7 @@ nb_execution_timeout = 600     # seconds per notebook
 nb_execution_cache_path = ".jupyter_cache"  # keep cache OUTSIDE _build so 'clean' doesn't erase it
 
 thebe_config = {
-    "repository_url": "https://github.com/youruser/yourrepo",
+    "repository_url": "https://github.com/pythtb/pythtb",
     "repository_branch": "v2",
     # CSS selector for code cells
     "selector": "div.nbinput",
@@ -126,7 +126,7 @@ exclude_patterns = ['generated/*.md', 'examples_rst/*', 'examples_py/*']
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_context = {
-    "github_user": "treycole",
+    "github_user": "pythtb",
     "github_repo": "pythtb",
     "github_version": "main",
     "doc_path": "docs",
@@ -174,7 +174,7 @@ html_theme_options = {
     "icon_links": [
         {
             "name": "GitHub",
-            "url": "https://github.com/treycole/pythtb",
+            "url": "https://github.com/pythtb/pythtb",
             "icon": "fa-brands fa-github",
         },
         {
@@ -243,17 +243,18 @@ latex_elements = {
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
   ('index', 'PythTB.tex', u'PythTB Documentation',
-   u'Sinisa Coh and David Vanderbilt', 'manual'),
+   u'Trey Cole, Sinisa Coh and David Vanderbilt', 'manual'),
 ]
 
 man_pages = [
     ('index', 'pythtb', u'PythTB Documentation',
-     [u'Sinisa Coh and David Vanderbilt'], 1)
+     [u'Trey Cole, Sinisa Coh and David Vanderbilt'], 1)
 ]
 
 texinfo_documents = [
   ('index', 'PythTB', u'PythTB Documentation',
-   u'Sinisa Coh and David Vanderbilt', 'PythTB', 'Python software package implementation of tight-binding approximation',
+   u'Trey Cole, Sinisa Coh and David Vanderbilt', 
+   'PythTB', 'Python software package implementation of tight-binding approximation',
    'Miscellaneous'),
 ]
 

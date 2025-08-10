@@ -2253,7 +2253,7 @@ class WFArray:
 
         return chern
     
-    def get_axion_angle(
+    def axion_angle(
             self, 
             tf_list, 
             use_curv=True, 
@@ -2279,7 +2279,7 @@ class WFArray:
 
         .. math::
 
-        \theta = -\frac{1}{4\pi} \epsilon^{\mu\nu\rho} 
+            \theta = -\frac{1}{4\pi} \epsilon^{\mu\nu\rho} 
             \int d^3k \, \text{Tr} 
             \left[ \frac{1}{2} \mathcal{A}_{\mu} \hat{\Omega}_{\nu\rho} 
             + \frac{i}{3} \mathcal{A}_{\mu} \mathcal{A}_{\nu} \mathcal{A}_{\rho} \right]
