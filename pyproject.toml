@@ -43,6 +43,9 @@ dev = [
 plotting = [
   "plotly"
 ]
+speedup = [
+  "tensorflow"
+]
 
 [project.urls]
 "Homepage" = "http://www.physics.rutgers.edu/pythtb"
