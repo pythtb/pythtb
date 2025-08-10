@@ -3277,7 +3277,7 @@ class TBModel:
         return Chern.real
 
     def local_chern_marker(self, occ_idxs=None):
-        """Bianco–Resta local Chern marker.
+        r"""Bianco–Resta local Chern marker.
 
         The local Chern marker is a per-site quantity that captures the
         topological character of the occupied manifold in real space.
@@ -3340,6 +3340,50 @@ class TBModel:
         # Local marker from diagonal of A
         C_local = 4 * np.pi * np.diag(np.imag(A)) / uc_vol
         return C_local
+    
+    def get_axion_angle(
+            self,
+            tf_list,
+            nks: tuple,
+            use_curv=True,
+            return_both=False,
+            order_fd=3,
+            use_tf_speedup=True
+        ):
+        r"""Compute the axion angle from the Berry curvature.
+
+        Parameters
+        ----------
+        tf_list : list
+            List of trial wavefunctions for projection.
+        use_curv : bool, optional
+            Whether to use the Berry curvature in the calculation. Default is True.
+        return_both : bool, optional
+            Whether to return both the Berry curvature and the axion angle. Default is False.
+        order_fd : int, optional
+            Order of the finite difference used in the calculation. Default is 3.
+        use_tf_speedup : bool, optional
+            Whether to use TensorFlow for speedup. Default is True.
+        """
+        from .wannier import Wannier
+        from .mesh import Mesh
+        from .wf_array import WFArray
+        from .utils import levi_civita, fin_diff
+
+        model = self
+
+        mesh = Mesh(dim_k=3, dim_param=0, axis_types=["k", "k", "k"])
+        mesh.build_full_grid(shape=nks)
+        wfa = WFArray(model, mesh)
+        wfa.solve_mesh(use_metal=True)
+        
+        return wfa.get_axion_angle(
+            tf_list=tf_list,
+            use_curv=use_curv,
+            return_both=return_both,
+            order_fd=order_fd,
+            use_tf_speedup=use_tf_speedup
+        )
 
     ##### Plotting functions #####
     # These plotting functions are wrappers to the functions in plotting.py
