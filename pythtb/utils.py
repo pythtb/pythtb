@@ -1,6 +1,8 @@
 import numpy as np
 from math import factorial
 from itertools import permutations
+from itertools import combinations_with_replacement as comb
+from itertools import product
 
 __all__ = [
     "levi_civita",
@@ -94,6 +96,20 @@ def detect_degeneracies(eigenvalues, tol=1e-8):
 
     return degenerate_groups
 
+def mat_exp(M):
+        eigvals, eigvecs = np.linalg.eig(M)
+        U = eigvecs
+        U_inv = np.linalg.inv(U)
+        # Diagonal matrix of the exponentials of the eigenvalues
+        exp_diagM = np.exp(eigvals)
+        # Construct the matrix exponential
+        expM = np.einsum(
+            "...ij, ...jk -> ...ik",
+            U,
+            np.multiply(U_inv, exp_diagM[..., :, np.newaxis]),
+        )
+        return expM
+
 
 def levi_civita(n, d):
     """
@@ -115,6 +131,99 @@ def levi_civita(n, d):
         epsilon[perm] = int(np.sign(sign))  # +1 for even, -1 for odd permutations
 
     return epsilon
+
+def get_k_shell(model, nks, N_sh: int, report: bool = False):
+    """Generates shells of k-points around the Gamma point.
+
+    Returns array of vectors connecting the origin to nearest neighboring k-points
+    in the mesh, along with vectors of reduced coordinates.
+
+    Parameters
+    ----------
+    N_sh : int
+        Number of nearest neighbor shells.
+    report : bool
+        If True, prints a summary of the k-shell.
+
+    Returns
+    -------
+        k_shell : list[np.ndarray[float]]
+            List of arrays of vectors in inverse units of lattice vectors 
+            connecting nearest neighbor k-mesh points.
+        idx_shell : list[np.ndarray[int]]
+            List of arrays of vectors of integers used for indexing the nearest
+            neighboring k-mesh points to a given k-mesh point.
+    """
+    recip_lat_vecs = model.recip_lat_vecs
+    dim_k = model.dim_k
+    # basis vectors connecting neighboring mesh points (in inverse Cartesian units)
+    dk = np.array([recip_lat_vecs[i] / nk for i, nk in enumerate(nks)])
+    # array of integers e.g. in 2D for N_sh = 1 would be [0,1], [1,0], [0,-1], [-1,0]
+    nnbr_idx = list(product(list(range(-N_sh, N_sh + 1)), repeat=dim_k))
+    nnbr_idx.remove((0,) * dim_k)
+    nnbr_idx = np.array(nnbr_idx)
+    # vectors connecting k-points near Gamma point (in inverse lattice vector units)
+    b_vecs = np.array([nnbr_idx[i] @ dk for i in range(nnbr_idx.shape[0])])
+    # distances to points around Gamma
+    dists = np.array(
+        [np.vdot(b_vecs[i], b_vecs[i]) for i in range(b_vecs.shape[0])]
+    )
+    # remove numerical noise
+    dists = dists.round(10)
+
+    # sorting by distance
+    sorted_idxs = np.argsort(dists)
+    dists_sorted = dists[sorted_idxs]
+    b_vecs_sorted = b_vecs[sorted_idxs]
+    nnbr_idx_sorted = nnbr_idx[sorted_idxs]
+
+    unique_dists = sorted(list(set(dists)))  # removes repeated distances
+    keep_dists = unique_dists[:N_sh]  # keep only distances up to N_sh away
+    # keep only b_vecs in N_sh shells
+    k_shell = [
+        b_vecs_sorted[np.isin(dists_sorted, keep_dists[i])]
+        for i in range(len(keep_dists))
+    ]
+    idx_shell = [
+        nnbr_idx_sorted[np.isin(dists_sorted, keep_dists[i])]
+        for i in range(len(keep_dists))
+    ]
+
+    if report:
+        dist_degen = {ud: len(k_shell[i]) for i, ud in enumerate(keep_dists)}
+        print("k-shell report:")
+        print("--------------")
+        print(f"Reciprocal lattice vectors: {recip_lat_vecs}")
+        print(f"Distances and degeneracies: {dist_degen}")
+        print(f"k-shells: {k_shell}")
+        print(f"idx-shells: {idx_shell}")
+
+    return k_shell, idx_shell
+
+
+def get_fd_weights(nks, dim_k, N_sh=1, report=False):
+    """Generates the finite difference weights on a k-shell."""
+    k_shell, idx_shell = get_k_shell(N_sh=N_sh, report=report)
+    cart_idx = list(comb(range(dim_k), 2))
+    n_comb = len(cart_idx)
+
+    A = np.zeros((n_comb, N_sh))
+    q = np.zeros((n_comb))
+
+    for j, (alpha, beta) in enumerate(cart_idx):
+        if alpha == beta:
+            q[j] = 1
+        for s in range(N_sh):
+            b_star = k_shell[s]
+            for i in range(b_star.shape[0]):
+                b = b_star[i]
+                A[j, s] += b[alpha] * b[beta]
+
+    U, D, Vt = np.linalg.svd(A, full_matrices=False)
+    w = (Vt.T @ np.linalg.inv(np.diag(D)) @ U.T) @ q
+    if report:
+        print(f"Finite difference weights: {w}")
+    return w, k_shell, idx_shell
 
 
 def finite_diff_coeffs(order_eps, derivative_order=1, mode="central"):
