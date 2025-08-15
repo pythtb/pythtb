@@ -1271,7 +1271,7 @@ class TBModel:
         return vel
     
 
-    def hamiltonian(self, k_pts=None):
+    def hamiltonian(self, k_pts=None, flatten_spin=False):
         r"""Generate the Bloch Hamiltonian for an array of k-points in reduced coordinates.
 
         The Hamiltonian is computed in tight-binding convention I, which includes phase factors
@@ -1394,8 +1394,6 @@ class TBModel:
                 for orb in orb_idxs:
                     ham[orb, :, orb, :] += site_energies[orb]
 
-            return ham
-
         else:
             # Compute phase factors for all k-points and hoppings
             orb_i = orb_red[i_indices]  # Shape: (n_hoppings, dim_r)
@@ -1431,8 +1429,26 @@ class TBModel:
                     ham[..., orb, orb] += site_energies[orb]
                 elif nspin == 2:
                     ham[..., orb, :, orb, :] += site_energies[orb]
+        
+        if flatten_spin and nspin == 2:
+            ham = ham.reshape(*ham.shape[:-4], self.norb * self.nspin, self.norb * self.nspin)
 
-            return ham
+        return ham
+
+    
+    def _get_periodic_H(self, H_flat, k_vals):
+        """
+        Change to periodic gauge so that H(k+G) = H(k)
+
+        If n_spin = 2, H_flat should only be flat along k and NOT spin
+        """
+        orb_vecs = self.get_orb_vecs()
+        orb_vec_diff = orb_vecs[:, None, :] - orb_vecs[None, :, :]
+        # np.matmul(orb_vec_diff, k_vals.T) = np.einsum('ijm, ...m->...ij', orb_vec_diff, k_vals)).T
+        # np.matmul(orb_vec_diff, k_vals.T) has shape (n_orb, n_orb, N_k)
+        orb_phase = np.exp(1j * 2 * np.pi * np.matmul(orb_vec_diff, k_vals.T)).transpose(2,0,1)
+        H_per_flat = H_flat * orb_phase
+        return H_per_flat
 
     def _sol_ham(self, ham, return_eigvecs=False, keep_spin_ax=True):
         """Solves Hamiltonian and returns eigenvectors, eigenvalues"""
@@ -2622,173 +2638,7 @@ class TBModel:
             _report(k_list, lat_per, k_metric, k_node, node_index)
 
         return k_vec, k_dist, k_node    
-
     
-    def get_k_shell(self, N_sh: int, report: bool = False):
-        """Generates shells of k-points around the Gamma point.
-
-        Returns array of vectors connecting the origin to nearest neighboring k-points
-        in the mesh, along with vectors of reduced coordinates.
-
-        Parameters
-        ----------
-        N_sh : int
-            Number of nearest neighbor shells.
-        report : bool
-            If True, prints a summary of the k-shell.
-
-        Returns
-        -------
-            k_shell : list[np.ndarray[float]]
-                List of arrays of vectors in inverse units of lattice vectors 
-                connecting nearest neighbor k-mesh points.
-            idx_shell : list[np.ndarray[int]]
-                List of arrays of vectors of integers used for indexing the nearest
-                neighboring k-mesh points to a given k-mesh point.
-        """
-        recip_lat_vecs = self.recip_lat_vecs
-        # basis vectors connecting neighboring mesh points (in inverse Cartesian units)
-        dk = np.array([recip_lat_vecs[i] / nk for i, nk in enumerate(self.nks)])
-        # array of integers e.g. in 2D for N_sh = 1 would be [0,1], [1,0], [0,-1], [-1,0]
-        nnbr_idx = list(product(list(range(-N_sh, N_sh + 1)), repeat=self.dim))
-        nnbr_idx.remove((0,) * self.dim)
-        nnbr_idx = np.array(nnbr_idx)
-        # vectors connecting k-points near Gamma point (in inverse lattice vector units)
-        b_vecs = np.array([nnbr_idx[i] @ dk for i in range(nnbr_idx.shape[0])])
-        # distances to points around Gamma
-        dists = np.array(
-            [np.vdot(b_vecs[i], b_vecs[i]) for i in range(b_vecs.shape[0])]
-        )
-        # remove numerical noise
-        dists = dists.round(10)
-
-        # sorting by distance
-        sorted_idxs = np.argsort(dists)
-        dists_sorted = dists[sorted_idxs]
-        b_vecs_sorted = b_vecs[sorted_idxs]
-        nnbr_idx_sorted = nnbr_idx[sorted_idxs]
-
-        unique_dists = sorted(list(set(dists)))  # removes repeated distances
-        keep_dists = unique_dists[:N_sh]  # keep only distances up to N_sh away
-        # keep only b_vecs in N_sh shells
-        k_shell = [
-            b_vecs_sorted[np.isin(dists_sorted, keep_dists[i])]
-            for i in range(len(keep_dists))
-        ]
-        idx_shell = [
-            nnbr_idx_sorted[np.isin(dists_sorted, keep_dists[i])]
-            for i in range(len(keep_dists))
-        ]
-
-        if report:
-            dist_degen = {ud: len(k_shell[i]) for i, ud in enumerate(keep_dists)}
-            print("k-shell report:")
-            print("--------------")
-            print(f"Reciprocal lattice vectors: {self._recip_vecs}")
-            print(f"Distances and degeneracies: {dist_degen}")
-            print(f"k-shells: {k_shell}")
-            print(f"idx-shells: {idx_shell}")
-
-        return k_shell, idx_shell
-
-    def get_weights(self, N_sh=1, report=False):
-        """Generates the finite difference weights on a k-shell."""
-        k_shell, idx_shell = self.get_k_shell(N_sh=N_sh, report=report)
-        dim_k = len(self.nks)
-        Cart_idx = list(comb(range(dim_k), 2))
-        n_comb = len(Cart_idx)
-
-        A = np.zeros((n_comb, N_sh))
-        q = np.zeros((n_comb))
-
-        for j, (alpha, beta) in enumerate(Cart_idx):
-            if alpha == beta:
-                q[j] = 1
-            for s in range(N_sh):
-                b_star = k_shell[s]
-                for i in range(b_star.shape[0]):
-                    b = b_star[i]
-                    A[j, s] += b[alpha] * b[beta]
-
-        U, D, Vt = np.linalg.svd(A, full_matrices=False)
-        w = (Vt.T @ np.linalg.inv(np.diag(D)) @ U.T) @ q
-        if report:
-            print(f"Finite difference weights: {w}")
-        return w, k_shell, idx_shell
-
-    def get_boundary_phase(self):
-        """
-        Get phase factors to multiply the cell periodic states in the first BZ
-        related by the pbc u_{n, k+G} = u_{n, k} exp(-i G . r)
-
-        Returns:
-            bc_phase (np.ndarray):
-                The shape is [...k(s), shell_idx] where shell_idx is an integer
-                corresponding to a particular idx_vec where the convention is to go
-                counter-clockwise (e.g. square lattice 0 --> [1, 0], 1 --> [0, 1] etc.)
-
-        """
-        # --- unpack everything ---
-        nks = np.array(self.nks)  # (dim,)
-        orb_vecs = self.model.orb_vecs  # (n_orb, dim)
-        nbrs = np.array(self.nnbr_idx_shell[0])  # (N_nbr, dim)
-        idx_arr = self.idx_arr  # (Nk, dim)
-        Nk, dim = idx_arr.shape
-        N_nbr = nbrs.shape[0]
-        n_orb = orb_vecs.shape[0]
-        nspin = self.model.nspin
-
-        # --- compute neighbor indices and how many cells we jumped over ---
-        shifted_idx = idx_arr[:, None, :] + nbrs[None, :, :]  # (Nk, N_nbr, dim)
-        mask_pos = shifted_idx >= nks  # True where you stepped >= +1 cell
-        mask_neg = shifted_idx < 0  # True where you stepped <= –1 cell
-        cross = (mask_pos | mask_neg).any(axis=2)  # (Nk, N_nbr)
-        G = mask_pos.astype(np.int8) - mask_neg.astype(np.int8)
-
-        # build output filled with 1’s
-        if nspin == 1:
-            bc_shape = (Nk, N_nbr, n_orb)
-        elif nspin == 2:
-            bc_shape = (Nk, N_nbr, n_orb, 2)
-        else:
-            raise ValueError("Wrong spin value, must be either 1 or 2")
-        bc = np.ones(bc_shape, complex)
-
-        # only for the True positions compute phase
-        ki, ni = np.nonzero(cross)  # lists of length M << Nk*N_nbr
-        if ki.size:
-            # extract only the G’s at those positions: (M, dim)
-            Gc = G[ki, ni, :]  # shape (M, dim)
-
-            # dot with each orbital coordinate: (M, n_orb)
-            dot = Gc.dot(orb_vecs.T)
-
-            # complex phase for each of those M×n_orb points
-            phase = np.exp(-2j * np.pi * dot)  # shape (M, n_orb)
-            if nspin == 1:
-                bc[ki, ni] = phase
-            elif nspin == 2:
-                bc[ki, ni] = phase[..., None]
-
-        return bc.reshape(*nks, N_nbr, n_orb * nspin)
-
-    def get_orb_phases(self, inverse=False):
-        r"""Returns exp(\pm i k.tau) factors
-
-        Args:
-            Inverse (bool):
-                If True, multiplies factor of -1 for mutiplying Bloch states to get cell-periodic states.
-        """
-        lam = -1 if inverse else 1  # overall minus if getting cell periodic from Bloch
-        per_dir = list(range(self.flat_mesh.shape[-1]))  # list of periodic dimensions
-        # slice second dimension to only keep only periodic dimensions in orb
-        per_orb = self.model.orb_vecs[:, per_dir]
-
-        # compute a list of phase factors [k_val, orbital]
-        wf_phases = np.exp(
-            lam * 1j * 2 * np.pi * per_orb @ self.flat_mesh.T, dtype=complex
-        ).T
-        return wf_phases  # 1D numpy array of dimension norb
 
     def ignore_position_operator_offdiagonal(self):
         """Set flag to ignore off-diagonal elements of the position operator.
@@ -3341,50 +3191,6 @@ class TBModel:
         C_local = 4 * np.pi * np.diag(np.imag(A)) / uc_vol
         return C_local
     
-    def axion_angle(
-            self,
-            tf_list,
-            nks: tuple,
-            use_curv=True,
-            return_both=False,
-            order_fd=3,
-            use_tf_speedup=True
-        ):
-        r"""Compute the axion angle from the Berry curvature.
-
-        Parameters
-        ----------
-        tf_list : list
-            List of trial wavefunctions for projection.
-        use_curv : bool, optional
-            Whether to use the Berry curvature in the calculation. Default is True.
-        return_both : bool, optional
-            Whether to return both the Berry curvature and the axion angle. Default is False.
-        order_fd : int, optional
-            Order of the finite difference used in the calculation. Default is 3.
-        use_tf_speedup : bool, optional
-            Whether to use TensorFlow for speedup. Default is True.
-        """
-        from .mesh import Mesh
-        from .wf_array import WFArray
-
-        if self.dim_k != 3:
-            raise ValueError("Axion angle is only defined for 3D k-space models.")
-
-        model = self
-
-        mesh = Mesh(dim_k=3, dim_param=0, axis_types=["k", "k", "k"])
-        mesh.build_full_grid(shape=nks)
-        wfa = WFArray(model, mesh)
-        wfa.solve_mesh(use_metal=True)
-        
-        return wfa.get_axion_angle(
-            tf_list=tf_list,
-            use_curv=use_curv,
-            return_both=return_both,
-            order_fd=order_fd,
-            use_tf_speedup=use_tf_speedup
-        )
 
     ##### Plotting functions #####
     # These plotting functions are wrappers to the functions in plotting.py
