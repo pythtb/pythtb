@@ -330,6 +330,34 @@ def pauli_decompose(M):
     return [a0, a1, a2, a3]
 
 
+def twf_generator(model, twf_list):
+    
+    # number of trial functions to define
+    num_tf = len(twf_list)
+    if model.nspin == 2:
+        tfs = np.zeros([num_tf, model.norb, 2], dtype=complex)
+        for j, tf in enumerate(twf_list):
+            assert isinstance(
+                tf, (list, np.ndarray)
+            ), "Trial function must be a list of tuples"
+            for orb, spin, amp in tf:
+                tfs[j, orb, spin] = amp
+            tfs[j] /= np.linalg.norm(tfs[j])
+
+    elif model.nspin == 1:
+        # initialize array containing tfs = "trial functions"
+        tfs = np.zeros([num_tf, model.norb], dtype=complex)
+        for j, tf in enumerate(twf_list):
+            assert isinstance(
+                tf, (list, np.ndarray)
+            ), "Trial function must be a list of tuples"
+            for site, amp in tf:
+                tfs[j, site] = amp
+            tfs[j] /= np.linalg.norm(tfs[j])
+
+    return tfs
+
+
 def no_2pi(x, clos):
     "Make x as close to clos by adding or removing 2pi"
     while abs(clos - x) > np.pi:
