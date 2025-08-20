@@ -40,8 +40,6 @@ def deprecated(message: str, category=FutureWarning):
     return decorator
 
 
-
-
 def _report(k_list, lat_per, k_metric, k_node, node_index):
     """
     Print a concise report of the k-path construction, including
@@ -497,13 +495,20 @@ class TBModel:
         -----
         The transformation applies phase factors to ensure periodicity in reciprocal space.
         """
-        orb_vecs = self.get_orb_vecs()  # reduced units
+        if k_vals.ndim != 2:
+            raise ValueError(f"Invalid k_vals shape: {k_vals.shape}. Expected (Nk, dim_k).")
+        if k_vals.shape[1] != self._dim_k:
+            raise ValueError(f"Invalid k_vals shape: {k_vals.shape}. Expected (Nk, {self._dim_k}).")
+        
+        orb_vecs = self.orb_vecs  # reduced units
         orb_vec_diff = orb_vecs[:, None, :] - orb_vecs[None, :, :]
         if self._dim_k == 0:
             logger.warning(
                 "No periodic directions in k-space. Returning H_flat unchanged."
             )
             return H_flat
+        print(orb_vec_diff.shape, k_vals.shape)
+        orb_vec_diff = orb_vec_diff[..., self._per]
         orb_phase = np.exp(
             1j * 2 * np.pi * np.matmul(orb_vec_diff, k_vals.T)
         ).transpose(2, 0, 1)
@@ -707,42 +712,62 @@ class TBModel:
             Lattice vectors, shape ``(dim_r, dim_r)``.
         """
         return self.lat_vecs
-
-    # TODO: Fix to work with systems where not all lattice vectors are periodic
+    
     def get_recip_lat(self):
-        """Reciprocal lattice vectors in Cartesian coordinates.
+        r"""Reciprocal lattice vectors in inverse Cartesian coordinates.
 
         .. versionadded:: 2.0.0
 
         Returns
         -------
         np.ndarray
-            Reciprocal lattice vectors, shape ``(dim_k, dim_r)``. If not defined, returns zeros.
+            Array of shape (dim_k, dim_r): rows are the reciprocal vectors :math:`\mathbf{b}_i` 
+            in :math:`\mathbb{R}^{\texttt{dim_r}}`
+            satisfying :math:`\mathbf{a}_i \cdot \mathbf{b}_j = 2\pi \delta_{ij}`, 
+            where :math:`\mathbf{a}_i` are the periodic real-space lattice vectors that 
+            define k-space.
 
         Notes
         -----
-        Only defined when ``dim_k == dim_r``.
+        - Works for ``dim_k <= dim_r``. When ``dim_k < dim_r``, returns the minimum-norm solution.
+        - Requires the periodic real-space vectors (rows of A_sub) to be linearly independent.
         """
         if self.dim_k == 0:
-            logger.warning(
-                "Reciprocal lattice vectors are not defined for zero-dimensional k-space."
-            )
+            logger.warning("Reciprocal lattice vectors are not defined for zero-dimensional k-space.")
             return np.zeros((0, self.dim_r))
 
-        if self.dim_k != self.dim_r:
-            logger.warning(
-                "Reciprocal lattice vectors are not defined for systems where k-space and real-space dimensions differ."
+        if self.dim_k > self.dim_r:
+            # You cannot have more k-dimensions than real-space dimensions.
+            raise ValueError(
+                f"dim_k ({self.dim_k}) cannot exceed dim_r ({self.dim_r}); "
+                "k-space must be defined by a set of independent real-space periods."
             )
-            return np.zeros((self.dim_k, self.dim_r))
 
-        # Calculate the reciprocal lattice vectors
-        A = self.lat_vecs[self.per]  # shape (dim_r, dim_r)
-        if np.linalg.det(A) == 0:
-            raise ValueError("Lattice vectors are not linearly independent.")
-        # Calculate the inverse of the lattice matrix
-        A_inv = np.linalg.inv(A)  # shape (dim_r, dim_r)
-        b = 2 * np.pi * A_inv.T  # shape (dim_k, dim_k)
-        return b
+        # Select the real-space lattice vectors that generate k-space.
+        # Prefer an explicit list (e.g. self.per holds indices of periodic directions).
+        # Fallback: take the first dim_k lattice vectors.
+        lat = np.asarray(self.lat_vecs)            # shape (dim_r, dim_r) in Cartesian coords
+        if hasattr(self, "per") and self.per is not None:
+            per = np.asarray(self.per, dtype=int)
+            if per.size != self.dim_k:
+                raise ValueError(f"'per' must list exactly dim_k={self.dim_k} periodic directions.")
+            A_sub = lat[per, :]                    # (dim_k, dim_r)
+        else:
+            A_sub = lat[: self.dim_k, :]           # (dim_k, dim_r)
+
+        # Check linear independence of the chosen periodic vectors
+        if np.linalg.matrix_rank(A_sub) != self.dim_k:
+            raise ValueError(
+                "Periodic real-space vectors are not linearly independent; "
+                "cannot construct reciprocal lattice for k-subspace."
+            )
+
+        # Minimum-norm reciprocal set in the embedding R^{dim_r}:
+        # rows b_i satisfy A_sub @ B^T = 2pi I_{dim_k}
+        G = A_sub @ A_sub.T                        # (dim_k, dim_k) Gram matrix
+        X = np.linalg.solve(G, A_sub)     # (dim_k, dim_r)
+        B = (2 * np.pi) * X             # (dim_k, dim_r)
+        return B
 
     def get_recip_vol(self):
         """Return the volume of the reciprocal lattice.
@@ -1435,21 +1460,6 @@ class TBModel:
 
         return ham
 
-    
-    def _get_periodic_H(self, H_flat, k_vals):
-        """
-        Change to periodic gauge so that H(k+G) = H(k)
-
-        If n_spin = 2, H_flat should only be flat along k and NOT spin
-        """
-        orb_vecs = self.get_orb_vecs()
-        orb_vec_diff = orb_vecs[:, None, :] - orb_vecs[None, :, :]
-        # np.matmul(orb_vec_diff, k_vals.T) = np.einsum('ijm, ...m->...ij', orb_vec_diff, k_vals)).T
-        # np.matmul(orb_vec_diff, k_vals.T) has shape (n_orb, n_orb, N_k)
-        orb_phase = np.exp(1j * 2 * np.pi * np.matmul(orb_vec_diff, k_vals.T)).transpose(2,0,1)
-        H_per_flat = H_flat * orb_phase
-        return H_per_flat
-
     def _sol_ham(self, ham, return_eigvecs=False, keep_spin_ax=True):
         """Solves Hamiltonian and returns eigenvectors, eigenvalues"""
 
@@ -1759,7 +1769,7 @@ class TBModel:
         return fin_model
 
     def make_finite(self, lx, ly):
-        """Returns a finite model with open boundary conditions.
+        r"""Returns a finite model with open boundary conditions.
 
         Parameters
         ----------
@@ -2964,18 +2974,20 @@ class TBModel:
     ):
         r"""Compute the Berry curvature at a list of k-points.
 
-        The Berry curvature is computed from the velocity operator
-        :math:`v_k = i \partial_k H_k`. Specifically, for :math:`(m,n) \in \text{occ}`,
+        The Berry curvature is computed from the derivatives of the Bloch Hamiltonian
+        :math:`\partial_\mu H_k`, where :math:`\mu` is the direction in k-space.
+        
+        Specifically, for :math:`(m,n) \in \text{occ}`,
 
         .. math::
 
-            \Omega_{\mu \nu;\ mn}(k) =  \sum_{l \notin \text{occ}}
+            \Omega_{\mu \nu;\ mn}(k) =  i\sum_{l \notin \text{occ}}
             \frac{
-                \langle u_{mk} | v^{\mu}_k | u_{lk} \rangle
-                \langle u_{lk} | v_k^{\nu} | u_{nk} \rangle
+                \langle u_{mk} | \partial_{\mu} H_k | u_{lk} \rangle
+                \langle u_{lk} | \partial_{\nu} H_k | u_{nk} \rangle
                 -
-                \langle u_{mk} | v_k^{\nu} | u_{lk} \rangle
-                \langle u_{lk} | v_k^{\mu} | u_{nk} \rangle
+                \langle u_{mk} | \partial_{\nu} H_k| u_{lk} \rangle
+                \langle u_{lk} | \partial_{\mu} H_k | u_{nk} \rangle
             }{
                 (E_{nk} - E_{lk})(E_{mk} - E_{lk})
             }
