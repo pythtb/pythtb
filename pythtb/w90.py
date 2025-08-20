@@ -243,7 +243,7 @@ class W90:
         min_hopping_norm=None,
         max_distance=None,
         ignorable_imaginary_part=None,
-    ):
+        ) -> TBModel:
         r"""Get TBModel associated with this Wannier90 calculation.
 
         This function returns :class:`pythtb.TBModel` object that can
