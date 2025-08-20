@@ -33,7 +33,9 @@ class Mesh:
             dim_lambda: int | None = None,
             axis_names: list[str] = None           
             ):
-        r"""Initialize a Mesh object for a given TBModel.
+        r"""Initialize a Mesh object for a given `TBModel`.
+
+        .. versionadded:: 2.0.0
 
         This class is responsible for constructing the mesh in k-space and parameter space.
         It provides methods to build both grid and path representations of the mesh, or a custom mesh
@@ -45,7 +47,7 @@ class Mesh:
             The dimensionality of k-space. This will influence the dimension of
             the vector at each mesh point.
         axis_types : list[str]
-            A list of axis types, which can be 'k' or 'l' for k-space and parametric
+            A list of axis types, which can be ``"k"`` or ``"l"`` for k-space and parametric
             space respectively. The length of this list will determine the number of 
             dimensions in the mesh.
         dim_lambda : int, optional
@@ -61,20 +63,23 @@ class Mesh:
         See Also
         --------
         :ref:`haldane-bp-nb`
+
         :ref:`kane-mele-nb`
+
         :ref:`3site-cycle-nb`
+
         :ref:`3site-cycle-fin-nb`
+
         :ref:`cubic-slab-hwf-nb`
-        :ref:`haldane-hwf-nb
+
+        :ref:`haldane-hwf-nb`
 
         Notes
         -----
-        The parameter space is assumed to be orthogonal to the k-space. This means that when varying the parameter
-        along its axis, the k-components are held fixed. Paths through a mixed parameter and k-space are not 
-        currently supported.
-
-        The choice of 'l' for naming parameter axes is arbitrary but follows the convention of adiabatic parameters
-        being labeled with :math:`\lambda`.
+        .. warning::
+            The parameter space is assumed to be orthogonal to the k-space. This means that when varying the parameter
+            along its axis, the k-components are held fixed. Paths through a mixed parameter and k-space are not 
+            currently supported.
         """
         
         self._dim_k = dim_k
@@ -115,20 +120,23 @@ class Mesh:
 
         # pbc info
         self._pbc_mask = np.zeros((self.num_axes, self.dim_total), dtype=bool)
+        self._closed_mask = np.zeros((self.num_axes, self.dim_total), dtype=bool)
+        self.axis_includes_endpoints = [None] * self.num_axes  # per-axis endpoint inclusion
+
 
     @property
     def points(self):
-        """Mesh point array of shape (N_points, dim_k + dim_lambda)."""
+        r"""Mesh point array of shape ``(N_points, dim_k + dim_lambda)``."""
         return self._points
 
     @property
     def flat(self):
-        """Alias for .points. Shape (N_points, dim_k + dim_lambda)."""
+        r"""Alias for ``.points``."""
         return self._points
     
     @property
     def grid(self):
-        """Mesh point array of shape (N1, ..., Nd, dim_k + dim_lambda)."""
+        r"""Mesh point array of shape ``(N1, ..., Nd, dim_k + dim_lambda)``."""
         return self._points.reshape(*self.shape_full)
 
     @property
@@ -174,12 +182,12 @@ class Mesh:
     
     @property
     def shape_full(self) -> tuple[int]:
-        """Shape of full grid (*shape_k, *shape_lambda, dim_k + dim_lambda)."""
+        r"""Shape of full grid ``(*shape_k, *shape_lambda, dim_k + dim_lambda)``."""
         return self.shape_k + self.shape_lambda + (self.dim_k + self.dim_lambda,)
 
     @property
     def shape_mesh(self) -> tuple[int]:
-        """Shape of mesh grid (*shape_k, *shape_lambda)."""
+        r"""Shape of mesh grid ``(*shape_k, *shape_lambda)``."""
         return self.shape_k + self.shape_lambda
 
     @property
@@ -226,12 +234,16 @@ class Mesh:
         return self.num_axes == self.dim_total
     
     @property
-    def is_full_k(self) -> bool:
-        r"""True if the mesh is a full grid along k-axes.
+    def is_k_torus(self) -> bool:
+        r"""True if the mesh is a periodic grid along all k-axes.
 
-        A full grid mesh has an axis for each dimension of the mesh, and includes all
-        points in the grid. This only considers the k-space axes/dimensions. If 
-        any of the k-space axes are not periodic, then the mesh is not a full grid.
+        A torus mesh has an axis for each dimension of the mesh, and is 
+        periodic in all k-space directions. 
+        
+        Notes
+        -----
+        This only considers the k-space axes/dimensions.
+        Non-periodic lambda axes will not affect the periodicity of the k-axes.
         """
         if not self.is_grid:
             return False
@@ -291,6 +303,22 @@ class Mesh:
                     pbc_axes.append((axis_idx, comp_idx))
 
         return pbc_axes
+    
+    @property
+    def closed_axes(self) -> list[tuple[int, int]]:
+        """List of (mesh_axis, component_index) pairs that wrap by ~1."""
+        if not self.filled:
+            return []
+
+        mat = self._closed_mask  # (n_axes, dim_total)
+        closed_axes = []
+        for axis_idx in range(mat.shape[0]):
+            for comp_idx in range(self.dim_total):
+                if mat[axis_idx, comp_idx]:
+                    closed_axes.append((axis_idx, comp_idx))
+
+        return closed_axes
+    
 
     def summary(self) -> str:
         """Human-friendly multi-line summary of this Mesh."""
@@ -325,12 +353,18 @@ class Mesh:
             # legend: • includes endpoints, ◦ excludes/unknown
             
         # Full grid (optional flag some versions have)
-        is_full_k = getattr(self, "is_full_k", None)
+        is_k_torus = getattr(self, "is_k_torus", None)
 
-        # Periodic axes (if you’re caching them somewhere)
+        # Closed axes (if you’re caching them somewhere)
+        closed_axes = self.closed_axes
+        if closed_axes:
+            ca_str = ", ".join(f"(axis {a} closes component {c})" for a, c in closed_axes)
+        else:
+            ca_str = "None"
+
         periodic_axes = self.periodic_axes
         if periodic_axes:
-            pa_str = ", ".join(f"(axis {a}, comp {c})" for a, c in periodic_axes)
+            pa_str = ", ".join(f"(axis {a} winds component {c})" for a, c in periodic_axes)
         else:
             pa_str = "None"
 
@@ -356,12 +390,12 @@ class Mesh:
         lines.append(f"Axis names: {_fmt_list(axis_names)}")
         if eps_str is not None:
             # Add legend only once
-            lines.append(f"Axis endpoints included: {eps_str}   (• yes, ◦ no/unknown)")
+            lines.append(f"Endpoints included on axis: {eps_str}   (• yes, ◦ no/unknown)")
         # Optional full-grid flag
-        if is_full_k is not None and mesh_type != "path":
-            lines.append(f"Full k-space (endpoints on all k-axes): {_yn(is_full_k)}")
-        # Periodicity info if you compute/cache it
+        if is_k_torus is not None and mesh_type != "path":
+            lines.append(f"Is a torus in k-space (all k-axes wrap): {_yn(is_k_torus)}")
         lines.append(f"Periodic axes: {pa_str}")
+        lines.append(f"Closed axes: {ca_str}")
         return "\n".join(lines)
 
     def __str__(self) -> str:
@@ -383,7 +417,7 @@ class Mesh:
         except Exception:
             return "<Mesh ...>"
 
-    def _set_pbc_info(self, components: str = "k", tol: float = 1e-8) -> np.ndarray:
+    def _set_closed_ax_info(self, components: str = "k", tol: float = 1e-8) -> np.ndarray:
         r"""
         Determine per-axis / per-component wraps purely from mesh data.
 
@@ -397,18 +431,15 @@ class Mesh:
             - "k": Only report wraps for k-components (0..dim_k-1). Param components are forced False.
             - "all": Test and report for all components (k and lambda).
         tol : float
-            Tolerance for detecting a wrap ≈ 1 modulo 1. Use ~1e-8 for double.
+            Tolerance for detecting a wrap by 1. Use ~1e-8 for double.
 
         Notes
         -----
-        - For **paths** (self.is_path == True): there is effectively one sampling axis.
+        - For **paths** there is effectively one sampling axis.
         We compare the first and last node of the path for each component.
         - For **grids/custom non-path**: along each sampling axis, we compare the first
         and last hyperfaces for each component. We require that *all points* on those
-        two faces differ by ≈ 1 modulo 1 for that component to be marked as wrapping.
-        - This function infers wraps from the sampled data only. If your grid *does not*
-        include endpoints on an axis, you won't see wraps along that axis (which is
-        usually what you want to avoid double counting).
+        two faces differ by 1 for that component to be marked as closed along that axis.
         """
         dim_k = self.dim_k
         dim_p = self.dim_lambda
@@ -416,7 +447,6 @@ class Mesh:
 
         # number of sampling axes in the mesh (order: *shape_k, *shape_lambda)
         n_axes = self.num_k_axes + self.num_lambda_axes
-        wraps = np.zeros((n_axes, dim_total), dtype=bool)
 
         # Mask which components to consider (k-only or all)
         comp_mask = np.zeros(dim_total, dtype=bool)
@@ -437,16 +467,26 @@ class Mesh:
             delta = abs(end - start)                         # (dim_total,)
             wraps_path = (abs(delta - 1) < tol) & comp_mask
             # If metadata says more than one axis (unlikely for a path), fill only first row
-            wraps[0, :] = wraps_path
-            self._pbc_mask = wraps
+            self._pbc_mask[0, :] =  self._pbc_mask[0, :] | wraps_path
+            self._closed_mask[0, :] =  self._closed_mask[0, :] | wraps_path
             return
 
         G = self.grid  # shape (*shape_k, *shape_lambda, dim_total)
         shape = G.shape[:-1]  # per-axis sizes
         if len(shape) != n_axes:
-            # Inconsistent metadata; bail out safely
-            self._pbc_mask = wraps
             return
+        
+        # Lightweight inference for semi-full rectangular k-grids (endpoints excluded):
+        # Default mapping: j-th k-axis winds the j-th k-component when span ≈ 1.
+        eps = getattr(self, "axis_includes_endpoints", [None] * self.num_axes)
+        for j, ax in enumerate(self.k_axes):
+            if eps and ax < len(eps) and eps[ax] is False:
+                rng = np.asarray(self._extract_axis_range(ax, j))
+                if rng.size:
+                    span = float(np.max(rng) - np.min(rng))
+                    if np.isclose(span, 1.0, atol=1e-8):
+                        self._closed_mask[ax, j] = True
+
 
         # Iterate over sampling axes; compare first vs last hyperfaces.
         for axis_idx in range(n_axes):
@@ -470,39 +510,137 @@ class Mesh:
 
             # Reduce across all non-component axes: require *all* points to satisfy wrap
             if delta.ndim == 1:
-                face_wraps = abs(delta - 1) < tol                           # (dim_total,)
+                face_wraps = abs(delta - 1) < tol  # (dim_total,)
             else:
                 # all points on the hyperfaces must wrap that component
                 face_wraps = np.all(abs(delta - 1) < tol, axis=tuple(range(delta.ndim - 1)))
 
-            wraps[axis_idx, :] = face_wraps & comp_mask
+            # wraps[axis_idx, :] = face_wraps & comp_mask
+            self._closed_mask[axis_idx, :] = self._closed_mask[axis_idx, :] | (face_wraps & comp_mask)
+            self._pbc_mask[axis_idx, :] = self._pbc_mask[axis_idx, :] | (face_wraps & comp_mask)
+            self.axis_includes_endpoints[axis_idx] = np.any(face_wraps)
 
-        self._pbc_mask = wraps
 
-    def make_lambda_loop(self, lambda_idx: int):
-        r"""Sets the periodic boundary condition (PBC) mask for a specific lambda axis.
+    # ---- Topology configuration (explicit) ----
+    def loop_axis(self, axis_idx: int, component_idx: int, enable: bool = True):
+        """Declare an axis has periodic boundary conditions for the specified component.
+
+        Calling this function will mark an axis in the mesh as having periodic boundary conditions
+        for a given component of the vector in :math:`(\mathbf{k}, \lambda)`-space. This means that
+        the two ends of the axis are identified, and sampling along ``axis_idx`` winds ``component_idx``
+        around a cycle that brings the Hamiltonian back into itself.
+         
+        Notes
+        ------
+        This allows ``WFArray`` to decide whether phases apply to k-components at the edge
+        of the mesh (axis is closed) or just beyond the edge of the mesh (axis is not closed). 
+        This will apply when ``axis_idx`` is a k-axis and ``component_idx`` is a k-component.
+        """
+        if axis_idx < 0 or axis_idx >= self.num_axes:
+            raise IndexError(f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes")
+        if component_idx < 0 or component_idx >= self.dim_total:
+            raise IndexError(f"component_idx {component_idx} out of bounds for {self.dim_total} components")
+        self._pbc_mask[axis_idx, component_idx] = bool(enable)
+
+
+    def close_axis(self, axis_idx: int, component_idx: int):
+        """Declare an axis as closed for a given component.
+
+
+        Calling this function will mark an axis as being closed for a given component 
+        of the vector in :math:`(\mathbf{k}, \lambda)`-space. This means that
+        the two ends of the axis are identified, like in :func:`loop_axis`. The
+        difference here is that in addition to an axis being periodic, it also
+        contains the endpoint of ``component_idx``. This means that the first
+        and last values of the mesh along ``axis_idx`` of the 
+        ``component_idx``'th component of the vector in 
+        :math:`(\mathbf{k}, \lambda)`-space are the same (or differ 
+        by 1 in reduced units if ``component_idx`` is a k-component).
 
         Parameters
         ----------
-        lambda_idx : int
-            The index of the lambda axis to set the PBC mask for. Must
-            be in the list of valid lambda axes in ``self.lambda_axes``.
+        axis_idx : int
+            The index of the axis to close.
+        component_idx : int
+            The index of the component to close.
 
         Notes
         -----
-        This method modifies the PBC mask in place along the diagonal.
-        ``mask[lambda_idx, self.dim_k + lambda_idx]`` will be set to True.
-        What this means is that the ``dim_k + lambda_idx`` component of the
-        mesh vector winds along the ``lambda_idx`` axis. In most cases this
-        is the expected behavior.
+        This should _not_ be used in conjunction with :func:`build_grid` when
+        ``component_idx`` is a k-component. By default, :func:`build_grid`
+        creates a mesh where the edges of the BZ are excluded (no values of 1), 
+        while still marking the k-axes as periodic. This is important for ensuring
+        that the periodic boundary conditions are correctly applied in ``WFArray``.
+        The same instruction applies when creating a mesh for the energy eigenstates
+        passed to a ``Wannier`` instance. The Fourier transform routines require a
+        non-repeating periodicity, meaning the edges of the BZ should be excluded and
+        the k-axes should not be marked as 'closed'.
+
+        Examples
+        ---------
+        Say we have a model with a single k-axis and a single parameteric variable. 
+        This variable varies from 0 to :math:`2\pi` and brings the Hamiltonian back
+        to itself. Here, we include :math:`2\pi` in the mesh.
+
+        >>> mesh = Mesh(dim_k=1, dim_lambda=1, axis_types=["k", "l"])
+        >>> mesh.build_grid(lambda_endpoints=True, lambda_start=0, lambda_end=2*np.pi)
+        
+        To indicate that the endpoint of this adiabatic loop is included in the mesh
+        we set the `1` axis (lambda) as closed for the `1` component (lambda).
+
+        >>> mesh.close_axis(1, 1)
+
+        There may be instances where the axis and component differ. For example,
+        if we have a two-dimensional k-space, but only build a mesh in 
         """
-        if not self.filled:
-            return None
+        if axis_idx < 0 or axis_idx >= self.num_axes:
+            raise IndexError(f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes")
+        if component_idx < 0 or component_idx >= self.dim_total:
+            raise IndexError(f"component_idx {component_idx} out of bounds for {self.dim_total} components")
+        self._closed_mask[axis_idx, component_idx] = True
 
-        if lambda_idx not in self.lambda_axes:
-            raise ValueError(f"Invalid lambda index: {lambda_idx}")
+    def clear_loops(self, axis_idx: int | None = None):
+        """Clear loop topology for one axis or for all axes if *axis_idx* is None."""
+        if axis_idx is None:
+            self._pbc_mask[:, :] = False
+        else:
+            if axis_idx < 0 or axis_idx >= self.num_axes:
+                raise IndexError(f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes")
+            self._pbc_mask[axis_idx, :] = False
 
-        self._pbc_mask[lambda_idx, self.dim_k + lambda_idx - 1] = True
+    def is_axis_closed(self, axis_idx: int, comp: int = 'any') -> bool:
+        """Return True iff sampling axis *axis_idx* contains endpoint for at least one component."""
+        if axis_idx < 0 or axis_idx >= self.num_axes:
+            raise IndexError(f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes")
+        
+        comp_type = type(comp)
+
+        if comp_type not in [int, str] or comp_type is str and comp.lower() != 'any':
+            raise TypeError("comp must be an integer or 'any'")
+        if comp_type is int and abs(comp) >= self.dim_total:
+            raise IndexError(f"component_idx {comp} out of bounds for {self.dim_total} components")
+        
+        if comp_type is str and comp.lower() == 'any':
+            return bool(np.any(self._closed_mask[axis_idx, :]))
+        else:
+            return bool(self._closed_mask[axis_idx, comp])
+
+    def is_axis_periodic(self, axis_idx: int, comp: int = 'any') -> bool:
+        """Return True iff sampling axis *axis_idx* wraps at least one component."""
+        if axis_idx < 0 or axis_idx >= self.num_axes:
+            raise IndexError(f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes")
+        comp_type = type(comp)
+
+        if comp_type not in [int, str] or comp_type is str and comp.lower() != 'any':
+            raise TypeError("comp must be an integer or 'any'")
+        if comp_type is int and abs(comp) >= self.dim_total:
+            raise IndexError(f"component_idx {comp} out of bounds for {self.dim_total} components")
+        
+        if comp_type is str and comp.lower() == 'any':
+            return bool(np.any(self._pbc_mask[axis_idx, :]))
+        else:
+            return bool(self._pbc_mask[axis_idx, comp])
+
 
     def build_path(self,
         nodes: np.ndarray,
@@ -559,25 +697,24 @@ class Mesh:
         if self.axis_types[0] == 'l':
             self._shape_lambda = path.shape[:-1]
 
-        self._set_pbc_info()
+        self._set_closed_ax_info()
 
     def build_grid(self,
         shape: tuple | list,
         gamma_centered: bool | list = False,
-        k_endpoints: bool | list = True,
         lambda_endpoints: bool | list = True,
         lambda_start: int | float | list = 0.0,
         lambda_stop: int | float | list = 1.0
     ):
-        r"""Build a regular k-space and lambda space grid.
+        r"""Build a regular Monkhorst-Pack k-space and lambda space grid.
 
-        The grid is a set of points that have an axis for each dimension in the combined
-        k-space and lambda space.
+        The grid is a uniform array that has an axis for each dimension 
+        in the combined k-space and lambda space (Monkhorst-Pack mesh).
 
-        The k-points (in reduced units) range from 0 to 1 along the k-axes, 
-        unless gamma_centered is True, in which case they range from -0.5 to 0.5
-        along the k-axes. The last points (1 or 0.5) are included if ``k_endpoints``
-        flag is set to ``True`` (default is ``True``).
+        The k-points (in reduced units) range from [0, 1) along the k-axes, 
+        unless gamma_centered is True, in which case they range from [-0.5, 0.5)
+        along the k-axes. The last points (1 or 0.5) are excluded for internal 
+        consistency. 
 
         The parameter points range from ``param_start`` to ``param_stop`` 
         along the parameter axes. If these are not specified, they will default
@@ -586,9 +723,9 @@ class Mesh:
 
         This function populates the ``.grid`` and ``.flat``/``.points`` attributes.
         After calling this function, the ``.grid`` attribute will be:
-            - shape ``(*shape, dim_k+dim_lambda)`` for full-grid,
+        - shape ``(*shape, dim_k+dim_lambda)`` for full-grid,
         while the ``.flat`` attribute will be the flattened version:
-            - shape ``(np.prod(*shape), dim_k+dim_lambda)``.
+        - shape ``(np.prod(*shape), dim_k+dim_lambda)``.
 
         Parameters
         ----------
@@ -598,10 +735,6 @@ class Mesh:
             If True, center the k-space grid at the Gamma point. This
             makes the grid axes go from -0.5 to 0.5. One may also specify
             a list of booleans to control the centering for each k-axis.
-        k_endpoints : bool, list[bool], optional
-            If True, include the endpoints of the k-space grid, giving
-            the topology of a torus. One may also specify a list of booleans
-            to control the inclusion of endpoints for each k-axis.
         lambda_endpoints : bool, list[bool], optional
             If True, include the endpoints of the lambda space grid.
             One may also specify a list of booleans to control the inclusion
@@ -614,6 +747,15 @@ class Mesh:
             The stopping point for the lambda space grid. If not specified,
             defaults to 1.0. One may also specify a list of floats to control
             the stopping point for each lambda-axis.
+
+        Notes
+        -----
+        This function should be used to create a regular grid in k-space and parameter space.
+        It is not suitable for creating paths or irregular meshes. An example of when not to
+        use it is if you have a 2D k-space model and are using a mesh of values along 
+        :math:`k_y` for a given :math:`k_x` value, or vice versa. In such cases,
+        you should use the :func:`build_path` method instead. This only is used when
+        the number of axes match the number of k-dimensions.
 
         Examples
         --------
@@ -631,13 +773,13 @@ class Mesh:
         >>> mesh.grid.shape
         (10, 10, 10, 100, 4)
 
-        The endpoints are included by default, and since we have a gamma-centered grid,
-        the k-axes go from -0.5 to 0.5.
+        Since we have a gamma-centered grid, the k-axes go from [-0.5, 0.5) non-inclusive.
+        The endpoints for the lambda axis are included by default.
 
         >>> mesh.grid[0, 0, 0, 0, 0]
         array([-0.5, -0.5, -0.5,  0. ])
         >>> mesh.grid[-1, -1, -1, -1, -1]
-        array([ 0.5,  0.5,  0.5,  1. ])
+        array([ 0.49,  0.49,  0.49,  1. ])
         """
         # Checks
         if not isinstance(shape, (tuple, list)):
@@ -651,13 +793,6 @@ class Mesh:
             raise ValueError(f"Expected {self.num_k_axes} elements in gamma_centered, got {len(gamma_centered)}")
         else:
             raise ValueError("gamma_centered must be a bool or a list of bools.")
-        
-        if isinstance(k_endpoints, bool):
-            k_endpoints = [k_endpoints] * self.num_k_axes
-        elif isinstance(k_endpoints, list) and len(k_endpoints) != self.num_k_axes:
-            raise ValueError(f"Expected {self.num_k_axes} elements in k_endpoints, got {len(k_endpoints)}")
-        else:
-            raise ValueError("k_endpoints must be a bool or a list of bools.")
 
         if isinstance(lambda_endpoints, bool):
             lambda_endpoints = [lambda_endpoints] * self.num_lambda_axes
@@ -687,6 +822,8 @@ class Mesh:
         self._shape_lambda = tuple(shape_lambda)
 
         self._gamma_centered = gamma_centered
+        k_endpoints = [False] * self.num_k_axes
+
         k_starts = []
         k_stops = []
         for i, g in enumerate(gamma_centered):
@@ -740,7 +877,10 @@ class Mesh:
             flat = np.hstack([k_rep, p_rep])
 
         self._points = flat
-        self._set_pbc_info()
+        self.axis_includes_endpoints = list(k_endpoints) + list(lambda_endpoints)
+        for ax in self.k_axes:
+            self.loop_axis(ax, ax, True)
+        self._set_closed_ax_info()
 
 
     def build_custom(self, points):
@@ -786,7 +926,7 @@ class Mesh:
         shape = points.shape[:-1]
         self._shape_k = tuple(shape[i] for i in self.k_axes)
         self._shape_lambda = tuple(shape[i] for i in self.lambda_axes)
-        self._set_pbc_info()
+        self._set_closed_ax_info()
 
 
     def _extract_axis_range(
@@ -816,15 +956,26 @@ class Mesh:
             arr = np.reshape(arr, -1)
         return arr
 
-    def get_k_ranges(self) -> dict:
+    def get_k_ranges(self, component_list: list = None) -> dict:
         """
         Return a dict mapping k-axis names to their 1D ranges.
+
+        Notes
+        -----
+        This assumes that axis `n` corresponds to component `n` in
+        the mesh.
         """
         if self.num_k_axes == 0:
             raise ValueError("No k-axes present in this mesh.")
         # Indices of k axes and their corresponding component indices
         k_axis_indices = list(range(self.num_k_axes))
-        k_comp_indices = list(range(self.num_k_axes))
+
+        if component_list is not None:
+            if len(component_list) != self.num_k_axes:
+                raise ValueError(f"Expected {self.num_k_axes} components, got {len(component_list)}")
+            k_comp_indices = component_list
+        else:
+            k_comp_indices = list(range(self.num_k_axes))
         k_names = [n for n, t in zip(self.axis_names, self.axis_types) if t == 'k']
         result = {}
         for i, comp, name in zip(k_axis_indices, k_comp_indices, k_names):
@@ -832,7 +983,7 @@ class Mesh:
             result[name] = arr
         return result
 
-    def get_param_ranges(self) -> dict:
+    def get_param_ranges(self, component_list: list = None) -> dict:
         """
         Return a dict mapping parameter-axis names to their 1D ranges.
         """
@@ -840,7 +991,15 @@ class Mesh:
             raise ValueError("No parameter axes present in this mesh.")
         # Indices of parameter axes and their corresponding component indices
         param_axis_indices = list(range(self.num_k_axes, self.num_k_axes + self.num_lambda_axes))
-        param_comp_indices = list(range(self.dim_k, self.dim_k + self.dim_lambda))
+
+        if component_list is not None:
+            if len(component_list) != self.num_lambda_axes:
+                raise ValueError(f"Expected {self.num_lambda_axes} components, got {len(component_list)}")
+            param_comp_indices = component_list
+        else:
+            # Default to using the last dim_lambda components
+            param_comp_indices = list(range(self.dim_k, self.dim_k + self.dim_lambda))
+
         param_names = [n for n, t in zip(self.axis_names, self.axis_types) if t == 'l']
         result = {}
         for i, comp, name in zip(param_axis_indices, param_comp_indices, param_names):
