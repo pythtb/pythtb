@@ -80,27 +80,25 @@ print(f"New orbital vectors in Cartesian coordinates : \n {model_perp.get_orb(ca
 # 
 # To compute the Berry phase, we use `WFArray.berry_phase`, passing the band indices and the mesh axis corresponding to direction we compute the Berry phase.
 
-# In[7]:
+# In[6]:
 
 
 fig, ax = plt.subplots(1, 2, figsize=(6.5, 2.8))
 
 def run_model(model, panel, title):
-    numk = 41
-    k_path = [[-0.5], [0.5]]
-    k_vec, _, _ = model.k_path(k_path, numk, report=False)
+    k_nodes = [[-0.5], [0.5]]
 
-    model.plot_bands(k_path=k_path, nk=numk, fig=fig, ax=ax[panel], lc="k", lw=0.5)
+    model.plot_bands(k_path=k_nodes, nk=100, fig=fig, ax=ax[panel], lc="k", lw=0.5)
     ax[panel].set_title(title)
     ax[panel].set_xticklabels([-0.5, 0.5])
 
-    mesh = Mesh(model, axis_types=["k"])
-    mesh.build_path(nodes=k_vec, n_interp=1)
-    wf = WFArray(mesh)
+    mesh = Mesh(dim_k=model.dim_k, axis_types=["k"])
+    mesh.build_path(nodes=k_nodes, n_interp=100)
+    wf = WFArray(model, mesh)
     wf.solve_mesh()
 
     n_occ = model.nstate // 2
-    berry_phase = wf.berry_phase(range(n_occ), dir=0)
+    berry_phase = wf.berry_phase(0, range(n_occ))
     print(f"Berry phase = {berry_phase}\n")
 
 run_model(model_orig, 0, "Original model")

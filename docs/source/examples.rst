@@ -56,13 +56,20 @@ Electronic Structure Theory <https:/www.cambridge.org/9781107157651>`_
 
 .. toctree::
    :maxdepth: 1
+   :caption: Maximally-localized Wannier functions
+
+   examples_ipynb/haldane_wannier
+   examples_ipynb/reduced_wannier
+
+.. toctree::
+   :maxdepth: 1
    :caption: SSH model topology
 
    examples_ipynb/finite_ssh
 
 .. toctree::
    :maxdepth: 1
-   :caption: Wannier90 integration with ``W90``
+   :caption: Wannier90 integration
 
    examples_ipynb/w90_quick
    examples_ipynb/w90

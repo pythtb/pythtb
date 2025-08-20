@@ -74,9 +74,3 @@ ax.set_title("Graphene, finite")
 ax.set_xlabel("x coordinate")
 ax.set_ylabel("y coordinate")
 
-
-# In[ ]:
-
-
-
-

@@ -95,32 +95,32 @@ ax2.set_title(r"Edge state density at $w=1.0$")
 
 # ## Bulk polarization and Berry phase
 
-# In[10]:
+# In[7]:
 
 
 model = ssh(v, 0)
 nk = 100
 
-mesh = Mesh(model, axis_types=['k'])
-mesh.build_full_grid(shape=(nk,))
+mesh = Mesh(dim_k=1, axis_types=['k'])
+mesh.build_grid(shape=(nk,))
 
-wfa = WFArray(mesh)
+wfa = WFArray(model, mesh)
 wfa.solve_mesh()
-P1 = wfa.berry_phase([1], 0) / (2 * np.pi)
+P1 = wfa.berry_phase(0, [1]) / (2 * np.pi)
 P1
 
 
-# In[12]:
+# In[8]:
 
 
 model = ssh(v, 1)
 nk = 100
 
-mesh = Mesh(model, axis_types=['k'])
-mesh.build_full_grid(shape=(nk,))
+mesh = Mesh(dim_k=1, axis_types=['k'])
+mesh.build_grid(shape=(nk,))
 
-wfa = WFArray(mesh)
+wfa = WFArray(model, mesh)
 wfa.solve_mesh()
-P2 = wfa.berry_phase([0], 0) / (2 * np.pi)
+P2 = wfa.berry_phase(0, [0]) / (2 * np.pi)
 P2
 

@@ -54,11 +54,12 @@ print(my_model)
 # In[3]:
 
 
-mesh = Mesh(dim_k=2, dim_param=0, axis_types=['k', 'k'])
-mesh.build_full_grid(shape=(31, 31), gamma_centered=True)
+mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+mesh.build_grid(shape=(31, 31), gamma_centered=True)
+print(mesh)
 
 
-# In[5]:
+# In[4]:
 
 
 wf_array_1 = WFArray(my_model, mesh)
@@ -67,20 +68,20 @@ wf_array_1.solve_mesh()
 
 # Calculate Berry phases around the BZ in the $k_x$ direction (which can be interpreted as the 1D hybrid Wannier center in the $x$ direction) and plot results as a function of $k_y$.
 
-# In[6]:
+# In[5]:
 
 
 # Berry phases along k_x for lower band
-phi_0 = wf_array_1.berry_phase([0], 0, contin=True)
+phi_0 = wf_array_1.berry_phase(0, [0], contin=True)
 # Berry phases along k_x for upper band
-phi_1 = wf_array_1.berry_phase([1], 0, contin=True)
+phi_1 = wf_array_1.berry_phase(0, [1], contin=True)
 # Berry phases along k_x for both bands
-phi_both = wf_array_1.berry_phase([0, 1], 0, contin=True)
+phi_both = wf_array_1.berry_phase(0, [0, 1], contin=True)
 
 
 # These results indicate that the two bands have equal and opposite Chern numbers.
 
-# In[7]:
+# In[6]:
 
 
 # plot Berry phases
@@ -95,13 +96,19 @@ ax.set_xlabel(r"$k_y$")
 ax.set_ylabel(r"Berry phase along $k_x$")
 ax.set_xlim(0.0, 1.0)
 ax.set_ylim(-7.0, 7.0)
-ax.yaxis.set_ticks([-2.0 * np.pi, -np.pi, 0.0, np.pi, 2.0 * np.pi])
+ax.yaxis.set_ticks([-2 * np.pi, -np.pi, 0, np.pi, 2 * np.pi])
 ax.set_yticklabels((r"$-2\pi$", r"$-\pi$", r"$0$", r"$\pi$", r"$2\pi$"))
 
 
 # Verify with calculation of Chern numbers
 
-# In[8]:
+# In[9]:
+
+
+mesh.is_axis_closed(0)
+
+
+# In[7]:
 
 
 chern0 = wf_array_1.chern_num(state_idx=[0], plane=(0,1))

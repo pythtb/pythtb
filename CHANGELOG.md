@@ -68,7 +68,7 @@ For a detailed explanation of the changes, see the developer documentation [DEVN
 - `WFArray.get_projectors`
     - Returns the band projectors and optionally their compliment 
 - `WFArray.get_bloch_states`
-    - When the states populated are all Bloch states (defined on k-mesh), this function applies the $e^{i \mathbf{k} \cdot \mathbf{r}}$ phase factors and returns both the cell-periodic $u_{n\mathbf{k}}$ and the Bloch states $\phi_{n\mathbf{k}}$.
+    - When the states populated on a k-mesh, this function applies the $e^{i \mathbf{k} \cdot \mathbf{r}}$ phase factors and returns both the cell-periodic $u_{n\mathbf{k}}$ and the Bloch states $\phi_{n\mathbf{k}}$.
 - `WFArray.get_states`
     - Returns the `WFArray` states in NumPy form. 
     - Has an optional flag to flatten the spin axis in cases where the states are spinful

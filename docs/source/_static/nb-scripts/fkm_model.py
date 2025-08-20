@@ -55,99 +55,113 @@ print(my_model)
 
 # ## Band structure
 
-# In[ ]:
+# In[4]:
 
 
-path = [
+nodes = [
     [0,0,0], [0, 1/2, 1/2], [1/4, 5/8, 5/8],
     [1/2, 1/2, 1/2],[3/4, 3/8, 3/8],[1/2, 0, 0]
     ]
 label = (r'$\Gamma$',r'$X$',r'$U$',r'$L$',r'$K$',r'$L^\prime$')
-(k_vec, k_dist, k_node) = my_model.k_path(path, 101)
-
-evals = my_model.solve_ham(k_vec)
-
-
-# In[ ]:
-
-
-fig, ax = plt.subplots(1, 1, figsize=(8, 4))
-
-ax.plot(k_dist, evals, color='k')
-
-ax.set_xlim([0, k_node[-1]])
-ax.set_xticks(k_node)
-ax.set_xticklabels(label)
-for n in range(len(k_node)):
-  ax.axvline(x=k_node[n], linewidth=0.5, color='k')
-ax.set_ylabel("Energy")
-ax.set_ylim(-4.9, 4.9)
+my_model.plot_bands(k_path=nodes, nk=101, k_label=label)
 
 
 # ## Wannier flow
 
 # Construct mesh
 
-# In[11]:
+# In[5]:
 
 
 # Obtain eigenvectors on 2D grid on slices at fixed kappa_3
 # Note physical (kappa_1,kappa_2,kappa_3) have python indices (0,1,2)
-kappa2_values=[0, 1/2]
-labs = [r'$\kappa_3$=0',r'$\kappa_3$=$\pi$']
-nk = 41
+kappa2_values=[0, 0.5]
+labs = [r'$\kappa_3$=0',r'$\kappa_3$=$\pi/2$']
+nk = 101
 dk = 1/(nk-1)
 
-k_points = np.zeros((nk, nk, 2, 3))
-for j in range(2):
+k_points = np.zeros((nk, nk, len(kappa2_values), 3))
+for j in range(len(kappa2_values)):
   for k0 in range(nk):
     for k1 in range(nk):
       kvec = [k0*dk, k1*dk, kappa2_values[j]]
       k_points[k0, k1, j, :] = kvec
 
-mesh = Mesh(my_model, axis_types=['k', 'k', 'k'])
+mesh = Mesh(dim_k=3, axis_types=['k', 'k', 'k'])
 mesh.build_custom(points=k_points)
+mesh.loop_axis(0,0)
+mesh.loop_axis(1,1)
+print(mesh)
 
 
 # Solve for wavefunctions on mesh with `WFArray`
 
-# In[13]:
+# In[6]:
 
 
-wfa = WFArray(mesh)
-wfa.solve_mesh()
+wfa = WFArray(my_model, mesh)
+wfa.solve_mesh(use_metal=False)
+
+
+# Compute hybrid Wannier functions
+
+# In[ ]:
+
+
+hwfc = wfa.berry_phase(mu=1, state_idx=[0,1], contin=True, berry_evals=True)/(2*np.pi)
 
 
 # In[ ]:
 
 
-wfa.get_states(flatten_spin=True).shape
+# initialize plot
+fig, ax = plt.subplots(1, 2, figsize=(12, 6), sharey=True)
+
+for j in range(2):
+  ax[j].set_xlim([0, 1])
+  ax[j].set_xticks([0, 1/2, 1])
+  ax[j].set_xlabel(r"$\kappa_1/2\pi$")
+  ax[j].set_ylim(-0.5, 1.5)
+  ax[j].text(0.08, 0.60, labs[j], size=12, bbox=dict(facecolor='w', edgecolor='k'))
+
+  for n in range(2):
+    for shift in [-1, 0, 1]:
+      ax[j].plot(np.linspace(0, 1, nk), hwfc[:, j, n]+shift, color='k')
+
+ax[0].set_ylabel(r"HWF center $\bar{s}_2$")
 
 
-# Compute hybrid Wannier functions
-
-# In[15]:
-
-
-hwfc = wfa.berry_phase(occ = [0,1], dir=1, contin=True, berry_evals=True)/(2*np.pi)
-
-
-# In[17]:
+# In[42]:
 
 
 # initialize plot
-fig, ax = plt.subplots(1,2,figsize=(12, 6), sharey=True)
+fig, ax = plt.subplots(1, 2, figsize=(12, 6), sharey=True)
 
 for j in range(2):
-  ax[j].set_xlim([0.,1.])
-  ax[j].set_xticks([0.,0.5,1.])
+  ax[j].set_xlim([0, 1])
+  ax[j].set_xticks([0, 1/2, 1])
   ax[j].set_xlabel(r"$\kappa_1/2\pi$")
-  ax[j].set_ylim(-0.5,1.5)
+  ax[j].set_ylim(-0.5, 1.5)
 
   for n in range(2):
-    for shift in [-1.,0.,1.]:
+    # for shift in [-1, 0, 1]:
+    for shift in [0]:
+
       ax[j].plot(np.linspace(0, 1, nk), hwfc[:, j, n]+shift, color='k')
+
     ax[j].text(0.08,1.20,labs[j],size=12.,bbox=dict(facecolor='w',edgecolor='k'))
 
 ax[0].set_ylabel(r"HWF center $\bar{s}_2$")
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
 

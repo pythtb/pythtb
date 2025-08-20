@@ -37,13 +37,15 @@ delta = 2.0
 t = -1.0
 
 
-# In[5]:
+# In[4]:
 
 
 mesh = Mesh(
-    dim_k=1, dim_param=1, axis_types=["k", "param"], axis_names=["kx", "lmbd"]
+    dim_k=1, dim_lambda=1, axis_types=["k", "l"], axis_names=["kx", "lmbd"]
     )
-mesh.build_full_grid(shape=(31, 21), gamma_centered=True)
+mesh.build_grid(shape=(31, 21), gamma_centered=True)
+mesh.make_lambda_loop(lambda_idx=1)
+print(mesh)
 
 
 # Evolve tight-binding parameters along some path by performing a change of onsite terms
@@ -54,10 +56,10 @@ mesh.build_full_grid(shape=(31, 21), gamma_centered=True)
 # The index order `[k,lambda]` is important for interpreting the sign.
 # :::
 
-# In[6]:
+# In[5]:
 
 
-# Used for initializing the Mesh
+# Used for initializing the Mesh,
 ref_model = set_model(0,0,0)
 
 wf_kpt_lambda = WFArray(ref_model, mesh)
@@ -69,7 +71,7 @@ wf_kpt_lambda = WFArray(ref_model, mesh)
 # `solve_mesh` imposes periodic boundary conditions along periodic k-space direction so that $|\psi_{n,k}\rangle$ at $k=0$ and $k=1$ have the same phase.
 # :::
 
-# In[7]:
+# In[6]:
 
 
 wf_kpt_lambda.solve_mesh(set_model, {"t": t, "delta": delta})
@@ -80,7 +82,7 @@ wf_kpt_lambda.solve_mesh(set_model, {"t": t, "delta": delta})
 # In[8]:
 
 
-phase = wf_kpt_lambda.berry_phase([0], 0)
+phase = wf_kpt_lambda.berry_phase(0, [0])
 
 
 # Wannier center in reduced coordinates
@@ -102,11 +104,11 @@ print("Chern number in k-lambda space: ", chern)
 
 # Plot the position of Wannier function for bottom band
 
-# In[11]:
+# In[ ]:
 
 
-all_lambda = mesh.get_param_points()[:, 0]
-k_dist = mesh.get_k_points()[:, 0]
+all_lambda = mesh.get_param_points()[:, 0] 
+k_dist = mesh.get_k_points()[:, 0] 
 eval_lam = wf_kpt_lambda.energies
 
 

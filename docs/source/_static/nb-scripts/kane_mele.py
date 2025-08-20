@@ -54,8 +54,11 @@ model_topo = get_kane_mele("odd")
 # In[4]:
 
 
- # list of nodes (high-symmetry points) that will be connected
-path = [
+# initialize figure with subplots
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+
+# list of nodes (high-symmetry points) that will be connected
+k_nodes = [
     [0, 0],
     [2/3, 1/3],
     [1/2, 1/2],
@@ -65,34 +68,27 @@ path = [
 
 # labels of the nodes
 label = (r"$\Gamma $", r"$K$", r"$M$", r"$K^\prime$", r"$\Gamma $")
-(k_vec, k_dist, k_node) = model_topo.k_path(path, 201, report=False)
 
+# solve for eigenenergies of hamiltonian on k_path and plot bands
+model_triv.plot_bands(k_path=k_nodes, nk=201, k_label=label, fig=fig, ax=ax1, proj_orb_idx=[0])
+model_topo.plot_bands(k_path=k_nodes, nk=201, k_label=label, fig=fig, ax=ax2, proj_orb_idx=[0])
+
+ax1.set_title("Kane-Mele: trivial phase")
+ax2.set_title("Kane-Mele: topological phase")
+
+
+# Build `Mesh` object
 
 # In[5]:
 
 
-# initialize figure with subplots
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
-
-# solve for eigenenergies of hamiltonian on k_path and plot bands
-model_triv.plot_bands(k_path=path, nk=201, k_label=label, fig=fig, ax=ax1, proj_orb_idx=[0])
-model_topo.plot_bands(k_path=path, nk=201, k_label=label, fig=fig, ax=ax2, proj_orb_idx=[0])
-
-ax1.set_title("Kane-Mele: trivial phase")
-ax1.set_xlabel("k-space")
-ax1.set_ylabel("Energy")
-
-ax2.set_title("Kane-Mele: topological phase")
-ax2.set_xlabel("k-space")
-ax2.set_ylabel("Energy")
+mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+mesh.build_grid(shape=(41, 41), gamma_centered=True)
+print(mesh)
 
 
 # In[6]:
 
-
-# calculate my-array
-mesh = Mesh(dim_k=2, dim_param=0, axis_types=['k', 'k'])
-mesh.build_full_grid(shape=(41, 41), gamma_centered=True)
 
 wf_array_topo = WFArray(model_topo, mesh)
 wf_array_topo.solve_mesh()
@@ -106,10 +102,10 @@ wf_array_triv.solve_mesh()
 # In[7]:
 
 
-wan_cent_topo = wf_array_topo.berry_phase(occ=[0, 1], dir=1, contin=True, berry_evals=True)
+wan_cent_topo = wf_array_topo.berry_phase(mu=1, state_idx=[0, 1], contin=True, berry_evals=True)
 wan_cent_topo /= 2 * np.pi
 
-wan_cent_triv = wf_array_triv.berry_phase(occ=[0, 1], dir=1, contin=True, berry_evals=True)
+wan_cent_triv = wf_array_triv.berry_phase(mu=1, state_idx=[0, 1], contin=True, berry_evals=True)
 wan_cent_triv /= 2 * np.pi
 
 
@@ -124,8 +120,8 @@ ky = np.linspace(0, 1, nky)
 
 # draw shifted Wannier center positions
 for shift in range(-2, 3):
-    ax[0].plot(ky, wan_cent_triv[:, 0] + float(shift), "k.")
-    ax[0].plot(ky, wan_cent_triv[:, 1] + float(shift), "k.")
+    ax[0].plot(ky, wan_cent_triv[:, 0] + float(shift), "k")
+    ax[0].plot(ky, wan_cent_triv[:, 1] + float(shift), "k")
 
 ax[0].set_ylabel("Wannier center along x")
 ax[0].set_xlabel(r"$k_y$")
@@ -140,16 +136,17 @@ nky = wan_cent_topo.shape[0]
 ky = np.linspace(0, 1, nky)
 
 # draw shifted Wannier center positions
-
 for shift in range(-2, 3):
-    ax[1].plot(ky, wan_cent_topo[:,0] + float(shift), "k.")
-    ax[1].plot(ky, wan_cent_topo[:, 1] + float(shift), "k.")
+    ax[1].plot(ky, wan_cent_topo[:,0] + float(shift), "k")
+    ax[1].plot(ky, wan_cent_topo[:, 1] + float(shift), "k")
 
 ax[1].set_ylabel("Wannier center along x")
 ax[1].set_xlabel(r"$k_y$")
 ax[1].set_xticks([0.0, 0.5, 1.0])
 ax[1].set_xlim(0.0, 1.0)
+
 ax[1].set_xticklabels([r"$0$", r"$\pi$", r"$2\pi$"])
 ax[1].axvline(x=0.5, linewidth=0.5, color="k")
+
 ax[1].set_title("1D Wannier centers: topological phase")
 

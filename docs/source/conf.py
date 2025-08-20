@@ -135,10 +135,13 @@ html_context = {
 html_sidebars = {
     "index": [],
     "install": [],
-    "about": [],
+    "getstarted": [],
     "CHANGELOG": [],
     "formalism": [],
+    "resources": [],
+    "citation": [],
 }
+
 
 html_theme_options = {
 #     "navigation_depth": 4,

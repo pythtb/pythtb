@@ -53,8 +53,9 @@ my_model.set_hop(t2c, 0, 0, [0, 1])
 nk0 = 300
 nk1 = 100
 
-mesh = Mesh(dim_k=2, dim_param=0, axis_types=['k', 'k'])
-mesh.build_full_grid(shape=(nk0, nk1))
+mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+mesh.build_grid(shape=(nk0, nk1))
+print(mesh)
 
 
 # This allows us to initialize the `WFArray` which we will use to store the energy eigenstates. With this class, we can compute Berry phases and hybrid Wannier centers.
@@ -71,7 +72,7 @@ my_array.solve_mesh()
 # In[5]:
 
 
-phi_1 = my_array.berry_phase(occ=[0], dir=1, contin=True)
+phi_1 = my_array.berry_phase(1, state_idx=[0], contin=True)
 
 
 # We will now create a finite model along the `1` direction by calling `TBModel.cut_piece`. The `ribbon_model` will then be finite in the `1` direction and periodic in the `0` direction. We choose to omit periodic boundary conditions in the `1` direction by setting `glue_edgs=False`.
@@ -108,8 +109,8 @@ rib_eval -= efermi
 # find k-points at which number of states below the Fermi level changes
 jump_k = []
 for i in range(rib_eval.shape[0] - 1):
-    nocc_i = np.sum(rib_eval[i, :] < 0.0)
-    nocc_ip = np.sum(rib_eval[i + 1, :] < 0.0)
+    nocc_i = np.sum(rib_eval[i, :] < 0)
+    nocc_ip = np.sum(rib_eval[i + 1, :] < 0)
     if nocc_i != nocc_ip:
         jump_k.append(i)
 

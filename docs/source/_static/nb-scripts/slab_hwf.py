@@ -82,14 +82,19 @@ print(f"CB min, max = {np.min(en_conduction):6.3f} , {np.max(en_conduction):6.3f
 
 
 nk = 9
+mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+mesh.build_grid(shape=(nk, nk))
+print(mesh)
 
-mesh = Mesh(dim_k=2, dim_param=0, axis_types=['k', 'k'])
-mesh.build_full_grid(shape=(nk, nk))
+
+# In[7]:
+
+
 bloch_arr = WFArray(slab_model, mesh)
 bloch_arr.solve_mesh()
 
 
-# In[7]:
+# In[8]:
 
 
 # initalize wf_array to hold HWFs, and Numpy array for HWFCs
@@ -116,15 +121,15 @@ print("  Mean   " + num_layers * "%8.4f" % tuple(np.mean(hwfc, axis=(0, 1))))
 print("  Std Dev" + num_layers * "%8.4f" % tuple(np.std(hwfc, axis=(0, 1))))
 
 
-# In[8]:
+# In[10]:
 
 
 # compute and print layer contributions to polarization along x, then y
 px = np.zeros((num_layers, nk))
 py = np.zeros((num_layers, nk))
 for n in range(num_layers):
-    px[n, :] = hwf_arr.berry_phase(dir=0, occ=[n]) / (2*np.pi)
-    py[n, :] = hwf_arr.berry_phase(dir=1, occ=[n]) / (2*np.pi)
+    px[n, :] = hwf_arr.berry_phase(mu=0, state_idx=[n]) / (2*np.pi)
+    py[n, :] = hwf_arr.berry_phase(mu=1, state_idx=[n]) / (2*np.pi)
 
 print("\nBerry phases along x (rows correspond to k_y points):\n")
 print("  Layer      " + num_layers * "  %2d    " % tuple(range(num_layers)))
@@ -138,7 +143,7 @@ print("\n  Ave    " + num_layers * "%8.4f" % tuple(px_mean))
 
 # Similar calculations along $y$ give zero due to $M_y$ mirror symmetry.
 
-# In[9]:
+# In[11]:
 
 
 nlh = num_layers // 2
@@ -154,7 +159,7 @@ print("\n  Surface sums: Top, Bottom = %8.4f , %8.4f\n" % (sum_top, sum_bot))
 # Phys. Rev. B 103, 035147 (2021)_.
 # :::
 
-# In[10]:
+# In[12]:
 
 
 fig = plt.figure()

@@ -37,29 +37,38 @@
       ~WFArray.__sizeof__
       ~WFArray.__str__
       ~WFArray.__subclasshook__
-      ~WFArray._apply_phase
+      ~WFArray._boundary_phase_for_shift
+      ~WFArray._bounded_shift
       ~WFArray._check_key
+      ~WFArray._edge_slices
+      ~WFArray._get_pbc_phases
+      ~WFArray._get_phases
+      ~WFArray._set_projectors
+      ~WFArray._set_wfs
+      ~WFArray._unit_shift
+      ~WFArray.berry_curv
       ~WFArray.berry_flux
       ~WFArray.berry_loop
       ~WFArray.berry_phase
       ~WFArray.chern_num
       ~WFArray.choose_states
       ~WFArray.empty_like
-      ~WFArray.get_bloch_states
+      ~WFArray.get_k_shell
       ~WFArray.get_links
+      ~WFArray.get_overlap_mat
       ~WFArray.get_projectors
+      ~WFArray.get_shell_weights
       ~WFArray.get_states
       ~WFArray.impose_loop
       ~WFArray.impose_pbc
       ~WFArray.position_expectation
       ~WFArray.position_hwf
       ~WFArray.position_matrix
+      ~WFArray.roll_states_with_bc
       ~WFArray.set_ham
-      ~WFArray.solve_k_mesh
       ~WFArray.solve_mesh
       ~WFArray.solve_on_grid
       ~WFArray.solve_on_one_point
-      ~WFArray.solve_on_path
       ~WFArray.wilson_loop
    
    
@@ -78,9 +87,9 @@
       ~WFArray.dim_k
       ~WFArray.dim_lambda
       ~WFArray.energies
+      ~WFArray.filled
       ~WFArray.hamiltonian
-      ~WFArray.k_flat
-      ~WFArray.k_grid
+      ~WFArray.k_points
       ~WFArray.loop_axes
       ~WFArray.mesh
       ~WFArray.mesh_shape
@@ -91,9 +100,11 @@
       ~WFArray.norb
       ~WFArray.nspin
       ~WFArray.nstates
-      ~WFArray.param_path
+      ~WFArray.param_points
       ~WFArray.pbc_axes
+      ~WFArray.psi_wfs
       ~WFArray.shape
+      ~WFArray.u_wfs
       ~WFArray.wfs
    
    

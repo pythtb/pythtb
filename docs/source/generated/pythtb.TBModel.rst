@@ -47,20 +47,19 @@
       ~TBModel.copy
       ~TBModel.cut_piece
       ~TBModel.display
-      ~TBModel.get_boundary_phase
-      ~TBModel.get_k_shell
+      ~TBModel.get_cell_vol
       ~TBModel.get_lat
       ~TBModel.get_num_orbitals
       ~TBModel.get_orb
-      ~TBModel.get_orb_phases
       ~TBModel.get_recip_lat
       ~TBModel.get_recip_vol
-      ~TBModel.get_weights
       ~TBModel.grad_ham
       ~TBModel.hamiltonian
       ~TBModel.ignore_position_operator_offdiagonal
       ~TBModel.k_path
       ~TBModel.k_uniform_mesh
+      ~TBModel.local_chern_marker
+      ~TBModel.make_finite
       ~TBModel.make_supercell
       ~TBModel.plot_bands
       ~TBModel.position_expectation
