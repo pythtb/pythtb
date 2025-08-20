@@ -168,8 +168,8 @@ class TBModel:
         # Dimensionality of real space
         if not isinstance(dim_r, int):
             raise TypeError("Argument dim_r must be an integer")
-        if dim_r > 4:
-            raise ValueError("Argument dim_r must be less than 4.")
+        if dim_r > 3:
+            raise ValueError("Argument dim_r must be from 0 to 3.")
 
         # Dimensionality of k-space
         if not isinstance(dim_k, int):
@@ -274,6 +274,22 @@ class TBModel:
 
         # Initialize hoppings to empty list
         self._hoppings = []
+        self._hop_index = None  # lazily built for O(1) set_hop
+
+        # Reciprocal lattice
+        self._recip_lat = self._get_recip_lat() if self._dim_k > 0 else None
+        if self.dim_k == 0:
+            self._recip_vol = 0.0
+        else:
+            self._recip_vol = np.sqrt(np.linalg.det(self._recip_lat @ self._recip_lat.T))
+        
+        # Cell volume
+        if self.dim_r == 0:
+            self._cell_vol = 0.0
+        else:
+            lat_vecs = self.lat_vecs
+            vol = np.sqrt(np.linalg.det(lat_vecs @ lat_vecs.T))
+            self._cell_vol = vol
 
     def __repr__(self):
         r"""Return a string representation of the ``TBModel`` object.
@@ -565,6 +581,14 @@ class TBModel:
         .. versionadded:: 2.0.0
         """
         return self._nstate
+    
+    @property
+    def orb_vecs(self) -> np.ndarray:
+        """Orbital vectors in reduced coordinates with shape ``(norb, dim_r)``.
+
+        .. versionadded:: 2.0.0
+        """
+        return self._orb.copy()
 
     @property
     def lat_vecs(self) -> np.ndarray:
@@ -573,14 +597,31 @@ class TBModel:
         .. versionadded:: 2.0.0
         """
         return self._lat.copy()
-
+    
     @property
-    def orb_vecs(self) -> np.ndarray:
-        """Orbital vectors in reduced coordinates with shape ``(norb, dim_r)``.
+    def recip_lat_vecs(self) -> np.ndarray:
+        """Reciprocal lattice vectors in inverse Cartesian units with shape ``(dim_k, dim_k)``.
 
         .. versionadded:: 2.0.0
         """
-        return self._orb.copy()
+        return self._recip_lat.copy() 
+
+    @property
+    def recip_volume(self) -> float:
+        """Returns the volume of the reciprocal unit cell in inverse Cartesian units.
+
+        .. versionadded:: 2.0.0
+        """
+        return self._recip_vol
+
+    @property
+    def cell_volume(self) -> float:
+        """Returns the volume of the unit cell in Cartesian units.
+
+        .. versionadded:: 2.0.0
+        """
+        return self._cell_vol
+
 
     @property
     def site_energies(self) -> np.ndarray:
@@ -657,6 +698,7 @@ class TBModel:
         This is useful for resetting the model to a state without any hoppings.
         """
         self._hoppings.clear()
+        self._hop_index = None
         logger.info("Cleared all hoppings.")
 
     def clear_onsite(self):
@@ -684,7 +726,7 @@ class TBModel:
         """Return orbital positions.
 
         .. versionadded:: 2.0.0
-            Added support for Cartesian coordinates with the `cartesian` parameter.
+            Support for Cartesian coordinates with the `cartesian` parameter.
 
         Parameters
         ----------
@@ -713,10 +755,8 @@ class TBModel:
         """
         return self.lat_vecs
     
-    def get_recip_lat(self):
+    def _get_recip_lat(self):
         r"""Reciprocal lattice vectors in inverse Cartesian coordinates.
-
-        .. versionadded:: 2.0.0
 
         Returns
         -------
@@ -734,14 +774,7 @@ class TBModel:
         """
         if self.dim_k == 0:
             logger.warning("Reciprocal lattice vectors are not defined for zero-dimensional k-space.")
-            return np.zeros((0, self.dim_r))
-
-        if self.dim_k > self.dim_r:
-            # You cannot have more k-dimensions than real-space dimensions.
-            raise ValueError(
-                f"dim_k ({self.dim_k}) cannot exceed dim_r ({self.dim_r}); "
-                "k-space must be defined by a set of independent real-space periods."
-            )
+            return None
 
         # Select the real-space lattice vectors that generate k-space.
         # Prefer an explicit list (e.g. self.per holds indices of periodic directions).
@@ -764,76 +797,12 @@ class TBModel:
 
         # Minimum-norm reciprocal set in the embedding R^{dim_r}:
         # rows b_i satisfy A_sub @ B^T = 2pi I_{dim_k}
-        G = A_sub @ A_sub.T                        # (dim_k, dim_k) Gram matrix
-        X = np.linalg.solve(G, A_sub)     # (dim_k, dim_r)
+        G = A_sub @ A_sub.T             # (dim_k, dim_k) Gram matrix
+        X = np.linalg.solve(G, A_sub)   # (dim_k, dim_r)
         B = (2 * np.pi) * X             # (dim_k, dim_r)
+
         return B
 
-    def get_recip_vol(self):
-        """Return the volume of the reciprocal lattice.
-
-        .. versionadded:: 2.0.0
-
-        The volume is defined as the absolute value of the determinant
-        of the reciprocal lattice vectors.
-
-        Returns
-        -------
-        float
-            Volume of the reciprocal lattice.
-
-        Notes
-        -----
-        Only defined when ``dim_k == dim_r``.
-        """
-        recip_lat_vecs = self.get_recip_lat()
-        if self._dim_k == 0:
-            logger.warning(
-                "Reciprocal volume is not defined for zero-dimensional k-space."
-            )
-            return 0.0
-        if self._dim_k != self._dim_r:
-            logger.warning(
-                "Reciprocal volume is not defined for systems where k-space and real-space dimensions differ."
-            )
-            return 0.0
-        if (
-            recip_lat_vecs.shape[0] != self._dim_k
-            or recip_lat_vecs.shape[1] != self._dim_r
-        ):
-            raise ValueError(
-                "Reciprocal lattice vectors must have shape (dim_k, dim_r)."
-            )
-        if np.linalg.det(recip_lat_vecs) == 0:
-            raise ValueError("Reciprocal lattice vectors are not linearly independent.")
-        # Calculate the volume of the reciprocal lattice
-        # The volume is the absolute value of the determinant of the reciprocal lattice vectors
-        return abs(np.linalg.det(recip_lat_vecs))
-
-    def get_cell_vol(self):
-        """Returns the volume of a 2D unit cell. 
-
-        Returns
-        -------
-        float
-            Volume of the 2D unit cell.
-        """
-        if self.dim_r == 0:
-            logger.warning(
-                "Cell volume is not defined for zero-dimensional real-space."
-            )
-            return 0.0
-        
-        lat_vecs = self.lat_vecs
-        if self.dim_r == 1:
-            return np.linalg.norm(lat_vecs[0])
-        elif self.dim_r == 2:
-            lat_vecs = self.lat_vecs
-            return np.linalg.norm(np.cross(lat_vecs[0], lat_vecs[1]))
-        elif self.dim_r == 3:
-            return abs(np.linalg.det(lat_vecs))
-        else:
-            raise NotImplementedError("Cell volume is only defined for 1D, 2D, and 3D systems.")
 
     def set_onsite(self, onsite_en, ind_i=None, mode="set"):
         r"""Define on-site energies for tight-binding orbitals.
