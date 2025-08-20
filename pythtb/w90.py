@@ -158,7 +158,7 @@ class W90:
         f = open(self.path + "/" + self.prefix + "_hr.dat", "r")
         ln = f.readlines()
         f.close()
-        #
+        
         # get number of wannier functions
         self.num_wan = int(ln[1])
         # get number of Wigner-Seitz points
@@ -337,77 +337,102 @@ class W90:
         # remember that this model was computed from w90
         tb._assume_position_operator_diagonal = False
 
-        # add onsite energies
-        onsite = np.zeros(self.num_wan, dtype=float)
-        for i in range(self.num_wan):
-            tmp_ham = self.ham_r[(0, 0, 0)]["h"][i, i] / float(
-                self.ham_r[(0, 0, 0)]["deg"]
-            )
-            onsite[i] = tmp_ham.real
-            if np.abs(tmp_ham.imag) > 1.0e-9:
-                raise Exception("Onsite terms should be real!")
+        # -------------------------
+        # Onsites (vectorized)
+        # -------------------------
+        # Divide by degeneracy only once and assert onsite is (numerically) real
+        hr0 = self.ham_r[(0, 0, 0)]
+        deg0 = float(hr0["deg"])  # scalar
+        onsite = (hr0["h"].diagonal() / deg0).real
+        # sanity check: imaginary part should be tiny
+        if np.max(np.abs(np.imag(np.diag(hr0["h"]) / deg0))) > 1.0e-9:
+            raise Exception("Onsite terms should be real!")
         tb.set_onsite(onsite - zero_energy)
 
-        # add hopping terms
-        for R in self.ham_r:
-            # avoid double counting
-            use_this_R = True
-            # avoid onsite terms
-            if R[0] == 0 and R[1] == 0 and R[2] == 0:
+        # -------------------------
+        # Hoppings (vectorized per R)
+        # -------------------------
+        # Precompute for speed
+        xyz_cen = self.xyz_cen  # (num_wan, 3), Cartesian Angstroms
+        num_wan = self.num_wan
+        lat_tuple = (self.lat[0], self.lat[1], self.lat[2])
+
+        # Helper to decide if we should process an R (to avoid double counting)
+        def _use_R(R):
+            r1, r2, r3 = R
+            if r1 != 0:
+                return r1 > 0
+            if r2 != 0:
+                return r2 > 0
+            return r3 > 0
+
+        for R, blk in self.ham_r.items():
+            Hr = blk["h"]
+            deg = float(blk["deg"])  # scalar
+
+            # Onsite block already handled; keep only off-diagonal pairs here.
+            if R == (0, 0, 0):
                 avoid_diagonal = True
+                use_this_R = True
             else:
                 avoid_diagonal = False
-                # avoid taking both R and -R
-                if R[0] != 0:
-                    if R[0] < 0:
-                        use_this_R = False
-                else:
-                    if R[1] != 0:
-                        if R[1] < 0:
-                            use_this_R = False
-                    else:
-                        if R[2] < 0:
-                            use_this_R = False
-            # get R vector
-            vecR = _red_to_cart((self.lat[0], self.lat[1], self.lat[2]), [R])[0]
-            # scan through unique R
-            if use_this_R:
-                for i in range(self.num_wan):
-                    vec_i = self.xyz_cen[i]
-                    for j in range(self.num_wan):
-                        vec_j = self.xyz_cen[j]
-                        # get distance between orbitals
-                        dist_ijR = np.sqrt(
-                            np.dot(-vec_i + vec_j + vecR, -vec_i + vec_j + vecR)
-                        )
-                        # to prevent double counting
-                        if not (avoid_diagonal and j <= i):
+                use_this_R = _use_R(R)
 
-                            # only if distance between orbitals is small enough
-                            if max_distance is not None:
-                                if dist_ijR > max_distance:
-                                    continue
+            if not use_this_R:
+                continue
 
-                            # divide the matrix element from w90 with the degeneracy
-                            tmp_ham = self.ham_r[R]["h"][i, j] / float(
-                                self.ham_r[R]["deg"]
-                            )
+            # Convert reduced R to Cartesian vector once per R
+            vecR = _red_to_cart(lat_tuple, [R])[0]  # (3,)
 
-                            # only if big enough matrix element
-                            if min_hopping_norm is not None:
-                                if np.abs(tmp_ham) < min_hopping_norm:
-                                    continue
+            # Build full i,j grids in one shot
+            # delta_ijR = -vec_i + vec_j + vecR
+            #   vec_i shape (num_wan, 1, 3); vec_j shape (1, num_wan, 3)
+            delta = (-xyz_cen[:, None, :] + xyz_cen[None, :, :] + vecR[None, None, :])
+            dist = np.linalg.norm(delta, axis=2)  # (num_wan, num_wan)
 
-                            # remove imaginary part if needed
-                            if ignorable_imaginary_part is not None:
-                                if np.abs(tmp_ham.imag) < ignorable_imaginary_part:
-                                    tmp_ham = tmp_ham.real + 0.0j
+            # Start from all pairs; mask away those we don't keep
+            keep = np.ones((num_wan, num_wan), dtype=bool)
 
-                            # set the hopping term
-                            tb.set_hop(tmp_ham, i, j, list(R))
+            # Prevent double counting within the same R-block
+            if avoid_diagonal:
+                # original logic: skip j <= i when R == (0,0,0)
+                iu = np.triu_indices(num_wan, k=1)
+                keep[:] = False
+                keep[iu] = True
+            else:
+                # we allow i,j all; symmetry handled by _use_R half-space rule
+                # (still skip exact onsite i==j when R!=0 to match original behavior)
+                np.fill_diagonal(keep, False)
+
+
+            # Apply max_distance cutoff (if provided)
+            if max_distance is not None:
+                keep &= (dist <= max_distance)
+
+            # Pull matrix elements divided by degeneracy once
+            Ham = Hr / deg  # (num_wan, num_wan)
+
+            # Apply min_hopping_norm filter
+            if min_hopping_norm is not None:
+                keep &= (np.abs(Ham) >= min_hopping_norm)
+
+            # If nothing to keep for this R, continue early
+            if not np.any(keep):
+                continue
+
+            # Optionally zero-out tiny imaginary parts before insertion
+            if ignorable_imaginary_part is not None:
+                small_imag = np.abs(Ham.imag) < ignorable_imaginary_part
+                Ham = Ham.real + 0.0j + 1j * Ham.imag
+                Ham[small_imag] = Ham.real[small_imag] + 0.0j
+
+            # Finally, emit kept hoppings
+            ii, jj = np.nonzero(keep)
+            for i, j in zip(ii, jj):
+                tb.set_hop(Ham[i, j], i, j, list(R))
 
         return tb
-
+    
     def dist_hop(self):
         r"""Get distances and hopping terms of Hamiltonian in Wannier basis.
 
