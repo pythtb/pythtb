@@ -938,6 +938,26 @@ class TBModel:
                 self._site_energies_specified[idx] = True
         else:
             raise ValueError("Mode should be either 'set' or 'add'.")
+        
+    def _ensure_hop_index(self):
+        """Create a hash index (i,j,R_per)->list index for O(1) lookups."""
+        if getattr(self, "_hop_index", None) is None:
+            self._hop_index = {}
+            for idx, h in enumerate(self._hoppings):
+                if self._dim_k == 0:
+                    key = (h[1], h[2], None)
+                else:
+                    key = (h[1], h[2], tuple(np.array(h[3])[self._per]))
+                self._hop_index[key] = idx
+
+    def _hop_keys(self, ind_i, ind_j, ind_R):
+        """Return primary and conjugate keys using only periodic components of R."""
+        if self._dim_k == 0:
+            return (ind_i, ind_j, None), (ind_j, ind_i, None)
+        Rp = tuple(np.array(ind_R)[self._per])
+        conj_Rp = tuple((-np.array(ind_R))[self._per])
+        return (ind_i, ind_j, Rp), (ind_j, ind_i, conj_Rp)
+
 
     def set_hop(
         self,
@@ -1017,31 +1037,40 @@ class TBModel:
             )
             mode = "set"
 
-        if self._dim_k != 0 and (ind_R is None):
-            raise ValueError("Must specify ind_R when we have a periodic direction.")
         # make sure ind_i and ind_j are not out of scope
-        if ind_i < 0 or ind_i >= self._norb:
+        if ind_i < 0 or ind_i >= self.norb:
             raise ValueError("Index ind_i is not within range of number of orbitals.")
-        if ind_j < 0 or ind_j >= self._norb:
+        if ind_j < 0 or ind_j >= self.norb:
             raise ValueError("Index ind_j is not within range of number of orbitals.")
 
-        # if necessary convert from integer to array
-        if isinstance(ind_R, (int, np.integer)):
-            if self._dim_k != 1:
+        # Check ind_R
+        if isinstance(ind_R, np.ndarray):
+            if ind_R.ndim != 1:
+                raise ValueError("If ind_R is a numpy array, it must be 1-dimensional.")
+            if ind_R.shape[0] != self._dim_r:
+                raise ValueError(
+                    "If ind_R is a numpy array, its length must equal dim_r."
+                )
+        elif isinstance(ind_R, (list, tuple)):
+            if len(ind_R) != self._dim_r:
+                raise ValueError(
+                    "If ind_R is a list or tuple, its length must equal dim_r."
+                )
+            ind_R = np.array(ind_R)
+            if ind_R.ndim != 1:
+                raise ValueError("If ind_R is a list or tuple, it must be 1-dimensional.")
+        elif isinstance(ind_R, (int, np.integer)):
+            if self.dim_k != 1:
                 raise ValueError(
                     "If dim_k is not 1, should not use integer for ind_R. Instead use list."
                 )
-            tmpR = np.zeros(self._dim_r, dtype=int)
-            tmpR[self._per] = ind_R
+            tmpR = np.zeros(self.dim_r, dtype=int)
+            tmpR[self.per] = ind_R
             ind_R = tmpR
-        # check length of ind_R
-        elif isinstance(ind_R, (np.ndarray, list)):
-            ind_R = np.array(ind_R)
-            if ind_R.shape != (self._dim_r,):
-                raise ValueError(
-                    "Length of input ind_R vector must equal dim_r, even if dim_k < dim_r."
-                )
-        elif ind_R is not None:
+        elif ind_R is None:
+            if self.dim_k != 0:
+                raise ValueError("Must specify ind_R when we have a periodic direction.")
+        else:
             raise TypeError(
                 "ind_R is not of correct type. Should be array-type or integer."
             )
@@ -1059,74 +1088,41 @@ class TBModel:
                     "Do not use set_hop for onsite terms. Use set_onsite instead."
                 )
 
-        # make sure that if <i|H|j+R> is specified that <j|H|i-R> is not!
-        if not allow_conjugate_pair:
-            for h in self._hoppings:
-                if ind_i == h[2] and ind_j == h[1]:
-                    if self._dim_k == 0:
-                        raise ValueError(
-                            f"""\n
-                            Following matrix element was already implicitely specified:
-                            i={ind_i}, j={ind_j}.
-                            Remember, specifying <i|H|j> automatically specifies <j|H|i>.  For
-                            consistency, specify all hoppings for a given bond in the same
-                            direction. Alternatively, see the documentation on the
-                            'allow_conjugate_pair' flag.)
-                            """
-                        )
-                    elif np.all(ind_R[self._per] == (-1) * np.array(h[3])[self._per]):
-                        raise ValueError(
-                            f"""\n
-                            Following matrix element was already implicitely specified:
-                            i={ind_i}, j={ind_j}, R={ind_R}.
-                            Remember,specifying <i|H|j+R> automatically specifies <j|H|i-R>.  For
-                            consistency, specify all hoppings for a given bond in the same
-                            direction.  (Or, alternatively, see the documentation on the
-                            'allow_conjugate_pair' flag.)
-                            """
-                        )
+        self._ensure_hop_index()
+        key, conj_key = self._hop_keys(int(ind_i), int(ind_j), ind_R)
+        if not allow_conjugate_pair and (conj_key in self._hop_index):
+            raise ValueError(
+                f"Conjugate element already specified for i={ind_i}, j={ind_j}, R={ind_R}. "
+                "Either avoid double entry or set allow_conjugate_pair=True."
+            )
 
         # convert to 2x2 matrix if needed
         hop_use = self._val_to_block(hop_amp)
         # hopping term parameters to be stored
-        if self._dim_k == 0:
+        if self.dim_k == 0:
             new_hop = [hop_use, int(ind_i), int(ind_j)]
         else:
             new_hop = [hop_use, int(ind_i), int(ind_j), np.array(ind_R)]
 
-        # see if there is a hopping term with same i,j,R
-        use_index = None
-        for iih, h in enumerate(self._hoppings):
-            same_ijR = False
-            if ind_i == h[1] and ind_j == h[2]:
-                if self._dim_k == 0:
-                    same_ijR = True
-                elif np.all(np.array(ind_R)[self._per] == np.array(h[3])[self._per]):
-                    same_ijR = True
-            # if they are the same then store index of site at which they are the same
-            if same_ijR:
-                use_index = iih
-
-        # specifying hopping terms from scratch, can be called only once
-        if mode.lower() == "set":
-            # make sure we specify things only once
+        use_index = self._hop_index.get(key, None)
+        mode = mode.lower()
+        if mode == "set":
             if use_index is not None:
-                logger.warning(
-                    f"Hopping for {ind_i} -> {ind_j} + {ind_R} was already set to {self._hoppings[use_index][0]}. "
-                    f"Resetting to {hop_amp}."
-                )
+                # Reset
                 self._hoppings[use_index] = new_hop
             else:
+                # Append
                 self._hoppings.append(new_hop)
-        elif mode.lower() == "add":
+                self._hop_index[key] = len(self._hoppings) - 1
+        elif mode == "add":
             if use_index is not None:
                 self._hoppings[use_index][0] += new_hop[0]
             else:
                 self._hoppings.append(new_hop)
+                self._hop_index[key] = len(self._hoppings) - 1
         else:
-            raise ValueError(
-                "Wrong value of mode parameter. Should be either `set` or `add`."
-            )
+            raise ValueError("Wrong value of mode parameter. Should be either `set` or `add`.")
+    
 
     def _val_to_block(self, val):
         r"""
@@ -1460,7 +1456,7 @@ class TBModel:
 
         return ham
 
-    def _sol_ham(self, ham, return_eigvecs=False, keep_spin_ax=True):
+    def _sol_ham(self, ham, return_eigvecs=False, keep_spin_ax=True, tf_speedup=False):
         """Solves Hamiltonian and returns eigenvectors, eigenvalues"""
 
         # shape(ham): (Nk, n_orb, n_orb), (Nk, n_orb, n_spin, n_orb, n_spin)
@@ -1494,9 +1490,30 @@ class TBModel:
 
         # solve matrix
         if not return_eigvecs:
-            return np.linalg.eigvalsh(ham_use)
+            if tf_speedup:
+                from tensorflow import convert_to_tensor
+                from tensorflow import complex64 as tfcomplex64
+                from tensorflow.linalg import eigvalsh as tfeigvalsh
+
+                H_tf = convert_to_tensor(ham_use, dtype=tfcomplex64)
+                eval = tfeigvalsh(H_tf)
+                eval = eval.numpy()
+                return eval
+            else:
+                return np.linalg.eigvalsh(ham_use)
         else:
-            eval, evec = np.linalg.eigh(ham_use)
+            if tf_speedup:
+                from tensorflow import convert_to_tensor
+                from tensorflow import complex64 as tfcomplex64
+                from tensorflow.linalg import eigh as tfeigh
+
+                H_tf = convert_to_tensor(ham_use, dtype=tfcomplex64)
+                eval, evec = tfeigh(H_tf)
+                eval = eval.numpy()
+                evec = evec.numpy()
+            else:
+                eval, evec = np.linalg.eigh(ham_use)
+
             # transpose matrix eig since otherwise it is confusing
             # now eig[i,:] is eigenvector for eval[i]-th eigenvalue
             evec = evec.swapaxes(-1, -2)
@@ -1505,7 +1522,12 @@ class TBModel:
 
             return eval, evec
 
-    def solve_ham(self, k_list=None, return_eigvecs=False, keep_spin_ax=True):
+    def solve_ham(
+            self, 
+            k_list = None, 
+            return_eigvecs: bool = False, 
+            keep_spin_ax: bool = True,
+            tf_speedup: bool = False):
         r"""Diagonalize the Hamiltonian 
         
         Solve for eigenvalues and optionally eigenvectors of the tight-binding model
@@ -1575,7 +1597,7 @@ class TBModel:
 
         if return_eigvecs:
             eigvals, eigvecs = self._sol_ham(
-                Ham, return_eigvecs=return_eigvecs, keep_spin_ax=keep_spin_ax
+                Ham, return_eigvecs=return_eigvecs, keep_spin_ax=keep_spin_ax, tf_speedup=tf_speedup
             )
             if self._dim_k != 0:
                 if eigvals.ndim != 2:
