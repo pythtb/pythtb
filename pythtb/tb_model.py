@@ -314,56 +314,6 @@ class TBModel:
         """
         return self.report(show=False)
 
-    def __eq__(self, other):
-        r"""Compare two TBModel objects for equality.
-
-        Compares structural parameters, arrays, and hoppings.
-
-        Parameters
-        ----------
-        other : TBModel
-            Another TBModel instance to compare.
-
-        Returns
-        -------
-        bool
-            True if the models are equal, False otherwise.
-        """
-        if not isinstance(other, TBModel):
-            return NotImplemented
-        # Compare simple attributes
-        if (
-            self._dim_r != other._dim_r
-            or self._dim_k != other._dim_k
-            or self._nspin != other._nspin
-            or self._norb != other._norb
-            or self._per != other._per
-        ):
-            return False
-        # Compare numpy arrays
-        if not np.allclose(self._lat, other._lat):
-            return False
-        if not np.allclose(self._orb, other._orb):
-            return False
-        if not np.allclose(self._site_energies, other._site_energies):
-            return False
-        # Compare hoppings list
-        if len(self._hoppings) != len(other._hoppings):
-            return False
-        for h1, h2 in zip(self._hoppings, other._hoppings):
-            amp1, i1, j1, *R1 = h1
-            amp2, i2, j2, *R2 = h2
-            if i1 != i2 or j1 != j2:
-                return False
-            if not np.allclose(amp1, amp2):
-                return False
-            if R1 and R2:
-                if not np.array_equal(R1[0], R2[0]):
-                    return False
-            elif R1 or R2:
-                return False
-        return True
-
     @deprecated(
         "The 'display' method is deprecated and will be removed in a future release. Use 'print(model)' or 'model.report(show=True)' instead."
     )
