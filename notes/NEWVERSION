@@ -106,4 +106,8 @@ please add here more information if needed.
    git pull
    ...
 
-10. Update this file if needed.
+10. Sinisa will now make sure that conda-forge is up to date.
+Please follow instructions here: https://conda-forge.org/docs/maintainer/adding_pkgs/
+Once you do, please list here what had to be done to update conda-forge.
+
+11. Update this file if needed.

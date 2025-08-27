@@ -24,6 +24,7 @@ phases and related properties.
    formalism
    usage
    resources
+   citation
 
 Quick installation
 ==================

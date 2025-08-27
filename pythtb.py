@@ -912,7 +912,7 @@ matrix.""")
                 rv=-self._orb[i,:]+self._orb[j,:]+ind_R
                 # Take only components of vector which are periodic
                 rv=rv[self._per]
-                # Calculate the hopping, see details in info/tb/tb.pdf
+                # Calculate the hopping, see details in pythtb-formalism.pdf
                 phase=np.exp((2.0j)*np.pi*np.dot(kpnt,rv))
                 amp=amp*phase
             # add this hopping into a matrix and also its conjugate

@@ -8,11 +8,16 @@ fi
 
 # get version name
 version=`grep version source/conf.py | grep = | awk -F\' '{print $2}'`
-filename=pythtb_website_$version.tar
+name=pythtb_website_$version
+
+############################
+# optional renaming
+name=$name-newdoc
+############################
 
 cd build/html
-tar -hcvf $filename *
+tar -hcvf $name.tar *
 
-rsync -v --progress $filename physsun.rutgers.edu:~/pu/pythtb-master/
+mv $name.tar ~/pu/pythtb-master/
 
-rm $filename
+printf "$name.tar moved to ~/pu/pythtb-master/\n"

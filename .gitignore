@@ -3,10 +3,8 @@
 ## can be found here: https://git-scm.com/docs/gitignore#_pattern_format
 
 # Ignore example outputs
-examples/**/*.pdf
 
-# Ignore docs for now
-# docs
+examples/**/*.pdf
 
 # Compiled source #
 ###################
@@ -61,6 +59,7 @@ Untitled.ipynb
 __pycache__/
 .ipynb_checkpoints
 # *.ipynb
+
 
 # DATA files #
 *.dat
@@ -166,7 +165,8 @@ prof/
 .ruff_cache/
 
 # docs
-# docs/build/
+docs/build/
+
 .virtual_documents/
 
 # hatch-vcs
@@ -183,4 +183,6 @@ _build/
 .DS_Store
 
 *.egg-info/
+
 scrap
+dev

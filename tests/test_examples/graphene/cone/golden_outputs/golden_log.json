@@ -1,0 +1,16 @@
+{
+    "group": "graphene",
+    "name": "cone",
+    "filenames": [
+        "bphase_circ0.npy",
+        "bphase_circ1.npy",
+        "bphase_circ01.npy",
+        "bflux_square_0.npy",
+        "bflux_square_1.npy",
+        "bflux_square_01.npy",
+        "plaq.npy"
+    ],
+    "generated_at": "2025-06-18T18:57:31.795550",
+    "python_version": "3.10.17",
+    "pythtb_version": "1.8.0"
+}

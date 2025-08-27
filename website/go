@@ -51,7 +51,7 @@ cp ../pythtb.py $EXAMPLES
 # make simple figure for main page
 ln -s ../examples/pythtb.py source/simple_fig/pythtb.py
 ln -s ../../matplotlibrc source/simple_fig/matplotlibrc
-(cd source/simple_fig ; python simple_fig.py)
+(cd source/simple_fig ; python3 simple_fig.py)
 
 # now create website using sphinx
 make html

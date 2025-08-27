@@ -1,0 +1,11 @@
+{
+    "group": "haldane",
+    "name": "haldane",
+    "filenames": [
+        "evals.npy",
+        "evals_dos.npy"
+    ],
+    "generated_at": "2025-06-18T19:04:03.574768",
+    "python_version": "3.10.17",
+    "pythtb_version": "1.8.0"
+}

@@ -114,6 +114,7 @@ for i in range(rib_evec.shape[1]):
   occ_evec=rib_evec[rib_eval[:,i]<0.0,i]
   # get centers of hybrid wannier functions
   hwfc=ribbon_model.position_hwf(occ_evec,1)
+  print(hwfc.shape)
   # plot centers
   s=ax2.scatter([k_vec[i]]*hwfc.shape[0], hwfc, c=hwfc, s=7,
                 marker='o', cmap="coolwarm", edgecolors='none', vmin=0.0, vmax=float(len_1), zorder=-100)

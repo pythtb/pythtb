@@ -1,0 +1,10 @@
+{
+    "group": "zero_dim",
+    "name": "0dim",
+    "filenames": [
+        "evals"
+    ],
+    "generated_at": "2025-06-18T20:39:07.143198",
+    "python_version": "3.10.17",
+    "pythtb_version": "1.8.0"
+}

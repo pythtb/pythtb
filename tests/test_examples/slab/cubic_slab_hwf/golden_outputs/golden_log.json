@@ -1,0 +1,12 @@
+{
+    "group": "slab",
+    "name": "cubic_slab_hwf",
+    "filenames": [
+        "evals.npy",
+        "hwfc.npy",
+        "px.npy"
+    ],
+    "generated_at": "2025-06-18T20:00:37.664026",
+    "python_version": "3.10.17",
+    "pythtb_version": "1.8.0"
+}

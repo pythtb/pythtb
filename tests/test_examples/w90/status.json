@@ -1,0 +1,14 @@
+{
+    "w90_quick": {
+        "status": "unknown",
+        "created": "2025-06-18T18:11:24.952325",
+        "pythtb_version": "2.0.0",
+        "python_version": "3.11.11"
+    },
+    "w90": {
+        "status": "unknown",
+        "created": "2025-06-18T18:11:27.076803",
+        "pythtb_version": "2.0.0",
+        "python_version": "3.11.11"
+    }
+}

@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 # read output from Wannier90 that should be in folder named "example_a"
 # see instructions above for how to obtain the example output from Wannier90
 # for testing purposes
-silicon=w90(r"example_a",r"silicon")
+silicon=w90(r"silicon_w90",r"silicon")
 
 # hard coded fermi level in eV
 fermi_ev=0.62285135E+01

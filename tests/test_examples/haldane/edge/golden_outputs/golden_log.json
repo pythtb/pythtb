@@ -1,0 +1,13 @@
+{
+    "group": "haldane",
+    "name": "edge",
+    "filenames": [
+        "evals.npy",
+        "evecs.npy",
+        "evals_half.npy",
+        "evecs_hald.npy"
+    ],
+    "generated_at": "2025-06-18T20:21:50.849884",
+    "python_version": "3.10.17",
+    "pythtb_version": "1.8.0"
+}

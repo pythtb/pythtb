@@ -1,0 +1,26 @@
+{
+    "haldane_bp": {
+        "status": "unknown",
+        "created": "2025-06-18T18:05:13.975323",
+        "pythtb_version": "2.0.0",
+        "python_version": "3.11.11"
+    },
+    "haldane_fin": {
+        "status": "unknown",
+        "created": "2025-06-18T18:05:17.611118",
+        "pythtb_version": "2.0.0",
+        "python_version": "3.11.11"
+    },
+    "haldane_hwf": {
+        "status": "unknown",
+        "created": "2025-06-18T18:05:21.752607",
+        "pythtb_version": "2.0.0",
+        "python_version": "3.11.11"
+    },
+    "haldane": {
+        "status": "unknown",
+        "created": "2025-06-18T18:05:23.921174",
+        "pythtb_version": "2.0.0",
+        "python_version": "3.11.11"
+    }
+}

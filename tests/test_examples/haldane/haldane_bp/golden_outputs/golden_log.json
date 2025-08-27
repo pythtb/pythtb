@@ -1,0 +1,14 @@
+{
+    "group": "haldane",
+    "name": "haldane_bp",
+    "filenames": [
+        "phi_a1.npy",
+        "phi_b1.npy",
+        "phi_c1.npy",
+        "flux_a1.npy",
+        "flux_a2.npy"
+    ],
+    "generated_at": "2025-06-18T19:08:46.426659",
+    "python_version": "3.10.17",
+    "pythtb_version": "1.8.0"
+}

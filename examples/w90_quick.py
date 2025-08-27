@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 # read output from Wannier90 that should be in folder named "example_a"
 #   see instructions above for how to obtain the example output from 
 #   Wannier90 for testing purposes
-silicon=w90(r"example_a",r"silicon")
+silicon=w90(r"silicon_w90",r"silicon")
 
 # get tight-binding model without hopping terms above 0.01 eV
 my_model=silicon.model(min_hopping_norm=0.01)

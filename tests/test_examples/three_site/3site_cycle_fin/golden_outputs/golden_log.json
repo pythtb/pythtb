@@ -1,0 +1,12 @@
+{
+    "group": "three_site",
+    "name": "3site_cycle_fin",
+    "filenames": [
+        "3site_cycle_fluxes.npy",
+        "3site_cycle_fin_evals.npy",
+        "3site_cycle_fin_xexp.npy"
+    ],
+    "generated_at": "2025-06-18T20:34:00.441009",
+    "python_version": "3.10.17",
+    "pythtb_version": "1.8.0"
+}

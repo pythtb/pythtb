@@ -1,0 +1,10 @@
+{
+    "group": "graphene",
+    "name": "graphene",
+    "filenames": [
+        "evals.npy"
+    ],
+    "generated_at": "2025-06-18T18:56:54.508175",
+    "python_version": "3.10.17",
+    "pythtb_version": "1.8.0"
+}
