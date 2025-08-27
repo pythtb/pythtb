@@ -51,9 +51,6 @@ speedup = [
 "Homepage" = "http://www.physics.rutgers.edu/pythtb"
 "Download" = "https://github.com/pythtb/pythtb"
 
-[tool.setuptools]
-py-modules = ["pythtb"]
-
 [tool.setuptools_scm]
 version_scheme = "post-release"
 local_scheme = "node-and-date"
