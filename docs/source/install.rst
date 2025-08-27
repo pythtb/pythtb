@@ -37,9 +37,7 @@ to enhance your experience with PythTB:
 *  `plotly <https://plotly.com/python/>`_ - for interactive plotting capabilities with 3D models.
 *  `tensorflow <https://www.tensorflow.org/>`_ - for faster computations.
 
-You should now be ready to run any of the  :doc:`examples <examples>`.
-
-Installing with ``pip`` from PyPI
+Installing from PyPI with ``pip``
 ----------------------------------
 
 These instructions also assume that
@@ -53,6 +51,18 @@ To install the latest version of PythTB with pip simply type in terminal
 
    pip install pythtb --upgrade
 
+To install an older version of PythTB, you can specify the version number like this:
+
+.. code-block:: bash
+
+   pip install pythtb==X.Y.Z
+
+To install all the optional dependencies, you can run
+
+.. code-block:: bash
+
+   pip install .[optional] 
+   
 .. tip::
 
    If you don't have root access try installing PythTB into your home 
