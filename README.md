@@ -14,7 +14,7 @@ properties. For more details, please see:
 To install the latest version of PythTB simply type in terminal:
 
 ```
-  pip install pythtb --upgrade
+pip install pythtb --upgrade
 ```
 
 If you don't have root access try installing PythTB into your home 
