@@ -466,14 +466,15 @@ class TBModel:
         if k_vals.shape[1] != self._dim_k:
             raise ValueError(f"Invalid k_vals shape: {k_vals.shape}. Expected (Nk, {self._dim_k}).")
         
-        orb_vecs = self.orb_vecs  # reduced units
-        orb_vec_diff = orb_vecs[:, None, :] - orb_vecs[None, :, :]
         if self._dim_k == 0:
             logger.warning(
                 "No periodic directions in k-space. Returning H_flat unchanged."
             )
             return H_flat
-        print(orb_vec_diff.shape, k_vals.shape)
+        
+        
+        orb_vecs = self._orb_vecs  # reduced units
+        orb_vec_diff = orb_vecs[:, None, :] - orb_vecs[None, :, :]
         orb_vec_diff = orb_vec_diff[..., self._per]
         orb_phase = np.exp(
             1j * 2 * np.pi * np.matmul(orb_vec_diff, k_vals.T)
@@ -595,7 +596,7 @@ class TBModel:
             - 'to_orbital': index of ending orbital
             - 'lattice_vector': (optional) lattice vector displacement
         """
-        raw = copy.deepcopy(self._hoppings)
+        raw = list(self._hoppings)
         formatted = []
         for hop in raw:
             amp, i, j, *R = hop
@@ -689,9 +690,9 @@ class TBModel:
         np.ndarray
             Array of orbital positions, shape (norb, dim_r).
         """
-        orbs = self.orb_vecs
+        orbs = self._orb
         if cartesian:
-            return orbs @ self.lat_vecs
+            return orbs @ self._lat
         else:
             return orbs
 
@@ -729,7 +730,7 @@ class TBModel:
         # Select the real-space lattice vectors that generate k-space.
         # Prefer an explicit list (e.g. self.per holds indices of periodic directions).
         # Fallback: take the first dim_k lattice vectors.
-        lat = np.asarray(self.lat_vecs)            # shape (dim_r, dim_r) in Cartesian coords
+        lat = np.asarray(self._lat)            # shape (dim_r, dim_r) in Cartesian coords
         if hasattr(self, "per") and self.per is not None:
             per = np.asarray(self.per, dtype=int)
             if per.size != self.dim_k:
@@ -1944,7 +1945,6 @@ class TBModel:
         # update lattice vectors and orbitals
         nnp_tb._lat = np.array(np_lat, dtype=float)
         nnp_tb._orb = np.array(np_orb, dtype=float)
-        print(np_orb, self.orb_vecs)
 
         # double check that everything went as planned
 
@@ -2557,7 +2557,7 @@ class TBModel:
             raise ValueError("nk must be >= number of nodes in kpts")
 
         # Extract periodic lattice and compute k-space metric
-        lat_per = self.lat_vecs[self.per]
+        lat_per = self._lat[self.per]
         k_metric = np.linalg.inv(lat_per @ lat_per.T)
 
         # Compute segment vectors and lengths in Cartesian metric
