@@ -3,6 +3,9 @@ This file contains notes from developers that should be brought to the attention
 For example, if something was removed or added where the context is unclear in the git history, the change should be written 
 here with some explanatory notes, along with your name and date.
 
+## Removed dev/TODO.md: Trey - July 1, 2025
+
+I have removed the 'dev/TODO.md' in the dev folder and moved all of its contents to the Issues tab. This way we can comment and track the ideas initiated by Sinisa from this file. In the future, any ideas for future development should be added to "Discussions", and issues to fix should be added to the "Issues" tab.
 
 ## Note: David - Nov 18, 2012
 
@@ -22,8 +25,3 @@ by rewrapping the text in some way.
 
 (This seems to be a problem that occurs for my version of Docutils
 but not Sinisa's...)
-
-## Removed dev/TODO.md: Trey - July 1, 2025
-
-I have removed the TODO.md in the dev folder and moved all of its contents to the Issues tab. This way we can comment 
-and track the ideas initiated by Sinisa from this file. 
