@@ -47,23 +47,53 @@ class Wannier:
             -1, len(self.nks)
         )  # (product, dims)
 
-    def report(self):
-        """Prints a report of the Wannier functions, including their quadratic spreads and centers."""
-        if not self.tilde_states.filled:
-            raise ValueError("Tilde states are not set.")
-        
-        print("Wannier function report")
-        print(" --------------------- ")
+    def report(self, precision=8):
+        """Concise report of Wannier centers and spreads."""
 
-        print("Quadratic spreads:")
-        for i, spread in enumerate(self.spread):
-            print(f"w_{i} --> {spread.round(5)}")
-        print("Centers:")
-        for i, center in enumerate(self.centers):
-            print(f"w_{i} --> {center.round(5)}")
-        print(rf"Omega_I = {self.Omega_I}")
-        print(rf"Omega_D = {self.Omega_D}")
-        print(rf"Omega_OD = {self.Omega_OD}")
+        if not getattr(self.tilde_states, "filled", False):
+            raise ValueError("Tilde states are not set.")
+
+        spreads = np.asarray(self.spread, float)
+        centers = np.atleast_2d(np.asarray(self.centers, float))
+
+        n, d = centers.shape
+        lines = ["Wannier Function Report"]
+
+        # individual WF rows
+        for i, (c, s) in enumerate(zip(centers, spreads), 1):
+            c_str = ", ".join(f"{x:.{precision}f}" for x in c)
+            lines.append(f"WF {i}: center = [{c_str}]  Omega     = {s:.{precision}f}")
+
+        # totals
+        sum_c = centers.sum(axis=0)
+        sum_s = spreads.sum()
+        sum_c_str = ", ".join(f"{x:.{precision}f}" for x in sum_c)
+        lines.append(f"Sum : center = [{sum_c_str}]  Omega tot = {sum_s:.{precision}f}")
+
+        # Omegas
+        Omega_I  = float(getattr(self, "Omega_I",  np.nan))
+        Omega_D  = float(getattr(self, "Omega_D",  np.nan))
+        Omega_OD = float(getattr(self, "Omega_OD", np.nan))
+        Omega_tot = Omega_I + Omega_D + Omega_OD
+
+        lines += [
+            f"Omega I   = {Omega_I:.{precision}f}",
+            f"Omega D   = {Omega_D:.{precision}f}",
+            f"Omega OD  = {Omega_OD:.{precision}f}",
+            f"Omega tot = {Omega_tot:.{precision}f}",
+        ]
+
+         # determine longest line
+        maxlen = max(len(l) for l in lines)
+        divider = "=" * maxlen
+        sub_div = "-" * maxlen
+
+        # insert dividers at appropriate places
+        lines.insert(1, divider)
+        lines.insert(len(lines) - 4, sub_div)
+
+        out = "\n".join(lines)
+        print(out) 
 
     @property
     def model(self) -> "TBModel":
@@ -82,7 +112,7 @@ class Wannier:
 
     @property
     def tilde_states(self) -> WFArray:
-        r"""WFArray object associated with the tilde states.
+        r"""WFArray object associated with the Bloch-like states.
 
         These are the Bloch-like states that are Fourier transformed to 
         form the Wannier functions. They are related to the original energy
@@ -94,10 +124,10 @@ class Wannier:
         """
         if not hasattr(self, "_tilde_states"):
             raise ValueError(
-                "Tilde states have not been set. " \
-                "Use `set_tilde_states` or `optimal_alignment`.")
+                "Bloch-like states have not been set. " \
+                "Use `set_bloch_like_states` or `single_shot_projection`.")
         return getattr(self, "_tilde_states", None)
-    
+
     @property
     def nks(self) -> list:
         """Number of k-points in each dimension."""
@@ -265,20 +295,20 @@ class Wannier:
         self._trial_wfs = self._get_trial_wfs(tf_list)
         self._tilde_states: WFArray = WFArray(self.model, self.mesh, nstates=self.num_twfs)
 
-    def _set_tilde_states(self, tilde_states, cell_periodic=False):
-        r"""Internal function to set tilde states with spins flattened.
+    def _set_bloch_like_states(self, bloch_states, cell_periodic=False):
+        r"""Internal function to set Bloch-like states with spins flattened.
 
-        From a user facing end, we want to normalize having the additional
-        spin axis in the wavefunctions. This way, we ensure that the wavefunctions
-        are defined with the proper basis ordering.
+        From a user facing end, the API is having the additional
+        spin axis in the wavefunctions. This is so we ensure that the 
+        wavefunctions are defined with the proper basis ordering.
 
         Internally, it is best to flatten the spin axis, this way the algorithm
         stays spin independent.
         """
-        print("Setting tilde states...")
-        # set tilde states
+        print("Setting Bloch-like states...")
+        # set Bloch-like states
         self.tilde_states._set_wfs(
-            tilde_states, cell_periodic=cell_periodic, 
+            bloch_states, cell_periodic=cell_periodic, 
             spin_flattened=True
         )
 
@@ -298,34 +328,33 @@ class Wannier:
         self._centers = spread[1]
 
 
-    def set_tilde_states(self, tilde_states, cell_periodic=False):
-        r"""Set the tilde states for the Wannier functions.
+    def set_bloch_like_states(self, states, cell_periodic=False):
+        r"""Set the Bloch-like states for the Wannier functions.
 
         Parameters
         ----------
-        tilde_states : np.ndarray
-            The tilde states to set. Must have the shape
+        states : np.ndarray
+            The states to set as Bloch-like states. Must have the shape
             ``(nk1, ..., nstates, n_orbs[, n_spins])``.
         cell_periodic : bool, optional
-            Whether to treat the ``tilde_states`` as cell-periodic, by default False.
+            Whether to treat the ``states`` as cell-periodic, by default False.
         """
-        if not isinstance(tilde_states, np.ndarray):
-            raise ValueError("Tilde states must be a numpy array.")
-        
-        if tilde_states.ndim != self.mesh.num_k_axes + 2 + (self.model.nspin-1):
+        if not isinstance(states, np.ndarray):
+            raise ValueError("Bloch-like states must be a numpy array.")
+
+        if states.ndim != self.mesh.num_k_axes + 2 + (self.model.nspin-1):
             raise ValueError(
-                f"Tilde states must have shape (nk1, ..., nstates, n_orbs[, n_spins]), "
-                f"but got {tilde_states.shape}."
+                f"Bloch-like states must have shape (nk1, ..., nstates, n_orbs[, n_spins]), "
+                f"but got {states.shape}."
             )
         
         if self.model.nspin == 2:
-            tilde_states = tilde_states.reshape((*tilde_states.shape[:-2], -1))
-           
+            states = states.reshape((*states.shape[:-2], -1))
 
-        self._set_tilde_states(tilde_states, cell_periodic=cell_periodic)
+        self._set_bloch_like_states(states, cell_periodic=cell_periodic)
 
 
-    def _get_tf_overlap(self, band_idxs, psi_nk=None):
+    def _compute_Amn(self, psi_nk, twfs, band_idxs):
         r"""Overlap matrix between Bloch states and trial wavefunctions.
 
         The overlap matrix is defined as
@@ -358,21 +387,18 @@ class Wannier:
         # only keep band_idxs
         psi_nk = np.take(psi_nk, band_idxs, axis=-2)
 
-        assert hasattr(
-            self, "trial_wfs"
-        ), "Must initialize trial wfs with .trial_wfs = twf_list"
-        trial_wfs = self.trial_wfs
+        trial_wfs = twfs
         # flatten along spin dimension in case spin is considered
         trial_wfs = trial_wfs.reshape((*trial_wfs.shape[:1], -1))
 
         A_k = np.einsum("...ij, kj -> ...ik", psi_nk.conj(), trial_wfs)
         return A_k
 
-    def _get_psi_tilde(self, psi_nk, state_idx):
+    def _single_shot_project(self, psi_nk, twfs, state_idx):
         """
-        Performs optimal alignment of psi_nk with tfs.
+        Performs optimal alignment of psi_nk with trial wavefunctions.
         """
-        A_k = self._get_tf_overlap(state_idx, psi_nk=psi_nk)
+        A_k = self._compute_Amn(psi_nk, twfs, state_idx)
         V_k, _, Wh_k = np.linalg.svd(A_k, full_matrices=False)
 
         if self.model.nspin == 2:
@@ -389,7 +415,7 @@ class Wannier:
 
         return psi_tilde
 
-    def optimal_alignment(
+    def single_shot_projection(
         self, 
         tf_list: list = None, 
         band_idxs: list = None, 
@@ -417,16 +443,18 @@ class Wannier:
                 raise ValueError("Trial wavefunctions must be set before Wannierization.")
         else:
             self.set_trial_wfs(tf_list)
+        
+        twfs = self.trial_wfs
 
         if use_tilde:
             # projecting back onto tilde states
             if band_idxs is None:  # assume we are projecting onto all tilde states
                 band_idxs = list(range(self.tilde_states.nstates))
 
-            psi_til_til = self._get_psi_tilde(
-                self.tilde_states.psi_nk, state_idx=band_idxs
+            psi_til_til = self._single_shot_project(
+                self.tilde_states.psi_nk, twfs, state_idx=band_idxs
             )
-            self._set_tilde_states(psi_til_til, cell_periodic=False)
+            self._set_bloch_like_states(psi_til_til, cell_periodic=False)
 
         else:
             # projecting onto Bloch energy eigenstates
@@ -435,10 +463,10 @@ class Wannier:
                 band_idxs = list(range(0, n_occ))
 
             # shape: (*nks, states, orbs*n_spin])
-            psi_tilde = self._get_psi_tilde(
-                self.energy_eigstates.psi_nk, state_idx=band_idxs
+            psi_tilde = self._single_shot_project(
+                self.energy_eigstates.psi_nk, twfs, state_idx=band_idxs
             )
-            self._set_tilde_states(psi_tilde, cell_periodic=False)
+            self._set_bloch_like_states(psi_tilde, cell_periodic=False)
 
 
     def _spread_recip(self, decomp=False):
@@ -498,16 +526,6 @@ class Wannier:
                     - np.sum(abs_diag_M_sq)
                 )
             )
-
-            # Omega_tilde = (
-            #     (1 / Nk)
-            #     * w_b
-            #     * (
-            #         np.sum((-log_diag_M_imag - k_shell @ r_n.T) ** 2)
-            #         + np.sum(abs(M) ** 2)
-            #         - np.sum(abs_diag_M_sq)
-            #     )
-            # )
             return [spread_n, Omega_i, Omega_d, Omega_od], r_n, rsq_n
 
         else:
@@ -660,47 +678,52 @@ class Wannier:
         w_b = w_b[0]  # Assume only one shell for now
 
         # initial subspace
-        init_states = self.tilde_states
         energy_eigstates = self.energy_eigstates
         u_nk = energy_eigstates.get_states(flatten_spin=True)
-        # u_wfs_til = init_states.get_states(flatten_spin=True)["Cell periodic"]
+        # u_wfs_til = init_states.get_states(flatten_spin=True)
 
         if n_wfs is None:
             # assume number of states in the subspace is number of tilde states
-            N_wfs = init_states.nstates
+            N_wfs = self.tilde_states.nstates
 
         if disentang_bands == "occupied":
             disentang_bands = list(range(n_occ))
 
-        outer_states = u_nk.take(disentang_bands, axis=-2)
-
         # Projector of initial tilde subspace at each k-point
         if frozen_bands is None:
             N_inner = 0
-            P, Q = init_states.get_projectors(return_Q=True)
-            P_nbr, Q_nbr = init_states._P_nbr, init_states._Q_nbr
+            init_states = self.tilde_states
+            
+            # manifold from which we borrow states to minimize omega_i
+            comp_states = u_nk.take(disentang_bands, axis=-2)
         else:
             N_inner = len(frozen_bands)
             inner_states = u_nk.take(frozen_bands, axis=-2)
-
             P_inner = np.swapaxes(inner_states, -1, -2) @ inner_states.conj()
             Q_inner = np.eye(P_inner.shape[-1]) - P_inner
+
             P_tilde = self.tilde_states.get_projectors()
 
             # chosing initial subspace as highest eigenvalues
             MinMat = Q_inner @ P_tilde @ Q_inner
             _, eigvecs = np.linalg.eigh(MinMat)
-            min_states = np.einsum(
-                "...ij, ...ik->...jk", eigvecs[..., -(N_wfs - N_inner) :], outer_states
-            )
+            eigvecs = np.swapaxes(eigvecs, -1, -2)
 
-            min_wfa = WFArray(self.model, self.mesh, nstates=min_states.shape[-2])
-            min_wfa._set_wfs(min_states, cell_periodic=False, spin_flattened=True)
+            init_evecs = eigvecs[..., -(N_wfs - N_inner) :, :]
+            init_states = WFArray(self.model, self.mesh, nstates=init_evecs.shape[-2])
+            init_states._set_wfs(init_evecs, cell_periodic=False, spin_flattened=True)
 
-            P, Q = min_wfa.get_projectors(return_Q=True)
-            P_nbr = min_wfa._P_nbr
-            Q_nbr = min_wfa._Q_nbr
-       
+            comp_bands = list(np.setdiff1d(disentang_bands, frozen_bands))
+            comp_states = u_nk.take(comp_bands, axis=-2)
+
+            # min_states = np.einsum(
+            #     "...ij, ...ik->...jk", eigvecs[..., -(N_wfs - N_inner) :], outer_states
+            # )
+
+          
+        P, Q = init_states.get_projectors(return_Q=True)
+        P_nbr, Q_nbr = init_states._P_nbr, init_states._Q_nbr
+
         T_kb = np.einsum("...ij, ...kji -> ...k", P, Q_nbr)
         omega_I_prev = (1 / Nk) * w_b * np.sum(T_kb)
         if verbose:
@@ -708,10 +731,6 @@ class Wannier:
         
         P_min = np.copy(P)  # for start of iteration
         P_nbr_min = np.copy(P_nbr)  # for start of iteration
-
-        # manifold from which we borrow states to minimize omega_i
-        comp_bands = list(np.setdiff1d(disentang_bands, frozen_bands))
-        comp_states = u_nk.take(comp_bands, axis=-2)
 
         if tf_speedup:
             from tensorflow import convert_to_tensor
@@ -736,7 +755,6 @@ class Wannier:
 
             min_wfa = WFArray(self.model, self.mesh, nstates=states_min.shape[-2])
             min_wfa._set_wfs(states_min, cell_periodic=True, spin_flattened=True)
-
             P_new = min_wfa._P
             P_nbr_new = min_wfa._P_nbr
 
@@ -754,7 +772,8 @@ class Wannier:
             omega_I_new = (1 / Nk) * w_b * np.sum(T_kb)
 
             if verbose:
-                print(f"{i}: Omega_i = {omega_I_new.real}")            
+                delta = omega_I_new - omega_I_prev
+                print(f"iter {i:4d} | Ω_I = {omega_I_new.real:12.9e} | ΔΩ = {delta.real:10.5e}")
 
             if abs(omega_I_prev - omega_I_new) <= tol:
                 if verbose:
@@ -764,7 +783,7 @@ class Wannier:
             if omega_I_new > omega_I_prev:
                 beta = max(beta - 0.01, 0)
                 if verbose:
-                    print(f"Warning: Omega_i is increasing. Reducing beta to {beta}.")
+                    print(f"Warning: Ω_I is increasing. Reducing beta to {beta}.")
 
             omega_I_prev = omega_I_new
 
@@ -852,7 +871,8 @@ class Wannier:
             omega_tilde_new = self._get_omega_til(M, w_b, k_shell)
 
             if verbose:
-                print(f"{i} Omega_til = {omega_tilde_new.real}, Grad mag: {grad_mag}")
+                delta = omega_tilde_new - omega_tilde_prev
+                print(f"iter {i:4d} | Ω_tilde = {omega_tilde_new.real:12.9e} | ΔΩ = {delta.real:12.5e} | ‖∇‖ = {grad_mag:10.5e}")
 
             # Check for convergence
             if (
@@ -878,8 +898,8 @@ class Wannier:
         self,
         disentang_window="occupied",
         frozen_window=None,
-        twfs=None,
         dim_ss=None,
+        twfs=None,
         iter_num=1000,
         tol=1e-5,
         beta=1,
@@ -901,11 +921,11 @@ class Wannier:
 
         Parameters
         ----------
-        disentang_window : str, optional
+        disentang_window : {str, list}, optional
             Disentanglement window, by default "occupied"
-        frozen_window : str, optional
+        frozen_window : list, optional
             Frozen window, by default None
-        twfs : list, optional
+        twfs : list[list[tuple]], optional
             Trial wavefunctions, by default None
         n_wfs : int, optional
             Number of states in disentangled subspace, by default None
@@ -916,7 +936,7 @@ class Wannier:
         beta : int, optional
             Mixing parameter, by default 1
         tf_speedup : bool, optional
-            Whether to use ``tensorflow`` for speedups, by default False
+            Whether to use `tensorflow` for speedups, by default False
         verbose : bool, optional
             Whether to print progress messages, by default False
 
@@ -932,19 +952,21 @@ class Wannier:
         # if we haven't done single-shot projection yet (set tilde states)
         if twfs is not None:
             # initialize tilde states
-            twfs = self._get_trial_wfs(twfs)
+            self.set_trial_wfs(twfs)
+
+            twfs = self.trial_wfs
 
             n_occ = int(self.energy_eigstates.nstates / 2)  # assuming half filled
             band_idxs = list(range(0, n_occ))  # project onto occ manifold
 
-            psi_til_init = self._get_psi_tilde(
+            psi_til_init = self._single_shot_project(
                 self.energy_eigstates.psi_nk, twfs, state_idx=band_idxs
             )
-            self._set_tilde_states(psi_til_init, cell_periodic=False)
+            self._set_bloch_like_states(psi_til_init, cell_periodic=False)
         else:
             assert hasattr(
                 self.tilde_states, "_u_nk"
-            ), "Need pass trial wavefunction list or initalize tilde states with optimal_alignment()."
+            ), "Need pass trial wavefunction list or initalize tilde states with single_shot_projection()."
 
         # Minimizing Omega_I via disentanglement
         util_min = self._optimal_subspace(
@@ -958,7 +980,7 @@ class Wannier:
             tf_speedup=tf_speedup,
         )
 
-        self._set_tilde_states(util_min, cell_periodic=True)
+        self._set_bloch_like_states(util_min, cell_periodic=True)
 
     def max_localize(self, eps=1e-3, iter_num=1000, tol=1e-5, grad_min=1e-3, verbose=False):
         r"""Unitary transformation to minimize the gauge-dependent spread.
@@ -1000,7 +1022,7 @@ class Wannier:
         u_tilde_wfs = self.tilde_states.get_states(flatten_spin=True)
         util_max_loc = np.einsum("...ji, ...jm -> ...im", U, u_tilde_wfs)
 
-        self._set_tilde_states(util_max_loc, cell_periodic=True)
+        self._set_bloch_like_states(util_max_loc, cell_periodic=True)
 
     def min_spread(
         self,
@@ -1045,24 +1067,24 @@ class Wannier:
         ### Second projection ###
         # if we need a smaller number of twfs b.c. of subspace selec
         if twfs_2 is not None:
-            twfs = self.get_trial_wfs(twfs_2)
-            psi_til_til = self._get_psi_tilde(
+            twfs = self._get_trial_wfs(twfs_2)
+            psi_til_til = self._single_shot_project(
                 self.tilde_states.psi_nk,
                 twfs,
                 state_idx=list(range(self.tilde_states.nstates)),
             )
         # choose same twfs as in subspace selection
         else:
-            psi_til_til = self._get_psi_tilde(
+            psi_til_til = self._single_shot_project(
                 self.tilde_states.psi_nk,
                 self.trial_wfs,
                 state_idx=list(range(self.tilde_states.nstates)),
             )
 
-        self._set_tilde_states(psi_til_til, cell_periodic=False)
+        self._set_bloch_like_states(psi_til_til, cell_periodic=False)
 
         ### Finding optimal gauge with maxloc ###
-        self.max_loc(
+        self.max_localize(
             eps=eps,
             iter_num=iter_num_omega_til,
             tol=tol_omega_til,
@@ -1126,7 +1148,7 @@ class Wannier:
                 evecs_R[idx] += eigvecs[*k_idx] * phase / Nk
 
         # interpolate to arbitrary k
-        k_path, k_dist, k_node = self.model.k_path(k_nodes, nk=n_interp, report=False)
+        k_path, _, _ = self.model.k_path(k_nodes, nk=n_interp, report=False)
 
         # H_k_interp = np.zeros((k_path.shape[0], H_R.shape[-1], H_R.shape[-1]), dtype=complex)
         # u_k_interp = np.zeros((k_path.shape[0], u_R.shape[-2], u_R.shape[-1]), dtype=complex)
