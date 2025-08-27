@@ -191,7 +191,7 @@ class W90:
             ham_i = int(sp[3]) - 1
             ham_j = int(sp[4]) - 1
             # get matrix element
-            ham_val = float(sp[5]) + 1.0j * float(sp[6])
+            ham_val = float(sp[5]) + 1j * float(sp[6])
             # store stuff, for each R store hamiltonian and degeneracy
             ham_key = (ham_R1, ham_R2, ham_R3)
             if ham_key not in self.ham_r:
@@ -202,19 +202,12 @@ class W90:
                 ind_R += 1
             self.ham_r[ham_key]["h"][ham_i, ham_j] = ham_val
 
-        # check if for every non-zero R there is also -R
-        for R in self.ham_r:
-            if not (R[0] == 0 and R[1] == 0 and R[2] == 0):
-                found_pair = False
-                for P in self.ham_r:
-                    if not (R[0] == 0 and R[1] == 0 and R[2] == 0):
-                        # check if they are opposite
-                        if R[0] == -P[0] and R[1] == -P[1] and R[2] == -P[2]:
-                            if found_pair:
-                                raise Exception("Found duplicate negative R!")
-                            found_pair = True
-                if not found_pair:
-                    raise Exception("Did not find negative R for R = " + R + "!")
+        # check if for every non-zero R there is also -R (set-based, O(N))
+        R_set = set(self.ham_r.keys())
+        for R in R_set:
+            if R != (0, 0, 0):
+                if (-R[0], -R[1], -R[2]) not in R_set:
+                    raise Exception(f"Did not find negative R for R = {R}!")
 
         # read in wannier centers
         f = open(self.path + "/" + self.prefix + "_centres.xyz", "r")
@@ -236,6 +229,40 @@ class W90:
         self.red_cen = _cart_to_red(
             (self.lat[0], self.lat[1], self.lat[2]), self.xyz_cen
         )
+
+        # caches (filled lazily)
+        self._vecR_cache = {}
+        self._dist_cache = {}
+
+    def _get_vecR(self, R):
+        """Cartesian vector for reduced lattice vector R, cached."""
+        if not hasattr(self, "_vecR_cache"):
+            self._vecR_cache = {}
+        if R in self._vecR_cache:
+            return self._vecR_cache[R]
+        vecR = _red_to_cart((self.lat[0], self.lat[1], self.lat[2]), [R])[0]
+        self._vecR_cache[R] = vecR
+        return vecR
+
+    def _get_dist_matrix(self, R):
+        """Distance for reduced lattice vector R, cached."""
+        if not hasattr(self, "_dist_cache"):
+            self._dist_cache = {}
+        if R in self._dist_cache:
+            return self._dist_cache[R]
+        vecR = self._get_vecR(R)
+        delta = (-self.xyz_cen[:, None, :] + self.xyz_cen[None, :, :]) + vecR[None, None, :]
+        dist = np.linalg.norm(delta, axis=2)  # (num_wan, num_wan)
+        self._dist_cache[R] = dist
+        return dist
+
+    def _precompute_distances(self):
+        """Precompute distance matrices for all reduced lattice vectors."""
+        if not hasattr(self, "_dist_cache"):
+            self._dist_cache = {}
+        for R in self.ham_r.keys():
+            if R not in self._dist_cache:
+                self._get_dist_matrix(R)
 
     def model(
         self,
@@ -330,7 +357,6 @@ class W90:
         >>> my_model_simple.display()
 
         """
-
         # make the model object
         tb = TBModel(3, 3, self.lat, self.red_cen)
 
@@ -353,9 +379,9 @@ class W90:
         # Hoppings (vectorized per R)
         # -------------------------
         # Precompute for speed
-        xyz_cen = self.xyz_cen  # (num_wan, 3), Cartesian Angstroms
+        # xyz_cen = self.xyz_cen  # (num_wan, 3), Cartesian Angstroms
         num_wan = self.num_wan
-        lat_tuple = (self.lat[0], self.lat[1], self.lat[2])
+        # lat_tuple = (self.lat[0], self.lat[1], self.lat[2])
 
         # Helper to decide if we should process an R (to avoid double counting)
         def _use_R(R):
@@ -365,6 +391,9 @@ class W90:
             if r2 != 0:
                 return r2 > 0
             return r3 > 0
+        
+        if max_distance is not None and not self._dist_cache:
+            self._precompute_distances()
 
         for R, blk in self.ham_r.items():
             Hr = blk["h"]
@@ -372,67 +401,56 @@ class W90:
 
             # Onsite block already handled; keep only off-diagonal pairs here.
             if R == (0, 0, 0):
-                avoid_diagonal = True
                 use_this_R = True
             else:
-                avoid_diagonal = False
                 use_this_R = _use_R(R)
 
             if not use_this_R:
                 continue
 
-            # Convert reduced R to Cartesian vector once per R
-            vecR = _red_to_cart(lat_tuple, [R])[0]  # (3,)
-
-            # Build full i,j grids in one shot
-            # delta_ijR = -vec_i + vec_j + vecR
-            #   vec_i shape (num_wan, 1, 3); vec_j shape (1, num_wan, 3)
-            delta = (-xyz_cen[:, None, :] + xyz_cen[None, :, :] + vecR[None, None, :])
-            dist = np.linalg.norm(delta, axis=2)  # (num_wan, num_wan)
-
-            # Start from all pairs; mask away those we don't keep
-            keep = np.ones((num_wan, num_wan), dtype=bool)
-
-            # Prevent double counting within the same R-block
-            if avoid_diagonal:
-                # original logic: skip j <= i when R == (0,0,0)
-                iu = np.triu_indices(num_wan, k=1)
-                keep[:] = False
-                keep[iu] = True
-            else:
-                # we allow i,j all; symmetry handled by _use_R half-space rule
-                # (still skip exact onsite i==j when R!=0 to match original behavior)
-                np.fill_diagonal(keep, False)
-
-
-            # Apply max_distance cutoff (if provided)
-            if max_distance is not None:
-                keep &= (dist <= max_distance)
-
-            # Pull matrix elements divided by degeneracy once
+            # Divide by degeneracy once per block
             Ham = Hr / deg  # (num_wan, num_wan)
+
+            # Start from allowed entries and avoid double counting
+            if R == (0, 0, 0):
+                keep = np.zeros((num_wan, num_wan), dtype=bool)
+                iu = np.triu_indices(num_wan, k=1)
+                keep[iu] = True
+
+            else:
+                keep = np.ones((num_wan, num_wan), dtype=bool)
+                np.fill_diagonal(keep, False)  
+
+            # Distance cutoff (use cached distances; compute lazily if needed)
+            if max_distance is not None:
+                dist = self._get_dist_matrix(R)
+                keep &= (dist <= max_distance)
+                if not np.any(keep):
+                    continue
 
             # Apply min_hopping_norm filter
             if min_hopping_norm is not None:
                 keep &= (np.abs(Ham) >= min_hopping_norm)
-
-            # If nothing to keep for this R, continue early
-            if not np.any(keep):
-                continue
+                if not np.any(keep):
+                    continue
 
             # Optionally zero-out tiny imaginary parts before insertion
             if ignorable_imaginary_part is not None:
-                small_imag = np.abs(Ham.imag) < ignorable_imaginary_part
-                Ham = Ham.real + 0.0j + 1j * Ham.imag
-                Ham[small_imag] = Ham.real[small_imag] + 0.0j
+                sel = keep & (np.abs(Ham.imag) < ignorable_imaginary_part)
+                if np.any(sel):
+                    Ham = Ham.copy()
+                    Ham.imag[sel] = 0.0
 
-            # Finally, emit kept hoppings
+            # Emit kept hoppings in bulk to minimize Python overhead
             ii, jj = np.nonzero(keep)
-            for i, j in zip(ii, jj):
-                tb.set_hop(Ham[i, j], i, j, list(R))
+            if ii.size:
+                amps = Ham[ii, jj]
+                for i, j, a in zip(ii.tolist(), jj.tolist(), amps.tolist()):
+                    tb.set_hop(a, i, j, list(R))
 
         return tb
     
+
     def dist_hop(self):
         r"""Get distances and hopping terms of Hamiltonian in Wannier basis.
 
@@ -472,35 +490,21 @@ class W90:
 
         ret_ham = []
         ret_dist = []
-        for R in self.ham_r:
-            # treat diagonal terms differently
-            if R[0] == 0 and R[1] == 0 and R[2] == 0:
-                avoid_diagonal = True
-            else:
-                avoid_diagonal = False
+        num_wan = self.num_wan
 
-            # get R vector
-            vecR = _red_to_cart((self.lat[0], self.lat[1], self.lat[2]), [R])[0]
-            for i in range(self.num_wan):
-                vec_i = self.xyz_cen[i]
-                for j in range(self.num_wan):
-                    vec_j = self.xyz_cen[j]
-                    # diagonal terms
-                    if not (avoid_diagonal and i == j):
+        for R, blk in self.ham_r.items():
+            Ham = blk["h"] / float(blk["deg"])
+            dist = self._get_dist_matrix(R)  # (num_wan, num_wan)
+            keep = np.ones((num_wan, num_wan), dtype=bool)
 
-                        # divide the matrix element from w90 with the degeneracy
-                        ret_ham.append(
-                            self.ham_r[R]["h"][i, j] / float(self.ham_r[R]["deg"])
-                        )
+            if R == (0, 0, 0):
+                np.fill_diagonal(keep, False)  # avoid diagonal terms
 
-                        # get distance between orbitals
-                        ret_dist.append(
-                            np.sqrt(
-                                np.dot(-vec_i + vec_j + vecR, -vec_i + vec_j + vecR)
-                            )
-                        )
+            ret_ham.append(Ham[keep])
+            ret_dist.append(dist[keep])
 
-        return (np.array(ret_dist), np.array(ret_ham))
+        return (np.concatenate(ret_dist), np.concatenate(ret_ham))
+
 
     def shells(self, num_digits=2):
         r"""Get all shells of distances between Wannier function centers.
@@ -527,19 +531,9 @@ class W90:
         """
 
         shells = []
-        for R in self.ham_r:
-            # get R vector
-            vecR = _red_to_cart((self.lat[0], self.lat[1], self.lat[2]), [R])[0]
-            for i in range(self.num_wan):
-                vec_i = self.xyz_cen[i]
-                for j in range(self.num_wan):
-                    vec_j = self.xyz_cen[j]
-                    # get distance between orbitals
-                    dist_ijR = np.sqrt(
-                        np.dot(-vec_i + vec_j + vecR, -vec_i + vec_j + vecR)
-                    )
-                    # round it up
-                    shells.append(round(dist_ijR, num_digits))
+        for R in self.ham_r.keys():
+            dist = self._get_dist_matrix(R)
+            shells.extend(np.round(dist.ravel(), num_digits).tolist())
 
         # remove duplicates and sort
         shells = np.sort(list(set(shells)))
