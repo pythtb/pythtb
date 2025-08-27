@@ -497,8 +497,8 @@ class WFArray:
         """
         if not isinstance(n_shell, int) or n_shell < 1:  
             raise ValueError("Invalid n_shell: must be a positive integer.")
-        
-        recip_lat_vecs = self.model.get_recip_lat()
+
+        recip_lat_vecs = self.model.recip_lat_vecs
         dim_k = self.dim_k
         nks = self.nks
 
@@ -2372,7 +2372,7 @@ class WFArray:
         Berry_curv = np.zeros_like(Berry_flux, dtype=complex)
 
         # Get delta vectors for each dimension in parameter space
-        recip_lat_vecs = self.model.get_recip_lat()  # Expressed in inverse cartesian (x,y,z) coordinates
+        recip_lat_vecs = self.model.recip_lat_vecs  # Expressed in inverse cartesian (x,y,z) coordinates
         dks = np.zeros((dim_total, dim_total))
         dks[:dim_k, :dim_k] = recip_lat_vecs / np.array([nk-1 for nk in self.nks])[:, None]
 
