@@ -1443,10 +1443,10 @@ class WFArray:
             if mesh.is_axis_periodic(mesh_axis):
                 k_shift.append(sh)
             elif mesh.is_axis_closed(mesh_axis):
-                print(f"Warning: axis {mesh_axis} is closed; removing shift.")
+                logger.warning(f"Warning: axis {mesh_axis} is closed; removing shift.")
                 k_shift.append(0)
             else:
-                print(f"Warning: axis {mesh_axis} is not periodic; removing shift.")
+                logger.warning(f"Warning: axis {mesh_axis} is not periodic; removing shift.")
                 k_shift.append(0)
         k_shift = np.array(k_shift, dtype=int)
 
@@ -1528,7 +1528,7 @@ class WFArray:
             if not mesh.is_axis_closed(ax):
                 rolled = np.roll(rolled, shift=-int(sh), axis=ax)
             else:
-                print(f"Applying bounded shift {sh} to axis {ax} without wrapping.")
+                logger.info(f"Applying bounded shift {sh} to axis {ax} without wrapping.")
                 rolled = self._bounded_shift(rolled, axis=ax, sh=-int(sh))
 
         phase = self._boundary_phase_for_shift(tuple(idx_vec))
@@ -2201,12 +2201,6 @@ class WFArray:
             self.mesh_shape
         )  # Number of points in adiabatic mesh: (nk1, nk2, ..., nkd)
 
-        for ax in range(ndims):
-            if not self.mesh.is_axis_closed(ax) and not self.mesh.is_axis_periodic(ax):
-                # If the axis is not closed, remove the last point in that direction
-                # to avoid computing flux across the boundary
-                flux_shape[ax] -= 1
-
         # Initialize the Berry flux array
         if plane is None:
             shape = (
@@ -2246,12 +2240,6 @@ class WFArray:
                     @ U_nu.conj().swapaxes(-1, -2)
                 )
 
-                for ax in range(ndims):
-                    if self.mesh.is_axis_closed(ax):
-                        print(f"Axis {ax} is closed (includes endpoint). "
-                              "Removing last point in the flux array to avoid overcounting.")
-                        U_wilson = np.delete(U_wilson, -1, axis=ax)
-
                 if not abelian:
                     # Non-Abelian lattice field strength: F = -i Log(U_wilson)
                     # Matrix log using eigen-decompositon
@@ -2274,6 +2262,14 @@ class WFArray:
                     berry_flux[nu, mu] = -phases_plane
                 else:
                     berry_flux = phases_plane.real
+
+        for ax in range(ndims):
+            if self.mesh.is_axis_closed(ax) or not self.mesh.is_axis_periodic(ax):
+                print(f"Axis {ax} is periodic and closed or open and non-periodic. "
+                    f"Removing last point in the flux array to avoid overcounting.")
+                logger.info(f"Axis {ax} is periodic and closed or open and non-periodic. "
+                            f"Removing last point in the flux array to avoid overcounting.")
+                berry_flux = np.delete(berry_flux, -1, axis=ax+2*int(not abelian))
 
         return berry_flux
     
