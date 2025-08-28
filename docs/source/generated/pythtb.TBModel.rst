@@ -21,6 +21,7 @@
       ~TBModel.__getattribute__
       ~TBModel.__getstate__
       ~TBModel.__gt__
+      ~TBModel.__hash__
       ~TBModel.__init__
       ~TBModel.__init_subclass__
       ~TBModel.__le__
@@ -34,7 +35,10 @@
       ~TBModel.__sizeof__
       ~TBModel.__str__
       ~TBModel.__subclasshook__
+      ~TBModel._ensure_hop_index
       ~TBModel._get_periodic_H
+      ~TBModel._get_recip_lat
+      ~TBModel._hop_keys
       ~TBModel._shift_to_home
       ~TBModel._sol_ham
       ~TBModel._val_to_block
@@ -47,12 +51,9 @@
       ~TBModel.copy
       ~TBModel.cut_piece
       ~TBModel.display
-      ~TBModel.get_cell_vol
       ~TBModel.get_lat
       ~TBModel.get_num_orbitals
       ~TBModel.get_orb
-      ~TBModel.get_recip_lat
-      ~TBModel.get_recip_vol
       ~TBModel.grad_ham
       ~TBModel.hamiltonian
       ~TBModel.ignore_position_operator_offdiagonal
@@ -87,10 +88,10 @@
       ~TBModel.__annotations__
       ~TBModel.__dict__
       ~TBModel.__doc__
-      ~TBModel.__hash__
       ~TBModel.__module__
       ~TBModel.__weakref__
       ~TBModel.assume_position_operator_diagonal
+      ~TBModel.cell_volume
       ~TBModel.dim_k
       ~TBModel.dim_r
       ~TBModel.hoppings
@@ -100,6 +101,8 @@
       ~TBModel.nstate
       ~TBModel.orb_vecs
       ~TBModel.per
+      ~TBModel.recip_lat_vecs
+      ~TBModel.recip_volume
       ~TBModel.site_energies
    
    

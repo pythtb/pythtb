@@ -43,6 +43,7 @@
       ~WFArray._edge_slices
       ~WFArray._get_pbc_phases
       ~WFArray._get_phases
+      ~WFArray._omega_til
       ~WFArray._set_projectors
       ~WFArray._set_wfs
       ~WFArray._unit_shift
@@ -56,19 +57,24 @@
       ~WFArray.get_k_shell
       ~WFArray.get_links
       ~WFArray.get_overlap_mat
+      ~WFArray.get_proj_ham
       ~WFArray.get_projectors
       ~WFArray.get_shell_weights
       ~WFArray.get_states
       ~WFArray.impose_loop
       ~WFArray.impose_pbc
+      ~WFArray.interp_energy
+      ~WFArray.interp_op
       ~WFArray.position_expectation
       ~WFArray.position_hwf
       ~WFArray.position_matrix
+      ~WFArray.remove_states
       ~WFArray.roll_states_with_bc
       ~WFArray.set_ham
       ~WFArray.solve_mesh
       ~WFArray.solve_on_grid
       ~WFArray.solve_on_one_point
+      ~WFArray.trace_metric
       ~WFArray.wilson_loop
    
    
@@ -79,6 +85,7 @@
 
    .. autosummary::
    
+      ~WFArray.Mmn
       ~WFArray.__annotations__
       ~WFArray.__dict__
       ~WFArray.__doc__
@@ -102,9 +109,9 @@
       ~WFArray.nstates
       ~WFArray.param_points
       ~WFArray.pbc_axes
-      ~WFArray.psi_wfs
+      ~WFArray.psi_nk
       ~WFArray.shape
-      ~WFArray.u_wfs
+      ~WFArray.u_nk
       ~WFArray.wfs
    
    

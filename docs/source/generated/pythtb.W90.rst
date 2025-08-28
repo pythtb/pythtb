@@ -35,6 +35,9 @@
       ~W90.__sizeof__
       ~W90.__str__
       ~W90.__subclasshook__
+      ~W90._get_dist_matrix
+      ~W90._get_vecR
+      ~W90._precompute_distances
       ~W90.dist_hop
       ~W90.model
       ~W90.shells
