@@ -523,7 +523,7 @@ class Mesh:
 
     # ---- Topology configuration (explicit) ----
     def loop_axis(self, axis_idx: int, component_idx: int, enable: bool = True):
-        """Declare an axis has periodic boundary conditions for the specified component.
+        r"""Declare an axis has periodic boundary conditions for the specified component.
 
         Calling this function will mark an axis in the mesh as having periodic boundary conditions
         for a given component of the vector in :math:`(\mathbf{k}, \lambda)`-space. This means that
@@ -544,7 +544,7 @@ class Mesh:
 
 
     def close_axis(self, axis_idx: int, component_idx: int):
-        """Declare an axis as closed for a given component.
+        r"""Declare an axis as closed for a given component.
 
 
         Calling this function will mark an axis as being closed for a given component 
@@ -884,7 +884,7 @@ class Mesh:
 
 
     def build_custom(self, points):
-        """Build a custom mesh from the given points.
+        r"""Build a custom mesh from the given points.
 
         This method allows for the creation of a mesh with arbitrary points,
         rather than a regular grid. The shape of the input points array must
