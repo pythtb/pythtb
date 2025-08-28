@@ -105,13 +105,13 @@ wfa.solve_mesh(use_metal=False)
 
 # Compute hybrid Wannier functions
 
-# In[ ]:
+# In[7]:
 
 
 hwfc = wfa.berry_phase(mu=1, state_idx=[0,1], contin=True, berry_evals=True)/(2*np.pi)
 
 
-# In[ ]:
+# In[8]:
 
 
 # initialize plot
@@ -129,39 +129,4 @@ for j in range(2):
       ax[j].plot(np.linspace(0, 1, nk), hwfc[:, j, n]+shift, color='k')
 
 ax[0].set_ylabel(r"HWF center $\bar{s}_2$")
-
-
-# In[42]:
-
-
-# initialize plot
-fig, ax = plt.subplots(1, 2, figsize=(12, 6), sharey=True)
-
-for j in range(2):
-  ax[j].set_xlim([0, 1])
-  ax[j].set_xticks([0, 1/2, 1])
-  ax[j].set_xlabel(r"$\kappa_1/2\pi$")
-  ax[j].set_ylim(-0.5, 1.5)
-
-  for n in range(2):
-    # for shift in [-1, 0, 1]:
-    for shift in [0]:
-
-      ax[j].plot(np.linspace(0, 1, nk), hwfc[:, j, n]+shift, color='k')
-
-    ax[j].text(0.08,1.20,labs[j],size=12.,bbox=dict(facecolor='w',edgecolor='k'))
-
-ax[0].set_ylabel(r"HWF center $\bar{s}_2$")
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
 

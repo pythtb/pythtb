@@ -14,7 +14,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-# In[ ]:
+# In[2]:
 
 
 # define lattice vectors
@@ -49,7 +49,7 @@ print(my_model)
 # - k_dist: horizontal axis position of each k-point in the list
 # - k_node: horizontal axis position of each original node
 
-# In[ ]:
+# In[3]:
 
 
 path = [[0, 0], [2/3, 1/3], [1/2, 1.2], [0, 0]]
@@ -63,13 +63,13 @@ k_vec, k_dist, k_node = my_model.k_path(path, nk)
 # 
 # We compute the band structure by solving the Hamiltonian at each k-point along the specified path.
 
-# In[ ]:
+# In[4]:
 
 
 evals = my_model.solve_ham(k_vec)
 
 
-# In[4]:
+# In[5]:
 
 
 fig, ax = plt.subplots()

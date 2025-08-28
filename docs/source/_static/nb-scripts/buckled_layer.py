@@ -8,14 +8,14 @@
 # the orbitals are specified in a 3D space, but the system is only
 # extensive in 2D, so that k-space is only 2D.
 
-# In[1]:
+# In[2]:
 
 
 from pythtb.tb_model import TBModel 
 import matplotlib.pyplot as plt
 
 
-# In[4]:
+# In[3]:
 
 
 # define 3D real-space lattice vectors
@@ -44,7 +44,7 @@ print(my_model)
 
 # Now we specify the k-space path for the band structure calculation by listing a set of nodes. The path will consist of straight line segments connecting these nodes.
 
-# In[5]:
+# In[4]:
 
 
 path = [[0.0, 0.0], [0.0, 0.5], [0.5, 0.5], [0.0, 0.0]]
@@ -57,7 +57,7 @@ label = (r"$\Gamma $", r"$X$", r"$M$", r"$\Gamma $")
 # We can find the bands in two different ways. First we will use the `TBModel.plot_bands` method to visualize the band structure.
 # This is useful for quickly assessing the overall shape of the band structure and identifying key features such as band gaps and degeneracies.
 
-# In[6]:
+# In[5]:
 
 
 my_model.plot_bands(path, k_label=label)
@@ -67,7 +67,7 @@ my_model.plot_bands(path, k_label=label)
 # 
 # Alternatively, we can use the `TBModel.solve_ham` method to compute the band structure directly. This method requires the k-points to be specified as input. To generate the k-points, we can use the `TBModel.k_path` method to construct the path through k-space, passing the desired path and the number of k-points as arguments. The `k_path` method will return the k-vectors, the distances along the path, and the original node positions.
 
-# In[ ]:
+# In[6]:
 
 
 (k_vec, k_dist, k_node) = my_model.k_path(path, 81)
@@ -75,13 +75,13 @@ my_model.plot_bands(path, k_label=label)
 
 # Now we can call the `TBModel.solve_ham` method with the k-vectors obtained from `k_path` to compute the band structure.
 
-# In[8]:
+# In[7]:
 
 
 evals = my_model.solve_ham(k_vec)
 
 
-# In[9]:
+# In[8]:
 
 
 fig, ax = plt.subplots()

@@ -94,11 +94,11 @@ bloch_arr = WFArray(slab_model, mesh)
 bloch_arr.solve_mesh()
 
 
-# In[8]:
+# In[12]:
 
 
 # initalize wf_array to hold HWFs, and Numpy array for HWFCs
-hwf_arr = bloch_arr.empty_like(nstates=num_layers)
+hwf_arr = WFArray(slab_model, mesh, nstates=num_layers)
 hwfc = np.zeros([nk, nk, num_layers])
 
 # loop over k points and fill arrays with HW centers and vectors
@@ -121,7 +121,7 @@ print("  Mean   " + num_layers * "%8.4f" % tuple(np.mean(hwfc, axis=(0, 1))))
 print("  Std Dev" + num_layers * "%8.4f" % tuple(np.std(hwfc, axis=(0, 1))))
 
 
-# In[10]:
+# In[13]:
 
 
 # compute and print layer contributions to polarization along x, then y
@@ -143,7 +143,7 @@ print("\n  Ave    " + num_layers * "%8.4f" % tuple(px_mean))
 
 # Similar calculations along $y$ give zero due to $M_y$ mirror symmetry.
 
-# In[11]:
+# In[14]:
 
 
 nlh = num_layers // 2
@@ -159,7 +159,7 @@ print("\n  Surface sums: Top, Bottom = %8.4f , %8.4f\n" % (sum_top, sum_bot))
 # Phys. Rev. B 103, 035147 (2021)_.
 # :::
 
-# In[12]:
+# In[15]:
 
 
 fig = plt.figure()

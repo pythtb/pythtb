@@ -102,21 +102,21 @@ evals = my_model.solve_ham(k_vec)
 
 # As our final task, we will compute the density of states (DOS) from the obtained eigenvalues. To do so, we first need a grid of k-points spanning the full Brillouin zone. We can use the `Mesh` class from `pythtb` to create this grid.
 
-# In[12]:
+# In[9]:
 
 
 from pythtb import Mesh
 
-mesh = Mesh(my_model)
-# create a 50x50 grid of k-points 
-mesh.build_grid(shape_k=(50, 50), full_grid=True, exclude_k_endpoints=True)
+mesh = Mesh(dim_k=2, axis_types=["k", "k"])
+# create a 50x50 grid of k-points
+mesh.build_grid(shape=(50, 50))
 # get the flattened list of k-points
 kpts = mesh.flat
 
 
 # Lastly, we will diagonalize the Hamiltonian at each k-point to obtain the energies.
 
-# In[13]:
+# In[10]:
 
 
 energies = my_model.solve_ham(kpts)
@@ -125,7 +125,7 @@ energies = energies.flatten()
 
 # Finally, we can visualize the band structure and density of states using the obtained eigenvalues.
 
-# In[16]:
+# In[11]:
 
 
 fig, ax = plt.subplots(1, 2, figsize=(10, 4))

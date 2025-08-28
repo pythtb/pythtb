@@ -34,7 +34,7 @@ print(f"Chern number: {prim_model.chern():0.3f}")
 
 n_super_cell = 2
 model = prim_model.make_supercell([[n_super_cell, 0], [0, n_super_cell]])
-model.report(show=True, short=True)
+model.report(show=True, short=False)
 
 
 # We construct the `WFArray` and diagonalize the model on a _semi-full_ k-mesh. It is important that the mesh not include the endpoints $k_i=1$, which correspond to the boundaries of the Brillouin zone. The Fourier transform requires a well-defined periodicity, which is disrupted by including these points. Therefore, we will use a k-mesh that spans the interior of the Brillouin zone, avoiding the boundaries. This is the default behavior of `Mesh.build_grid`. To specify that the k-mesh is periodic, with the topology of a torus, we can use the `Mesh.loop_axis` function, specifying the mesh axis and k-component that is wrapped.
@@ -91,7 +91,7 @@ print(f"Wannier fraction: {n_tfs/n_occ}")
 
 WF = Wannier(model, wfa)
 
-WF.optimal_alignment(tf_list, band_idxs=list(range(n_occ)))
+WF.single_shot_projection(tf_list, band_idxs=list(range(n_occ)))
 
 
 # This already gives us a set of Wannier functions that are exponentially localized, showing that this is a trivial subsapce of the obstructed manifold.
@@ -109,7 +109,7 @@ WF.report()
 # In[9]:
 
 
-WF.disentangle(iter_num=2000, tol=1e-10, verbose=True, tf_speedup=True)
+WF.disentangle(iter_num=1000, tol=1e-10, verbose=True, tf_speedup=True)
 
 
 # ## Maximal localization
@@ -120,13 +120,13 @@ WF.disentangle(iter_num=2000, tol=1e-10, verbose=True, tf_speedup=True)
 # In[10]:
 
 
-WF.optimal_alignment(use_tilde=True)
+WF.single_shot_projection(use_tilde=True)
 
 
 # In[11]:
 
 
-WF.max_localize(eps=1e-3, iter_num=2000, tol=1e-10, grad_min=1e-12, verbose=True)
+WF.max_localize(eps=1e-3, iter_num=5000, tol=1e-10, grad_min=1e-10, verbose=True)
 
 
 # In[12]:
@@ -175,11 +175,11 @@ n_interp = 501
 interp_energies = WF.interp_bands(k_path, n_interp=n_interp, ret_eigvecs=False)
 
 
-# In[20]:
+# In[18]:
 
 
 fig, ax = model.plot_bands(k_path, nk=501, k_label=k_label, proj_orb_idx=high_E_sites, cmap='plasma')
 
 (k_vec, k_dist, k_node) = model.k_path(k_path, nk=n_interp, report=False)
-ax.plot(k_dist, interp_energies, ls='--', c='k', lw=2, zorder=5, alpha=0.8)
+ax.plot(k_dist, interp_energies, ls='--', c='lightgreen', lw=2, zorder=5, alpha=1)
 

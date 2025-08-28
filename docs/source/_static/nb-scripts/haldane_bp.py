@@ -102,13 +102,7 @@ ax.set_yticklabels((r"$-2\pi$", r"$-\pi$", r"$0$", r"$\pi$", r"$2\pi$"))
 
 # Verify with calculation of Chern numbers
 
-# In[9]:
-
-
-mesh.is_axis_closed(0)
-
-
-# In[7]:
+# In[8]:
 
 
 chern0 = wf_array_1.chern_num(state_idx=[0], plane=(0,1))

@@ -25,25 +25,26 @@ silicon = W90(r"silicon_w90", r"silicon")
 fermi_ev = 0.62285135e01
 
 
-# In[5]:
+# In[4]:
 
 
 # all pair distances between the orbitals
 print("Shells:\n", silicon.shells())
 
 
-# In[7]:
+# In[5]:
 
 
 # plot hopping terms as a function of distance on a log scale
 (dist, ham) = silicon.dist_hop()
 fig, ax = plt.subplots()
-ax.scatter(dist, np.log(np.abs(ham)))
+ax.scatter(dist, np.abs(ham))
 ax.set_xlabel("Distance (A)")
-ax.set_ylabel(r"$\log H$ (eV)")
+ax.set_ylabel(r"$H$ (eV)")
+ax.set_yscale('log')
 
 
-# In[8]:
+# In[6]:
 
 
 # get tb model in which some small terms are ignored
@@ -73,7 +74,7 @@ my_model = silicon.model(
 # Small discrepancies in the plot may arise due to the terms that were ignored in the silicon.model function call above.
 # :::
 
-# In[11]:
+# In[7]:
 
 
 fig, ax = plt.subplots()

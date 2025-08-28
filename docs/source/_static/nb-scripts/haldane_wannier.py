@@ -3,7 +3,7 @@
 
 # # Wannier functions in trivial Haldane model
 
-# In[ ]:
+# In[1]:
 
 
 from pythtb import Mesh, Wannier, WFArray
@@ -65,7 +65,7 @@ WF = Wannier(model, wfa)
 # 
 # _Note_: Normalization is handled internally so the square of the amplitudes do not need to sum to $1$. Any orbitals not specified are taken to have zero amplitude.
 
-# In[ ]:
+# In[6]:
 
 
 # model specific constants
@@ -104,19 +104,13 @@ WF.num_twfs
 # 3. Unitary rotation$$ |\tilde{\psi}_{n\mathbf{k}} \rangle = \sum_{m\in \text{band idxs}} |\psi_{m\mathbf{k}} \rangle (V_{\mathbf{k}}W_{\mathbf{k}}^{\dagger})_{mn} $$
 # 4. Fourier transformation $$  |\mathbf{R} n\rangle = \sum_{\mathbf{k}} e^{-i\mathbf{k}\cdot \mathbf{R}} |\tilde{\psi}_{n\mathbf{k}} \rangle  $$
 
-# In[9]:
-
-
-WF.optimal_alignment(band_idxs=list(range(n_occ)))
-
-
-# This will already gives us quite localized Wannier functions. We can see their spreads by calling the function `report`.
-
 # In[10]:
 
 
-WF.report()
+WF.single_shot_projection(band_idxs=list(range(n_occ)))
 
+
+# This will already gives us quite localized Wannier functions. We can see their spreads by calling the function `report`.
 
 # In[11]:
 
@@ -130,11 +124,12 @@ WF.report()
 
 
 print(WF.spread)
-print(WF.omega_i)
-print(WF.omega_tilde)
+print(WF.Omega_I)
+print(WF.Omega_D)
+print(WF.Omega_OD)
 print(WF.centers)
 
-omega_tilde_ss = WF.omega_tilde
+omega_tilde_ss = WF.Omega_OD + WF.Omega_D
 
 
 # We can visualize the Wannier density using `plot_density`. We specify which Wannier function to look at with `Wan_idx`.
@@ -142,8 +137,8 @@ omega_tilde_ss = WF.omega_tilde
 # In[13]:
 
 
-WF.plot_density(Wan_idx=1)
-WF.plot_decay(Wan_idx=1, fit_rng=[5,20])
+WF.plot_density(wan_idx=1)
+WF.plot_decay(wan_idx=1, fit_rng=[5,20])
 WF.plot_centers()
 
 
@@ -157,10 +152,10 @@ WF.plot_centers()
 # - Optionally we can set `tol` specifying the minimum change in the spread at subsequent iterations before convergence
 # - For additional control we specify `grad_min` which sets the minimum gradient of the spread before convergence.
 
-# In[14]:
+# In[16]:
 
 
-iter_num = 1000
+iter_num = 5000
 
 WF.max_localize(eps=1e-3, iter_num=iter_num, tol=1e-10, grad_min=1e-10, verbose=True)
 
@@ -172,7 +167,7 @@ WF.max_localize(eps=1e-3, iter_num=iter_num, tol=1e-10, grad_min=1e-10, verbose=
 
 WF.report()
 
-omega_tilde_ml = WF.omega_tilde
+omega_tilde_ml = WF.Omega_OD + WF.Omega_D
 print()
 print(f"Spread lowered by: {omega_tilde_ss-omega_tilde_ml}")
 

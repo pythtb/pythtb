@@ -9,7 +9,7 @@
 # ::: {versionadded} 2.0.0
 # :::
 
-# In[2]:
+# In[1]:
 
 
 from pythtb.models import graphene
@@ -23,7 +23,7 @@ my_model = graphene(delta=delta, t=t)
 
 # Generate list of high-symmetry k-points to interpolate path through
 
-# In[3]:
+# In[2]:
 
 
 path = [[0, 0], [2/3, 1/3], [1/2, 1/2], [0, 0]]

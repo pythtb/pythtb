@@ -14,7 +14,7 @@ from pythtb.tb_model import TBModel
 import matplotlib.pyplot as plt
 
 
-# In[3]:
+# In[2]:
 
 
 # define lattice vectors
@@ -45,7 +45,7 @@ print(my_model)
 # 
 # We will now calculate the band structure of the checkerboard model by solving the tight-binding Hamiltonian on a grid of k-points in the Brillouin zone.
 
-# In[4]:
+# In[3]:
 
 
 path = [[0.0, 0.0], [0.0, 0.5], [0.5, 0.5], [0.0, 0.0]]
@@ -55,7 +55,7 @@ label = (r"$\Gamma $", r"$X$", r"$M$", r"$\Gamma $")
 
 # Now solve for eigenenergies of the Hamiltonian on the set of k-points from above
 
-# In[5]:
+# In[4]:
 
 
 evals = my_model.solve_ham(k_vec)
@@ -67,7 +67,7 @@ evals = my_model.solve_ham(k_vec)
 # You can use the [TBModel.plot_band_structure](#pythtb.TBModel.plot_band_structure) method to visualize the band structure to avoid re-implementing the matplotlib code. This method takes the k-point mesh as an argument and produces a plot of the energy bands.
 # :::
 
-# In[6]:
+# In[5]:
 
 
 fig, ax = plt.subplots()

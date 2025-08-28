@@ -182,7 +182,7 @@ w_square.solve_mesh()
 # However, if `plane` is unspecified, the Berry flux will be computed for all available planes, and will be returned with an additional set of two axes corresponding to each dimension in parameter space. Since the Berry flux is an anti-symmetric tensor, the `[0,1]` and `[1,0]` components will be related by a minus sign. So here, we specify the plane so the returned object just gets the upper left (`[0,1]`) component.
 # :::
 
-# In[11]:
+# In[12]:
 
 
 b_flux_0 = w_square.berry_flux([0], plane=(0, 1))
@@ -195,9 +195,15 @@ print("for band 1 equals    : ", np.sum(b_flux_1))
 print("for both bands equals: ", np.sum(b_flux_both))
 
 
+# In[ ]:
+
+
+3 + 2*int(False)
+
+
 # Let's plot the Berry curvature distribution in the kx-ky plane. 
 
-# In[12]:
+# In[13]:
 
 
 fig, ax = plt.subplots()

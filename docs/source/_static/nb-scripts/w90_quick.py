@@ -43,7 +43,7 @@ my_model = silicon.model(min_hopping_norm=0.01)
 
 # Solve model on a path and plot it
 
-# In[5]:
+# In[4]:
 
 
 path = [
@@ -59,13 +59,13 @@ k_label = (r"$L$", r"$\Gamma$", r"$X$", r"$K$", r"$\Gamma$")
 (k_vec, k_dist, k_node) = my_model.k_path(path, 101)
 
 
-# In[6]:
+# In[5]:
 
 
 evals = my_model.solve_ham(k_vec)
 
 
-# In[7]:
+# In[6]:
 
 
 fig, ax = plt.subplots()

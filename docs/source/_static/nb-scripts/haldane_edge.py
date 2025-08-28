@@ -64,7 +64,7 @@ fin_model_half = tmp_model_half.cut_piece(10, 1, glue_edgs=False)
 (evals_half, evecs_half) = fin_model_half.solve_ham(return_eigvecs=True)
 
 
-# In[5]:
+# In[4]:
 
 
 # pick index of state in the middle of the gap
@@ -79,7 +79,7 @@ ax.set_ylabel("y coordinate")
 plt.show()
 
 
-# In[6]:
+# In[5]:
 
 
 (fig, ax) = fin_model_half.visualize(

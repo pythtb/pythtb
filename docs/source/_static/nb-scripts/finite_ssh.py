@@ -95,7 +95,7 @@ ax2.set_title(r"Edge state density at $w=1.0$")
 
 # ## Bulk polarization and Berry phase
 
-# In[7]:
+# In[6]:
 
 
 model = ssh(v, 0)
@@ -110,7 +110,7 @@ P1 = wfa.berry_phase(0, [1]) / (2 * np.pi)
 P1
 
 
-# In[8]:
+# In[7]:
 
 
 model = ssh(v, 1)

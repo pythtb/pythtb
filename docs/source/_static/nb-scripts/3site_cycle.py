@@ -37,14 +37,14 @@ delta = 2.0
 t = -1.0
 
 
-# In[4]:
+# In[7]:
 
 
 mesh = Mesh(
     dim_k=1, dim_lambda=1, axis_types=["k", "l"], axis_names=["kx", "lmbd"]
     )
 mesh.build_grid(shape=(31, 21), gamma_centered=True)
-mesh.make_lambda_loop(lambda_idx=1)
+mesh.close_axis(axis_idx=1, component_idx=1)
 print(mesh)
 
 
@@ -56,7 +56,7 @@ print(mesh)
 # The index order `[k,lambda]` is important for interpreting the sign.
 # :::
 
-# In[5]:
+# In[8]:
 
 
 # Used for initializing the Mesh,
@@ -71,7 +71,7 @@ wf_kpt_lambda = WFArray(ref_model, mesh)
 # `solve_mesh` imposes periodic boundary conditions along periodic k-space direction so that $|\psi_{n,k}\rangle$ at $k=0$ and $k=1$ have the same phase.
 # :::
 
-# In[6]:
+# In[9]:
 
 
 wf_kpt_lambda.solve_mesh(set_model, {"t": t, "delta": delta})
@@ -79,7 +79,7 @@ wf_kpt_lambda.solve_mesh(set_model, {"t": t, "delta": delta})
 
 # Compute Berry phase along k-direction for each $\lambda$
 
-# In[8]:
+# In[10]:
 
 
 phase = wf_kpt_lambda.berry_phase(0, [0])
@@ -87,7 +87,7 @@ phase = wf_kpt_lambda.berry_phase(0, [0])
 
 # Wannier center in reduced coordinates
 
-# In[9]:
+# In[11]:
 
 
 wann_center = phase / (2*np.pi)
@@ -95,7 +95,7 @@ wann_center = phase / (2*np.pi)
 
 # Chern number of bottom band
 
-# In[10]:
+# In[12]:
 
 
 chern = wf_kpt_lambda.chern_num(state_idx=[0], plane=(0,1))
@@ -104,7 +104,7 @@ print("Chern number in k-lambda space: ", chern)
 
 # Plot the position of Wannier function for bottom band
 
-# In[ ]:
+# In[13]:
 
 
 all_lambda = mesh.get_param_points()[:, 0] 
@@ -112,7 +112,7 @@ k_dist = mesh.get_k_points()[:, 0]
 eval_lam = wf_kpt_lambda.energies
 
 
-# In[12]:
+# In[14]:
 
 
 fig_onsite, ax_onsite = plt.subplots()

@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 from pythtb.models import haldane
 
 
-# In[4]:
+# In[3]:
 
 
 delta = 0.0
@@ -36,7 +36,7 @@ my_model = haldane(delta, t, t2)
 print(my_model)
 
 
-# In[7]:
+# In[4]:
 
 
 # cutout finite model first along direction x with no PBC
@@ -50,7 +50,7 @@ tmp_model = my_model.cut_piece(20, 0, glue_edgs=True)
 fin_model_true = tmp_model.cut_piece(20, 1, glue_edgs=True)
 
 
-# In[ ]:
+# In[5]:
 
 
 # solve models
@@ -58,7 +58,7 @@ evals_false = fin_model_false.solve_ham()
 evals_true = fin_model_true.solve_ham()
 
 
-# In[11]:
+# In[6]:
 
 
 # flatten eigenvalue arrays
