@@ -7,6 +7,7 @@ import functools
 from itertools import combinations_with_replacement as comb
 from .plotting import plot_bands, plot_tb_model, plot_tb_model_3d
 from .utils import _is_int, _offdiag_approximation_warning_and_stop, is_Hermitian
+from .lattice import Lattice
 
 # set up logging
 logger = logging.getLogger(__name__)
@@ -162,89 +163,9 @@ class TBModel:
     """
 
     def __init__(
-        self, dim_k: int, dim_r: int, lat=None, orb=1, per=None, nspin: int = 1
+        self, lattice: Lattice, nspin: int = 1
     ):
-
-        # Dimensionality of real space
-        if not isinstance(dim_r, int):
-            raise TypeError("Argument dim_r must be an integer")
-        if dim_r > 3:
-            raise ValueError("Argument dim_r must be from 0 to 3.")
-
-        # Dimensionality of k-space
-        if not isinstance(dim_k, int):
-            raise TypeError("Argument dim_k must be an integer.")
-        if dim_k > dim_r:
-            raise ValueError("Argument dim_k must be less than dim_r.")
-
-        self._dim_r = dim_r
-        self._dim_k = dim_k
-
-        # initialize lattice vectors
-        # shape: (dim_r, dim_r)
-        # idx: (lattice direction, cartesian components)
-        # default: None implies unit matrix
-        if lat is None:
-            self._lat = np.identity(dim_r, float)
-            logger.info("Lattice vectors not specified. Using identity matrix.")
-        elif isinstance(lat, (list, np.ndarray)):
-            lat = np.array(lat, dtype=float)
-            if lat.shape != (dim_r, dim_r):
-                raise ValueError(
-                    "Wrong lat array dimensions. Must have shape (dim_r, dim_r)."
-                )
-            self._lat = lat
-        else:
-            raise TypeError("Lattice vectors must be a list or numpy array.")
-
-        # check that volume is not zero and that have right handed system
-        if dim_r > 0:
-            det_lat = np.linalg.det(self._lat)
-            if det_lat < 0:
-                raise ValueError("Lattice vectors need to form right handed system.")
-            elif det_lat < 1e-10:
-                raise ValueError("Volume of unit cell is zero.")
-
-        # Initialize orbitals defined in reduced coordinates
-        # shape: (norb, dim_r)
-        # idx: (orbital, reduced components)
-        # default: 1
-        if isinstance(orb, (int, np.integer)):
-            self._norb = orb
-            self._orb = np.zeros((orb, dim_r))
-            logger.info(
-                f"Orbital positions is an integer. Assuming {orb} orbitals at the origin"
-            )
-        elif isinstance(orb, (list, np.ndarray)):
-            orb = np.array(orb, dtype=float)
-            if orb.ndim != 2:
-                raise ValueError(
-                    "Orbtial array must have two axes; the first for orbital, the second for reduced unit values."
-                )
-            if orb.shape[1] != dim_r:
-                raise ValueError(
-                    "Number of components along second axes of orbital array must match real space dimension."
-                )
-            self._orb = orb  # orbital vectors
-            self._norb = orb.shape[0]  # number of orbitals
-        else:
-            raise TypeError(
-                "Orbital vectors must be array-type or an integer."
-            )
-
-        # Specifying which dimensions are periodic.
-        if per is None:
-            logger.info(
-                "Periodic directions not specified. Using the first dim_k directions."
-            )
-            self._per = list(range(self._dim_k))
-        else:
-            per = list(per)
-            if len(per) != self._dim_k:
-                raise ValueError(
-                    "Number of periodic directions must equal the k-space dimension, dim_k."
-                )
-            self._per = per
+        self._lattice = lattice
 
         # Validate number of spin components
         if nspin not in [1, 2]:
@@ -252,7 +173,7 @@ class TBModel:
         self._nspin = nspin
 
         # Number of electronic states at each k-point
-        self._nstate = self._norb * self._nspin
+        self._nstate = self.norb * self._nspin
 
         # By default, assume model did not come from w90 object and that
         # position operator is diagonal
@@ -260,36 +181,21 @@ class TBModel:
 
         # Initialize onsite energies to zero
         if self._nspin == 1:
-            self._site_energies = np.zeros((self._norb), dtype=float)
+            self._site_energies = np.zeros((self.norb), dtype=float)
         elif self._nspin == 2:
-            self._site_energies = np.zeros((self._norb, 2, 2), dtype=complex)
+            self._site_energies = np.zeros((self.norb, 2, 2), dtype=complex)
 
         # The onsite energies and hoppings are not specified
         # when creating a 'TBModel' object.  They are speficied
         # subsequently by separate function calls defined below.
 
         # remember which onsite energies user has specified
-        self._site_energies_specified = np.zeros(self._norb, dtype=bool)
+        self._site_energies_specified = np.zeros(self.norb, dtype=bool)
         self._site_energies_specified[:] = False
 
         # Initialize hoppings to empty list
         self._hoppings = []
         self._hop_index = None  # lazily built for O(1) set_hop
-
-        # Reciprocal lattice
-        self._recip_lat = self._get_recip_lat() if self._dim_k > 0 else None
-        if self.dim_k == 0:
-            self._recip_vol = 0.0
-        else:
-            self._recip_vol = np.sqrt(np.linalg.det(self._recip_lat @ self._recip_lat.T))
-        
-        # Cell volume
-        if self.dim_r == 0:
-            self._cell_vol = 0.0
-        else:
-            lat_vecs = self.lat_vecs
-            vol = np.sqrt(np.linalg.det(lat_vecs @ lat_vecs.T))
-            self._cell_vol = vol
 
     def __repr__(self):
         r"""Return a string representation of the ``TBModel`` object.
@@ -300,8 +206,8 @@ class TBModel:
             String representation of the TBModel.
         """
         return (
-            f"pythtb.TBModel(dim_r={self._dim_r}, dim_k={self._dim_k}, "
-            f"norb={self._norb}, nspin={self._nspin})"
+            f"pythtb.TBModel(dim_r={self.dim_r}, dim_k={self.dim_k}, "
+            f"norb={self.norb}, nspin={self._nspin})"
         )
 
     def __str__(self):
@@ -351,35 +257,16 @@ class TBModel:
         header = (
             "----------------------------------------\n"
             "       Tight-binding model report       \n"
-            "----------------------------------------\n"
-            f"r-space dimension           = {self._dim_r}\n"
-            f"k-space dimension           = {self._dim_k}\n"
-            f"number of spin components   = {self._nspin}\n"
-            f"periodic directions         = {self._per}\n"
-            f"number of orbitals          = {self._norb}\n"
-            f"number of electronic states = {self._nstate}\n"
+            "----------------------------------------"
         )
         output.append(header)
+        lat_report = self.lattice._report_list()
+        lat_report.pop(0)  # remove header
+        lat_report.insert(4, f"number of spin components   = {self.nspin}")
+        lat_report.insert(5, f"number of electronic states = {self.nstate}")
+        output.extend(lat_report)
 
-        # Print Lattice and Orbital Vectors
         if not short:
-            formatter = {
-                "float_kind": lambda x: f"{0:^7.0f}" if abs(x) < 1e-10 else f"{x:^7.3f}"
-            }
-            output.append("Lattice vectors (Cartesian):")
-            for i, vec in enumerate(self._lat):
-                # print(f"  # {i} ===> {np.array2string(vec, formatter=formatter, separator=', ')}")
-                output.append(
-                    f"  # {i} ===> {np.array2string(vec, formatter=formatter, separator=', ')}"
-                )
-
-            output.append("Orbital vectors (dimensionless):")
-            for i, orb in enumerate(self._orb):
-                # print(f"  # {i} ===> {np.array2string(orb, formatter=formatter, separator=', ')}")
-                output.append(
-                    f"  # {i} ===> {np.array2string(orb, formatter=formatter, separator=', ')}"
-                )
-
             # Print Site Energies
             output.append("Site energies:")
             for i, site in enumerate(self._site_energies):
@@ -413,13 +300,13 @@ class TBModel:
                 hop_from = hopping[1]
                 hop_to = hopping[2]
 
-                pos_i = np.dot(self._orb[hopping[1]], self._lat)
-                pos_j = np.dot(self._orb[hopping[2]], self._lat)
+                pos_i = np.dot(self.orb_vecs[hopping[1]], self.lat_vecs)
+                pos_j = np.dot(self.orb_vecs[hopping[2]], self.lat_vecs)
 
                 out_str = f"  | pos({hop_from:^1}) - pos({hop_to:^1}"
 
                 if len(hopping) == 4:
-                    pos_j += np.dot(hopping[3], self._lat)
+                    pos_j += np.dot(hopping[3], self.lat_vecs)
 
                     out_str += " + ["
                     for j, Rv in enumerate(hopping[3]):
@@ -463,10 +350,10 @@ class TBModel:
         """
         if k_vals.ndim != 2:
             raise ValueError(f"Invalid k_vals shape: {k_vals.shape}. Expected (Nk, dim_k).")
-        if k_vals.shape[1] != self._dim_k:
-            raise ValueError(f"Invalid k_vals shape: {k_vals.shape}. Expected (Nk, {self._dim_k}).")
+        if k_vals.shape[1] != self.dim_k:
+            raise ValueError(f"Invalid k_vals shape: {k_vals.shape}. Expected (Nk, {self.dim_k}).")
         
-        if self._dim_k == 0:
+        if self.dim_k == 0:
             logger.warning(
                 "No periodic directions in k-space. Returning H_flat unchanged."
             )
@@ -475,7 +362,7 @@ class TBModel:
         
         orb_vecs = self._orb_vecs  # reduced units
         orb_vec_diff = orb_vecs[:, None, :] - orb_vecs[None, :, :]
-        orb_vec_diff = orb_vec_diff[..., self._per]
+        orb_vec_diff = orb_vec_diff[..., self.per]
         orb_phase = np.exp(
             1j * 2 * np.pi * np.matmul(orb_vec_diff, k_vals.T)
         ).transpose(2, 0, 1)
@@ -483,13 +370,22 @@ class TBModel:
         return H_per_flat
 
     # Property decorators for read-only access to model attributes
+
+    @property
+    def lattice(self) -> Lattice:
+        """The Lattice object associated with the TBModel.
+
+        .. versionadded:: 2.0.0
+        """
+        return self._lattice
+    
     @property
     def dim_r(self) -> int:
         """The dimensionality of real space.
 
         .. versionadded:: 2.0.0
         """
-        return self._dim_r
+        return self.lattice.dim_r
 
     @property
     def dim_k(self) -> int:
@@ -497,7 +393,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return self._dim_k
+        return self.lattice.dim_k
 
     @property
     def nspin(self) -> int:
@@ -506,16 +402,26 @@ class TBModel:
         .. versionadded:: 2.0.0
         """
         return self._nspin
-
+    
     @property
     def per(self) -> list[int]:
+        """Periodic directions as a list of indices. Alias for `periodic_dirs`.
+
+        .. versionadded:: 2.0.0
+
+        Each index corresponds to a lattice vector in the model.
+        """
+        return self.lattice.periodic_dirs
+
+    @property
+    def periodic_dirs(self) -> list[bool]:
         """Periodic directions as a list of indices.
 
         .. versionadded:: 2.0.0
 
         Each index corresponds to a lattice vector in the model.
         """
-        return self._per
+        return self.lattice.periodic_dirs
 
     @property
     def norb(self) -> int:
@@ -523,7 +429,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return self._norb
+        return self.lattice.norb
 
     @property
     def nstate(self) -> int:
@@ -539,7 +445,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return self._orb.copy()
+        return self.lattice.orb_vecs
 
     @property
     def lat_vecs(self) -> np.ndarray:
@@ -547,7 +453,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return self._lat.copy()
+        return self.lattice.lat_vecs
     
     @property
     def recip_lat_vecs(self) -> np.ndarray:
@@ -555,7 +461,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return self._recip_lat.copy() 
+        return self.lattice.recip_lat_vecs
 
     @property
     def recip_volume(self) -> float:
@@ -563,7 +469,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return self._recip_vol
+        return self.lattice.recip_volume
 
     @property
     def cell_volume(self) -> float:
@@ -571,8 +477,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return self._cell_vol
-
+        return self.lattice.cell_volume
 
     @property
     def site_energies(self) -> np.ndarray:
@@ -673,8 +578,19 @@ class TBModel:
         """
         return self.norb
 
-    def get_orb(self, cartesian=False):
+    @deprecated("Use 'get_orb_vecs' instead.")
+    def get_orb(self):
+        """
+        .. deprecated:: 2.0.0
+           Use 'get_orb_vecs' instead.
+        """
+        return self.get_orb_vecs(cartesian=False)
+
+    def get_orb_vecs(self, cartesian=False):
         """Return orbital positions.
+
+        .. versionchanged:: 2.0.0
+            The name was changed from `get_orb` to `get_orb_vecs`.
 
         .. versionadded:: 2.0.0
             Support for Cartesian coordinates with the `cartesian` parameter.
@@ -690,69 +606,28 @@ class TBModel:
         np.ndarray
             Array of orbital positions, shape (norb, dim_r).
         """
-        orbs = self._orb
-        if cartesian:
-            return orbs @ self._lat
-        else:
-            return orbs
+        return self.lattice.get_orb_vecs(cartesian=cartesian)
 
+    @deprecated("Use 'get_lat_vecs' instead.")
     def get_lat(self):
+        """
+        .. deprecated:: 2.0.0
+           Use 'get_lat_vecs' instead.
+        """
+        return self.get_lat_vecs()
+    
+    def get_lat_vecs(self):
         """Return lattice vectors in Cartesian coordinates.
+
+        .. versionchanged:: 2.0.0
+            The name was changed from `get_lat` to `get_lat_vecs`.
 
         Returns
         -------
         np.ndarray
             Lattice vectors, shape ``(dim_r, dim_r)``.
         """
-        return self.lat_vecs
-    
-    def _get_recip_lat(self):
-        r"""Reciprocal lattice vectors in inverse Cartesian coordinates.
-
-        Returns
-        -------
-        np.ndarray
-            Array of shape (dim_k, dim_r): rows are the reciprocal vectors :math:`\mathbf{b}_i` 
-            in :math:`\mathbb{R}^{\texttt{dim_r}}`
-            satisfying :math:`\mathbf{a}_i \cdot \mathbf{b}_j = 2\pi \delta_{ij}`, 
-            where :math:`\mathbf{a}_i` are the periodic real-space lattice vectors that 
-            define k-space.
-
-        Notes
-        -----
-        - Works for ``dim_k <= dim_r``. When ``dim_k < dim_r``, returns the minimum-norm solution.
-        - Requires the periodic real-space vectors (rows of A_sub) to be linearly independent.
-        """
-        if self.dim_k == 0:
-            logger.warning("Reciprocal lattice vectors are not defined for zero-dimensional k-space.")
-            return None
-
-        # Select the real-space lattice vectors that generate k-space.
-        # Prefer an explicit list (e.g. self.per holds indices of periodic directions).
-        # Fallback: take the first dim_k lattice vectors.
-        lat = np.asarray(self._lat)            # shape (dim_r, dim_r) in Cartesian coords
-        if hasattr(self, "per") and self.per is not None:
-            per = np.asarray(self.per, dtype=int)
-            if per.size != self.dim_k:
-                raise ValueError(f"'per' must list exactly dim_k={self.dim_k} periodic directions.")
-            A_sub = lat[per, :]                    # (dim_k, dim_r)
-        else:
-            A_sub = lat[: self.dim_k, :]           # (dim_k, dim_r)
-
-        # Check linear independence of the chosen periodic vectors
-        if np.linalg.matrix_rank(A_sub) != self.dim_k:
-            raise ValueError(
-                "Periodic real-space vectors are not linearly independent; "
-                "cannot construct reciprocal lattice for k-subspace."
-            )
-
-        # Minimum-norm reciprocal set in the embedding R^{dim_r}:
-        # rows b_i satisfy A_sub @ B^T = 2pi I_{dim_k}
-        G = A_sub @ A_sub.T             # (dim_k, dim_k) Gram matrix
-        X = np.linalg.solve(G, A_sub)   # (dim_k, dim_r)
-        B = (2 * np.pi) * X             # (dim_k, dim_r)
-
-        return B
+        return self.lattice.get_lat_vecs()
 
 
     def set_onsite(self, onsite_en, ind_i=None, mode="set"):
@@ -828,15 +703,15 @@ class TBModel:
                     "When ind_i is not specified, onsite_en must be a list or array."
                 )
             # the number of onsite energies must match the number of orbitals,
-            if len(onsite_en) != self._norb:
+            if len(onsite_en) != self.norb:
                 raise ValueError(
                     "List of onsite energies must include a value for every orbital."
                 )
 
             processed = [process(val) for val in onsite_en]
-            indices = np.arange(self._norb)
+            indices = np.arange(self.norb)
         else:
-            if ind_i < 0 or ind_i >= self._norb:
+            if ind_i < 0 or ind_i >= self.norb:
                 raise ValueError(
                     "Index ind_i is not within the range of number of orbitals."
                 )
@@ -864,18 +739,18 @@ class TBModel:
         if getattr(self, "_hop_index", None) is None:
             self._hop_index = {}
             for idx, h in enumerate(self._hoppings):
-                if self._dim_k == 0:
+                if self.dim_k == 0:
                     key = (h[1], h[2], None)
                 else:
-                    key = (h[1], h[2], tuple(np.array(h[3])[self._per]))
+                    key = (h[1], h[2], tuple(np.array(h[3])[self.per]))
                 self._hop_index[key] = idx
 
     def _hop_keys(self, ind_i, ind_j, ind_R):
         """Return primary and conjugate keys using only periodic components of R."""
-        if self._dim_k == 0:
+        if self.dim_k == 0:
             return (ind_i, ind_j, None), (ind_j, ind_i, None)
-        Rp = tuple(np.array(ind_R)[self._per])
-        conj_Rp = tuple((-np.array(ind_R))[self._per])
+        Rp = tuple(np.array(ind_R)[self.per])
+        conj_Rp = tuple((-np.array(ind_R))[self.per])
         return (ind_i, ind_j, Rp), (ind_j, ind_i, conj_Rp)
 
 
@@ -922,9 +797,12 @@ class TBModel:
         ind_j : int
             Index of ket orbital (in cell shifted by `ind_R`).
         ind_R : array-like of int, optional
-            Lattice vector in reduced coordinates pointing to the unit cell
-            where the ket orbital is located. Must have length `dim_r`. If model is non-periodic,
-            can be omitted.
+            Lattice vector (integer array, in reduced coordinates)
+            pointing to the unit cell where the ket orbital is located.
+            The number of coordinates must equal the dimensionality in
+            real space (``dim_r``) for consistency. but only the periodic directions of ``ind_R`` are used.
+            If reciprocal space is zero-dimensional (as in a molecule), this parameter does not need 
+            to be specified.
         mode : {'set', 'add'}, optional
             Specifies how `hop_amp` is used
                 - "set": Set the hopping term to the value of `hop_amp`. (Default)
@@ -964,19 +842,24 @@ class TBModel:
             raise ValueError("Index ind_j is not within range of number of orbitals.")
 
         # Check ind_R
+        if ind_R is not None and self.dim_k == 0:
+            raise ValueError("No periodic directions, so ind_R should not be specified.")
         if isinstance(ind_R, np.ndarray):
             if ind_R.ndim != 1:
                 raise ValueError("If ind_R is a numpy array, it must be 1-dimensional.")
-            if ind_R.shape[0] != self._dim_r:
+            if ind_R.shape[0] != self.dim_r:
                 raise ValueError(
                     "If ind_R is a numpy array, its length must equal dim_r."
                 )
+            if not np.issubdtype(ind_R.dtype, np.integer):
+                raise ValueError("If ind_R is a numpy array, it must be of integer type.")
+            ind_R = ind_R.astype(int)
         elif isinstance(ind_R, (list, tuple)):
-            if len(ind_R) != self._dim_r:
+            if len(ind_R) != self.dim_r:
                 raise ValueError(
                     "If ind_R is a list or tuple, its length must equal dim_r."
                 )
-            ind_R = np.array(ind_R)
+            ind_R = np.array(ind_R, dtype=int)
             if ind_R.ndim != 1:
                 raise ValueError("If ind_R is a list or tuple, it must be 1-dimensional.")
         elif isinstance(ind_R, (int, np.integer)):
@@ -998,7 +881,7 @@ class TBModel:
         # Do not allow onsite hoppings to be specified here
         if ind_i == ind_j:
             # not extended
-            if self._dim_k == 0:
+            if self.dim_k == 0:
                 raise ValueError(
                     "Do not use set_hop for onsite terms. Use set_onsite instead."
                 )
@@ -1124,7 +1007,7 @@ class TBModel:
         .. math::
             v_k^{\mu} = i \frac{\partial H(k)}{\partial k_{\mu}}
         """
-        dim_k = self._dim_k
+        dim_k = self.dim_k
 
         if k_pts is not None:
             # if kpnt is just a number then convert it to an array
@@ -1155,10 +1038,10 @@ class TBModel:
         else:
             raise TypeError("k_pts should not be None for velocity operator.")
 
-        norb = self._norb
+        norb = self.norb
         nspin = self._nspin
-        per = np.asarray(self._per)
-        orb_red = np.asarray(self._orb)  # shape (norb, dim_r)
+        per = np.asarray(self.per)
+        orb_red = np.asarray(self.orb_vecs)  # shape (norb, dim_r)
         hoppings = self._hoppings
 
         i_indices = np.array([h[1] for h in hoppings])
@@ -1178,7 +1061,7 @@ class TBModel:
         k_dot_r = k_arr @ delta_r_per.T  # Shape: (n_kpts, n_hoppings)
         phases = np.exp(1j * 2 * np.pi * k_dot_r)  # Shape: (n_kpts, n_hoppings)
         if cartesian:
-            deriv_phase = (1j * delta_r_per @ self.get_lat()[self._per, :]).T[
+            deriv_phase = (1j * delta_r_per @ self.get_lat()[self.per, :]).T[
                 :, None, :
             ] * phases[None, ...]
         else:
@@ -1259,11 +1142,11 @@ class TBModel:
 
         """
         # Cache invariant data to avoid repeated conversions
-        dim_k = self._dim_k
-        norb = self._norb
+        dim_k = self.dim_k
+        norb = self.norb
         nspin = self._nspin
-        per = np.asarray(self._per)
-        orb_red = np.asarray(self._orb)  # shape (norb, dim_r)
+        per = np.asarray(self.per)
+        orb_red = np.asarray(self.orb_vecs)  # shape (norb, dim_r)
         orb_idxs = np.arange(norb)
         site_energies = np.asarray(self._site_energies)
         hoppings = self._hoppings
@@ -1519,7 +1402,7 @@ class TBModel:
             eigvals, eigvecs = self._sol_ham(
                 Ham, return_eigvecs=return_eigvecs, keep_spin_ax=keep_spin_ax, tf_speedup=tf_speedup
             )
-            if self._dim_k != 0:
+            if self.dim_k != 0:
                 if eigvals.ndim != 2:
                     raise ValueError("Wrong shape of eigvals")
                 # if only one k_point, remove that redundant axis (reproduces solve_one)
@@ -1531,7 +1414,7 @@ class TBModel:
         else:
             eigvals = self._sol_ham(Ham, return_eigvecs=return_eigvecs)
 
-            if self._dim_k != 0:
+            if self.dim_k != 0:
                 if eigvals.ndim != 2:
                     raise ValueError("Wrong shape of eigvals")
                 # if only one k_point, remove that redundant axis (reproduces solve_one)
@@ -1614,7 +1497,7 @@ class TBModel:
         >>> C = B.cut_piece(20, 2, glue_edgs=True)
 
         """
-        if self._dim_k == 0:
+        if self.dim_k == 0:
             raise Exception("\n\nModel is already finite")
         if not _is_int(num):
             raise TypeError("\n\nArgument num not an integer")
@@ -1629,9 +1512,9 @@ class TBModel:
         fin_orb = []
         onsite = []  # store also onsite energies
         for i in range(num):  # go over all cells in finite direction
-            for j in range(self._norb):  # go over all orbitals in one cell
+            for j in range(self.norb):  # go over all orbitals in one cell
                 # make a copy of j-th orbital
-                orb_tmp = np.copy(self._orb[j, :])
+                orb_tmp = np.copy(self.orb_vecs[j, :])
                 # change coordinate along finite direction
                 orb_tmp[fin_dir] += float(i)
                 # add to the list
@@ -1642,7 +1525,7 @@ class TBModel:
         fin_orb = np.array(fin_orb)
 
         # generate periodic directions of a finite model
-        fin_per = copy.deepcopy(self._per)
+        fin_per = copy.deepcopy(self.per)
         # find if list of periodic directions contains the one you
         # want to make finite
         if fin_per.count(fin_dir) != 1:
@@ -1652,9 +1535,9 @@ class TBModel:
 
         # generate object of TBModel type that will correspond to a cutout
         fin_model = TBModel(
-            self._dim_k - 1,
-            self._dim_r,
-            copy.deepcopy(self._lat),
+            self.dim_k - 1,
+            self.dim_r,
+            copy.deepcopy(self.lat_vecs),
             fin_orb,
             fin_per,
             self._nspin,
@@ -1678,28 +1561,28 @@ class TBModel:
                 ind_R = copy.deepcopy(self._hoppings[h][3])
                 # store by how many cells is the hopping in finite direction
                 jump_fin = ind_R[fin_dir]
-                if fin_model._dim_k != 0:
+                if fin_model.dim_k != 0:
                     ind_R[fin_dir] = 0  # one of the directions now becomes finite
 
                 # index of "from" and "to" hopping indices
-                hi = self._hoppings[h][1] + c * self._norb
+                hi = self._hoppings[h][1] + c * self.norb
                 #   have to compensate  for the fact that ind_R in finite direction
                 #   will not be used in the finite model
-                hj = self._hoppings[h][2] + (c + jump_fin) * self._norb
+                hj = self._hoppings[h][2] + (c + jump_fin) * self.norb
 
                 # decide whether this hopping should be added or not
                 to_add = True
                 # if edges are not glued then neglect all jumps that spill out
                 if not glue_edgs:
-                    if hj < 0 or hj >= self._norb * num:
+                    if hj < 0 or hj >= self.norb * num:
                         to_add = False
                 # if edges are glued then do mod division to wrap up the hopping
                 else:
-                    hj = int(hj) % int(self._norb * num)
+                    hj = int(hj) % int(self.norb * num)
 
                 # add hopping to a finite model
                 if to_add:
-                    if fin_model._dim_k == 0:
+                    if fin_model.dim_k == 0:
                         fin_model.set_hop(
                             amp, hi, hj, mode="add", allow_conjugate_pair=True
                         )
@@ -1770,15 +1653,15 @@ class TBModel:
         >>> red_tb = tb.reduce_dim(1, 0.3)
 
         """
-        if self._dim_k == 0:
+        if self.dim_k == 0:
             raise Exception("\n\nCan not reduce dimensionality even further!")
         # make a copy
         red_tb = copy.deepcopy(self)
         # make one of the directions not periodic
-        red_tb._per.remove(remove_k)
-        red_tb._dim_k = len(red_tb._per)
+        red_tb.per.remove(remove_k)
+        red_tb.dim_k = len(red_tb.per)
         # check that really removed one and only one direction
-        if red_tb._dim_k != self._dim_k - 1:
+        if red_tb.dim_k != self.dim_k - 1:
             raise Exception("\n\nSpecified wrong dimension to reduce!")
 
         # specify hopping terms from scratch
@@ -1793,7 +1676,7 @@ class TBModel:
             i, j = hop[1], hop[2]
             ind_R = np.array(hop[3], dtype=int)
             # vector from one site to another
-            rv = -red_tb._orb[i, :] + red_tb._orb[j, :] + np.array(ind_R, dtype=float)
+            rv = -red_tb.orb_vecs[i, :] + red_tb.orb_vecs[j, :] + np.array(ind_R, dtype=float)
             # take only r-vector component along direction you are not making periodic
             rv = rv[remove_k]
             # Calculate the part of hopping phase, only for this direction
@@ -1802,7 +1685,7 @@ class TBModel:
             # Since we are getting rid of one dimension, it could be that now
             # one of the hopping terms became onsite term because one direction
             # is no longer periodic
-            if i == j and (np.all(np.array(ind_R[red_tb._per], dtype=int) == 0)):
+            if i == j and (np.all(np.array(ind_R[red_tb.per], dtype=int) == 0)):
                 if ind_R[remove_k] == 0:
                     # in this case this is really an onsite term
                     red_tb.set_onsite(amp * phase, i, mode="add")
@@ -1913,29 +1796,29 @@ class TBModel:
 
         if new_latt_vec is None:
             # construct new nonperiodic lattice vector
-            per_temp = np.zeros_like(self._lat)
-            for direc in self._per:
-                per_temp[direc] = self._lat[direc]
+            per_temp = np.zeros_like(self.lat_vecs)
+            for direc in self.per:
+                per_temp[direc] = self.lat_vecs[direc]
             # find projection coefficients onto space of periodic vectors
-            coeffs = np.linalg.lstsq(per_temp.T, self._lat[np_dir], rcond=None)[0]
-            projec = np.dot(self._lat.T, coeffs)
+            coeffs = np.linalg.lstsq(per_temp.T, self.lat_vecs[np_dir], rcond=None)[0]
+            projec = np.dot(self.lat_vecs.T, coeffs)
             # subtract off to get new nonperiodic vector
-            np_lattice_vec = self._lat[np_dir] - projec
+            np_lattice_vec = self.lat_vecs[np_dir] - projec
         else:
             # new_latt_vec is passed as argument
             # check shape and convert to numpy array
             np_lattice_vec = np.array(new_latt_vec)
-            if np_lattice_vec.shape != (self._dim_r,):
+            if np_lattice_vec.shape != (self.dim_r,):
                 raise ValueError("Nonperiodic vector has wrong length")
 
         # define new set of lattice vectors
-        np_lat = copy.deepcopy(self._lat)
+        np_lat = copy.deepcopy(self.lat_vecs)
         np_lat[np_dir] = np_lattice_vec
 
         # convert reduced vector in original lattice to reduced vector in new cell lattice
         np_orb = []
-        for orb in self._orb:  # go over all orbitals
-            orb_cart = np.dot(self._lat.T, orb)
+        for orb in self.orb_vecs:  # go over all orbitals
+            orb_cart = np.dot(self.lat_vecs.T, orb)
             # convert to reduced coordinates
             np_orb.append(np.linalg.solve(np_lat.T, orb_cart))
 
@@ -1943,30 +1826,30 @@ class TBModel:
         nnp_tb = copy.deepcopy(self)
 
         # update lattice vectors and orbitals
-        nnp_tb._lat = np.array(np_lat, dtype=float)
-        nnp_tb._orb = np.array(np_orb, dtype=float)
+        nnp_tb.lat_vecs = np.array(np_lat, dtype=float)
+        nnp_tb.orb_vecs = np.array(np_orb, dtype=float)
 
         # double check that everything went as planned
 
         # is the new vector perpendicular to all periodic directions?
         if new_latt_vec is None:
-            for i in nnp_tb._per:
-                if np.abs(np.dot(nnp_tb._lat[i], nnp_tb._lat[np_dir])) > 1.0e-6:
+            for i in nnp_tb.per:
+                if np.abs(np.dot(nnp_tb.lat_vecs[i], nnp_tb.lat_vecs[np_dir])) > 1.0e-6:
                     raise ValueError(
                         """\n\nThis shouldn't happen.  New nonperiodic vector 
                         is not perpendicular to periodic vectors!?"""
                     )
         # are cartesian coordinates of orbitals the same in two cases?
-        for i in range(self._orb.shape[0]):
-            cart_old = np.dot(self._lat.T, self._orb[i])
-            cart_new = np.dot(nnp_tb._lat.T, nnp_tb._orb[i])
+        for i in range(self.orb_vecs.shape[0]):
+            cart_old = np.dot(self.lat_vecs.T, self.orb_vecs[i])
+            cart_new = np.dot(nnp_tb.lat_vecs.T, nnp_tb.orb_vecs[i])
             if np.max(np.abs(cart_old - cart_new)) > 1.0e-6:
                 raise Exception(
                     """\n\nThis shouldn't happen. New choice of nonperiodic vector
                         somehow changed Cartesian coordinates of orbitals."""
                 )
         # check that volume of the cell is not zero
-        if np.abs(np.linalg.det(nnp_tb._lat)) < 1.0e-6:
+        if np.abs(np.linalg.det(nnp_tb.lat_vecs)) < 1.0e-6:
             raise Exception(
                 "\n\nLattice with new choice of nonperiodic vector has zero volume?!"
             )
@@ -2059,7 +1942,7 @@ class TBModel:
         """
 
         # Can't make super cell for model without periodic directions
-        if self._dim_r == 0:
+        if self.dim_r == 0:
             raise Exception(
                 "\n\nMust have at least one periodic direction to make a super-cell"
             )
@@ -2068,19 +1951,19 @@ class TBModel:
         use_sc_red_lat = np.array(sc_red_lat)
 
         # checks on super-lattice array
-        if use_sc_red_lat.shape != (self._dim_r, self._dim_r):
+        if use_sc_red_lat.shape != (self.dim_r, self.dim_r):
             raise Exception("\n\nDimension of sc_red_lat array must be dim_r*dim_r")
         if use_sc_red_lat.dtype != int:
             raise Exception("\n\nsc_red_lat array elements must be integers")
-        for i in range(self._dim_r):
-            for j in range(self._dim_r):
-                if (i == j) and (i not in self._per) and use_sc_red_lat[i, j] != 1:
+        for i in range(self.dim_r):
+            for j in range(self.dim_r):
+                if (i == j) and (i not in self.per) and use_sc_red_lat[i, j] != 1:
                     raise Exception(
                         "\n\nDiagonal elements of sc_red_lat for non-periodic directions must equal 1."
                     )
                 if (
                     (i != j)
-                    and ((i not in self._per) or (j not in self._per))
+                    and ((i not in self.per) or (j not in self.per))
                     and use_sc_red_lat[i, j] != 0
                 ):
                     raise Exception(
@@ -2103,12 +1986,12 @@ class TBModel:
             )
 
         # conservative estimate on range of search for super-cell vectors
-        max_R = np.max(np.abs(use_sc_red_lat)) * self._dim_r
+        max_R = np.max(np.abs(use_sc_red_lat)) * self.dim_r
 
         # candidates for super-cell vectors
         sc_cands = [
             np.array(candidate)
-            for candidate in product(range(-max_R, max_R + 1), repeat=self._dim_r)
+            for candidate in product(range(-max_R, max_R + 1), repeat=self.dim_r)
         ]
 
         # find all vectors inside super-cell
@@ -2138,23 +2021,23 @@ class TBModel:
             )
 
         # cartesian vectors of the super lattice
-        sc_cart_lat = np.dot(use_sc_red_lat, self._lat)
+        sc_cart_lat = np.dot(use_sc_red_lat, self.lat_vecs)
 
         # orbitals of the super-cell tight-binding model
         sc_orb = []
         for cur_sc_vec in sc_vec:  # go over all super-cell vectors
-            for orb in self._orb:  # go over all orbitals
+            for orb in self.orb_vecs:  # go over all orbitals
                 # shift orbital and compute coordinates in
                 # reduced coordinates of super-cell
                 sc_orb.append(to_red_sc(orb + cur_sc_vec))
 
         # create super-cell TBModel object to be returned
         sc_tb = TBModel(
-            self._dim_k,
-            self._dim_r,
+            self.dim_k,
+            self.dim_r,
             sc_cart_lat,
             sc_orb,
-            per=self._per,
+            per=self.per,
             nspin=self._nspin,
         )
 
@@ -2165,8 +2048,8 @@ class TBModel:
 
         # repeat onsite energies
         for i in range(num_sc):
-            for j in range(self._norb):
-                sc_tb.set_onsite(self._site_energies[j], i * self._norb + j)
+            for j in range(self.norb):
+                sc_tb.set_onsite(self._site_energies[j], i * self.norb + j)
 
         # set hopping terms
         for c, cur_sc_vec in enumerate(sc_vec):  # go over all super-cell vectors
@@ -2195,8 +2078,8 @@ class TBModel:
                     raise Exception("\n\nDid not find super cell vector!")
 
                 # index of "from" and "to" hopping indices
-                hi = self._hoppings[h][1] + c * self._norb
-                hj = self._hoppings[h][2] + pair_ind * self._norb
+                hi = self._hoppings[h][1] + c * self.norb
+                hj = self._hoppings[h][2] + pair_ind * self.norb
 
                 # add hopping term
                 sc_tb.set_hop(
@@ -2242,15 +2125,15 @@ class TBModel:
         """
 
         # create list of emty lists (one for each real-space direction)
-        warning_list = [[]] * self._dim_r
+        warning_list = [[]] * self.dim_r
         # go over all orbitals
-        for i in range(self._norb):
+        for i in range(self.norb):
             # find displacement vector needed to bring back to home cell
-            disp_vec = np.zeros(self._dim_r, dtype=int)
+            disp_vec = np.zeros(self.dim_r, dtype=int)
             # shift only in periodic directions
-            for k in range(self._dim_r):
-                shift = np.floor(self._orb[i, k] + 1.0e-6).astype(int)
-                if k in self._per:
+            for k in range(self.dim_r):
+                shift = np.floor(self.orb_vecs[i, k] + 1.0e-6).astype(int)
+                if k in self.per:
                     disp_vec[k] = shift
                 else:  # check for shift in non-periodic directions
                     if shift != 0:
@@ -2259,7 +2142,7 @@ class TBModel:
         # print warning message if needed
         if to_home_warning:
             warn_str = ""
-            for k in range(self._dim_r):
+            for k in range(self.dim_r):
                 orbs = warning_list[k]
                 if orbs != []:
                     orb_str = ", ".join(str(e) for e in orbs)
@@ -2293,9 +2176,9 @@ class TBModel:
                 )
 
             # shift orbitals
-            self._orb[i] -= disp_vec
+            self.orb_vecs[i] -= disp_vec
             # shift hoppings
-            if self._dim_k != 0:
+            if self.dim_k != 0:
                 for h in range(len(self._hoppings)):
                     if self._hoppings[h][1] == i:
                         self._hoppings[h][3] -= disp_vec
@@ -2329,14 +2212,14 @@ class TBModel:
 
         if coord.shape != (self.dim_r, ):
                 raise ValueError(
-                    f"Orbital coordinate must be a list of length {self._dim_r}, got {coord.shape}"
+                    f"Orbital coordinate must be a list of length {self.dim_r}, got {coord.shape}"
                 )
         
         # Append orbital coordinate
-        self._orb = np.vstack([self._orb, coord])
+        self.orb_vecs = np.vstack([self.orb_vecs, coord])
         # Update number of orbitals and states
-        self._norb += 1
-        self._nstate = self._norb * self._nspin
+        self.norb += 1
+        self._nstate = self.norb * self._nspin
         # Append default site energy and specified flag
         if self._nspin == 1:
             self._site_energies = np.append(self._site_energies, 0.0)
@@ -2384,7 +2267,7 @@ class TBModel:
 
         # check range of indices
         for i, orb_ind in enumerate(orb_index):
-            if orb_ind < 0 or orb_ind > self._norb - 1 or (not _is_int(orb_ind)):
+            if orb_ind < 0 or orb_ind > self.norb - 1 or (not _is_int(orb_ind)):
                 raise Exception("\n\nSpecified wrong orbitals to remove!")
         for i, ind1 in enumerate(orb_index):
             for ind2 in orb_index[i + 1 :]:
@@ -2398,12 +2281,12 @@ class TBModel:
         ret = copy.deepcopy(self)
 
         # adjust some variables in the new model
-        ret._norb -= len(orb_index)
+        ret.norb -= len(orb_index)
         ret._nstate -= len(orb_index) * self._nspin
         # remove indices one by one
         for i, orb_ind in enumerate(orb_index):
             # adjust variables
-            ret._orb = np.delete(ret._orb, orb_ind, 0)
+            ret.orb_vecs = np.delete(ret.orb_vecs, orb_ind, 0)
             ret._site_energies = np.delete(ret._site_energies, orb_ind, 0)
             ret._site_energies_specified = np.delete(
                 ret._site_energies_specified, orb_ind
@@ -2557,7 +2440,7 @@ class TBModel:
             raise ValueError("nk must be >= number of nodes in kpts")
 
         # Extract periodic lattice and compute k-space metric
-        lat_per = self._lat[self.per]
+        lat_per = self.lat_vecs[self.per]
         k_metric = np.linalg.inv(lat_per @ lat_per.T)
 
         # Compute segment vectors and lengths in Cartesian metric
@@ -2657,12 +2540,12 @@ class TBModel:
         """
 
         # make sure specified direction is not periodic!
-        if dir in self._per:
+        if dir in self.per:
             raise Exception(
                 "Can not compute position matrix elements along periodic direction!"
             )
         # make sure direction is not out of range
-        if dir < 0 or dir >= self._dim_r:
+        if dir < 0 or dir >= self.dim_r:
             raise Exception("Direction out of range!")
 
         # check if model came from w90
@@ -2685,7 +2568,7 @@ class TBModel:
                 )
 
         # get coordinates of orbitals along the specified direction
-        pos_tmp = self._orb[:, dir]
+        pos_tmp = self.orb_vecs[:, dir]
         # reshape arrays in the case of spinfull calculation
         if self._nspin == 2:
             # tile along spin direction if needed
@@ -2883,20 +2766,20 @@ class TBModel:
                 return (hwfc, hwf)
             elif basis.lower().strip() == "orbital":
                 if self._nspin == 1:
-                    ret_hwf = np.zeros((hwf.shape[0], self._norb), dtype=complex)
+                    ret_hwf = np.zeros((hwf.shape[0], self.norb), dtype=complex)
                     # sum over bloch states to get hwf in orbital basis
                     for i in range(ret_hwf.shape[0]):
                         ret_hwf[i] = np.dot(hwf[i], evec)
                     hwf = ret_hwf
                 else:
-                    ret_hwf = np.zeros((hwf.shape[0], self._norb * 2), dtype=complex)
+                    ret_hwf = np.zeros((hwf.shape[0], self.norb * 2), dtype=complex)
                     # get rid of spin indices
-                    evec_use = evec.reshape([hwf.shape[0], self._norb * 2])
+                    evec_use = evec.reshape([hwf.shape[0], self.norb * 2])
                     # sum over states
                     for i in range(ret_hwf.shape[0]):
                         ret_hwf[i] = np.dot(hwf[i], evec_use)
                     # restore spin indices
-                    hwf = ret_hwf.reshape([hwf.shape[0], self._norb, 2])
+                    hwf = ret_hwf.reshape([hwf.shape[0], self.norb, 2])
                 return (hwfc, hwf)
             else:
                 raise Exception(

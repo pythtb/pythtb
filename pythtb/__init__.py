@@ -41,8 +41,9 @@ from .w90 import *
 from .wannier import *
 from .mesh import *
 from .utils import *
+from .lattice import *    
 
-from . import mesh, tb_model, wf_array, w90, wannier, utils
+from . import mesh, tb_model, wf_array, w90, wannier, utils, lattice
 
 __all__ = []
 __all__ += tb_model.__all__
@@ -51,6 +52,7 @@ __all__ += w90.__all__
 __all__ += mesh.__all__
 __all__ += wannier.__all__
 __all__ += utils.__all__
+__all__ += lattice.__all__
 
 # Use the core module's __all__ to define the package exports from * imports.
 # This ensures 'from pythtb import *' pulls in only the intended public API.
