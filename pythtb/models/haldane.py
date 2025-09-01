@@ -1,4 +1,4 @@
-from pythtb import TBModel
+from pythtb import TBModel, Lattice
 import numpy as np
 
 
@@ -61,10 +61,11 @@ def haldane(
         *Physical Review Letters*, 61(20), 2015–2018.
     """
 
-    lat = [[1, 0], [1/2, np.sqrt(3) / 2]]
-    orb = [[1/3, 1/3], [2/3, 2/3]]
+    lat_vecs = [[1, 0], [1/2, np.sqrt(3) / 2]]
+    orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
 
-    model = TBModel(2, 2, lat, orb)
+    lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
+    model = TBModel(lattice=lat, nspin=1)
 
     model.set_onsite([-delta, delta], mode="set")
 

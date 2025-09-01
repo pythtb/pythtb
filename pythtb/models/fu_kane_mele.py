@@ -1,5 +1,5 @@
 import numpy as np
-from pythtb import TBModel
+from pythtb import TBModel, Lattice
 
 
 def fu_kane_mele(t, soc, m, beta):
@@ -29,9 +29,11 @@ def fu_kane_mele(t, soc, m, beta):
         An instance of the model.
     """
 
-    lat = [[0, 1, 1], [1, 0, 1], [1, 1, 0]]
-    orb = [[0, 0, 0], [0.25, 0.25, 0.25]]
-    model = TBModel(3, 3, lat, orb, nspin=2)
+    lat_vecs = [[0, 1, 1], [1, 0, 1], [1, 1, 0]]
+    orb_vecs = [[0, 0, 0], [0.25, 0.25, 0.25]]
+    lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1, 2])
+
+    model = TBModel(lattice=lat, nspin=2)
 
     h = m * np.sin(beta) * np.array([1, 1, 1])
     dt = m * np.cos(beta)

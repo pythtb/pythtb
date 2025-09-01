@@ -1,5 +1,5 @@
 import numpy as np
-from pythtb import TBModel
+from pythtb import TBModel, Lattice
 
 
 def graphene(delta: float, t: float) -> TBModel:
@@ -41,10 +41,11 @@ def graphene(delta: float, t: float) -> TBModel:
         An instance of the model.
     """
 
-    lat = [[1, 0], [1/2, np.sqrt(3)/2]]
-    orb = [[1/3, 1/3], [2/3, 2/3]]
+    lat_vecs = [[1, 0], [1/2, np.sqrt(3)/2]]
+    orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
+    lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
-    my_model = TBModel(2, 2, lat, orb)
+    my_model = TBModel(lattice=lat, nspin=1)
 
     my_model.set_onsite([-delta, delta])
     my_model.set_hop(t, 0, 1, [0, 0])

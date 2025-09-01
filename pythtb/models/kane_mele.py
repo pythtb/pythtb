@@ -1,4 +1,4 @@
-from pythtb import TBModel
+from pythtb import TBModel, Lattice
 import numpy as np
 
 
@@ -59,12 +59,14 @@ def kane_mele(delta, t, soc, rashba) -> TBModel:
     """
 
     # define lattice vectors
-    lat = [[1, 0], [1/2, np.sqrt(3)/2]]
+    lat_vecs = [[1, 0], [1/2, np.sqrt(3)/2]]
     # define coordinates of orbitals
-    orb = [[1/3, 1/3], [2/3, 2/3]]
+    orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
+
+    lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
     # make two dimensional tight-binding Kane-Mele model
-    ret_model = TBModel(2, 2, lat, orb, nspin=2)
+    ret_model = TBModel(lattice=lat, nspin=2)
 
     # set on-site energies
     ret_model.set_onsite([delta, -delta])
