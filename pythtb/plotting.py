@@ -207,7 +207,7 @@ def plot_tb_model(
     >>> fig.savefig("model.pdf")
     """
 
-    cmap = plt.get_cmap("hsv", model._norb)
+    cmap = plt.get_cmap("hsv", model.norb)
 
     fig, ax = plt.subplots(figsize=(8, 8))
 
@@ -235,7 +235,7 @@ def plot_tb_model(
 
     # Convert reduced coordinates to Cartesian coordinates
     def to_cart(red):
-        return np.dot(red, model._lat)
+        return np.dot(red, model.lat_vecs)
 
     # to ensure proper padding, track all plotted coordinates
     all_coords = []
@@ -247,9 +247,9 @@ def plot_tb_model(
 
     # Draw lattice (unit cell) vectors as arrows and label them
     ends = []
-    for i in model._per:
+    for i in model.per:
         start = origin
-        end = proj(model._lat[i])
+        end = proj(model.lat_vecs[i])
         ends.append(end)
 
         # lattice vector arrow
@@ -309,8 +309,8 @@ def plot_tb_model(
 
     # Draw orbitals: home-cell orbitals in red
     orb_coords = []
-    for i in range(model._norb):
-        pos = to_cart(model._orb[i])
+    for i in range(model.norb):
+        pos = to_cart(model.orb_vecs[i])
         p = proj(pos)
         color = cmap(i)
         ax.scatter(p[0], p[1], color=orb_color, s=50, zorder=2, label=f"Orbital {i}")
@@ -366,23 +366,23 @@ def plot_tb_model(
 
             r_vec = None
             intracell = True
-            if model._dim_k != 0 and len(h) == 4:
+            if model.dim_k != 0 and len(h) == 4:
                 r_vec = h[3]
                 intracell = np.all(r_vec == 0)
 
             for shift in range(2):  # draw both i->j+R and i-R->j hop
-                pos_i = to_cart(model._orb[i_orb])
-                pos_j = to_cart(model._orb[j_orb])
+                pos_i = to_cart(model.orb_vecs[i_orb])
+                pos_j = to_cart(model.orb_vecs[j_orb])
 
                 # Determine starting and ending orbital positions
                 if r_vec is not None:
                     # Adjust pos_j with lattice translation if provided
                     if shift == 0:
                         # i->j+R
-                        pos_j += np.dot(r_vec, model._lat)
+                        pos_j += np.dot(r_vec, model.lat_vecs)
                     elif shift == 1:
                         # i-R->j
-                        pos_i -= np.dot(r_vec, model._lat)
+                        pos_i -= np.dot(r_vec, model.lat_vecs)
 
                 p_i = proj(pos_i)
                 p_j = proj(pos_j)
@@ -451,8 +451,8 @@ def plot_tb_model(
     if eig_dr is not None:
         # For each orbital, size the marker by amplitude and color by phase
         cmap = cm.hsv
-        for i in range(model._norb):
-            pos = to_cart(model._orb[i])
+        for i in range(model.norb):
+            pos = to_cart(model.orb_vecs[i])
             p = proj(pos)
             amp = (
                 np.abs(eig_dr[i]) ** 2
@@ -465,7 +465,7 @@ def plot_tb_model(
             ax.scatter(
                 p[0],
                 p[1],
-                s=30 * amp * 2 * model._norb,  # size proportional to amplitude
+                s=30 * amp * 2 * model.norb,  # size proportional to amplitude
                 color=color,
                 edgecolor="k",
                 zorder=10,
@@ -540,7 +540,7 @@ def plot_tb_model_3d(
 
     # Helper: Convert reduced coordinates to Cartesian coordinates.
     def to_cart(red):
-        return np.dot(red, model._lat)
+        return np.dot(red, model.lat_vecs)
 
     # Container for all Plotly traces.
     traces = []
@@ -552,11 +552,11 @@ def plot_tb_model_3d(
     all_coords.append(origin)
 
     # --- Draw Lattice Vectors ---
-    # We assume model._per is an iterable of indices for lattice vectors.
+    # We assume model.per is an iterable of indices for lattice vectors.
     lattice_traces = []
-    for i in model._per:
+    for i in model.per:
         start = origin
-        end = np.array(model._lat[i])
+        end = np.array(model.lat_vecs[i])
         # Line for the lattice vector.
         lattice_traces.append(
             go.Scatter3d(
@@ -613,8 +613,8 @@ def plot_tb_model_3d(
     orb_text = []
     orb_marker_colors = []
     onsite_labels = []
-    cmap_orb = cm.get_cmap("viridis", model._norb)
-    for i in range(model._norb):
+    cmap_orb = cm.get_cmap("viridis", model.norb)
+    for i in range(model.norb):
         orb_text.append(f"Orbital {i}")
 
         if model._nspin == 2:
@@ -624,7 +624,7 @@ def plot_tb_model_3d(
             onsite_label = rf"{model._site_energies[i]:.2f}"
         onsite_labels.append(onsite_label)
 
-        pos = to_cart(model._orb[i])
+        pos = to_cart(model.orb_vecs[i])
         orb_x.append(pos[0])
         orb_y.append(pos[1])
         orb_z.append(pos[2])
@@ -673,19 +673,19 @@ def plot_tb_model_3d(
             r_vec = None
             intracell = True
 
-            if model._dim_k != 0 and len(h) == 4:
+            if model.dim_k != 0 and len(h) == 4:
                 r_vec = h[3]
                 intracell = np.all(np.array(r_vec) == 0)
 
             # Draw hopping for both directions.
             for shift in range(2):
-                pos_i = to_cart(model._orb[i_orb])
-                pos_j = to_cart(model._orb[j_orb])
+                pos_i = to_cart(model.orb_vecs[i_orb])
+                pos_j = to_cart(model.orb_vecs[j_orb])
                 if r_vec is not None:
                     if shift == 0:
-                        pos_j = pos_j + np.dot(r_vec, model._lat)
+                        pos_j = pos_j + np.dot(r_vec, model.lat_vecs)
                     elif shift == 1:
-                        pos_i = pos_i - np.dot(r_vec, model._lat)
+                        pos_i = pos_i - np.dot(r_vec, model.lat_vecs)
 
                 if not intracell:
                     # ensure we only scatter orbitals once
@@ -766,8 +766,8 @@ def plot_tb_model_3d(
         eigen_marker_sizes = []
         eigen_marker_colors = []
         cmap_phase = cm.get_cmap("hsv")
-        for i in range(model._norb):
-            pos = to_cart(model._orb[i])
+        for i in range(model.norb):
+            pos = to_cart(model.orb_vecs[i])
             eigen_x.append(pos[0])
             eigen_y.append(pos[1])
             eigen_z.append(pos[2])
@@ -819,13 +819,13 @@ def plot_tb_model_3d(
         lines.append("<b>Tight-Binding Model Information</b><br>")
         lines.append("<br>")
         lines.append("<b>Lattice Vectors:</b><br>")
-        for i, vec in enumerate(model._lat):
+        for i, vec in enumerate(model.lat_vecs):
             lines.append(
                 f"a_{i} = {np.array2string(vec, precision=3, separator=', ')}<br>"
             )
         lines.append("<br>")
         lines.append("<b>Orbital Vectors:</b><br>")
-        for i, orb in enumerate(model._orb):
+        for i, orb in enumerate(model.orb_vecs):
             lines.append(
                 f"Orbital {i} = {np.array2string(orb, precision=3, separator=', ')}<br>"
             )
