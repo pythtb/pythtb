@@ -288,6 +288,8 @@ class TBModel:
                             out_str += ", "
                         else:
                             out_str += "] >  ===> "
+                else:
+                    out_str += " >  ===> "
                 if self._nspin == 1:
                     out_str += f"{hopping[0]:^7.4f}"
                 elif self._nspin == 2:
