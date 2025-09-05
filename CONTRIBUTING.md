@@ -1,53 +1,36 @@
 # Contributing to `pythTB`
 
-Thank you for your interest in contributing to `pythTB`! Your contributions help us improve the project for all users. Please review the following guidelines before submitting your changes.
+Thank you for your interest in contributing to `pythTB`! Your contributions help make the project more useful and accessible for everyone. Please take a moment to review the guidelines below before submitting changes.
 
 ## Code Quality and Design
-
-- **Clarity and Maintainability:**  
-  Write code that is straightforward and easy to understand. Our aim is to produce reliable and maintainable code—simplicity in design is highly valued.
-
-- **Comprehensive Documentation:**  
-  Every edge-case should be clearly documented. Whether it’s a non-obvious behavior, non-standard convention, or any special case, please explain it in the code comments and documentation.
-
-- **Simple Class Structure:**  
-  When designing new classes or refactoring existing ones, strive for a minimal and intuitive interface. Avoid unnecessary complexity; the simpler the design, the easier it is to maintain and extend.
-
-- **Handling Ambiguity:**  
-  In situations where a function could produce ambiguous output, it is better to print a warning and refrain from returning a potentially confusing result. This approach helps maintain trust and clarity for the end user.
-
-- **Vectorizing:**
-   Where possible, avoid nested `for` loops in favor of vectorized operations, especially for linear algebra operations. This helps avoid bottlenecks and keeps the code running smoothly and effeciently.  
+### Clarity and maintainability
+Favor clear, straightforward code over clever but opaque solutions. Aim for reliability and long-term readability. This includes being thoughtful when naming variables and functions; names should reflect their purpose.
+### Performance
+Use vectorized operations where practical to reduce bottlenecks. Minimize deeply nested loops, especially in linear-algebra-heavy routines.
+### Documentation
+Document all non-obvious behavior, conventions, and edge cases. Use comments in code and update the docs so others can easily understand and build on your work.
+### Class and API design
+Keep interfaces minimal and intuitive. Avoid unnecessary complexity; simple, well-structured classes are easier to extend and maintain.
+### Ambiguity
+If a function could return confusing or misleading results, prefer raising a warning or leaving the function private rather than returning something ambiguous to the user.
 
 ## How to Contribute
-
-1. **Fork the Repository:**  
-   Create your own fork of the repository on GitHub.
-
-2. **Create a Feature or Bugfix Branch:**  
-   Use a descriptive branch name for your changes (e.g., `feature/add-new-solver` or `bugfix/fix-edge-case-handling`).
-
-3. **Write and Update Tests:**  
-   Add tests for any new functionality and ensure existing tests pass. Cover edge-cases diligently.
-
-4. **Document Your Changes:**  
-   Update the documentation, comments, and any relevant user guides to reflect your changes. Clear documentation is essential for future maintenance.
-
-5. **Submit a Pull Request:**  
-   When your changes are ready, submit a pull request. Include a clear description of what you’ve done and why. This helps maintainers review and merge your changes effectively.
+1. Fork the repository on GitHub.
+2. Create a feature or bugfix branch with a clear name (e.g. feature/add-new-solver, bugfix/fix-edge-case-handling).
+3. Write and update tests for any new functionality. Cover edge cases to ensure reliability.
+4. Update documentation and docstrings to reflect your changes.
+5. Open a pull request with a clear description of your changes and their motivation.
 
 ## Reporting Issues
 
-If you encounter bugs or have suggestions for improvements:
-- Please open an issue on GitHub.
-- Provide as much detail as possible (e.g., minimal example, steps to reproduce, error messages, and relevant system information).
+If you run into bugs or have ideas for improvements:
+- Open an issue on GitHub.
+- Include relevant details: steps to reproduce, error messages, minimal examples, and system information.
 
 ## Code Reviews
 
-All pull requests will undergo a code review process. Feedback may include suggestions for further improvements or clarifications.
+All pull requests are reviewed by maintainers. Feedback and iteration help keep the codebase consistent and high-quality.
 
 ## Final Note
 
-Our goal is to make **pythtb** as clear and robust as possible. By focusing on well-documented, maintainable code and handling ambiguous cases with caution, we ensure that the project remains reliable and easy to use for everyone.
-
-Thank you for contributing and helping us improve **pythtb**!
+Our goal is to make *PythTB* clear, robust, and welcoming to contributors. Thoughtful code, careful documentation, and clear communication all help the project grow in a sustainable way.
