@@ -1478,7 +1478,7 @@ def plot_centers(
         fig=None, ax=None
         ):
     lat_vecs = wan.model.lat_vecs
-    orbs = wan.model.get_orb(cartesian=False)
+    orbs = wan.model.get_orb_vecs(cartesian=False)
     centers = wan.centers
 
     # Initialize arrays to store positions and weights
