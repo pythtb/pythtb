@@ -69,7 +69,7 @@ class WFArray:
     the same Bloch function as the first one multiplied by a phase factor to
     ensure the periodic boundary conditions are satisfied (see notes below).
 
-    *Parametric or irregular k-space grid grid*:
+    *Parametric or irregular k-space grid*:
     An irregular grid of points, or a grid that includes also
     one or more parametric dimensions, can be populated manually
     using the ``[]`` operator (see example below). The wavefunctions
@@ -161,6 +161,7 @@ class WFArray:
 
     def __init__(self, model: TBModel, mesh: Mesh, nstates=None):
         self._model = model
+        self._lattice = model.lattice
 
         if model.dim_k != mesh.dim_k:
             raise ValueError(f"Model dim_k ({model.dim_k}) does not match mesh dim_k ({mesh.dim_k})")
@@ -252,7 +253,12 @@ class WFArray:
     def model(self):
         """The underlying TBModel object associated with the *WFArray*."""
         return self._model
-    
+
+    @property
+    def lattice(self):
+        """The lattice object associated with the *WFArray*."""
+        return self._lattice
+
     @property
     def mesh(self):
         """The mesh object associated with the *WFArray*."""
@@ -495,86 +501,8 @@ class WFArray:
             index in the mesh to its nearest neighbors.
             Length is `n_shell`.
         """
-        if not isinstance(n_shell, int) or n_shell < 1:  
-            raise ValueError("Invalid n_shell: must be a positive integer.")
 
-        recip_lat_vecs = self.model.recip_lat_vecs
-        dim_k = self.dim_k
-        nks = self.nks
-
-        if dim_k != len(nks):
-            raise ValueError("Mesh is not full, cannot generate k-shells.")
-
-        # basis vectors connecting neighboring mesh points (in inverse Cartesian units)
-        dk = np.array([recip_lat_vecs[i] / nk for i, nk in enumerate(nks)])
-
-        # array of integers e.g. in 2D for n_shell = 1 would be 
-        # [-1,-1], [-1,0], [-1,1], [0,-1], [0,1], [1,-1], [1,0], [1,1]
-        nnbr_idx = list(product(range(-n_shell, n_shell + 1), repeat=dim_k))
-        nnbr_idx.remove((0,) * dim_k)
-        nnbr_idx = np.array(nnbr_idx)
-        
-        # Vectors connecting k-points near Gamma point (in inverse Cartesian units)
-        # (M, dim_k) @ (dim_k, dim_k) -> (M, dim_k)
-        b_vecs = nnbr_idx @ dk 
-
-        # Squared norms
-        d2 = np.einsum('ij,ij->i', b_vecs, b_vecs)
-        # remove numerical noise
-        d2r = np.round(d2, 12)
-
-        # Sort by increasing radius^2
-        sorted_idxs = np.argsort(d2r)
-        d2r_sorted = d2r[sorted_idxs]
-        b_sorted = b_vecs[sorted_idxs]
-        idx_sorted = nnbr_idx[sorted_idxs]
-
-        # Unique radii^2 in order; take first n_shell shells
-        unique_d2 = sorted(list(set(d2r_sorted)))  # removes repeated distances
-        unique_d2 = unique_d2[:n_shell]  # keep only distances up to n_shell away
-
-        # keep only b_vecs in n_shell shells
-        k_shell = [
-            b_sorted[np.isin(d2r_sorted, unique_d2[i])]
-            for i in range(len(unique_d2))
-        ]
-        idx_shell = [
-            idx_sorted[np.isin(d2r_sorted, unique_d2[i])]
-            for i in range(len(unique_d2))
-        ]
-
-        if report:
-            # Pretty report
-            lines = []
-            lines.append("k-shell report")
-            lines.append("═" * 46)
-            lines.append(f"dim_k: {dim_k}   nks: {nks}")
-            # Compact step info: show |dk_i| and vectors
-            step_norms = [np.linalg.norm(dk[i]) for i in range(dim_k)]
-            steps_str  = ", ".join(f"|dk_{i}|={step_norms[i]:.6g}" for i in range(dim_k))
-            lines.append(f"step sizes: {steps_str}")
-            # Optional: show dk rows
-            lines.append("dk vectors:")
-            for i in range(dim_k):
-                lines.append(f"  dk[{i}] = {np.array2string(dk[i], precision=6, floatmode='maxprec_equal', suppress_small=True)}")
-
-            lines.append("")
-            lines.append("Shells (by increasing |b|):")
-            for si, (B, I) in enumerate(zip(k_shell, idx_shell), start=1):
-                deg = B.shape[0]
-                radius = np.sqrt(unique_d2[si-1])
-                lines.append(f"  • shell {si:>2}: |b|={radius:.6g}   degeneracy={deg}")
-                # Show a few representatives from this shell
-                head = min(deg, 6)
-                for j in range(head):
-                    b_str = np.array2string(B[j], precision=6, floatmode='maxprec_equal', suppress_small=True)
-                    i_str = np.array2string(I[j], formatter={'int':lambda x: f"{x:>2}"})
-                    lines.append(f"      idx={i_str}   b={b_str}")
-                if deg > head:
-                    lines.append(f"      … (+{deg-head} more)")
-            print("\n".join(lines))
-
-        return k_shell, idx_shell
+        return self.lattice.nn_k_shell(self.nks, n_shell, report=report)
 
     def get_shell_weights(self, n_shell : int = 1, report: bool = False):
         r"""Generates the finite difference weights on a k-shell.
@@ -615,30 +543,7 @@ class WFArray:
             index in the mesh to its nearest neighbors.
             Length is `n_shell`.
         """
-        from itertools import combinations_with_replacement as comb
-
-        k_shell, idx_shell = self.get_k_shell(n_shell=n_shell, report=report)
-        dim_k = self.dim_k
-        cart_idx = list(comb(range(dim_k), 2))
-        n_comb = len(cart_idx)
-
-        A = np.zeros((n_comb, n_shell))
-        q = np.zeros((n_comb))
-
-        for j, (alpha, beta) in enumerate(cart_idx):
-            if alpha == beta:
-                q[j] = 1
-            for s in range(n_shell):
-                b_star = k_shell[s]
-                for i in range(b_star.shape[0]):
-                    b = b_star[i]
-                    A[j, s] += b[alpha] * b[beta]
-
-        U, D, Vt = np.linalg.svd(A, full_matrices=False)
-        w = (Vt.T @ np.linalg.inv(np.diag(D)) @ U.T) @ q
-        if report:
-            print(f"Finite difference weights: {w}")
-        return w, k_shell, idx_shell
+        return self.lattice.k_shell_weights(self.nks, n_shell, report=report)
     
       
     def set_ham(self, model_func=None, fixed_params: dict={}):
@@ -678,10 +583,11 @@ class WFArray:
         Say we have a model function defined as follows:
 
         >>> def model_func(param1, param2):
-        ...     lat = [[1, 0], [0, 1]]
-        ...     orb = [[0,0], [0.5, 0.5]]
-        ...     model = TBModel(dim_k=2, dim_r=2, lat=lat, orb=orb, nspin=1)
-        ...     # Some model calculations with parameters
+        ...     lat_vecs = [[1, 0], [0, 1]]
+        ...     orb_vecs = [[0,0], [0.5, 0.5]]
+        ...     lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
+        ...     model = TBModel(lattice=lat, nspin=1)
+        ...     # Set model hoppings and onsite energies with parameters
         ...     return model
 
         The returned model will be 2D in k-space for this example.
@@ -744,7 +650,10 @@ class WFArray:
         dim_lambda = self.mesh.dim_lambda
         lambda_shape = self.nlams
         lambda_keys = self.mesh.axis_names[self.mesh.num_k_axes:]
-        lambda_ranges = list(self.mesh.get_param_ranges().values())
+        lambda_ranges = [
+            self.mesh.get_axis_range(i, j) 
+            for i,j in zip(self.mesh.lambda_axis_indices, self.mesh.lambda_component_indices)
+        ]
 
         if self.dim_k > 0:
             n_kpts = np.prod(self.nks)
@@ -928,7 +837,7 @@ class WFArray:
             if cell_periodic:
                 phases = self._get_phases(inverse=False)
                 psi_nk = wfs * phases
-                self._u_wfs = self._wfs = wfs
+                self._u_nk = self._wfs = wfs
                 self._psi_nk = psi_nk
             else:
                 phases = self._get_phases(inverse=True)
@@ -1112,12 +1021,16 @@ class WFArray:
 
         # These contain endpoints (k_i = 1 in reduced units)
         # This means we need to impose periodic boundary conditions explicitly
-        closed_axes = self.mesh.closed_axes
-        for ax, comp in closed_axes:
-            if ax in self.mesh.k_axes:
-                # impose periodic boundary conditions for k-components
-                logger.info(f"Imposing PBC in mesh direction {ax} for k-component {comp}")
-                self.impose_pbc(ax, comp)
+        axes = self.mesh.axes
+        for idx, ax in enumerate(axes):
+            if ax.has_endpoint and ax.winds_bz:
+                endpt_comps = ax.endpoint_components
+                bz_wind_comps = ax.winds_bz_components
+                overlap = endpt_comps and bz_wind_comps
+                for comp in overlap:
+                    logger.info(f"Imposing PBC in mesh direction {ax} for k-component {comp}")
+                    print(f"Imposing PBC in mesh direction {ax} for k-component {comp}")
+                    self._impose_pbc(idx, comp)
 
 
     @deprecated(
@@ -1234,7 +1147,7 @@ class WFArray:
         # Compute phase factors from orbital vectors dotted with G parallel to k_dir
         phase = np.exp(-2j * np.pi * orb_vecs[:, k_dir])
         phase = phase if self.nspin == 1 else phase[:, np.newaxis]
-
+    
         # mesh_dir is the direction of the array along which we impose pbc
         # and it is also the direction of the k-vector along which we
         # impose pbc e.g.
@@ -1244,8 +1157,17 @@ class WFArray:
         slc_lft, slc_rt = self._edge_slices(mesh_dir)
         return phase, slc_lft, slc_rt
     
-
+    @deprecated(
+            "This function is deprecated. Periodic boundary conditions are "
+            "now imposed automatically when calling `solve_mesh` if the mesh includes endpoints in k-space.\n"
+    )
     def impose_pbc(self, mesh_dir: int, k_dir: int):
+        r"""
+        .. deprecated:: 2.0.0
+        """
+        return
+
+    def _impose_pbc(self, mesh_dir: int, k_dir: int):
         r"""Impose periodic boundary conditions on the WFArray.
 
         This routine sets the cell-periodic Bloch function
@@ -1319,10 +1241,6 @@ class WFArray:
                 "Periodic boundary condition can be specified only along periodic directions!"
             )
 
-        self._pbc_axes.append(mesh_dir)
-        self.mesh.loop_axis(mesh_dir, k_dir)
-        self.mesh.close_axis(mesh_dir, k_dir)
-
         phase, slc_lft, slc_rt = self._get_pbc_phases(mesh_dir, k_dir)
 
         # Set the last point along mesh_dir axis equal to first
@@ -1332,8 +1250,8 @@ class WFArray:
         if self.u_nk is not None:
             # Set the last point along mesh_dir axis equal to first
             # multiplied by the phase factor
-            self._u_wfs[slc_lft] = self._u_wfs[slc_rt] * phase
-            self._psi_wfs[slc_lft] = self._psi_wfs[slc_rt]
+            self._u_nk[slc_lft] = self._u_nk[slc_rt] * phase
+            self._psi_nk[slc_lft] = self._psi_nk[slc_rt]
 
     def impose_loop(self, mesh_dir):
         r"""Impose a loop condition along a given mesh direction.
@@ -1386,9 +1304,6 @@ class WFArray:
         if mesh_dir in self.mesh.k_axes and self.mesh.is_k_torus:
             raise ValueError("Cannot impose loop condition on periodic k-space axis.")
 
-        self._loop_axes.append(mesh_dir)
-        self.mesh.close_axis(mesh_dir, mesh_dir)
-
         slc_lft, slc_rt = self._edge_slices(mesh_dir)
         self._wfs[slc_lft] = self._wfs[slc_rt]
         if self.u_nk is not None:
@@ -1438,15 +1353,16 @@ class WFArray:
 
         # Use shift only on sampling axes that are *periodic*
         k_shift = []
-        for local_k_axis, mesh_axis in enumerate(mesh.k_axes):
+        k_ax_idx = mesh.k_axis_indices
+        for local_k_axis, mesh_axis in enumerate(k_ax_idx):
             sh = int(idx_vec[mesh_axis])
-            if mesh.is_axis_periodic(mesh_axis):
+            if mesh.is_axis_bz_winding(mesh_axis):
                 k_shift.append(sh)
             elif mesh.is_axis_closed(mesh_axis):
-                logger.warning(f"Warning: axis {mesh_axis} is closed; removing shift.")
+                logger.info(f"Axis {mesh_axis} is closed; removing shift.")
                 k_shift.append(0)
             else:
-                logger.warning(f"Warning: axis {mesh_axis} is not periodic; removing shift.")
+                logger.info(f"Axis {mesh_axis} is not winding bz or is closed; removing shift.")
                 k_shift.append(0)
         k_shift = np.array(k_shift, dtype=int)
 
@@ -1462,9 +1378,9 @@ class WFArray:
         # Map sampling-axis windings to k-components via mesh topology mask.
         # Build mapping M (dim_k_axes × dim_k_components)
         M = np.zeros((dim_k, dim_k), dtype=int)
-        for local_k_axis, mesh_axis in enumerate(mesh.k_axes):
+        for local_k_axis, mesh_axis in enumerate(k_ax_idx):
             for c in range(dim_k):
-                if mesh.is_axis_periodic(mesh_axis, c):
+                if mesh.is_axis_bz_winding(mesh_axis, c):
                     M[local_k_axis, c] = 1
 
         # Project signed wraps from k-axes to k-components
@@ -1516,6 +1432,9 @@ class WFArray:
         states = self.wfs 
         mesh = self.mesh
 
+        if np.any(abs(np.array(idx_vec, dtype=int)) > 1):
+            raise ValueError("Only unit shifts (+1, 0, -1) are supported in idx_vec.")
+
         if len(idx_vec) < mesh.num_k_axes:
             raise ValueError("idx_vec must have at least as many elements as k-axes in the mesh.")
         elif len(idx_vec) > mesh.num_axes:
@@ -1525,7 +1444,7 @@ class WFArray:
         for ax, sh in enumerate(idx_vec):
             if not sh:
                 continue
-            if not mesh.is_axis_closed(ax):
+            if not mesh.is_axis_closed(ax) and (mesh.is_axis_looped(ax) or mesh.is_axis_bz_winding(ax)):
                 rolled = np.roll(rolled, shift=-int(sh), axis=ax)
             else:
                 logger.info(f"Applying bounded shift {sh} to axis {ax} without wrapping.")
@@ -1553,7 +1472,7 @@ class WFArray:
         Returns
         -------
         M : np.ndarray
-            Overlap matrix with shape [nk1-1, ..., nkd-1, *shape_lambda, num_nnbrs, n_states, n_states]
+            Overlap matrix with shape [*shape_k, *shape_lambda, num_nnbrs, n_states, n_states]
 
         Notes
         -----
@@ -1958,25 +1877,25 @@ class WFArray:
 
         u_loop = u  # init wf loop
 
-        # Check for open periodic boundary conditions
-        for ax, comp in self.mesh.periodic_axes:
+        for ax, comp in self.mesh._get_loop_ax_comp():
             # If mu axis is periodic and open, we need to append 
             # the first state to the end
             if ax == mu and not self.mesh.is_axis_closed(ax, comp):
-                # If component is along k, apply PBC phase
-                if comp < self.dim_k:
+                # If component is along k and wraps bz, apply phase
+                if self.mesh.is_axis_bz_winding(ax, comp):
+                    print("Applying phase to state at beginning to end of open periodic axis.")
                     phase, _, _ = self._get_pbc_phases(ax, comp)
                     u_first = np.take(u_expanded, 0, axis=mu)
-                    state_last = u_first * phase
-                # If ax is not a k-axis, no phase is applied
+                    u_last = u_first * phase
+                # No phase is applied
                 else:
-                    state_last = np.take(u_expanded, 0, axis=mu)
+                    u_last = np.take(u_expanded, 0, axis=mu)
 
                 # flatten spin
                 if self.nspin == 2:
-                    state_last = state_last.reshape(*state_last.shape[:-2], -1)
-            
-                u_loop = np.concatenate([u_loop, np.expand_dims(state_last, axis=mu)], axis=mu)
+                    u_last = u_last.reshape(*u_last.shape[:-2], -1)
+                print("Appending state at beginning to end of open periodic axis.")
+                u_loop = np.concatenate([u_loop, np.expand_dims(u_last, axis=mu)], axis=mu)
 
         # Bring loop axis first for easy slicing over transverse axes
         u_loop = np.moveaxis(u_loop, mu, 0)
@@ -2240,6 +2159,14 @@ class WFArray:
                     @ U_nu.conj().swapaxes(-1, -2)
                 )
 
+                for ax in range(ndims):
+                    if self.mesh.is_axis_closed(ax) or (not self.mesh.is_axis_looped(ax) and not self.mesh.is_axis_bz_winding(ax)):
+                        logger.info(f"Axis {ax} is periodic and closed or open and non-periodic. "
+                                    f"Removing last point in the flux array to avoid overcounting.")
+                        print(f"Axis {ax} is periodic and closed or open and non-periodic. "
+                              f"Removing last point in the flux array to avoid overcounting.")
+                        U_wilson = np.delete(U_wilson, -1, axis=ax)
+
                 if not abelian:
                     # Non-Abelian lattice field strength: F = -i Log(U_wilson)
                     # Matrix log using eigen-decompositon
@@ -2262,14 +2189,6 @@ class WFArray:
                     berry_flux[nu, mu] = -phases_plane
                 else:
                     berry_flux = phases_plane.real
-
-        for ax in range(ndims):
-            if self.mesh.is_axis_closed(ax) or not self.mesh.is_axis_periodic(ax):
-                print(f"Axis {ax} is periodic and closed or open and non-periodic. "
-                    f"Removing last point in the flux array to avoid overcounting.")
-                logger.info(f"Axis {ax} is periodic and closed or open and non-periodic. "
-                            f"Removing last point in the flux array to avoid overcounting.")
-                berry_flux = np.delete(berry_flux, -1, axis=ax+2*int(not abelian))
 
         return berry_flux
     
@@ -2731,46 +2650,46 @@ class WFArray:
         )
         return Omega_tilde
 
-    def interp_op(self, O_k, k_path, plaq=False):
-        k_mesh = np.copy(self.mesh.grid)
-        k_idx_arr = self.mesh.idx_arr
-        nks = self.mesh.shape_k
-        dim_k = len(nks)
-        Nk = np.prod([nks])
+    # def _interp_op(self, O_k, k_path, plaq=False):
+    #     k_mesh = np.copy(self.mesh.grid)
+    #     k_idx_arr = self.mesh.idx_arr
+    #     nks = self.mesh.shape_k
+    #     dim_k = len(nks)
+    #     Nk = np.prod([nks])
 
-        supercell = list(
-            product(
-                *[range(-int((nk - nk % 2) / 2), int((nk - nk % 2) / 2)) for nk in nks]
-            )
-        )
+    #     supercell = list(
+    #         product(
+    #             *[range(-int((nk - nk % 2) / 2), int((nk - nk % 2) / 2)) for nk in nks]
+    #         )
+    #     )
 
-        if plaq:
-            # shift by half a mesh point to get the center of the plaquette
-            k_mesh += np.array([(1 / nk) / 2 for nk in nks])
+    #     if plaq:
+    #         # shift by half a mesh point to get the center of the plaquette
+    #         k_mesh += np.array([(1 / nk) / 2 for nk in nks])
 
-        # Fourier transform to real space
-        O_R = np.zeros((len(supercell), *O_k.shape[dim_k:]), dtype=complex)
-        for idx, pos in enumerate(supercell):
-            for k_idx in k_idx_arr:
-                R_vec = np.array(pos)
-                phase = np.exp(-1j * 2 * np.pi * np.vdot(k_mesh[k_idx], R_vec))
-                O_R[idx] += O_k[k_idx] * phase / Nk
+    #     # Fourier transform to real space
+    #     O_R = np.zeros((len(supercell), *O_k.shape[dim_k:]), dtype=complex)
+    #     for idx, pos in enumerate(supercell):
+    #         for k_idx in k_idx_arr:
+    #             R_vec = np.array(pos)
+    #             phase = np.exp(-1j * 2 * np.pi * np.vdot(k_mesh[k_idx], R_vec))
+    #             O_R[idx] += O_k[k_idx] * phase / Nk
 
-        # interpolate to arbitrary k
-        O_k_interp = np.zeros((k_path.shape[0], *O_k.shape[dim_k:]), dtype=complex)
-        for k_idx, k in enumerate(k_path):
-            for idx, pos in enumerate(supercell):
-                R_vec = np.array(pos)
-                phase = np.exp(1j * 2 * np.pi * np.vdot(k, R_vec))
-                O_k_interp[k_idx] += O_R[idx] * phase
+    #     # interpolate to arbitrary k
+    #     O_k_interp = np.zeros((k_path.shape[0], *O_k.shape[dim_k:]), dtype=complex)
+    #     for k_idx, k in enumerate(k_path):
+    #         for idx, pos in enumerate(supercell):
+    #             R_vec = np.array(pos)
+    #             phase = np.exp(1j * 2 * np.pi * np.vdot(k, R_vec))
+    #             O_k_interp[k_idx] += O_R[idx] * phase
 
-        return O_k_interp
+    #     return O_k_interp
 
-    def interp_energy(self, k_path, return_eigvecs=False):
+    def _interp_energy(self, k_path, return_eigvecs=False):
         H_k_proj = self.get_proj_ham()
         H_k_interp = self.interp_op(H_k_proj, k_path)
         if return_eigvecs:
-            u_k_interp = self.interp_op(self._u_wfs, k_path)
+            u_k_interp = self.interp_op(self._u_nk, k_path)
             eigvals_interp, eigvecs_interp = np.linalg.eigh(H_k_interp)
             eigvecs_interp = np.einsum(
                 "...ij, ...ik -> ...jk", u_k_interp, eigvecs_interp
