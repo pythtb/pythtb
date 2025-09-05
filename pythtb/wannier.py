@@ -34,7 +34,7 @@ class Wannier:
                 "To construct a toroidal k-space mesh use `Mesh.build_grid`"
                 )
         for ax in self.mesh.k_axes:
-            if self.mesh.is_axis_closed(ax):
+            if ax.has_endpoint:
                 raise ValueError(
                     f"Detected a closed k-axis: {ax}. The endpoints of the Brillouin zone "
                     f"must not be included."
@@ -48,7 +48,7 @@ class Wannier:
         )  # (product, dims)
 
     def report(self, precision=8):
-        """Concise report of Wannier centers and spreads."""
+        """Report of Wannier centers and spreads."""
 
         if not getattr(self.tilde_states, "filled", False):
             raise ValueError("Tilde states are not set.")
@@ -486,7 +486,7 @@ class Wannier:
 
         n_states = self.tilde_states.nstates
         nks = self.nks
-        k_axes = tuple(self.mesh.k_axes)
+        k_axes = tuple(self.mesh.k_axis_indices)
         Nk = np.prod(nks)
 
         diag_M = np.diagonal(M, axis1=-1, axis2=-2)
@@ -534,7 +534,7 @@ class Wannier:
     def _get_omega_til(self, Mmn, wb, k_shell):
         nks = self.nks
         Nk = np.prod(nks)
-        k_axes = tuple([i for i in range(len(nks))])
+        k_axes = tuple(self.mesh.k_axis_indices)
 
         diag_M = np.diagonal(Mmn, axis1=-1, axis2=-2)
         log_diag_M_imag = np.log(diag_M).imag
@@ -556,7 +556,7 @@ class Wannier:
     def _get_omega_d(self, Mmn, wb, k_shell):
         nks = self.nks
         Nk = np.prod(nks)
-        k_axes = tuple([i for i in range(len(nks))])
+        k_axes = tuple(self.mesh.k_axis_indices)
 
         diag_M = np.diagonal(Mmn, axis1=-1, axis2=-2)
         log_diag_M_imag = np.log(diag_M).imag
@@ -864,10 +864,10 @@ class Wannier:
                 M[..., idx, :, :] = (
                     np.swapaxes(U, -1, -2).conj()
                     @ M0[..., idx, :, :]
-                    @ np.roll(U, shift=tuple(-idx_vec), axis=tuple(self.mesh.k_axes))
+                    @ np.roll(U, shift=tuple(-idx_vec), axis=tuple(self.mesh.k_axis_indices))
                 )
 
-            grad_mag = np.linalg.norm(np.sum(G, axis=tuple(self.mesh.k_axes)))
+            grad_mag = np.linalg.norm(np.sum(G, axis=tuple(self.mesh.k_axis_indices)))
             omega_tilde_new = self._get_omega_til(M, w_b, k_shell)
 
             if verbose:
