@@ -1,5 +1,7 @@
 # PythTB
 
+ [![Conda Version](https://anaconda.org/conda-forge/pythtb/badges/version.svg)](https://anaconda.org/conda-forge/pythtb/) 
+
 `PythTB` is a software package providing a Python implementation of the
 tight-binding approximation. It can be used to construct and solve
 tight-binding models of the electronic structure of systems of
@@ -9,22 +11,21 @@ properties. For more details, please see:
 
    http://www.physics.rutgers.edu/pythtb/
 
-## Installation Instructions
+## Installation
 
-To install the latest version of PythTB simply type in terminal:
+`PythTB` is available from either Conda-Forge or PyPI. If you have the `conda` package manager, you can install `PythTB` from the Conda-Forge channel using
 
-```
-pip install pythtb --upgrade
-```
-
-If you don't have root access try installing PythTB into your home 
-folder by executing:
-
-```
-pip install pythtb --upgrade --user
+```bash
+conda install --channel=conda-forge pythtb
 ```
 
-Alternatively, you can follow instructions on the [documentation website]( http://www.physics.rutgers.edu/pythtb/install.html) to install without pip.
+If you instead use `pip`, then you can install from PyPI using
+
+```bash
+pip install pythtb 
+```
+
+For more detailed instructions, see the [documentation website]( http://www.physics.rutgers.edu/pythtb/install.html).
 
 ## Dependencies
 
