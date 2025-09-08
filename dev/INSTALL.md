@@ -43,7 +43,7 @@ After setting up the environment, clone the repository and install it in editabl
 
 ```bash
 # Clone the repository
-git clone https://github.com/sinisacoh/pythtb.git
+git clone https://github.com/pythtb/pythtb.git
 cd pythtb
 
 # Install in editable/development mode
