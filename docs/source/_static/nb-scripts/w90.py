@@ -18,11 +18,11 @@ import numpy as np
 silicon = W90(r"silicon_w90", r"silicon")
 
 
-# In[3]:
+# In[7]:
 
 
 # hard coded fermi level in eV
-fermi_ev = 0.62285135e01
+fermi_ev = 6.2285135
 
 
 # In[4]:
@@ -44,7 +44,7 @@ ax.set_ylabel(r"$H$ (eV)")
 ax.set_yscale('log')
 
 
-# In[6]:
+# In[9]:
 
 
 # get tb model in which some small terms are ignored
@@ -74,7 +74,7 @@ my_model = silicon.model(
 # Small discrepancies in the plot may arise due to the terms that were ignored in the silicon.model function call above.
 # :::
 
-# In[7]:
+# In[10]:
 
 
 fig, ax = plt.subplots()

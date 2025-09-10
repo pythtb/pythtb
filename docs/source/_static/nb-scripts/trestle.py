@@ -4,29 +4,31 @@
 # (trestle-nb)=
 # # Ribbon geometry
 
-# In[1]:
+# In[2]:
 
 
-from pythtb.tb_model import TBModel  
+from pythtb.tb_model import TBModel, Lattice 
 import matplotlib.pyplot as plt
 
 
 # We start with a simple model that has one-dimensional k-space and two-dimensional r-space. The model also includes complex hoppings between orbitals.
 
-# In[2]:
+# In[3]:
 
 
 # define lattice vectors
-lat = [[2.0, 0.0], [0.0, 1.0]]
+lat_vecs = [[2, 0], [0, 1]]
 # define coordinates of orbitals
-orb = [[0.0, 0.0], [0.5, 1.0]]
+orb_vecs = [[0, 0], [1/2, 1]]
+
+lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0])
 
 # make one dimensional tight-binding model of a trestle-like structure
-my_model = TBModel(1, 2, lat, orb, per=[0])
+my_model = TBModel(lat)
 
 # set model parameters
 t_first = 0.8 + 0.6j
-t_second = 2.0
+t_second = 2
 
 # leave on-site energies to default zero values
 # set hoppings (one for each connected pair of orbitals)
@@ -37,13 +39,14 @@ my_model.set_hop(t_first, 0, 1, [0, 0])
 my_model.set_hop(t_first, 1, 0, [1, 0])
 
 print(my_model)
+my_model.visualize()
 
 
 # ## Band structure calculation
 # 
 # We will calculate the band structure of the model by solving the tight-binding Hamiltonian on a grid of k-points in the Brillouin zone. To do so, we will call the `k_path` method with `"fullc"` to generate a path centered at the Gamma point.
 
-# In[3]:
+# In[4]:
 
 
 # generate list of k-points following some high-symmetry line in
@@ -53,7 +56,7 @@ k_label = [r"$-\pi$", r"$0$", r"$\pi$"]
 
 # Now solve for eigenenergies of Hamiltonian on the set of k-points from above.
 
-# In[4]:
+# In[5]:
 
 
 evals = my_model.solve_ham(k_vec)
@@ -61,7 +64,7 @@ evals = my_model.solve_ham(k_vec)
 
 # Plotting bandstructure...
 
-# In[5]:
+# In[6]:
 
 
 # First make a figure object

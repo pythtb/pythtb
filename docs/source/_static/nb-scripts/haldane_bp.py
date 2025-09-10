@@ -7,7 +7,7 @@
 # In[1]:
 
 
-from pythtb import TBModel, WFArray, Mesh
+from pythtb import TBModel, Lattice, WFArray, Mesh
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -16,12 +16,13 @@ import matplotlib.pyplot as plt
 
 
 # define lattice vectors
-lat = [[1, 0], [1/2, np.sqrt(3)/2]]
+lat_vecs = [[1, 0], [1/2, np.sqrt(3)/2]]
 # define coordinates of orbitals
-orb = [[1/3, 1/3], [2/3, 2/3]]
+orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
+lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
 # make two dimensional tight-binding Haldane model
-my_model = TBModel(2, 2, lat, orb)
+my_model = TBModel(lat)
 
 # set model parameters
 delta = 0
@@ -102,7 +103,7 @@ ax.set_yticklabels((r"$-2\pi$", r"$-\pi$", r"$0$", r"$\pi$", r"$2\pi$"))
 
 # Verify with calculation of Chern numbers
 
-# In[8]:
+# In[7]:
 
 
 chern0 = wf_array_1.chern_num(state_idx=[0], plane=(0,1))

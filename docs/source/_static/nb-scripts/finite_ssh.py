@@ -9,7 +9,7 @@
 # In[1]:
 
 
-from pythtb import TBModel, WFArray, Mesh
+from pythtb import TBModel, WFArray, Mesh, Lattice
 from pythtb.utils import pauli_decompose
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,13 +21,14 @@ import numpy as np
 # You can also get the SSH model using the `pythtb.models` library
 # :::
 
-# In[2]:
+# In[20]:
 
 
 def ssh(v, w):
-    lat = [[1]]
-    orb = [[-1/4], [1/4]]
-    my_model = TBModel(1, 1, lat, orb)
+    lat_vecs = [[1]]
+    orb_vecs = [[-1/4], [1/4]]
+    lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0])
+    my_model = TBModel(lat)
 
     my_model.set_hop(v, 0, 1, [0])
     my_model.set_hop(w, 1, 0, [1])
@@ -35,10 +36,10 @@ def ssh(v, w):
     return my_model
 
 
-# In[3]:
+# In[21]:
 
 
-model = ssh(1, 1)
+model = ssh(1, 1/2)
 model.visualize()
 
 
@@ -46,7 +47,7 @@ model.visualize()
 # 
 # Get the eigenvalues and eigenvectors for each intracell hopping $w$
 
-# In[4]:
+# In[22]:
 
 
 nlam = 100
@@ -65,7 +66,7 @@ for w in w_values:
 # Plotting the energies as a function of $w$ shows that two zero-energy levels emerge at the topological phase transition where $|w| > |v|$.
 # These zero energy states are edge modes, as visible in the edge state density plot.
 
-# In[5]:
+# In[23]:
 
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
@@ -95,7 +96,7 @@ ax2.set_title(r"Edge state density at $w=1.0$")
 
 # ## Bulk polarization and Berry phase
 
-# In[6]:
+# In[24]:
 
 
 model = ssh(v, 0)
@@ -110,7 +111,7 @@ P1 = wfa.berry_phase(0, [1]) / (2 * np.pi)
 P1
 
 
-# In[7]:
+# In[25]:
 
 
 model = ssh(v, 1)

@@ -6,24 +6,26 @@
 # 
 # In this example, we explore the construction of a supercell for a graphene model using the `make_supercell` method.
 
-# In[1]:
+# In[2]:
 
 
-from pythtb import TBModel 
+from pythtb import TBModel, Lattice
 import numpy as np
 import matplotlib.pyplot as plt
 
 
-# In[2]:
+# In[3]:
 
 
 # define lattice vectors
-lat = [[1, 0], [1/2, np.sqrt(3)/2]]
+lat_vecs = [[1, 0], [1/2, np.sqrt(3)/2]]
 # define coordinates of orbitals
-orb = [[1/3, 1/3], [2/3, 2/3]]
+orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
+
+lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
 # make two dimensional tight-binding graphene model
-my_model = TBModel(2, 2, lat, orb)
+my_model = TBModel(lat)
 
 # set model parameters
 delta = 0.0
@@ -38,14 +40,14 @@ my_model.set_hop(t, 1, 0, [1, 0])
 my_model.set_hop(t, 1, 0, [0, 1])
 
 
-# In[3]:
+# In[5]:
 
 
 # make the supercell of the model
 sc_model = my_model.make_supercell([[2, 1], [-1, 2]], to_home=True)
 
 # now make a slab of the supercell
-slab_model = sc_model.cut_piece(6, 1, glue_edgs=False)
+slab_model = sc_model.cut_piece(6, 1, glue_edges=False)
 
 # visualize slab unit cell
 (fig, ax) = slab_model.visualize(proj_plane=(0, 1))
@@ -54,7 +56,7 @@ ax.set_xlabel("x coordinate")
 ax.set_ylabel("y coordinate")
 
 
-# In[4]:
+# In[6]:
 
 
 # compute the band structure in the entire band
@@ -64,7 +66,7 @@ evals = slab_model.solve_ham(k_vec)
 
 # ## Band structure
 
-# In[5]:
+# In[7]:
 
 
 fig, ax = plt.subplots()

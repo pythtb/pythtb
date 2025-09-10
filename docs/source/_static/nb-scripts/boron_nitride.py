@@ -11,7 +11,7 @@
 # In[1]:
 
 
-from pythtb import TBModel, WFArray, Mesh
+from pythtb import TBModel, WFArray, Mesh, Lattice
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -20,12 +20,14 @@ import matplotlib.pyplot as plt
 
 
 # define lattice vectors
-lat = [[1, 0], [1/2, np.sqrt(3)/2]]
+lat_vecs = [[1, 0], [1/2, np.sqrt(3)/2]]
 # define coordinates of orbitals
-orb = [[1/3, 1/3], [2/3, 2/3]]
+orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
+
+lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
 # make two dimensional tight-binding boron nitride model
-my_model = TBModel(2, 2, lat, orb)
+my_model = TBModel(lat)
 
 # set periodic model
 delta = 0.4
@@ -34,6 +36,8 @@ my_model.set_onsite([-delta, delta])
 my_model.set_hop(t, 0, 1, [0, 0])
 my_model.set_hop(t, 1, 0, [1, 0])
 my_model.set_hop(t, 1, 0, [0, 1])
+print(my_model)
+my_model.visualize()
 
 
 # ## `TBModel.cut_piece`
@@ -43,28 +47,22 @@ my_model.set_hop(t, 1, 0, [0, 1])
 # In[3]:
 
 
-model_orig = my_model.cut_piece(3, 1, glue_edgs=False)
+model_orig = my_model.cut_piece(3, 1, glue_edges=False)
 print(model_orig)
+model_orig.visualize()
 
 
 # ## `TBModel.change_nonperiodic_vector`
 # 
 # Construct and display new model with nonperiodic lattice vector changed to be normal to the periodic direction
 
-# In[4]:
+# In[6]:
 
 
-model_perp = model_orig.change_nonperiodic_vector(1, to_home_warning=False)
+model_perp = model_orig.copy()
+model_perp.change_nonperiodic_vector(1, to_home=True, to_home_warning=False)
 print(model_perp)
-
-
-# We can check that our choice of lattice vectors do not affect the physical geometry of the system by comparing the Cartesian coordinates of the orbitals before and after the change.
-
-# In[5]:
-
-
-print(f"Original orbital vectors in Cartesian coordinates : \n {model_orig.get_orb(cartesian=True)}\n")
-print(f"New orbital vectors in Cartesian coordinates : \n {model_perp.get_orb(cartesian=True)}")
+model_perp.visualize()
 
 
 # ## Bands and Berry phase
@@ -72,15 +70,11 @@ print(f"New orbital vectors in Cartesian coordinates : \n {model_perp.get_orb(ca
 # Solve both models, showing that the band structures are the same, but Berry phases are different.
 # 
 # We will utilize the `Mesh` to store the k-points, and then solve the model on this mesh using the `WFArray` class and its method
-# `solve_k_mesh`.
-# 
-# :::{note}
-# The `solve_k_mesh` method will automatically impose periodic boundary conditions on the wave functions when it detects a periodicity in the k-space mesh. To suppress this behavior, you can set the `auto_detect_pbc` argument to `False`.
-# :::
+# `solve_mesh`.
 # 
 # To compute the Berry phase, we use `WFArray.berry_phase`, passing the band indices and the mesh axis corresponding to direction we compute the Berry phase.
 
-# In[14]:
+# In[7]:
 
 
 fig, ax = plt.subplots(1, 2, figsize=(6.5, 2.8))
@@ -127,6 +121,11 @@ plt.show()
 # to real space lattice vector 1). The joint Wannier center gets
 # displaced along $y$ as the hopping $t$ is changed, so the Berry
 # phase calculation gets "contaminated" by this displacement.
-# :::
-
 # 
+# Another way to see this is to note that the Wilson loop operator
+# involves a product of overlaps of states at $k$ and $k+\Delta k$,
+# where $\Delta k$ is along reciprocal lattice vector 0. Since this
+# vector has a $y$ component, the Wilson loop operator involves
+# phase factors $e^{i k \cdot r}$ that depend on both $x$ and $y$ positions of the orbitals. Thus, the Berry phase
+# calculation is sensitive to displacements of Wannier centers in $y$ as well as in $x$. In the oblique cell, the reciprocal loop vector $\mathbf{b_1}$ has a y-component. This means the Wilson loop closure multiplies states by phases depending on both x and y orbital positions. As a result, the Berry phase along the “periodic x” direction is contaminated by shifts of Wannier centers in y. Orthogonalizing the non-periodic lattice vector removes this mixing: now $\mathbf{b_1}$ points purely along x, so the Berry phase tracks only polarization along x. With mirror symmetry, this is forced to vanish, and indeed the Berry phase comes out zero. The band structure is unaffected because it depends only on x-periodicity, not on the definition of the non-periodic cell vector.
+# :::

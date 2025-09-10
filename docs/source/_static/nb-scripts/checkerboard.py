@@ -7,23 +7,36 @@
 # This example shows how to define a simple two-dimensional checkerboard
 # tight-binding model with first neighbour hopping only.
 
-# In[1]:
-
-
-from pythtb.tb_model import TBModel
-import matplotlib.pyplot as plt
-
-
 # In[2]:
 
 
-# define lattice vectors
-lat = [[1.0, 0.0], [0.0, 1.0]]
-# define coordinates of orbitals
-orb = [[0.0, 0.0], [0.5, 0.5]]
+from pythtb import TBModel, Lattice
+import matplotlib.pyplot as plt
 
-# make two dimensional tight-binding checkerboard model
-my_model = TBModel(2, 2, lat, orb)
+
+# ## Setting up the `Lattice`
+# 
+# We start by defining the lattice vectors and the coordinates of the orbitals in fractional units. These are passed to the `Lattice` class to create a lattice object, along with a list of periodic directions which will be treated with periodic boundary conditions.
+
+# In[ ]:
+
+
+# define lattice vectors
+lat_vecs = [[1, 0], [0, 1]]
+# define coordinates of orbitals
+orb_vecs = [[0, 0], [1/2, 1/2]]
+
+lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
+
+
+# ## Building the `TBModel`
+# 
+# The tight-binding model is created by passing the lattice object to the `TBModel` constructor. Next, the on-site energies and hopping parameters are then set using the `set_onsite` and `set_hop` methods.
+
+# In[4]:
+
+
+my_model = TBModel(lat)
 
 # set model parameters
 delta = 1.1
@@ -45,7 +58,7 @@ print(my_model)
 # 
 # We will now calculate the band structure of the checkerboard model by solving the tight-binding Hamiltonian on a grid of k-points in the Brillouin zone.
 
-# In[3]:
+# In[6]:
 
 
 path = [[0.0, 0.0], [0.0, 0.5], [0.5, 0.5], [0.0, 0.0]]
@@ -55,7 +68,7 @@ label = (r"$\Gamma $", r"$X$", r"$M$", r"$\Gamma $")
 
 # Now solve for eigenenergies of the Hamiltonian on the set of k-points from above
 
-# In[4]:
+# In[7]:
 
 
 evals = my_model.solve_ham(k_vec)
@@ -67,7 +80,7 @@ evals = my_model.solve_ham(k_vec)
 # You can use the [TBModel.plot_band_structure](#pythtb.TBModel.plot_band_structure) method to visualize the band structure to avoid re-implementing the matplotlib code. This method takes the k-point mesh as an argument and produces a plot of the energy bands.
 # :::
 
-# In[5]:
+# In[8]:
 
 
 fig, ax = plt.subplots()

@@ -36,8 +36,6 @@ model = haldane(delta, t1, t2).make_supercell([[n_super_cell, 0], [0, n_super_ce
 nks = 20, 20 # number of k points along each dimension
 mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
 mesh.build_grid(shape=nks)
-mesh.loop_axis(0, 0)
-mesh.loop_axis(1, 1)
 print(mesh)
 
 
@@ -104,7 +102,7 @@ WF.num_twfs
 # 3. Unitary rotation$$ |\tilde{\psi}_{n\mathbf{k}} \rangle = \sum_{m\in \text{band idxs}} |\psi_{m\mathbf{k}} \rangle (V_{\mathbf{k}}W_{\mathbf{k}}^{\dagger})_{mn} $$
 # 4. Fourier transformation $$  |\mathbf{R} n\rangle = \sum_{\mathbf{k}} e^{-i\mathbf{k}\cdot \mathbf{R}} |\tilde{\psi}_{n\mathbf{k}} \rangle  $$
 
-# In[10]:
+# In[9]:
 
 
 WF.single_shot_projection(band_idxs=list(range(n_occ)))
@@ -112,7 +110,7 @@ WF.single_shot_projection(band_idxs=list(range(n_occ)))
 
 # This will already gives us quite localized Wannier functions. We can see their spreads by calling the function `report`.
 
-# In[11]:
+# In[10]:
 
 
 WF.report()
@@ -120,7 +118,7 @@ WF.report()
 
 # We can also directly access the attributes
 
-# In[12]:
+# In[11]:
 
 
 print(WF.spread)
@@ -134,7 +132,7 @@ omega_tilde_ss = WF.Omega_OD + WF.Omega_D
 
 # We can visualize the Wannier density using `plot_density`. We specify which Wannier function to look at with `Wan_idx`.
 
-# In[13]:
+# In[12]:
 
 
 WF.plot_density(wan_idx=1)
@@ -152,10 +150,10 @@ WF.plot_centers()
 # - Optionally we can set `tol` specifying the minimum change in the spread at subsequent iterations before convergence
 # - For additional control we specify `grad_min` which sets the minimum gradient of the spread before convergence.
 
-# In[16]:
+# In[14]:
 
 
-iter_num = 5000
+iter_num = 2000
 
 WF.max_localize(eps=1e-3, iter_num=iter_num, tol=1e-10, grad_min=1e-10, verbose=True)
 

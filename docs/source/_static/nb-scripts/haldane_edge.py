@@ -10,7 +10,7 @@
 # In[1]:
 
 
-from pythtb import TBModel  
+from pythtb import TBModel, Lattice 
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -19,12 +19,13 @@ import matplotlib.pyplot as plt
 
 
 # define lattice vectors
-lat = [[1, 0], [1/2, np.sqrt(3)/2]]
+lat_vecs = [[1, 0], [1/2, np.sqrt(3)/2]]
 # define coordinates of orbitals
-orb = [[1/3, 1/3], [2/3, 2/3]]
+orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
+lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
 # make two dimensional tight-binding Haldane model
-my_model = TBModel(2, 2, lat, orb)
+my_model = TBModel(lat)
 
 # set model parameters
 delta = 0.0
@@ -46,25 +47,24 @@ my_model.set_hop(t2c, 0, 0, [0, 1])
 print(my_model)
 
 
-# In[3]:
+# In[ ]:
 
 
-# cutout finite model first along direction x with no PBC
-tmp_model = my_model.cut_piece(10, 0, glue_edgs=False)
-# cutout also along y direction with no PBC
-fin_model = tmp_model.cut_piece(10, 1, glue_edgs=False)
+# cut finite models with slices in both directions
+# first direction open, second direction glued
+fin_model = my_model.make_finite(dirs=[0,1], num_cells=[10, 10], glue_edges=[False, False])
+fin_model_half = my_model.make_finite(dirs=[0,1], num_cells=[10, 10], glue_edges=[True, False])
 
-# cutout finite model first along direction x with PBC
-tmp_model_half = my_model.cut_piece(10, 0, glue_edgs=True)
-# cutout also along y direction with no PBC
-fin_model_half = tmp_model_half.cut_piece(10, 1, glue_edgs=False)
+
+# In[9]:
+
 
 # solve finite models
 (evals, evecs) = fin_model.solve_ham(return_eigvecs=True)
 (evals_half, evecs_half) = fin_model_half.solve_ham(return_eigvecs=True)
 
 
-# In[4]:
+# In[16]:
 
 
 # pick index of state in the middle of the gap
@@ -79,7 +79,7 @@ ax.set_ylabel("y coordinate")
 plt.show()
 
 
-# In[5]:
+# In[17]:
 
 
 (fig, ax) = fin_model_half.visualize(

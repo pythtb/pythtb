@@ -17,7 +17,7 @@
 # In[1]:
 
 
-from pythtb import TBModel, WFArray, Mesh
+from pythtb import TBModel, WFArray, Mesh, Lattice
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -28,14 +28,17 @@ import matplotlib.pyplot as plt
 
 
 # define lattice vectors
-lat = [[1, 0], [1/2, np.sqrt(3)/2]]
+lat_vecs = [[1, 0], [1/2, np.sqrt(3)/2]]
 # define coordinates of orbitals
-orb = [[1/3, 1/3], [2/3, 2/3]]
+orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
 
-# make two dimensional tight-binding graphene model
-my_model = TBModel(2, 2, lat, orb)
+lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
-# set model parameters
+
+# In[3]:
+
+
+my_model = TBModel(lattice=lat)
 delta = -0.1  # small staggered onsite term
 t = -1.0
 
@@ -53,7 +56,7 @@ print(my_model)
 # 
 # First we will construct the circular path of k-points around the Dirac cone.
 
-# In[3]:
+# In[4]:
 
 
 circ_step = 31 # number of steps in the circular path
@@ -67,6 +70,7 @@ for i in range(circ_step):
     kpt = np.array([np.cos(ang) * circ_radius, np.sin(ang) * circ_radius])
     kpt += circ_center
     kpts.append(kpt)
+kpts = np.array(kpts)
 
 
 # ### `Mesh` class
@@ -78,11 +82,11 @@ for i in range(circ_step):
 # `n_interp` is an optional parameter that specifies the number of interpolation points between each pair of nodes in the path. By default, it is set to 1. This default behavior means that the k-point path will consist only of the nodes specified in `path_k`, without any additional points in between. If you want to create a denser k-point path with more points between the nodes, you can increase the value of `n_interp`.
 # :::
 
-# In[4]:
+# In[5]:
 
 
 mesh = Mesh(dim_k=2, axis_types=['k'])
-mesh.build_path(nodes=kpts, n_interp=1)
+mesh.build_custom(kpts)
 print(mesh)
 
 
@@ -90,7 +94,7 @@ print(mesh)
 # 
 # We now construct a `WFArray` object to hold the wavefunction data for each k-point in the mesh. The `WFArray` class is designed to work seamlessly with the `Mesh` class, allowing us to easily associate wavefunction data with the specific k-points (or parameter points) stored in the `Mesh`. 
 
-# In[5]:
+# In[6]:
 
 
 w_circ = WFArray(my_model, mesh)
@@ -98,7 +102,7 @@ w_circ = WFArray(my_model, mesh)
 
 # To populate the `WFArray` object with wavefunction data, we can use the `solve_mesh()` method, which computes the wavefunctions for each k-point in the mesh.
 
-# In[6]:
+# In[7]:
 
 
 w_circ.solve_mesh()
@@ -107,7 +111,7 @@ w_circ.solve_mesh()
 # ### Berry phase
 # We can compute the Berry phase along the circular path using the `berry_phase` method of the `WFArray` object. This method takes a list of band indices as input and returns the Berry phase for those bands.
 
-# In[7]:
+# In[8]:
 
 
 berry_phase_0 = w_circ.berry_phase(0, [0])
@@ -124,7 +128,7 @@ print(f"for both bands equals: {berry_phase_both}")
 # 
 # Next, we construct a two-dimensional square patch covering the Dirac cone. We will construct the side length of the square patch such that the area of the patch equals the area enclosed by the loop around the Dirac point with radius `circ_radius` constructed above (`square_length` = $\sqrt{\pi \texttt{circ\_radius}^2}$)
 
-# In[8]:
+# In[9]:
 
 
 square_step = 50
@@ -155,7 +159,7 @@ for i in range(square_step):
 # The `points` array must have a shape that corresponds to `shape_k`. For example, if `shape_k` is `(4, 4)`, then `points` should have the shape `(4, 4, 2)` to represent the k-point coordinates in 2D.
 # :::
 
-# In[9]:
+# In[10]:
 
 
 mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
@@ -166,7 +170,7 @@ print(mesh)
 # ### `WFArray` class
 # Now we do the same thing as before to solve the model on these k-points, by calling `solve_k_mesh` on the `WFArray` object.
 
-# In[10]:
+# In[11]:
 
 
 w_square = WFArray(my_model, mesh)
@@ -195,12 +199,6 @@ print("for band 1 equals    : ", np.sum(b_flux_1))
 print("for both bands equals: ", np.sum(b_flux_both))
 
 
-# In[ ]:
-
-
-3 + 2*int(False)
-
-
 # Let's plot the Berry curvature distribution in the kx-ky plane. 
 
 # In[13]:
@@ -215,9 +213,30 @@ img = ax.imshow(
         all_kpt[-2, 0, 0],
         all_kpt[0, 0, 1],
         all_kpt[0, -2, 1],
-    ),
+    ), vmax=np.amax(b_flux_0.real), vmin=0
 )
 ax.set_title("Berry curvature of lower band near Dirac cone")
+ax.set_xlabel(r"$k_1$")
+ax.set_ylabel(r"$k_2$")
+plt.colorbar(img)
+fig.tight_layout()
+
+
+# In[14]:
+
+
+fig, ax = plt.subplots()
+img = ax.imshow(
+    b_flux_1.T.real,
+    origin="lower",
+    extent=(
+        all_kpt[0, 0, 0],
+        all_kpt[-2, 0, 0],
+        all_kpt[0, 0, 1],
+        all_kpt[0, -2, 1],
+    ), vmax=0, vmin=np.amin(b_flux_1.real)
+)
+ax.set_title("Berry curvature of upper band near Dirac cone")
 ax.set_xlabel(r"$k_1$")
 ax.set_ylabel(r"$k_2$")
 plt.colorbar(img)

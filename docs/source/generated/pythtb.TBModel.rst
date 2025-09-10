@@ -37,9 +37,8 @@
       ~TBModel.__subclasshook__
       ~TBModel._ensure_hop_index
       ~TBModel._get_periodic_H
-      ~TBModel._get_recip_lat
       ~TBModel._hop_keys
-      ~TBModel._shift_to_home
+      ~TBModel._shift_hop_to_home
       ~TBModel._sol_ham
       ~TBModel._val_to_block
       ~TBModel.add_orb
@@ -52,8 +51,10 @@
       ~TBModel.cut_piece
       ~TBModel.display
       ~TBModel.get_lat
+      ~TBModel.get_lat_vecs
       ~TBModel.get_num_orbitals
       ~TBModel.get_orb
+      ~TBModel.get_orb_vecs
       ~TBModel.grad_ham
       ~TBModel.hamiltonian
       ~TBModel.ignore_position_operator_offdiagonal
@@ -96,11 +97,13 @@
       ~TBModel.dim_r
       ~TBModel.hoppings
       ~TBModel.lat_vecs
+      ~TBModel.lattice
       ~TBModel.norb
       ~TBModel.nspin
       ~TBModel.nstate
       ~TBModel.orb_vecs
       ~TBModel.per
+      ~TBModel.periodic_dirs
       ~TBModel.recip_lat_vecs
       ~TBModel.recip_volume
       ~TBModel.site_energies

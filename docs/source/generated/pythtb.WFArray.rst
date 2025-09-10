@@ -43,6 +43,8 @@
       ~WFArray._edge_slices
       ~WFArray._get_pbc_phases
       ~WFArray._get_phases
+      ~WFArray._impose_pbc
+      ~WFArray._interp_energy
       ~WFArray._omega_til
       ~WFArray._set_projectors
       ~WFArray._set_wfs
@@ -63,8 +65,6 @@
       ~WFArray.get_states
       ~WFArray.impose_loop
       ~WFArray.impose_pbc
-      ~WFArray.interp_energy
-      ~WFArray.interp_op
       ~WFArray.position_expectation
       ~WFArray.position_hwf
       ~WFArray.position_matrix
@@ -97,6 +97,7 @@
       ~WFArray.filled
       ~WFArray.hamiltonian
       ~WFArray.k_points
+      ~WFArray.lattice
       ~WFArray.loop_axes
       ~WFArray.mesh
       ~WFArray.mesh_shape

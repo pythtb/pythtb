@@ -2,12 +2,12 @@
 # coding: utf-8
 
 # (0d-nb)=
-# # 0D tight-binding model of NH3 molecule
+# # Tight-binding model of NH3 molecule
 
 # In[1]:
 
 
-from pythtb import TBModel  
+from pythtb import TBModel, Lattice
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -16,22 +16,23 @@ import matplotlib.pyplot as plt
 
 
 # define lattice vectors
-lat = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+lat_vecs = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
 # define coordinates of orbitals
-sq32 = np.sqrt(3)/2
-orb = [
-    [(2 / 3) * sq32, 0, 0],
-    [(-1 / 3) * sq32, 1 / 2, 0],
-    [(-1 / 3) * sq32, -1 / 2, 0],
+orb_vecs = [
+    [(2 / 3) * np.sqrt(3)/2, 0, 0],
+    [(-1 / 3) * np.sqrt(3)/2, 1/2, 0],
+    [(-1 / 3) * np.sqrt(3)/2, -1/2, 0],
     [0, 0, 1],
 ]
+
+lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=None)
 
 
 # In[3]:
 
 
 # make zero dimensional tight-binding model
-my_model = TBModel(0, 3, lat, orb)
+my_model = TBModel(lattice=lat, nspin=1)
 
 # set model parameters
 delta = 0.5
@@ -51,15 +52,21 @@ my_model.set_hop(t_first, 2, 3)
 print(my_model)
 
 
+# In[4]:
+
+
+my_model.visualize()
+
+
 # Solve for the eigenenergies of the Hamiltonian
 
-# In[4]:
+# In[5]:
 
 
 evals = my_model.solve_ham()
 
 
-# In[10]:
+# In[6]:
 
 
 fig, ax = plt.subplots()

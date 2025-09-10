@@ -9,7 +9,7 @@
 # In[1]:
 
 
-from pythtb import TBModel, WFArray, Mesh
+from pythtb import TBModel, WFArray, Lattice, Mesh
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -20,10 +20,11 @@ import matplotlib.pyplot as plt
 
 
 # define lattice vectors and orbitals and make model
-lat = [[1, 0], [1/2, np.sqrt(3)/2]]
-orb = [[1/3, 1/3], [2/3, 2/3]]
+lat_vecs = [[1, 0], [1/2, np.sqrt(3)/2]]
+orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
+lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
-my_model = TBModel(2, 2, lat, orb)
+my_model = TBModel(lat)
 
 # set model parameters
 delta = -0.2
@@ -46,7 +47,7 @@ my_model.set_hop(t2c, 0, 0, [0, 1])
 
 # Next, we set up the `Mesh` object and build the k-point grid.
 
-# In[3]:
+# In[4]:
 
 
 # number of discretized sites or k-points in the mesh in directions 0 and 1
@@ -60,7 +61,7 @@ print(mesh)
 
 # This allows us to initialize the `WFArray` which we will use to store the energy eigenstates. With this class, we can compute Berry phases and hybrid Wannier centers.
 
-# In[4]:
+# In[5]:
 
 
 my_array = WFArray(my_model, mesh)
@@ -69,7 +70,7 @@ my_array.solve_mesh()
 
 # To compute the Berry phase, we will use the `berry_phase` method from the `WFArray` class. This method takes the occupied band indices (`occ`) and the direction of the mesh grid that will form the closed loop of states (`dir`). Optionally, we can also set `contin=True` which picks a branch of the Berry phase such that the phase at neighboring k-points are continuous.
 
-# In[5]:
+# In[6]:
 
 
 phi_1 = my_array.berry_phase(1, state_idx=[0], contin=True)
@@ -77,17 +78,17 @@ phi_1 = my_array.berry_phase(1, state_idx=[0], contin=True)
 
 # We will now create a finite model along the `1` direction by calling `TBModel.cut_piece`. The `ribbon_model` will then be finite in the `1` direction and periodic in the `0` direction. We choose to omit periodic boundary conditions in the `1` direction by setting `glue_edgs=False`.
 
-# In[6]:
+# In[8]:
 
 
 # create Haldane ribbon that is finite along direction 1
 n_layers = 10
-ribbon_model = my_model.cut_piece(n_layers, fin_dir=1, glue_edgs=False)
+ribbon_model = my_model.cut_piece(n_layers, fin_dir=1, glue_edges=False)
 
 
 # Next, we diagonalize the model along a 1D momentum space path using the `solve_ham` method. We construct this path using the `k_path` method of the `TBModel` class, which generates a set of k-points along a specified path in the Brillouin zone.
 
-# In[7]:
+# In[9]:
 
 
 (k_vec, k_dist, k_node) = ribbon_model.k_path([0.0, 0.5, 1.0], nk0, report=False)
@@ -103,7 +104,7 @@ efermi = 0.25
 rib_eval -= efermi
 
 
-# In[8]:
+# In[10]:
 
 
 # find k-points at which number of states below the Fermi level changes
@@ -125,7 +126,7 @@ for i in range(rib_eval.shape[0] - 1):
 # Fig. 3 in _Phys. Rev. Lett. 102, 107603 (2009)_.
 # :::
 
-# In[9]:
+# In[11]:
 
 
 pos_exps = []
@@ -136,7 +137,7 @@ for i in range(rib_evec.shape[0]):
 pos_exps = np.array(pos_exps)
 
 
-# In[10]:
+# In[12]:
 
 
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 6))

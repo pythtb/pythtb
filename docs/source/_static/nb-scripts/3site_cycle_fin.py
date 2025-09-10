@@ -14,23 +14,24 @@
 # Also plots the individual on-site energies, band structure, and Wannier
 # center of lowest band.
 
-# In[8]:
+# In[1]:
 
 
-from pythtb import TBModel, WFArray, Mesh
+from pythtb import TBModel, WFArray, Mesh, Lattice
 import numpy as np
 import matplotlib.pyplot as plt
 
 
 # Define function to construct model
 
-# In[9]:
+# In[2]:
 
 
 def set_model(t, delta, lmbd):
     lat = [[1]]
     orb = [[0], [1/3], [2/3]]
-    model = TBModel(1, 1, lat, orb)
+    lat = Lattice(lat, orb, periodic_dirs=[0])
+    model = TBModel(lat)
     model.set_hop(t, 0, 1, [0])
     model.set_hop(t, 1, 2, [0])
     model.set_hop(t, 2, 0, [1])
@@ -54,7 +55,7 @@ def set_model(t, delta, lmbd):
 # The argument that we plan to vary must be named appropriately in the mesh via the `axis_names` argument in the `Mesh` constructor. If the name of the model parameter we are varying does not match the corresponding axis name in the mesh, the parameter will not be varied correctly. Here we are varying the `lmbd` parameter.
 # :::
 
-# In[10]:
+# In[3]:
 
 
 mesh = Mesh(
@@ -64,12 +65,12 @@ mesh = Mesh(
 
 # We next populate the `Mesh` with grid points. To do so, we use the `build_grid` helper function, specifying the desired shape of the grid and whether to center it around the gamma point in k-space.
 
-# In[11]:
+# In[4]:
 
 
 mesh.build_grid(shape=(31, 21), gamma_centered=True, lambda_start=0.0, lambda_stop=1.0)
-mesh.loop_axis(0, 0)
-mesh.loop_axis(1, 1)
+# mesh.loop_axis(0, 0)
+# mesh.loop_axis(1, 1)
 print(mesh)
 
 
@@ -81,7 +82,7 @@ print(mesh)
 # Once again, the names matter here as well. The keys in the `fixed_params` dictionary must match the names of the arguments in the model function exactly.
 # :::
 
-# In[12]:
+# In[5]:
 
 
 # Used for initializing the Mesh
@@ -90,7 +91,7 @@ ref_model = set_model(0,0,0)
 wfa = WFArray(ref_model, mesh)
 
 
-# In[13]:
+# In[6]:
 
 
 fixed_params = {"t": -1.3, "delta": 2.0}
@@ -102,7 +103,7 @@ wfa.solve_mesh(set_model, fixed_params)
 # 
 # To compute the Chern numbers, we will use the `WFArray.chern_num` method, which calculates the integrated Berry flux for a given set of bands and a specified plane in the Brillouin zone.
 
-# In[14]:
+# In[7]:
 
 
 # compute integrated curvature
@@ -127,7 +128,7 @@ print(f"  Band  2 = {chern_2:5.2f}")
 
 # Here, we will define a new model function for the finite system. This function will take the model parameters as input and return the corresponding `TBModel`. In this case, it will be the same as before except we cut out a finite chain of the periodic model. We do this using the `TBModel.cut_piece` method, passing the number of unit cells and the direction in which to cut.
 
-# In[15]:
+# In[8]:
 
 
 # length of chain, in unit cells
@@ -148,7 +149,7 @@ def finite_model_builder(t, delta, lmbd):
 # 
 # In the `shape` argument of `build_full_grid`, we only need to specify the size of the array of `lmbd` points. 
 
-# In[20]:
+# In[9]:
 
 
 mesh = Mesh(dim_k=0, dim_lambda=1, axis_types=["l"], axis_names=["lmbd"])
@@ -158,7 +159,7 @@ print(mesh)
 
 # Same as before, we create the `WFArray` to store our states with the mesh, and use `solve_mesh` to populate the `WFArray` with the wave functions and energies.
 
-# In[21]:
+# In[10]:
 
 
 ref_model = finite_model_builder(0, 0, 0)
@@ -171,7 +172,7 @@ wfa.solve_mesh(model_func=finite_model_builder, fixed_params=fixed_params)
 # 
 # Getting the expectation value of the position operator is as simple as calling `WFArray.position_expectation(...)`. We only need to pass the real-space direction to compute the expectation value. This will return the expectation value for each state index, at each point in the mesh array.
 
-# In[22]:
+# In[11]:
 
 
 x_expec = wfa.position_expectation(dir=0)
@@ -181,7 +182,7 @@ x_expec = wfa.position_expectation(dir=0)
 # 
 # We will indicate the position expectation value by the size of the markers in the plot. Notice in the finite chain the appearance of gapless edge modes. This is topologically protected, as evident by the Chern numbers we calculated earlier in the bulk case. 
 
-# In[23]:
+# In[12]:
 
 
 fig, ax = plt.subplots()

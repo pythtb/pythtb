@@ -7,7 +7,7 @@
 # In[1]:
 
 
-from pythtb import TBModel, WFArray, Mesh
+from pythtb import TBModel, WFArray, Mesh, Lattice
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -18,7 +18,8 @@ import matplotlib.pyplot as plt
 def set_model(t, delta, lmbd):
     lat = [[1]]
     orb = [[0], [1/3], [2/3]]
-    model = TBModel(1, 1, lat, orb)
+    lat = Lattice(lat, orb, periodic_dirs=[0])
+    model = TBModel(lat)
     model.set_hop(t, 0, 1, [0])
     model.set_hop(t, 1, 2, [0])
     model.set_hop(t, 2, 0, [1])
@@ -37,14 +38,14 @@ delta = 2.0
 t = -1.0
 
 
-# In[7]:
+# In[4]:
 
 
 mesh = Mesh(
     dim_k=1, dim_lambda=1, axis_types=["k", "l"], axis_names=["kx", "lmbd"]
     )
 mesh.build_grid(shape=(31, 21), gamma_centered=True)
-mesh.close_axis(axis_idx=1, component_idx=1)
+mesh.close_lambda_axis(lambda_axis=1, lambda_component=1)
 print(mesh)
 
 
@@ -56,7 +57,7 @@ print(mesh)
 # The index order `[k,lambda]` is important for interpreting the sign.
 # :::
 
-# In[8]:
+# In[5]:
 
 
 # Used for initializing the Mesh,
@@ -71,7 +72,7 @@ wf_kpt_lambda = WFArray(ref_model, mesh)
 # `solve_mesh` imposes periodic boundary conditions along periodic k-space direction so that $|\psi_{n,k}\rangle$ at $k=0$ and $k=1$ have the same phase.
 # :::
 
-# In[9]:
+# In[6]:
 
 
 wf_kpt_lambda.solve_mesh(set_model, {"t": t, "delta": delta})
@@ -79,7 +80,7 @@ wf_kpt_lambda.solve_mesh(set_model, {"t": t, "delta": delta})
 
 # Compute Berry phase along k-direction for each $\lambda$
 
-# In[10]:
+# In[7]:
 
 
 phase = wf_kpt_lambda.berry_phase(0, [0])
@@ -87,7 +88,7 @@ phase = wf_kpt_lambda.berry_phase(0, [0])
 
 # Wannier center in reduced coordinates
 
-# In[11]:
+# In[8]:
 
 
 wann_center = phase / (2*np.pi)
@@ -95,7 +96,7 @@ wann_center = phase / (2*np.pi)
 
 # Chern number of bottom band
 
-# In[12]:
+# In[9]:
 
 
 chern = wf_kpt_lambda.chern_num(state_idx=[0], plane=(0,1))
@@ -104,7 +105,7 @@ print("Chern number in k-lambda space: ", chern)
 
 # Plot the position of Wannier function for bottom band
 
-# In[13]:
+# In[10]:
 
 
 all_lambda = mesh.get_param_points()[:, 0] 
@@ -112,7 +113,7 @@ k_dist = mesh.get_k_points()[:, 0]
 eval_lam = wf_kpt_lambda.energies
 
 
-# In[14]:
+# In[11]:
 
 
 fig_onsite, ax_onsite = plt.subplots()

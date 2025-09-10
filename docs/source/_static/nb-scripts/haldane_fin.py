@@ -9,8 +9,6 @@
 # In[1]:
 
 
-from pythtb.tb_model import TBModel 
-import numpy as np
 import matplotlib.pyplot as plt
 
 
@@ -39,15 +37,8 @@ print(my_model)
 # In[4]:
 
 
-# cutout finite model first along direction x with no PBC
-tmp_model = my_model.cut_piece(20, 0, glue_edgs=False)
-# cutout also along y direction with no PBC
-fin_model_false = tmp_model.cut_piece(20, 1, glue_edgs=False)
-
-# cutout finite model first along direction x with PBC
-tmp_model = my_model.cut_piece(20, 0, glue_edgs=True)
-# cutout also along y direction
-fin_model_true = tmp_model.cut_piece(20, 1, glue_edgs=True)
+fin_model_false = my_model.make_finite([20, 20], glue_edges=[False, False])
+fin_model_true = my_model.make_finite([20, 20], glue_edges=[True, True])
 
 
 # In[5]:

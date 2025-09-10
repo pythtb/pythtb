@@ -9,7 +9,7 @@
 # In[1]:
 
 
-from pythtb import TBModel 
+from pythtb import TBModel, Lattice
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -18,12 +18,13 @@ import matplotlib.pyplot as plt
 
 
 # define lattice vectors
-lat = [[1, 0], [1/2, np.sqrt(3) / 2]]
+lat_vecs = [[1, 0], [1/2, np.sqrt(3)/2]]
 # define coordinates of orbitals
-orb = [[1/3, 1/3], [2/3, 2/3]]
+orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
+lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
 # make two dimensional tight-binding graphene model
-my_model = TBModel(2, 2, lat, orb)
+my_model = TBModel(lat)
 
 # set model parameters
 delta = 0.0
@@ -52,7 +53,7 @@ print(my_model)
 # In[3]:
 
 
-path = [[0, 0], [2/3, 1/3], [1/2, 1.2], [0, 0]]
+path = [[0, 0], [2/3, 1/3], [1/2, 1/2], [0, 0]]
 label = (r"$\Gamma $", r"$K$", r"$M$", r"$\Gamma $")
 nk = 121
 

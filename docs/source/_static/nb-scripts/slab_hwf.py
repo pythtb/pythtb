@@ -9,7 +9,7 @@
 # In[1]:
 
 
-from pythtb import TBModel, WFArray, Mesh
+from pythtb import TBModel, Lattice, WFArray, Mesh
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -20,9 +20,11 @@ import numpy as np
 
 
 def set_model(delta, ta, tb):
-    lat = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-    orb = [[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]]
-    model = TBModel(3, 3, lat, orb)
+    lat_vecs = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+    orb_vecs = [[0, 0, 0], [1/2, 1/2, 1/2]]
+
+    model = TBModel(Lattice(lat_vecs, orb_vecs, periodic_dirs=[0,1,2]))
+
     model.set_onsite([-delta, delta])
     for lvec in ([-1, 0, 0], [0, 0, -1], [-1, -1, 0], [0, -1, -1]):
         model.set_hop(ta, 0, 1, lvec)
@@ -41,6 +43,7 @@ tb = 0.7  # two stronger hoppings
 bulk_model = set_model(delta, ta, tb)
 
 print(bulk_model)
+bulk_model.visualize()
 
 
 # Now make a slab model
@@ -50,10 +53,10 @@ print(bulk_model)
 
 # make slab model
 num_layers = 9  # number of layers
-slab_model = bulk_model.cut_piece(num_layers, 2, glue_edgs=False)
+slab_model = bulk_model.cut_piece(num_layers, 2, glue_edges=False) 
 
 # remove top orbital so top and bottom have the same termination
-slab_model = slab_model.remove_orb(2 * num_layers - 1)
+slab_model.remove_orb(2 * num_layers - 1)
 slab_model.report(short=True)
 
 
@@ -94,7 +97,7 @@ bloch_arr = WFArray(slab_model, mesh)
 bloch_arr.solve_mesh()
 
 
-# In[12]:
+# In[9]:
 
 
 # initalize wf_array to hold HWFs, and Numpy array for HWFCs
@@ -111,8 +114,8 @@ for ix in range(nk):
         hwf_arr[ix, iy] = vec
 
 # impose periodic boundary conditions
-hwf_arr.impose_pbc(0, 0)
-hwf_arr.impose_pbc(1, 1)
+# hwf_arr.impose_pbc(0, 0)
+# hwf_arr.impose_pbc(1, 1)
 
 # compute and print mean and standard deviation of Wannier centers by layer
 print("\nLocations of hybrid Wannier centers along z:\n")
@@ -121,7 +124,7 @@ print("  Mean   " + num_layers * "%8.4f" % tuple(np.mean(hwfc, axis=(0, 1))))
 print("  Std Dev" + num_layers * "%8.4f" % tuple(np.std(hwfc, axis=(0, 1))))
 
 
-# In[13]:
+# In[16]:
 
 
 # compute and print layer contributions to polarization along x, then y
@@ -138,12 +141,12 @@ for k in range(nk):
 # when averaging, don't count last k-point
 px_mean = np.mean(px[:, :-1], axis=1)
 py_mean = np.mean(py[:, :-1], axis=1)
-print("\n  Ave    " + num_layers * "%8.4f" % tuple(px_mean))
+print("\n  Avg P_x" + num_layers * "%8.4f" % tuple(px_mean))
 
 
 # Similar calculations along $y$ give zero due to $M_y$ mirror symmetry.
 
-# In[14]:
+# In[11]:
 
 
 nlh = num_layers // 2
@@ -159,7 +162,7 @@ print("\n  Surface sums: Top, Bottom = %8.4f , %8.4f\n" % (sum_top, sum_bot))
 # Phys. Rev. B 103, 035147 (2021)_.
 # :::
 
-# In[15]:
+# In[12]:
 
 
 fig = plt.figure()
