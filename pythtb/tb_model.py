@@ -1532,7 +1532,7 @@ class TBModel:
         fin_model._assume_position_operator_diagonal = (
             self._assume_position_operator_diagonal
         )
-       # put all hopping terms
+        # put all hopping terms
         for c in range(num_cells):  # go over all cells in finite direction
             for h in range(len(self._hoppings)):  # go over all hoppings in one cell
                 # amplitude of the hop is the same
@@ -1653,13 +1653,13 @@ class TBModel:
         else:
             glue_edges = [False] * self.dim_k
 
+        cut = self
         for idx, n_cell in enumerate(num_cells):
             if n_cell == 1:
                 raise ValueError("Can't have length 1 along any direction.")
-            cut = self.cut_piece(num_cells=n_cell, fin_dir=dirs[idx], glue_edges=glue_edges[idx])
-            self = cut
+            cut = cut.cut_piece(num_cells=n_cell, fin_dir=dirs[idx], glue_edges=glue_edges[idx])
 
-        return self
+        return cut
 
     # This function is being deprecated. The preferred way to reduce dimensionality
     # is to use `make_finite` with `num_cells=1` along the desired directions. 
