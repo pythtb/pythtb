@@ -135,7 +135,7 @@ class Wannier:
 
     @property
     def wannier(self) -> np.ndarray:
-        r"""Wannier functions .
+        r"""Wannier functions.
 
         The Wannier functions are the discrete Fourier transform of the
         Bloch-like states :math:`\tilde{\psi}`
@@ -620,6 +620,239 @@ class Wannier:
 
     ####### Maximally Localized WF #######
 
+    def _window_to_mask(self, window, energies, n_occ):
+        """Convert a band/window spec into a boolean mask over bands for each k.
+
+        Parameters
+        ----------
+        window : {'occupied', list[int], tuple[float,float], dict}
+            - 'occupied' : selects the first n_occ bands for every k.
+            - list[int]  : fixed band indices (applied at every k).
+            - tuple(emin, emax) or list[emin, emax] : inclusive energy window.
+            - dict with 'emin' and/or 'emax' : inclusive bounds; use +/-inf if missing.
+        energies : np.ndarray
+            Array of shape (*kmesh, n_bands) with band energies.
+        n_occ : int
+            Number of occupied bands (used when window == 'occupied').
+
+        Returns
+        -------
+        mask : np.ndarray[bool]
+            Boolean array of shape (*kmesh, n_bands) marking selected bands.
+        """
+        nbands = energies.shape[-1]
+
+        # occupied shorthand
+        if isinstance(window, str):
+            if window.lower() == "occupied":
+                mask = np.zeros_like(energies, dtype=bool)
+                mask[..., :n_occ] = True
+                return mask
+            else:
+                raise ValueError(f"Unknown window keyword '{window}'. Use 'occupied' or provide a range/list.")
+        # explicit band indices
+        if isinstance(window, (list, tuple)) and len(window) > 0 and all(isinstance(i, (int, np.integer)) for i in window):
+            idx = np.array(window, dtype=int)
+            if np.any((idx < 0) | (idx >= nbands)):
+                raise ValueError(f"Band index out of bounds for nbands={nbands}: {idx}")
+            mask = np.zeros_like(energies, dtype=bool)
+            mask[..., idx] = True
+            return mask
+        # energy window via tuple/list of length 2
+        if isinstance(window, (list, tuple)) and len(window) == 2 and all(isinstance(x, (int, float, np.floating)) for x in window):
+            emin, emax = float(window[0]), float(window[1])
+            if emin > emax:
+                emin, emax = emax, emin
+            return (energies >= emin) & (energies <= emax)
+        # dict form
+        if isinstance(window, dict):
+            emin = float(window.get("emin", -np.inf))
+            emax = float(window.get("emax",  np.inf))
+            if emin > emax:
+                emin, emax = emax, emin
+            return (energies >= emin) & (energies <= emax)
+
+        raise TypeError(
+            "Unsupported window specification. Use 'occupied', a list of band indices, "
+            "a (emin, emax) tuple/list, or a dict {'emin': ..., 'emax': ...}."
+        )
+
+
+
+    def _optimal_subspace_energy(
+        self,
+        n_wfs : int | None = None,
+        frozen_window: list | None = None,
+        disentang_window: list | str ="occupied",
+        iter_num: int = 100,
+        tol: float = 1e-10,
+        beta: float = 1,
+        verbose: bool = False,
+        tf_speedup: bool = False
+    ):
+        r"""Obtain the subspace that minimizes the gauge-independent spread.
+
+        This function utilizes the 'disentanglement' technique to find the subspaces 
+        throughout the BZ that minimizes the gauge-independent spread. 
+
+        Parameters
+        ----------
+        n_wfs : int | None
+            Number of states in the optimal subspace. If ``None``, the number
+            of trial wavefunctions is used. 
+        frozen_bands : list | None, optional
+            List of band indices defining the 'frozen window', specifying
+            the states totally included within the optimized subspace. 
+            Defaults to `None`, in which case no bands are frozen.
+        disentang_bands : list | str, optional
+            List of band indices defining 'disentanglement window' where 
+            states are borrowed in order to minimize the gauge independent spread.
+            If "occupied", all occupied bands are disentangled. Defaults to "occupied".
+        iter_num : int, optional
+            Maximum number of optimization iterations. Defaults to 100.
+        tol : float, optional
+            Convergence tolerance for the optimization. Defaults to 1e-10.
+        beta : float, optional
+            Mixing parameter for the optimization. If 1, the current step is taken fully. 
+            Lower values result in a percentage ``beta`` of the previous step being mixed into
+            the result. Defaults to 1.
+        verbose : bool, optional
+            If True, print detailed information during optimization.
+        tf_speedup : bool, optional
+            If True, uses the ``tensorflow`` package for faster linear algebra operations.
+
+        Returns
+        -------
+        states_min : np.ndarray
+            The states spanning the optimized subspace that minimizes the gauge-independent spread.
+        """
+        nks = self.nks
+        # k_axes = self.energy_eigstates.mesh.k_axes
+        Nk = np.prod(nks)
+        n_orb = self.model.norb
+        n_occ = int(n_orb / 2)
+
+        # Assumes only one shell for now
+        w_b, _, _ = self.energy_eigstates.get_shell_weights(n_shell=1)
+        w_b = w_b[0]  # Assume only one shell for now
+
+        # initial subspace
+        energy_eigstates = self.energy_eigstates
+        u_nk = energy_eigstates.get_states(flatten_spin=True)
+        # u_wfs_til = init_states.get_states(flatten_spin=True)
+
+        if n_wfs is None:
+            # assume number of states in the subspace is number of tilde states
+            N_wfs = self.tilde_states.nstates
+
+        if disentang_window == "occupied":
+            disentang_bands = list(range(n_occ))
+
+        # Projector of initial tilde subspace at each k-point
+        if frozen_window is None:
+            N_inner = 0
+            init_states = self.tilde_states
+            
+            # manifold from which we borrow states to minimize omega_i
+            comp_states = u_nk.take(disentang_bands, axis=-2)
+        else:
+            N_inner = len(frozen_window)
+            inner_states = u_nk.take(frozen_window, axis=-2)
+            P_inner = np.swapaxes(inner_states, -1, -2) @ inner_states.conj()
+            Q_inner = np.eye(P_inner.shape[-1]) - P_inner
+
+            P_tilde = self.tilde_states.get_projectors()
+
+            # chosing initial subspace as highest eigenvalues
+            MinMat = Q_inner @ P_tilde @ Q_inner
+            _, eigvecs = np.linalg.eigh(MinMat)
+            eigvecs = np.swapaxes(eigvecs, -1, -2)
+
+            init_evecs = eigvecs[..., -(N_wfs - N_inner) :, :]
+            init_states = WFArray(self.model, self.mesh, nstates=init_evecs.shape[-2])
+            init_states._set_wfs(init_evecs, cell_periodic=False, spin_flattened=True)
+
+            comp_bands = list(np.setdiff1d(disentang_bands, frozen_window))
+            comp_states = u_nk.take(comp_bands, axis=-2)
+
+            # min_states = np.einsum(
+            #     "...ij, ...ik->...jk", eigvecs[..., -(N_wfs - N_inner) :], outer_states
+            # )
+
+          
+        P, Q = init_states.get_projectors(return_Q=True)
+        P_nbr, Q_nbr = init_states._P_nbr, init_states._Q_nbr
+
+        T_kb = np.einsum("...ij, ...kji -> ...k", P, Q_nbr)
+        omega_I_prev = (1 / Nk) * w_b * np.sum(T_kb)
+        if verbose:
+            print(f"Initial Omega_I: {omega_I_prev.real}")
+        
+        P_min = np.copy(P)  # for start of iteration
+        P_nbr_min = np.copy(P_nbr)  # for start of iteration
+
+        if tf_speedup:
+            from tensorflow import convert_to_tensor
+            from tensorflow import complex64 as tfcomplex64
+            from tensorflow.linalg import eigh as tfeigh
+
+        for i in range(iter_num):
+            # states spanning optimal subspace minimizing gauge invariant spread
+            P_avg = w_b * np.sum(P_nbr_min, axis=-3)
+            Z = comp_states.conj() @ P_avg @ np.swapaxes(comp_states, -1, -2)
+            
+            if tf_speedup:
+                Z_tf = convert_to_tensor(Z, dtype=tfcomplex64)
+                _, eigvecs_tf = tfeigh(Z_tf)
+                eigvecs = eigvecs_tf.numpy()
+            else:
+                _, eigvecs = np.linalg.eigh(Z)  # [val, idx]
+
+
+            evecs_keep = eigvecs[..., -(N_wfs - N_inner) :]
+            states_min = np.swapaxes(evecs_keep, -1, -2) @ comp_states
+
+            min_wfa = WFArray(self.model, self.mesh, nstates=states_min.shape[-2])
+            min_wfa._set_wfs(states_min, cell_periodic=True, spin_flattened=True)
+            P_new = min_wfa._P
+            P_nbr_new = min_wfa._P_nbr
+
+            if beta != 1:
+                # for next iteration
+                P_min = beta * P_new + (1 - beta) * P_min
+                P_nbr_min = beta * P_nbr_new + (1 - beta) * P_nbr_min
+            else:
+                # for next iteration
+                P_min = P_new
+                P_nbr_min = P_nbr_new
+
+            Q_nbr_min = np.eye(P_nbr_min.shape[-1]) - P_nbr_min
+            T_kb = np.einsum("...ij, ...kji -> ...k", P_min, Q_nbr_min)
+            omega_I_new = (1 / Nk) * w_b * np.sum(T_kb)
+
+            if verbose:
+                delta = omega_I_new - omega_I_prev
+                print(f"iter {i:4d} | Ω_I = {omega_I_new.real:12.9e} | ΔΩ = {delta.real:10.5e}")
+
+            if abs(omega_I_prev - omega_I_new) <= tol:
+                if verbose:
+                    print(f"Converged within tolerance in {i} iterations. Breaking the loop.")
+                break
+
+            if omega_I_new > omega_I_prev:
+                beta = max(beta - 0.01, 0)
+                if verbose:
+                    print(f"Warning: Ω_I is increasing. Reducing beta to {beta}.")
+
+            omega_I_prev = omega_I_new
+
+        if frozen_window is not None:
+            return_states = np.concatenate((inner_states, states_min), axis=-2)
+            return return_states
+        else:
+            return states_min
+
+
     def _optimal_subspace(
         self,
         n_wfs : int | None = None,
@@ -667,7 +900,7 @@ class Wannier:
         states_min : np.ndarray
             The states spanning the optimized subspace that minimizes the gauge-independent spread.
         """
-        nks = self.energy_eigstates.mesh.shape_k
+        nks = self.nks
         # k_axes = self.energy_eigstates.mesh.k_axes
         Nk = np.prod(nks)
         n_orb = self.model.norb
@@ -686,7 +919,7 @@ class Wannier:
             # assume number of states in the subspace is number of tilde states
             N_wfs = self.tilde_states.nstates
 
-        if disentang_bands == "occupied":
+        if isinstance(disentang_bands, str) and disentang_bands == "occupied":
             disentang_bands = list(range(n_occ))
 
         # Projector of initial tilde subspace at each k-point
@@ -821,6 +1054,7 @@ class Wannier:
         w_b, k_shell, idx_shell = self.energy_eigstates.get_shell_weights()
         # Assumes only one shell for now
         w_b, k_shell, idx_shell = w_b[0], k_shell[0], idx_shell[0]
+        k_axes = tuple(self.mesh.k_axis_indices)
         nks = self.nks
         shape_mesh = self.mesh.shape_mesh
         Nk = np.prod(nks)
@@ -838,12 +1072,13 @@ class Wannier:
         grad_mag_prev = 0
         eta = 1
         for i in range(iter_num):
+
             r_n = (
                 -(1 / Nk)
                 * w_b
                 * np.sum(
                     log_diag_M_imag := np.log(np.diagonal(M, axis1=-1, axis2=-2)).imag,
-                    axis=(0, 1),
+                    axis=k_axes,
                 ).T
                 @ k_shell
             )
@@ -855,8 +1090,8 @@ class Wannier:
                 np.divide(M, np.diagonal(M, axis1=-1, axis2=-2)[..., np.newaxis, :]),
                 q[..., np.newaxis, :],
             )
-            A_R = (R - np.transpose(R, axes=(0, 1, 2, 4, 3)).conj()) / 2
-            S_T = (T + np.transpose(T, axes=(0, 1, 2, 4, 3)).conj()) / (2j)
+            A_R = (R - np.swapaxes(R, axis1=-1, axis2=-2).conj()) / 2
+            S_T = (T + np.swapaxes(T, axis1=-1, axis2=-2).conj()) / (2j)
             G = 4 * w_b * np.sum(A_R - S_T, axis=-3)
             U = np.einsum("...ij, ...jk -> ...ik", U, mat_exp(eta * eps * G))
 
