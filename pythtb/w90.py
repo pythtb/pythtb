@@ -1,6 +1,7 @@
 import numpy as np
 from .utils import _cart_to_red, _red_to_cart
 from .tb_model import TBModel
+from .lattice import Lattice
 
 __all__ = ["W90"]
 
@@ -230,6 +231,8 @@ class W90:
             (self.lat[0], self.lat[1], self.lat[2]), self.xyz_cen
         )
 
+        self.lattice = Lattice(self.lat, self.red_cen, periodic_dirs=[0,1,2])
+
         # caches (filled lazily)
         self._vecR_cache = {}
         self._dist_cache = {}
@@ -358,7 +361,7 @@ class W90:
 
         """
         # make the model object
-        tb = TBModel(3, 3, self.lat, self.red_cen)
+        tb = TBModel(self.lattice)
 
         # remember that this model was computed from w90
         tb._assume_position_operator_diagonal = False
