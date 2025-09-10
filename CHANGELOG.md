@@ -121,6 +121,8 @@ For a detailed explanation of the changes, see the developer documentation [DEVN
 - Support for Python <3.10 ([SPEC-0](https://scientific-python.org/specs/spec-0000/))
 - `setup.py`: migration to `pyproject.toml`.
 - `WFArray.berry_flux` flag `individual_phases`
+- `TBModel` flag `dim_r`. This is now inferred from the shape of the lattice vectors. 
+- `TBModel` flag `dim_k`. This is now inferred from the number of periodic directions in `per`.
 
 ### Deprecated
 - `tb_model.solve_one`: Use `TBModel.solve_ham` instead
