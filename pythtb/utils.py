@@ -3,6 +3,8 @@ from math import factorial
 from itertools import permutations
 from itertools import combinations_with_replacement as comb
 from itertools import product
+import functools
+import warnings
 
 __all__ = [
     "levi_civita",
@@ -12,6 +14,33 @@ __all__ = [
     "get_trial_wfs",
     "get_periodic_H",
 ]
+
+# deprecation decorator
+def deprecated(message: str, category=FutureWarning):
+    """
+    Decorator to mark a function as deprecated.
+    Raises a FutureWarning with the given message when the function is called.
+    """
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            warnings.warn(
+                f"{func.__qualname__} is deprecated and will be removed in a future release: {message}",
+                category=category,
+                stacklevel=2,
+            )
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+def copydoc(src):
+    def deco(dst):
+        dst.__doc__ = src.__doc__
+        return dst
+    return deco
 
 
 def get_periodic_H(model, H_flat, k_vals):
