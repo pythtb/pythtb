@@ -12,6 +12,10 @@ PythTB module consists of these primary classes:
    Class for constructing meshes or paths of k-points and parameter points. This class 
    stores information about grid topology, such as periodic boundary conditions, which get
    passed on to the :class:`pythtb.WFArray` class for wavefunction storage and manipulation.
+* :class:`pythtb.Lattice`
+   Class for storing information about the lattice structure of the tight-binding model, including
+   lattice vectors, reciprocal lattice vectors, and nearest neighbor vectors. This class is used
+   by the :class:`pythtb.TBModel` class.
 * :class:`pythtb.W90` 
    Class for interfacing `PythTB` with `Wannier90 <http://www.wannier.org>`_ allowing for the construction
    of tight-binding models based on first-principles density functional theory calculations.
@@ -26,11 +30,12 @@ PythTB module consists of these primary classes:
 .. autosummary::
    :toctree: generated/
    :caption: PythTB Classes
-   :recursive:
+   :template: autosummary/public_class.rst
 
    TBModel
    WFArray
    Mesh
+   Lattice
    W90
    Wannier
 
