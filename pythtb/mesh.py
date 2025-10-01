@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Iterable, Tuple, Dict, Optional, Sequence, List
+from typing import Optional
 
 __all__ = [
     "Mesh",
@@ -167,26 +167,27 @@ class Axis:
 
 class Mesh:
     def __init__(
-            self,  
-            dim_k: int, 
-            axis_types: list[str],
-            dim_lambda: int | None = None,
-            axis_names: list[str] = None           
-            ):
-        r"""Initialize a Mesh object storing and managing a mesh in k-space and parameter space.
+        self,  
+        dim_k: int, 
+        axis_types: list[str],
+        dim_lambda: int | None = None,
+        axis_names: list[str] = None
+    ):
+        r"""Initialize a Mesh object storing and managing a mesh in :math:`(k, \lambda)`-space.
 
         .. versionadded:: 2.0.0
 
-        This class is responsible for constructing the mesh in k-space and parameter space.
+        This class is responsible for constructing a mesh sampling of the combined reciprocal space and 
+        additional adiabatic parameters, i.e. :math:`(k, \lambda)`-space.
         It provides methods to build both grid and path representations of the mesh, or a custom mesh
         with user-defined points. The mesh can be a pure k-space mesh, a pure parameter space mesh,
         or a mixed mesh with axes in both spaces. The mesh can also be a grid or a path. 
 
         A grid mesh has an axis for each dimension of the mesh, while a path mesh has a single axis
-        that traces a path through the combined k/parameter space. For example, a 2D k-space grid has two k-axes,
+        that traces a path through the combined :math:`(k, \lambda)`-space. For example, a 2D k-space grid has two k-axes,
         while a 1D path mesh would have a single axis that moves through k-space. A mesh has axes that represent 
-        the dimensions of the mesh, and the last axis represents the vector components in k/parameter space. A grid
-        typically is such that each mesh dimension (axis) corresponds to one vector component, while a path has a 
+        the dimensions of the mesh, and the last axis represents the vector components in :math:`(k, \lambda)`-space. 
+        A grid is defined such that each mesh dimension (axis) corresponds to one vector component, while a path has a 
         single axis that may vary multiple vector components simultaneously.
 
         Parameters
@@ -205,7 +206,7 @@ class Mesh:
             specified.
         axis_names : list[str], optional
             A list of axis names, which can be used for parametrically populating
-            a `WFArray`. If unspecified, default names will be generated.
+            a :class:`pythtb.WFArray`. If unspecified, default names will be generated.
             See examples listed below for more details.
 
         See Also
@@ -629,30 +630,9 @@ class Mesh:
         if not self.filled:
             raise ValueError("Mesh points are not initialized.")
 
-        # k-mask to only check k-components if desired
+        # k-mask to only check k-components if needed
         k_comp_mask = np.zeros(self.dim_total, dtype=bool)
         k_comp_mask[:self.dim_k] = True
-
-        # if not self.is_grid:
-        #     # For paths, treat as a single sampling axis (index 0).
-        #     start = np.asarray(self.flat[0], dtype=float)     # (dim_total,)
-        #     end   = np.asarray(self.flat[-1], dtype=float)    # (dim_total,)
-        #     delta = np.abs(end - start)                       # (dim_total,)
-
-        #     # Update masks: closed and winding if delta=0 or delta=1
-        #     winds_bz  = (np.abs(delta - 1.0) < tol) & k_comp_mask  # delta=1 -> winding
-        #     endpt_included = winds_bz | (delta < tol)
-        #     looped = endpt_included | winds_bz  # delta=0 or 1 -> looped
-
-        #     ax = self.axes[0]
-        #     for c in range(self.dim_total):
-        #         if endpt_included[c]:
-        #             ax.add_endpoint_component(c)
-        #         if looped[c]:
-        #             ax.add_loop_component(c)
-        #         if winds_bz[c]:
-        #             ax.add_wind_bz_component(c)
-        #     return 
 
         # Iterate over sampling axes; compare first vs last hyperfaces.
         for axis_idx in range(self.num_axes):
@@ -670,13 +650,15 @@ class Mesh:
                     # constant along this axis -> skip
                     continue
 
-                d0 = float(abs(arr[-1] - arr[0]))
-                winds_bz = abs(d0 - 1.0) < tol and k_comp_mask[c]  # delta = 1 -> winding
-                eq0   = abs(d0) < tol
+                delta = float(abs(arr[-1] - arr[0])) # difference between first and last point
 
-                winding_vec[c] = bool(winds_bz)  # delta = 1 -> winding
-                closed_vec[c]  = bool(winds_bz or eq0)  # delta = 1 or 0 -> closed
-                looped_vec[c]  = bool(winds_bz or eq0)  # delta = 1 or 0 -> looped
+                winds_bz = abs(delta - 1.0) < tol and k_comp_mask[c]  # delta = 1 and is k-component
+                eq0 = abs(delta) < tol # delta = 0 
+
+                # TODO: maybe check if next point would be outside BZ for k-axis?
+                winding_vec[c] = bool(winds_bz)  # delta = 1 -> winding k
+                closed_vec[c]  = bool(winds_bz or eq0)  # delta = 1 or 0 -> closed (includes endpoints)
+                looped_vec[c]  = bool(winds_bz or eq0)  # delta = 1 or 0 -> looped 
                 
                 # Update axes
                 ax = self.axes[axis_idx]
@@ -693,14 +675,40 @@ class Mesh:
 
         Calling this function will mark an axis as winding a given k-component of the vector 
         in :math:`(\mathbf{k}, \lambda)`-space. This means that
-        the two ends of the axis are identified, and sampling along ``axis_idx`` winds ``component_idx``
-        around the Brillouin zone.
+        the two ends of the axis are identified, and sampling along ``axis_idx``
+        winds ``component_idx`` around the Brillouin zone.
 
         Notes
         ------
-        This allows ``WFArray`` to decide whether phases apply to k-components at the edge
+        Winding the BZ implies the axis is also looped. This does not necessarily imply
+        the axis contains endpoints (first and last points equal), as the axis may wind
+        around the BZ without having equal endpoints.
+
+        If the mesh is built using :meth:`build_grid`, :meth:`build_custom`,
+        or :meth:`build_custom`, this will be set automatically
+        for k-axes that span the BZ (i.e., go from 0 to 1 in that k-component).
+
+        This allows ``WFArray`` to decide whether phases apply at the edge
         of the mesh (axis is closed) or just beyond the edge of the mesh (axis is not closed). 
         This will apply when ``axis_idx`` is a k-axis and ``component_idx`` is a k-component.
+
+        See Also
+        --------
+        :ref:`mesh-nb`
+
+        Examples
+        --------
+        A situation where this may be useful is when creating a path
+        through k-space that winds around the BZ but does not have equal endpoints.
+        In this case, the user can manually mark the axis as winding the BZ for the
+        relevant k-component.
+        >>> from pythtb import Mesh
+        >>> mesh = Mesh(dim_k=2, axis_types=['k'])
+        >>> points = np.linspace([0,0], [1, 1], 10, endpoint=False)  # path from (0,0) to (1, 1)
+        >>> mesh.build_custom(points)
+        >>> mesh.wind_bz(axis_idx=0, component_idx=0)  # mark as winding k_x
+        >>> mesh.wind_bz(axis_idx=0, component_idx=1)  # mark as winding k_y
+        >>> print(mesh)
         """
         if axis_idx < 0 or axis_idx >= self.num_axes:
             raise IndexError(f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes")
@@ -721,15 +729,11 @@ class Mesh:
         r"""Declare an axis does not wind around the Brillouin zone for a specified k-component.
 
         Calling this function will unmark an axis as winding a given k-component of the vector 
-        in :math:`(\mathbf{k}, \lambda)`-space. This means that
-        the two ends of the axis are not identified, and sampling along ``axis_idx`` does not wind ``component_idx``
-        around the Brillouin zone.
+        in :math:`(\mathbf{k}, \lambda)`-space. 
 
-        Notes
-        ------
-        This allows ``WFArray`` to decide whether phases apply to k-components at the edge
-        of the mesh (axis is closed) or just beyond the edge of the mesh (axis is not closed). 
-        This will apply when ``axis_idx`` is a k-axis and ``component_idx`` is a k-component.
+        See Also
+        --------
+        :meth:`wind_bz`
         """
         if axis_idx < 0 or axis_idx >= self.num_axes:
             raise IndexError(f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes")
@@ -749,16 +753,17 @@ class Mesh:
     def loop_axis(self, axis_idx: int, component_idx: int):
         r"""Declare an axis winds a specified component of the mesh vector.
 
-        Calling this function will mark an axis as winding a given component of the vector 
+        Calling this function will mark an axis as looping a given component of the vector 
         in :math:`(\mathbf{k}, \lambda)`-space. This means that
-        the two ends of the axis are identified, and sampling along ``axis_idx`` winds ``component_idx``
-        around a cycle that brings the Hamiltonian back into itself.
-         
+        the two ends of the axis are identified, and sampling along 
+        ``axis_idx`` loops ``component_idx`` around a cycle that 
+        brings the Hamiltonian back into itself.
+
         Notes
         ------
-        This allows ``WFArray`` to decide whether phases apply to k-components at the edge
-        of the mesh (axis is closed) or just beyond the edge of the mesh (axis is not closed). 
-        This will apply when ``axis_idx`` is a k-axis and ``component_idx`` is a k-component.
+        This will not mark the axis as winding the BZ, use :meth:`wind_bz` instead. 
+        This means the `WFArray` will not apply phases at the edge of the mesh unless
+        the axis is also marked as winding the BZ.
         """
         if axis_idx < 0 or axis_idx >= self.num_axes:
             raise IndexError(f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes")
@@ -991,10 +996,7 @@ class Mesh:
         path = _interpolate_path(nodes, n_interp)
         self._points = path
 
-        if self.axis_types[0] == 'k':
-            self.shape_k = path.shape[:-1]
-        if self.axis_types[0] == 'l':
-            self.shape_lambda = path.shape[:-1]
+        self.axes[0].size = path.shape[0]
 
         self._set_ax_info()
 
@@ -1186,108 +1188,6 @@ class Mesh:
 
         self._set_ax_info()
 
-    # def build_k_loop(
-    #         self,
-    #         center_reduced: Sequence[float],
-    #         radius: float,
-    #         npts: int,
-    #         plane_components: Tuple[int, int] = (0, 1),
-    #         fixed_components: Optional[Dict[int, float]] = None,
-    #         include_endpoint: bool = False
-    #     ):
-    #     """
-    #     Single-axis loop around a point in k-space (e.g., graphene K).
-    #     - center_reduced: center in reduced k coords (len >= max(plane_components)+1).
-    #     - radius: reduced units.
-    #     - plane_components: which k-components to circle (e.g., (0,1) for kx-ky).
-    #     - fixed_components: {component_index: value} to pin others (k or λ).
-    #     - include_endpoint: if True, duplicate first point at end and declare cycle.
-    #     """
-    #     D = self.dim_total
-    #     if npts < 2:
-    #         raise ValueError("npts must be >= 2")
-    #     theta = np.linspace(0.0, 2.0*np.pi, npts, endpoint=include_endpoint)
-    #     pts = np.zeros((len(theta), D), dtype=float)
-
-    #     center = np.zeros(D, dtype=float)
-    #     for i, v in enumerate(center_reduced):
-    #         if i < self.dim_k:
-    #             center[i] = v
-
-    #     if fixed_components:
-    #         for c, val in fixed_components.items():
-    #             if c < 0 or c >= D: 
-    #                 raise IndexError(f"fixed component {c} out of bounds for D={D}")
-    #             pts[:, c] = val
-
-    #     a, b = plane_components
-    #     if a >= self.dim_k or b >= self.dim_k:
-    #         raise ValueError("plane_components must refer to k-components")
-    #     pts[:, a] = center[a] + radius * np.cos(theta)
-    #     pts[:, b] = center[b] + radius * np.sin(theta)
-    #     for k in range(self.dim_k):
-    #         if k not in plane_components and (not fixed_components or k not in fixed_components):
-    #             pts[:, k] = center[k]
-
-    #     # Build as a path (single sampling axis)
-    #     self._points = pts
-    #     self._nodes = None
-
-    #     # Declare cycle (small loops inside BZ usually have no integer k-winding)
-    #     self.set_cycle(0, identify=True if include_endpoint else False, winding=None)
-    #     self._set_ax_info()
-    #     self._strides = None
-    #     return pts
-
-
-    # def build_component_loop(
-    #         self,
-    #         vary_component: int,
-    #         npts: int,
-    #         start: float = 0.0,
-    #         stop: float = 1.0,
-    #         fixed: Optional[Dict[int, float]] = None,
-    #         include_endpoint: bool = False
-    #     ) -> np.ndarray:
-    #     """
-    #     1D loop by varying one component (e.g., ky) at fixed others (e.g., kx=const).
-    #     Useful in a 2D BZ for a loop around one direction.
-    #     If (stop - start) = 1 and the component is k-like, we also set a k-winding.
-    #     """
-    #     D = self.dim_total
-    #     if vary_component < 0 or vary_component >= D:
-    #         raise IndexError(f"vary_component {vary_component} out of bounds for D={D}")
-    #     t = np.linspace(start, stop, npts, endpoint=include_endpoint)
-    #     pts = np.zeros((npts, D), dtype=float)
-    #     if fixed:
-    #         for c, val in fixed.items():
-    #             if c < 0 or c >= D: 
-    #                 raise IndexError(f"fixed component {c} out of bounds for D={D}")
-    #             pts[:, c] = val
-    #     pts[:, vary_component] = t
-
-    #     # Build as path
-    #     self._axis_types = ['k' if vary_component < self.dim_k else 'l']
-    #     if self._axis_types[0] == 'k':
-    #         self._shape_k = (npts,)
-    #         self._shape_lambda = ()
-    #     else:
-    #         self._shape_k = ()
-    #         self._shape_lambda = (npts,)
-    #     self._points = pts
-    #     self._nodes = None
-
-    #     # If closed by 1 in a k-component, set winding e_a
-    #     wind = None
-    #     if vary_component < self.dim_k and abs((stop - start) - 1.0) < 1e-8:
-    #         eye = np.eye(self.dim_k, dtype=int)
-    #         wind = eye[vary_component]
-
-    #     self.set_cycle(0, identify=bool(include_endpoint or wind is not None), winding=wind)
-    #     self._set_ax_info()
-    #     self._strides = None
-    #     return pts
-
 
     def build_custom(self, points):
         r"""Build a custom mesh from the given points.
@@ -1345,7 +1245,7 @@ class Mesh:
 
         Parameters
         ----------
-        axiis_index : int
+        axis_index : int
             The index of the axis to extract the range from.
         component_index : int
             The index of the component to extract the range for.
@@ -1374,7 +1274,14 @@ class Mesh:
             
     def get_k_points(self) -> np.ndarray:
         """
-        Return the k-point mesh from the full grid, with shape (*shape_k, dim_k).
+        Return the k-point mesh from the full grid, with shape ``(nk1, nk2, ..., dim_k)``.
+
+        Notes
+        -----
+        The k-mesh is orthogonal to the lambda mesh, so this function returns the unique
+        k-points in the mesh. For example, if the full mesh has shape 
+        ``(nk1, nk2, nl1, dim_k+dim_lambda)``, this function will return the k-points
+        with shape ``(nk1, nk2, dim_k)``.
         """
         if not self.filled:
             raise ValueError("Mesh points are not initialized.")
@@ -1394,7 +1301,15 @@ class Mesh:
 
     def get_param_points(self) -> np.ndarray:
         """
-        Return the unique parameter-point mesh from the full grid, with shape (*shape_lambda, dim_lambda).
+        Return the unique parameter-point mesh from the full grid, with shape 
+        ``(nl1, nl2, ..., dim_lambda)``.
+
+        Notes
+        -----
+        The lambda-mesh is orthogonal to the k-mesh, so this function returns the unique
+        lambda-points in the mesh. For example, if the full mesh has shape 
+        ``(nk1, nk2, nl1, dim_k+dim_lambda)``, this function will return the lambda-points
+        with shape ``(nl1, dim_lambda)``.
         """
         if not self.filled:
             raise ValueError("Mesh points are not initialized.")
@@ -1414,28 +1329,38 @@ class Mesh:
     @staticmethod
     def gen_hyper_cube(
         *n_points, 
-        start: int | float | list[int | float] = 0.0, 
-        stop: int | float | list[int | float] = 1.0, 
+        start: float | list[float] = 0.0, 
+        stop: float | list[float] = 1.0, 
         endpoint: bool | list[bool] = False,
         flat: bool = True
     ) -> np.ndarray:
         """Generate a hypercube of points in the specified dimensions.
 
+        A hypercube is a generalization of a cube to arbitrary dimensions.
+        Each dimension is orthogonal to the others, and the points are evenly spaced
+        along each dimension. This function generates a grid of points in a hypercube
+        defined by the number of points along each dimension, as well as the start and stop
+        values for each dimension. The points are from ``start`` to ``stop``
+        along each dimension, with the option to include or exclude the endpoint.
+
         Parameters
         ----------
         *n_points: int
             Number of points along each dimension.
-        start: float, optional
-            Start value for the mesh grid. Defaults to 0.0.
-        stop: float, optional
-            Stop value for the mesh grid. Defaults to 1.0.
+        start: float, list[float], optional
+            Start value for the mesh grid. May also be a list of start values for each dimension. Defaults to 0.0.
+        stop: float, list[float], optional
+            Stop value for the mesh grid. May also be a list of stop values for each dimension. Defaults to 1.0.
+        endpoint: bool, list[bool], optional
+            If True, includes 1 (edge of BZ in reduced coordinates) in the mesh. May also be a list of endpoint values 
+            for each dimension. Defaults to False.
         flat: bool, optional
             If True, returns flattened array of k-points (e.g. of shape ``(n1*n2*n3 , 3)``).
             If False, returns reshaped array with axes along each k-space dimension
             (e.g. of shape ``(n1, n2, n3, 3)``). Defaults to True.
-        endpoint: bool, optional
-            If True, includes 1 (edge of BZ in reduced coordinates) in the mesh. Defaults to False.
-            When Wannierizing should omit this point.
+
+        Notes
+        -----
 
         Returns
         -------
