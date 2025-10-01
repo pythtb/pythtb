@@ -1,4 +1,4 @@
-pythtb.models.haldane
+﻿pythtb.models.haldane
 =====================
 
 .. currentmodule:: pythtb.models

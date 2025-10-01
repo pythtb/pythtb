@@ -1,4 +1,4 @@
-pythtb.models.graphene
+﻿pythtb.models.graphene
 ======================
 
 .. currentmodule:: pythtb.models

@@ -1,4 +1,4 @@
-pythtb.models.kane\_mele
+﻿pythtb.models.kane\_mele
 ========================
 
 .. currentmodule:: pythtb.models

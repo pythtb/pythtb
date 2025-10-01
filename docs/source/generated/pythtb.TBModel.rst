@@ -1,111 +1,402 @@
 ﻿pythtb.TBModel
 ==============
 
-.. currentmodule:: pythtb
+.. autoclass:: pythtb.TBModel
+   :members:
+   :undoc-members:
+   :member-order: bysource
 
-.. autoclass:: TBModel
 
-   
-   .. automethod:: __init__
 
-   
-   .. rubric:: Methods
 
-   .. autosummary::
-   
-      ~TBModel.__delattr__
-      ~TBModel.__dir__
-      ~TBModel.__eq__
-      ~TBModel.__format__
-      ~TBModel.__ge__
-      ~TBModel.__getattribute__
-      ~TBModel.__getstate__
-      ~TBModel.__gt__
-      ~TBModel.__hash__
-      ~TBModel.__init__
-      ~TBModel.__init_subclass__
-      ~TBModel.__le__
-      ~TBModel.__lt__
-      ~TBModel.__ne__
-      ~TBModel.__new__
-      ~TBModel.__reduce__
-      ~TBModel.__reduce_ex__
-      ~TBModel.__repr__
-      ~TBModel.__setattr__
-      ~TBModel.__sizeof__
-      ~TBModel.__str__
-      ~TBModel.__subclasshook__
-      ~TBModel._ensure_hop_index
-      ~TBModel._get_periodic_H
-      ~TBModel._hop_keys
-      ~TBModel._shift_hop_to_home
-      ~TBModel._sol_ham
-      ~TBModel._val_to_block
-      ~TBModel.add_orb
-      ~TBModel.berry_curvature
-      ~TBModel.change_nonperiodic_vector
-      ~TBModel.chern
-      ~TBModel.clear_hoppings
-      ~TBModel.clear_onsite
-      ~TBModel.copy
-      ~TBModel.cut_piece
-      ~TBModel.display
-      ~TBModel.get_lat
-      ~TBModel.get_lat_vecs
-      ~TBModel.get_num_orbitals
-      ~TBModel.get_orb
-      ~TBModel.get_orb_vecs
-      ~TBModel.grad_ham
-      ~TBModel.hamiltonian
-      ~TBModel.ignore_position_operator_offdiagonal
-      ~TBModel.k_path
-      ~TBModel.k_uniform_mesh
-      ~TBModel.local_chern_marker
-      ~TBModel.make_finite
-      ~TBModel.make_supercell
-      ~TBModel.plot_bands
-      ~TBModel.position_expectation
-      ~TBModel.position_hwf
-      ~TBModel.position_matrix
-      ~TBModel.reduce_dim
-      ~TBModel.remove_orb
-      ~TBModel.report
-      ~TBModel.set_hop
-      ~TBModel.set_onsite
-      ~TBModel.solve_all
-      ~TBModel.solve_ham
-      ~TBModel.solve_one
-      ~TBModel.visualize
-      ~TBModel.visualize_3d
-   
-   
 
-   
-   
-   .. rubric:: Attributes
 
-   .. autosummary::
-   
-      ~TBModel.__annotations__
-      ~TBModel.__dict__
-      ~TBModel.__doc__
-      ~TBModel.__module__
-      ~TBModel.__weakref__
-      ~TBModel.assume_position_operator_diagonal
-      ~TBModel.cell_volume
-      ~TBModel.dim_k
-      ~TBModel.dim_r
-      ~TBModel.hoppings
-      ~TBModel.lat_vecs
-      ~TBModel.lattice
-      ~TBModel.norb
-      ~TBModel.nspin
-      ~TBModel.nstate
-      ~TBModel.orb_vecs
-      ~TBModel.per
-      ~TBModel.periodic_dirs
-      ~TBModel.recip_lat_vecs
-      ~TBModel.recip_volume
-      ~TBModel.site_energies
-   
-   
+
+
+
+
+
+.. rubric:: Public Methods
+
+.. autosummary::
+   :nosignatures:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ~pythtb.TBModel.add_orb
+
+
+
+
+   ~pythtb.TBModel.berry_curvature
+
+
+
+
+   ~pythtb.TBModel.change_nonperiodic_vector
+
+
+
+
+   ~pythtb.TBModel.chern
+
+
+
+
+   ~pythtb.TBModel.clear_hoppings
+
+
+
+
+   ~pythtb.TBModel.clear_onsite
+
+
+
+
+   ~pythtb.TBModel.compute_bands
+
+
+
+
+   ~pythtb.TBModel.copy
+
+
+
+
+   ~pythtb.TBModel.cut_piece
+
+
+
+
+   ~pythtb.TBModel.display
+
+
+
+
+   ~pythtb.TBModel.get_lat
+
+
+
+
+   ~pythtb.TBModel.get_lat_vecs
+
+
+
+
+   ~pythtb.TBModel.get_num_orbitals
+
+
+
+
+   ~pythtb.TBModel.get_orb
+
+
+
+
+   ~pythtb.TBModel.get_orb_vecs
+
+
+
+
+   ~pythtb.TBModel.grad_ham
+
+
+
+
+   ~pythtb.TBModel.hamiltonian
+
+
+
+
+   ~pythtb.TBModel.ignore_position_operator_offdiagonal
+
+
+
+
+   ~pythtb.TBModel.k_path
+
+
+
+
+   ~pythtb.TBModel.k_uniform_mesh
+
+
+
+
+   ~pythtb.TBModel.local_chern_marker
+
+
+
+
+   ~pythtb.TBModel.make_finite
+
+
+
+
+   ~pythtb.TBModel.make_supercell
+
+
+
+
+   ~pythtb.TBModel.plot_bands
+
+
+
+
+   ~pythtb.TBModel.position_expectation
+
+
+
+
+   ~pythtb.TBModel.position_hwf
+
+
+
+
+   ~pythtb.TBModel.position_matrix
+
+
+
+
+   ~pythtb.TBModel.reduce_dim
+
+
+
+
+   ~pythtb.TBModel.remove_orb
+
+
+
+
+   ~pythtb.TBModel.report
+
+
+
+
+   ~pythtb.TBModel.set_hop
+
+
+
+
+   ~pythtb.TBModel.set_onsite
+
+
+
+
+   ~pythtb.TBModel.solve_all
+
+
+
+
+   ~pythtb.TBModel.solve_ham
+
+
+
+
+   ~pythtb.TBModel.solve_one
+
+
+
+
+   ~pythtb.TBModel.visualize
+
+
+
+
+   ~pythtb.TBModel.visualize_3d
+
+
+
+
+
+
+
+
+.. rubric:: Public Attributes
+
+.. autosummary::
+   :nosignatures:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ~pythtb.TBModel.assume_position_operator_diagonal
+
+
+
+
+   ~pythtb.TBModel.cell_volume
+
+
+
+
+   ~pythtb.TBModel.dim_k
+
+
+
+
+   ~pythtb.TBModel.dim_r
+
+
+
+
+   ~pythtb.TBModel.hoppings
+
+
+
+
+   ~pythtb.TBModel.lat_vecs
+
+
+
+
+   ~pythtb.TBModel.lattice
+
+
+
+
+   ~pythtb.TBModel.norb
+
+
+
+
+   ~pythtb.TBModel.nspin
+
+
+
+
+   ~pythtb.TBModel.nstate
+
+
+
+
+   ~pythtb.TBModel.orb_vecs
+
+
+
+
+   ~pythtb.TBModel.per
+
+
+
+
+   ~pythtb.TBModel.periodic_dirs
+
+
+
+
+   ~pythtb.TBModel.recip_lat_vecs
+
+
+
+
+   ~pythtb.TBModel.recip_volume
+
+
+
+
+   ~pythtb.TBModel.site_energies
+
+
+

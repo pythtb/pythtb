@@ -1,118 +1,419 @@
 ﻿pythtb.WFArray
 ==============
 
-.. currentmodule:: pythtb
+.. autoclass:: pythtb.WFArray
+   :members:
+   :undoc-members:
+   :member-order: bysource
 
-.. autoclass:: WFArray
 
-   
-   .. automethod:: __init__
 
-   
-   .. rubric:: Methods
 
-   .. autosummary::
-   
-      ~WFArray.__delattr__
-      ~WFArray.__dir__
-      ~WFArray.__eq__
-      ~WFArray.__format__
-      ~WFArray.__ge__
-      ~WFArray.__getattribute__
-      ~WFArray.__getitem__
-      ~WFArray.__getstate__
-      ~WFArray.__gt__
-      ~WFArray.__hash__
-      ~WFArray.__init__
-      ~WFArray.__init_subclass__
-      ~WFArray.__le__
-      ~WFArray.__lt__
-      ~WFArray.__ne__
-      ~WFArray.__new__
-      ~WFArray.__reduce__
-      ~WFArray.__reduce_ex__
-      ~WFArray.__repr__
-      ~WFArray.__setattr__
-      ~WFArray.__setitem__
-      ~WFArray.__sizeof__
-      ~WFArray.__str__
-      ~WFArray.__subclasshook__
-      ~WFArray._boundary_phase_for_shift
-      ~WFArray._bounded_shift
-      ~WFArray._check_key
-      ~WFArray._edge_slices
-      ~WFArray._get_pbc_phases
-      ~WFArray._get_phases
-      ~WFArray._impose_pbc
-      ~WFArray._interp_energy
-      ~WFArray._omega_til
-      ~WFArray._set_projectors
-      ~WFArray._set_wfs
-      ~WFArray._unit_shift
-      ~WFArray.berry_curv
-      ~WFArray.berry_flux
-      ~WFArray.berry_loop
-      ~WFArray.berry_phase
-      ~WFArray.chern_num
-      ~WFArray.choose_states
-      ~WFArray.empty_like
-      ~WFArray.get_k_shell
-      ~WFArray.get_links
-      ~WFArray.get_overlap_mat
-      ~WFArray.get_proj_ham
-      ~WFArray.get_projectors
-      ~WFArray.get_shell_weights
-      ~WFArray.get_states
-      ~WFArray.impose_loop
-      ~WFArray.impose_pbc
-      ~WFArray.position_expectation
-      ~WFArray.position_hwf
-      ~WFArray.position_matrix
-      ~WFArray.remove_states
-      ~WFArray.roll_states_with_bc
-      ~WFArray.set_ham
-      ~WFArray.solve_mesh
-      ~WFArray.solve_on_grid
-      ~WFArray.solve_on_one_point
-      ~WFArray.trace_metric
-      ~WFArray.wilson_loop
-   
-   
 
-   
-   
-   .. rubric:: Attributes
 
-   .. autosummary::
-   
-      ~WFArray.Mmn
-      ~WFArray.__annotations__
-      ~WFArray.__dict__
-      ~WFArray.__doc__
-      ~WFArray.__module__
-      ~WFArray.__weakref__
-      ~WFArray.dim_k
-      ~WFArray.dim_lambda
-      ~WFArray.energies
-      ~WFArray.filled
-      ~WFArray.hamiltonian
-      ~WFArray.k_points
-      ~WFArray.lattice
-      ~WFArray.loop_axes
-      ~WFArray.mesh
-      ~WFArray.mesh_shape
-      ~WFArray.model
-      ~WFArray.ndims
-      ~WFArray.nks
-      ~WFArray.nlams
-      ~WFArray.norb
-      ~WFArray.nspin
-      ~WFArray.nstates
-      ~WFArray.param_points
-      ~WFArray.pbc_axes
-      ~WFArray.psi_nk
-      ~WFArray.shape
-      ~WFArray.u_nk
-      ~WFArray.wfs
-   
-   
+
+
+
+
+
+.. rubric:: Public Methods
+
+.. autosummary::
+   :nosignatures:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ~pythtb.WFArray.berry_curv
+
+
+
+
+   ~pythtb.WFArray.berry_flux
+
+
+
+
+   ~pythtb.WFArray.berry_loop
+
+
+
+
+   ~pythtb.WFArray.berry_phase
+
+
+
+
+   ~pythtb.WFArray.chern_num
+
+
+
+
+   ~pythtb.WFArray.choose_states
+
+
+
+
+   ~pythtb.WFArray.empty_like
+
+
+
+
+   ~pythtb.WFArray.get_k_shell
+
+
+
+
+   ~pythtb.WFArray.get_links
+
+
+
+
+   ~pythtb.WFArray.get_overlap_mat
+
+
+
+
+   ~pythtb.WFArray.get_proj_ham
+
+
+
+
+   ~pythtb.WFArray.get_projectors
+
+
+
+
+   ~pythtb.WFArray.get_shell_weights
+
+
+
+
+   ~pythtb.WFArray.get_states
+
+
+
+
+   ~pythtb.WFArray.impose_loop
+
+
+
+
+   ~pythtb.WFArray.impose_pbc
+
+
+
+
+   ~pythtb.WFArray.position_expectation
+
+
+
+
+   ~pythtb.WFArray.position_hwf
+
+
+
+
+   ~pythtb.WFArray.position_matrix
+
+
+
+
+   ~pythtb.WFArray.remove_states
+
+
+
+
+   ~pythtb.WFArray.roll_states_with_bc
+
+
+
+
+   ~pythtb.WFArray.set_ham
+
+
+
+
+   ~pythtb.WFArray.solve_mesh
+
+
+
+
+   ~pythtb.WFArray.solve_on_grid
+
+
+
+
+   ~pythtb.WFArray.solve_on_one_point
+
+
+
+
+   ~pythtb.WFArray.trace_metric
+
+
+
+
+   ~pythtb.WFArray.wilson_loop
+
+
+
+
+
+
+
+
+.. rubric:: Public Attributes
+
+.. autosummary::
+   :nosignatures:
+
+
+
+
+   ~pythtb.WFArray.Mmn
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ~pythtb.WFArray.dim_k
+
+
+
+
+   ~pythtb.WFArray.dim_lambda
+
+
+
+
+   ~pythtb.WFArray.energies
+
+
+
+
+   ~pythtb.WFArray.filled
+
+
+
+
+   ~pythtb.WFArray.hamiltonian
+
+
+
+
+   ~pythtb.WFArray.k_points
+
+
+
+
+   ~pythtb.WFArray.lattice
+
+
+
+
+   ~pythtb.WFArray.loop_axes
+
+
+
+
+   ~pythtb.WFArray.mesh
+
+
+
+
+   ~pythtb.WFArray.mesh_shape
+
+
+
+
+   ~pythtb.WFArray.model
+
+
+
+
+   ~pythtb.WFArray.ndims
+
+
+
+
+   ~pythtb.WFArray.nks
+
+
+
+
+   ~pythtb.WFArray.nlams
+
+
+
+
+   ~pythtb.WFArray.norb
+
+
+
+
+   ~pythtb.WFArray.nspin
+
+
+
+
+   ~pythtb.WFArray.nstates
+
+
+
+
+   ~pythtb.WFArray.param_points
+
+
+
+
+   ~pythtb.WFArray.pbc_axes
+
+
+
+
+   ~pythtb.WFArray.psi_nk
+
+
+
+
+   ~pythtb.WFArray.shape
+
+
+
+
+   ~pythtb.WFArray.u_nk
+
+
+
+
+   ~pythtb.WFArray.wfs
+
+
+
