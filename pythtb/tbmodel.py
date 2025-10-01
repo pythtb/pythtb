@@ -668,7 +668,7 @@ class TBModel:
         return (ind_i, ind_j, Rp), (ind_j, ind_i, conj_Rp)
     ############################################################################
 
-    def set_nn_hops(self, hop_amps: list):
+    def set_nn_hops(self, hop_amps: list, mode="set"):
         r"""Define nearest-neighbor hopping parameters up to a specified shell.
 
         Parameters
@@ -702,7 +702,7 @@ class TBModel:
             amp = hop_amps[shell_idx]
             for bond in shell:
                 i, j, R = bond
-                self.set_hop(amp, i, j, R, mode="add", allow_conjugate_pair=True)
+                self.set_hop(amp, i, j, R, mode=mode, allow_conjugate_pair=True)
 
     def set_hop(
         self,
@@ -2737,19 +2737,18 @@ class TBModel:
     def plot_bands(
         self,
         k_path,
+        ktick_labels=None,
         nk=101,
-        k_label=None,
-        proj_orb_idx=None,
-        proj_spin=False,
         fig=None,
         ax=None,
-        title=None,
+        proj_orb_idx=None,
+        proj_spin=False,
+        bands_label=None,
         scat_size=3,
         lw=2,
         lc="b",
         ls="solid",
         cmap="plasma",
-        show=False,
         cbar=True,
     ):
         """Plot the band structure along a specified path in k-space.
@@ -2777,10 +2776,9 @@ class TBModel:
             Figure object to plot on. Defaults to None.
         ax : matplotlib.axes.Axes, optional
             Axes object to plot on. Defaults to None.
-        title : str, optional
-            Title of the plot. Defaults to None.
         scat_size : float, optional
-            Size of the scatter points. Defaults to 3.
+            Size of the scatter points. Defaults to 3. Only relevant if
+            `proj_spin` is True or `proj_orb_idx` is not None.
         lw : float, optional
             Line width of the band lines. Defaults to 2.
         lc : str, optional
@@ -2792,8 +2790,6 @@ class TBModel:
         cmap : str, optional
             Colormap for the band plot. Defaults to "plasma". Only relevant if
             `proj_spin` is True or `proj_orb_idx` is not None.
-        show : bool, optional
-            Whether to show the plot. Defaults to False.
         cbar : bool, optional
             Whether to show a color bar. Defaults to True.
             Only relevant if `proj_spin` is True or `proj_orb_idx` is not None.
@@ -2806,18 +2802,17 @@ class TBModel:
             self,
             k_path,
             nk=nk,
-            k_label=k_label,
+            ktick_labels=ktick_labels,
+            bands_label=bands_label,
             proj_orb_idx=proj_orb_idx,
             proj_spin=proj_spin,
             fig=fig,
             ax=ax,
-            title=title,
             scat_size=scat_size,
             lw=lw,
             lc=lc,
             ls=ls,
             cmap=cmap,
-            show=show,
             cbar=cbar,
         )
 

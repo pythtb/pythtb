@@ -1142,18 +1142,17 @@ def plot_bands(
     nk=101,
     evals=None,
     evecs=None,
-    k_label=None,
+    ktick_labels=None,
+    bands_label=None,
     proj_orb_idx=None,
     proj_spin=False,
     fig=None,
     ax=None,
-    title=None,
     scat_size=3,
     lw=2,
     lc="b",
     ls="solid",
     cmap="plasma",
-    show=False,
     cbar=True,
 ):
     """
@@ -1172,6 +1171,8 @@ def plot_bands(
         Eigenvectors to use for projections. If None, they will be computed.
     k_label : list[str], optional
         Labels of high symmetry points. Defaults to None.
+    band_label : str, optional
+        Label for the band structure. Defaults to None.
     proj_orb_idx : list[int], optional
         List of orbital indices to project onto. Defaults to None.
     proj_spin : bool, optional
@@ -1217,6 +1218,7 @@ def plot_bands(
             col = np.sum([wt[..., i, :] for i in proj_orb_idx], axis=(0, -1))
 
         for n in range(n_eigs):
+            label = bands_label if n == 0 else None
             scat = ax.scatter(
                 k_dist,
                 evals[:, n],
@@ -1227,6 +1229,7 @@ def plot_bands(
                 vmin=0,
                 vmax=1,
                 zorder=2,
+                label=label,
             )
 
         if cbar:
@@ -1245,6 +1248,7 @@ def plot_bands(
         if evals is None or evecs is None:
             # diagonalize model on path
             evals, evecs = model.solve_ham(k_vec, return_eigvecs=True)
+
         n_eigs = evals.shape[-1]
 
         if model._nspin <= 1:
@@ -1254,6 +1258,7 @@ def plot_bands(
         col = np.sum(wt[..., 1], axis=2)
 
         for n in range(n_eigs):
+            label = bands_label if n == 0 else None
             scat = ax.scatter(
                 k_dist,
                 evals[:, n],
@@ -1264,6 +1269,7 @@ def plot_bands(
                 vmin=0,
                 vmax=1,
                 zorder=2,
+                label=label,
             )
 
         cbar = fig.colorbar(scat, ticks=[1, 0])
@@ -1278,24 +1284,28 @@ def plot_bands(
     else:
         if evals is None:
             evals = model.solve_ham(k_vec, return_eigvecs=False)
+
         n_eigs = evals.shape[-1]
 
+        for i, band in enumerate(evals.T):  # assuming evals shape is (nkpts, nbands)
+            label = bands_label if i == 0 else None
+            ax.plot(k_dist, band, c=lc, lw=lw, ls=ls, label=label)
+
         # continuous bands
-        ax.plot(k_dist, evals, c=lc, lw=lw, ls=ls)
+        # ax.plot(k_dist, evals, c=lc, lw=lw, ls=ls, label=bands_label)
+
+    if bands_label is not None:
+        ax.legend(loc="upper right", fontsize=12)
 
     ax.set_xlim(k_nodes[0], k_nodes[-1])
     ax.set_xticks(k_nodes)
     for n in range(len(k_nodes)):
         ax.axvline(x=k_nodes[n], linewidth=0.5, color="k", zorder=1)
-    if k_label is not None:
-        ax.set_xticklabels(k_label, size=12)
+    if ktick_labels is not None:
+        ax.set_xticklabels(ktick_labels, size=12)
 
-    ax.set_title(title)
     ax.set_ylabel(r"Energy $E(\mathbf{{k}})$", size=12)
     ax.yaxis.labelpad = 10
-
-    if show:
-        plt.show()
 
     return fig, ax
 
