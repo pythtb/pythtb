@@ -5,7 +5,7 @@
 # Copyright under GNU General Public License 2010, 2012, 2016
 # by Sinisa Coh and David Vanderbilt (see gpl-pythtb.txt)
 
-from pythtb.tb_model import *  # import TB model class
+from pythtb.tbmodel import *  # import TB model class
 import numpy as np
 import matplotlib.pyplot as plt
 
