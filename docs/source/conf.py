@@ -27,6 +27,7 @@ autosummary_generate = True
 autodoc_default_options = {
     'members': True,
     'undoc-members': False,
+    'private-members': False,
     'no-show-inheritance': True,
 }
 autodoc_typehints = "description"

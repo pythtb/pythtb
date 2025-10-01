@@ -1,6 +1,6 @@
 import numpy as np
 from .utils import _cart_to_red, _red_to_cart
-from .tb_model import TBModel
+from .tbmodel import TBModel
 from .lattice import Lattice
 
 __all__ = ["W90"]

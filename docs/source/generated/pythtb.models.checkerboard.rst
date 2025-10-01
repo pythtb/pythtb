@@ -1,4 +1,4 @@
-pythtb.models.checkerboard
+﻿pythtb.models.checkerboard
 ==========================
 
 .. currentmodule:: pythtb.models

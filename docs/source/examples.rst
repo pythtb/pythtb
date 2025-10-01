@@ -17,23 +17,26 @@ Electronic Structure Theory <https:/www.cambridge.org/9781107157651>`_
 
 .. toctree::
    :maxdepth: 1
-   :caption: v2.0.0 Tutorial
-   :glob:
+   :caption: New to v2.0.0
 
    examples_ipynb/v2_tutorial
+   examples_ipynb/lattice
+   examples_ipynb/mesh
+
 
 .. toctree::
    :maxdepth: 1
-   :caption: Basics
-   
-   examples_ipynb/buckled_layer
-   examples_ipynb/trestle
-   examples_ipynb/checkerboard
+   :caption: Building the ``TBModel``
+
+   examples_ipynb/0dim
    examples_ipynb/graphene
    examples_ipynb/haldane
+   examples_ipynb/checkerboard
+   examples_ipynb/buckled_layer
+   examples_ipynb/trestle
    examples_ipynb/haldane_fin
    examples_ipynb/supercell
-   examples_ipynb/0dim
+   examples_ipynb/finite_ssh
 
 .. toctree::
    :maxdepth: 1
@@ -61,11 +64,6 @@ Electronic Structure Theory <https:/www.cambridge.org/9781107157651>`_
    examples_ipynb/haldane_wannier
    examples_ipynb/reduced_wannier
 
-.. toctree::
-   :maxdepth: 1
-   :caption: SSH model topology
-
-   examples_ipynb/finite_ssh
 
 .. toctree::
    :maxdepth: 1

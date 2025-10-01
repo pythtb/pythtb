@@ -56,11 +56,11 @@ model_orig.visualize()
 # 
 # Construct and display new model with nonperiodic lattice vector changed to be normal to the periodic direction
 
-# In[6]:
+# In[5]:
 
 
 model_perp = model_orig.copy()
-model_perp.change_nonperiodic_vector(1, to_home=True, to_home_warning=False)
+model_perp.change_nonperiodic_vector(1, to_home=False)
 print(model_perp)
 model_perp.visualize()
 
@@ -74,7 +74,7 @@ model_perp.visualize()
 # 
 # To compute the Berry phase, we use `WFArray.berry_phase`, passing the band indices and the mesh axis corresponding to direction we compute the Berry phase.
 
-# In[7]:
+# In[6]:
 
 
 fig, ax = plt.subplots(1, 2, figsize=(6.5, 2.8))

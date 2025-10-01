@@ -6,7 +6,7 @@
 # 
 # In this example, we explore the construction of a supercell for a graphene model using the `make_supercell` method.
 
-# In[2]:
+# In[1]:
 
 
 from pythtb import TBModel, Lattice
@@ -14,7 +14,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-# In[3]:
+# In[2]:
 
 
 # define lattice vectors
@@ -40,7 +40,7 @@ my_model.set_hop(t, 1, 0, [1, 0])
 my_model.set_hop(t, 1, 0, [0, 1])
 
 
-# In[5]:
+# In[3]:
 
 
 # make the supercell of the model
@@ -56,7 +56,7 @@ ax.set_xlabel("x coordinate")
 ax.set_ylabel("y coordinate")
 
 
-# In[6]:
+# In[4]:
 
 
 # compute the band structure in the entire band
@@ -66,7 +66,7 @@ evals = slab_model.solve_ham(k_vec)
 
 # ## Band structure
 
-# In[7]:
+# In[5]:
 
 
 fig, ax = plt.subplots()

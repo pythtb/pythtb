@@ -2,7 +2,7 @@
 # coding: utf-8
 
 # (0d-nb)=
-# # Tight-binding model of NH3 molecule
+# # Tight-binding model of $\text{NH}_3$ molecule
 
 # In[1]:
 
@@ -70,10 +70,14 @@ evals = my_model.solve_ham()
 
 
 fig, ax = plt.subplots()
+
 ax.plot(evals, "bo")
+
+ax.set_xticks(range(len(orb_vecs)))
+ax.set_xticklabels([r"$E_1$", r"$E_2$", r"$E_3$", r"$E_4$"])
 ax.set_xlim(-0.3, 3.3)
 ax.set_ylim(evals.min() - 0.5, evals.max() + 0.5)
+
 ax.set_title("Molecule levels")
-ax.set_xlabel("Orbital")
 ax.set_ylabel("Energy")
 

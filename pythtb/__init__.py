@@ -5,58 +5,92 @@ __license__ = "GPL-3.0"
 # Set up logging
 import logging
 
-logger = logging.getLogger("pythtb")  # Main PythTB logger
-logger.addHandler(logging.NullHandler())  # Avoids spurious warnings
-logger.setLevel(logging.WARNING)  # Default level for library use
+_LOGGER_NAME = __name__.split('.')[0]
+logger = logging.getLogger(_LOGGER_NAME)
+logger.addHandler(logging.NullHandler())
+_DEFAULT_LOG_FORMAT = "%(levelname)s %(name)s: %(message)s"
+_DEFAULT_HANDLER: logging.Handler | None = None
 
 
-def get_logger():
-    """Return the shared PythTB logger."""
-    return logger
+def _coerce_level(level: int | str) -> int:
+    """Normalize a logging level provided as an int or name."""
+    if isinstance(level, int):
+        return level
+    if isinstance(level, str):
+        try:
+            return logging._nameToLevel[level.upper()]
+        except KeyError as exc:  # pragma: no cover - defensive shim
+            raise ValueError(f"Unknown logging level: {level}") from exc
+    raise TypeError("Logging level must be an int or one of the named levels.")
 
 
-def enable_logging(level=logging.INFO):
-    """Enable console logging at specified level (default: INFO)."""
-    if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
-        ch = logging.StreamHandler()
-        ch.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
-        logger.addHandler(ch)
-    logger.setLevel(level)
+def configure_logging(
+    level: int | str = "INFO",
+    *,
+    handler: logging.Handler | None = None,
+    fmt: str | None = _DEFAULT_LOG_FORMAT,
+    propagate: bool = False,
+) -> logging.Handler:
+    """Configure logging for the pythtb package in a single call."""
+    global _DEFAULT_HANDLER
+
+    pkg_logger = logging.getLogger(_LOGGER_NAME)
+    numeric_level = _coerce_level(level)
+
+    # Drop NullHandlers; we manage our own default.
+    pkg_logger.handlers = [
+        h for h in pkg_logger.handlers if not isinstance(h, logging.NullHandler)
+    ]
+
+    # Reuse the existing handler (default or user-supplied) instead of stacking new ones.
+    if handler is None:
+        if _DEFAULT_HANDLER is None:
+            _DEFAULT_HANDLER = logging.StreamHandler()
+        handler = _DEFAULT_HANDLER
+
+    for existing in list(pkg_logger.handlers):
+        if existing is not handler:
+            pkg_logger.removeHandler(existing)
+
+    if handler not in pkg_logger.handlers:
+        pkg_logger.addHandler(handler)
+
+    if fmt:
+        handler.setFormatter(logging.Formatter(fmt))
+
+    pkg_logger.setLevel(numeric_level)
+    pkg_logger.propagate = propagate
+
+    return handler
 
 
-def disable_logging():
-    """Disable all logging output from PythTB."""
-    logger.setLevel(logging.CRITICAL + 1)  # Effectively disables all logging
+def set_log_level(level: int | str):
+    """Set logging level for all pythtb loggers.
 
+    Installs a default stream handler the first time it is called so messages
+    become visible immediately.
+    """
+    configure_logging(level=level)
+    
 
-def set_logging_level(level):
-    """Set logging level, e.g., logging.DEBUG, logging.INFO."""
-    logger.setLevel(level)
-
-
-# Import all public API from the core module
-from .tb_model import *
-from .wf_array import *
+# Import public symbols
+from . import tbmodel, wfarray, w90, mesh, wannier, utils, lattice
+from .tbmodel import *   # relies on tbmodel.__all__
+from .wfarray import *
 from .w90 import *
-from .wannier import *
 from .mesh import *
+from .wannier import *
 from .utils import *
-from .lattice import *    
+from .lattice import *
 
-from . import mesh, tb_model, wf_array, w90, wannier, utils, lattice
-
+# Aggregate exports defensively
 __all__ = []
-__all__ += tb_model.__all__
-__all__ += wf_array.__all__
-__all__ += w90.__all__
-__all__ += mesh.__all__
-__all__ += wannier.__all__
-__all__ += utils.__all__
-__all__ += lattice.__all__
+for m in (tbmodel, wfarray, w90, mesh, wannier, utils, lattice):
+    __all__ += getattr(m, "__all__", [])
 
 # Use the core module's __all__ to define the package exports from * imports.
 # This ensures 'from pythtb import *' pulls in only the intended public API.
 # If you want to control what gets imported with "from pythtb import *",
-# you can define __all__ in the respective modules (tb_model, wf_array, w90).
+# you can define __all__ in the respective modules (tbmodel, wfarray, w90).
 # This is a common practice in Python packages to avoid polluting the namespace
 # with internal details and to provide a clear public API.
