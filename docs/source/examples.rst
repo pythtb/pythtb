@@ -22,6 +22,7 @@ Electronic Structure Theory <https:/www.cambridge.org/9781107157651>`_
    examples_ipynb/v2_tutorial
    examples_ipynb/lattice
    examples_ipynb/mesh
+   examples_ipynb/nn_shells
 
 
 .. toctree::
