@@ -2,9 +2,9 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   width="210mm"
-   height="297mm"
-   viewBox="0 0 210 297"
+   width="50.735767mm"
+   height="45.343029mm"
+   viewBox="0 0 50.735767 45.343029"
    version="1.1"
    id="svg1"
    inkscape:version="1.4.2 (ebf0e940, 2025-05-08)"
@@ -24,20 +24,21 @@
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
      showgrid="true"
-     inkscape:zoom="3.5937564"
-     inkscape:cx="325.14725"
-     inkscape:cy="389.008"
+     inkscape:zoom="3.730344"
+     inkscape:cx="110.31154"
+     inkscape:cy="74.523958"
      inkscape:window-width="1512"
      inkscape:window-height="945"
      inkscape:window-x="0"
      inkscape:window-y="37"
      inkscape:window-maximized="0"
-     inkscape:current-layer="layer1">
+     inkscape:current-layer="layer1"
+     showguides="true">
     <inkscape:grid
        id="grid1"
        units="mm"
-       originx="0"
-       originy="0"
+       originx="-64.712868"
+       originy="-84.522926"
        spacingx="0.99999998"
        spacingy="1"
        empcolor="#0099e5"
@@ -47,6 +48,11 @@
        empspacing="5"
        enabled="true"
        visible="true" />
+    <sodipodi:guide
+       position="-2.7958776,47.923498"
+       orientation="0,-1"
+       id="guide55"
+       inkscape:locked="false" />
   </sodipodi:namedview>
   <defs
      id="defs1">
@@ -68,14 +74,14 @@
        sort_points="true" />
     <rect
        x="243.373"
-       y="456.15443"
+       y="456.15442"
        width="104.01137"
-       height="43.508023"
+       height="43.508022"
        id="rect42" />
     <rect
-       x="262.40776"
-       y="454.79481"
-       width="167.91378"
+       x="262.40775"
+       y="454.7948"
+       width="167.91377"
        height="40.108959"
        id="rect41" />
     <linearGradient
@@ -90,7 +96,8 @@
   <g
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
-     id="layer1">
+     id="layer1"
+     transform="translate(-64.712868,-84.522926)">
     <rect
        style="display:inline;opacity:1;fill:#0d1117;fill-opacity:1;stroke:none;stroke-width:0.4;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
        id="rect44"
