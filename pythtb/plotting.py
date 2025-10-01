@@ -1,15 +1,45 @@
 from itertools import product
-from pyexpat import model
-import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch
 from matplotlib import cm
 import matplotlib.colors as mcolors
 from matplotlib.colors import LogNorm 
 from .utils import pauli_decompose
 
+def _require_mpl():
+    try:
+        import matplotlib.pyplot as plt
+        return plt
+    except Exception as e:
+        raise ImportError(
+            "Plotting requires matplotlib. Install with `pip install matplotlib`."
+        ) from e
+    
+def _require_plotly():
+    try:
+        import plotly.graph_objects as go
+        return go
+    except Exception as e:
+        raise ImportError(
+            "Plotting requires plotly. Install with `pip install plotly`."
+        ) from e
 
-def _fmt_num(x, precision=3):
+def _fmt_num(x, precision=3) -> str:
+    """Format a complex number for display.
+
+    Parameters
+    ----------
+    x : complex
+        The complex number to format.
+    precision : int
+        Number of significant digits.
+
+    Returns
+    -------
+    str
+        Formatted string.
+    """
     # If the imaginary part is negligible, print as a real number.
     if abs(x.imag) < 1e-10:
         if x.real == 1:
@@ -29,80 +59,46 @@ def _fmt_num(x, precision=3):
         return f"({x:.{precision}g})"
 
 
-def _pauli_decompose_str(M, precision=3):
+def _pauli_decompose_str(M, precision=3, use_unicode=False) -> str:
+    """
+    Decompose a 2x2 matrix M in terms of the Pauli matrices and return
+    a string representation.
 
+    That is, find coefficients a0, a1, a2, a3 such that:
+
+        M = a0 * I + a1 * sigma_x + a2 * sigma_y + a3 * sigma_z
+
+    Parameters
+    ----------
+    M : array-like shape (2, 2)
+        A 2x2 complex matrix to decompose.
+    precision : int
+        Number of significant digits for the coefficients.
+    use_unicode : bool
+        Whether to use Unicode symbols for the Pauli matrices.
+
+    Returns
+    -------
+    str
+        A string representing the decomposition.
+    """
     a0, a1, a2, a3 = pauli_decompose(M)
 
     # Build a list of terms, including only those with non-negligible coefficients.
     terms = []
+    latex = [r"\sigma_0", r"\sigma_x", r"\sigma_y", r"\sigma_z"]
+    unicode = [r"𝟙", r"σ_x", r"σ_y", r"σ_z"]
+    latex_or_unicode = unicode if use_unicode else latex
     if abs(a0) > 1e-10:
-        terms.append(fr"{_fmt_num(a0, precision=precision)} \sigma_0")
+        terms.append(fr"{_fmt_num(a0, precision=precision)} {latex_or_unicode[0]}")
     if abs(a1) > 1e-10:
-        terms.append(fr"{_fmt_num(a1, precision=precision)} \sigma_x")
+        terms.append(fr"{_fmt_num(a1, precision=precision)} {latex_or_unicode[1]}")
     if abs(a2) > 1e-10:
-        terms.append(fr"{_fmt_num(a2, precision=precision)} \sigma_y")
+        terms.append(fr"{_fmt_num(a2, precision=precision)} {latex_or_unicode[2]}")
     if abs(a3) > 1e-10:
-        terms.append(fr"{_fmt_num(a3, precision=precision)} \sigma_z")
+        terms.append(fr"{_fmt_num(a3, precision=precision)} {latex_or_unicode[3]}")
 
     # If all coefficients are zero, return "0".
-    if not terms:
-        return "0"
-
-    return " + ".join(terms).replace("+ -", "- ")
-
-
-def _pauli_decompose_unicode(M, precision=3):
-    """
-    Decompose a 2x2 matrix M in terms of the Pauli matrices and return
-    a Unicode string representation.
-
-    That is, find coefficients a0, a1, a2, a3 such that:
-
-        M = a0 * I + a1 * σₓ + a2 * σᵧ + a3 * σᶻ
-
-    Parameters:
-        M (array-like): A 2x2 matrix.
-        precision (int): Number of significant digits for the coefficients.
-
-    Returns:
-        str: A Unicode string representing the decomposition.
-    """
-    # Use your existing function to get the coefficients
-    a0, a1, a2, a3 = pauli_decompose(M)
-
-    def fmt(x):
-        # If the imaginary part is negligible, print as a real number.
-        if abs(x.imag) < 1e-10:
-            if x.real == 1:
-                return ""
-            elif x.real == -1:
-                return "-"
-            else:
-                return f"{x.real:.{precision}g}"
-        elif abs(x.real) < 1e-10:
-            if x.imag == 1:
-                return "i"
-            elif x.imag == -1:
-                return "-i"
-            else:
-                return f"{x.imag:.{precision}g}i"
-        else:
-            return f"({x:.{precision}g})"
-
-    # Build a list of terms, using Unicode symbols.
-    terms = []
-    if abs(a0) > 1e-10:
-        terms.append(f"{fmt(a0)} 𝟙")
-    if abs(a1) > 1e-10:
-        # Using Unicode subscript x (ₓ, U+2093)
-        terms.append(f"{fmt(a1)} σ_x")
-    if abs(a2) > 1e-10:
-        # For y, using a common Unicode modifier letter for small y: ᵧ (U+1D67)
-        terms.append(f"{fmt(a2)} σ_y")
-    if abs(a3) > 1e-10:
-        # For z, using a Unicode modifier letter small z: ᶻ (U+1D5B)
-        terms.append(f"{fmt(a3)} σ_z")
-
     if not terms:
         return "0"
 
@@ -820,7 +816,8 @@ def plot_tb_model_3d(
     fig : go.Figure
         A Plotly Figure object.
     """
-    import plotly.graph_objects as go
+    # Import Plotly here to avoid hard dependency if function is not used.
+    go = _require_plotly()
 
     if model.dim_r != 3:
         raise ValueError("Model must be 3D to use this function.")
@@ -902,7 +899,7 @@ def plot_tb_model_3d(
         orb_text.append(f"Orbital {i}")
 
         if model._nspin == 2:
-            onsite_str = _pauli_decompose_unicode(model._site_energies[i])
+            onsite_str = _pauli_decompose_str(model._site_energies[i], use_unicode=True)
             onsite_label = rf"{onsite_str}"
         else:
             onsite_label = rf"{model._site_energies[i]:.2f}"
@@ -1012,7 +1009,7 @@ def plot_tb_model_3d(
                     continue
 
                 if model._nspin == 2:
-                    amp_str = _pauli_decompose_unicode(amp)
+                    amp_str = _pauli_decompose_str(amp, use_unicode=True)
                 else:
                     amp_str = f"{amp:.2f}"
 
@@ -1309,51 +1306,35 @@ def plot_density(
         mark_home_cell=False,
         mark_center=False, 
         show_lattice=False, 
-        show=False, 
-        scatter_size=40, 
+        dens_size=40, 
         lat_size=2, 
         fig=None, ax=None, 
+        show=False, 
         cbar=True
         ):
 
     center = wan.centers[wan_idx]
-
-    if not hasattr(wan, "positions"):
-        wan._get_supercell(wan_idx)
-
-    positions = wan.positions
+    positions = wan._get_sc_weights(wan_idx)
 
     # Extract arrays for plotting or further processing
     xs = positions['all']['xs']
     ys = positions['all']['ys']
     w0i_wt = positions['all']['wt']
 
-    xs_ev_home = positions['home even']['xs']
-    ys_ev_home = positions['home even']['ys']
-    xs_odd_home = positions['home odd']['xs']
-    ys_odd_home = positions['home odd']['ys']
-
-    xs_ev = positions['even']['xs']
-    ys_ev = positions['even']['ys']
-    w0ev_wt = positions['even']['wt']
-
-    xs_odd = positions['odd']['xs']
-    ys_odd = positions['odd']['ys']
-    w0odd_wt = positions['odd']['wt']
+    xs_home = positions['home']['xs']
+    ys_home = positions['home']['ys']
         
     if fig is None:
         fig, ax = plt.subplots()
 
     # Weight plot
-    dens_plot = ax.scatter(xs, ys, c=w0i_wt, s=scatter_size, cmap='plasma', norm=LogNorm(vmin=2e-16, vmax=1), marker='h', zorder=0)
+    dens_plot = ax.scatter(xs, ys, c=w0i_wt, s=dens_size, cmap='plasma', norm=LogNorm(vmin=2e-16, vmax=1), marker='h', zorder=0)
 
     if show_lattice:
-        ax.scatter(xs_ev, ys_ev, marker='o', c='k', s=lat_size, zorder=2)
-        ax.scatter(xs_odd, ys_odd, marker='o', s=lat_size, zorder=2, facecolors='none', edgecolors='k')
+        ax.scatter(xs, ys, marker='o', c='k', s=lat_size, zorder=2)
 
     if mark_home_cell:
-        ax.scatter(xs_ev_home, ys_ev_home, marker='o', s=lat_size, zorder=2, facecolors='none', edgecolors='b')
-        ax.scatter(xs_odd_home, ys_odd_home, marker='o', s=lat_size, zorder=2, facecolors='none', edgecolors='r')
+        ax.scatter(xs_home, ys_home, marker='o', s=lat_size, zorder=2, facecolors='none', edgecolors='b')
 
     if mark_center:
         ax.scatter(center[0], center[1],
@@ -1363,7 +1344,6 @@ def plot_density(
 
     if cbar:
         cbar = plt.colorbar(dens_plot, ax=ax)
-        # cbar.set_label(rf"$|\langle \phi_{{\vec{{R}}, j}}| w_{{0, {Wan_idx}}}\rangle|^2$", rotation=270)
         cbar.set_label(rf"$|w_{wan_idx}(\mathbf{{r}} )|^2$", rotation=270)
         cbar.ax.get_yaxis().labelpad = 20
 
@@ -1387,18 +1367,11 @@ def plot_decay(
     if fig is None:
         fig, ax = plt.subplots()
 
-    if not hasattr(wan, "positions"):
-        wan._get_supercell(wan_idx)
-
     # Extract arrays for plotting or further processing
-    positions = wan.positions
-    r = positions['all']['r']
-    r_ev = positions['even']['r']
-    r_odd = positions['odd']['r']
+    positions = wan._get_sc_weights(wan_idx)
 
+    r = positions['all']['r']
     w0i_wt = positions['all']['wt']
-    w0ev_wt = positions['even']['wt']
-    w0odd_wt = positions['odd']['wt']
 
     # binning data
     max_r = np.amax(r)
@@ -1435,9 +1408,6 @@ def plot_decay(
 
     ax.scatter(r[r<cutoff], w0i_wt[r<cutoff], zorder=1, s=10, c='b')
 
-    # ax.scatter(r_ev[r_ev<cutoff], w0ev_wt[r_ev<cutoff], zorder=1, s=10, c='b')
-    # ax.scatter(r_odd[r_odd<cutoff], w0odd_wt[r_odd<cutoff], zorder=1, s=10, c='b')
-
     # bar of avgs
     ax.bar(r_ledge[r_ledge<cutoff], avg_w0i_wt_bins[r_ledge<cutoff], width=1, align='edge', ec='k', zorder=0, ls='-', alpha=0.3)
 
@@ -1468,135 +1438,44 @@ def plot_decay(
     return fig, ax
 
 def plot_centers(
-        wan, omit_sites=None, center_scale=200,
-        section_home_cell=True, color_home_cell=True, translate_centers=False,
-        show=False, legend=False, pmx=4, pmy=4,
-        kwargs_centers={'s': 80, 'marker': '*', 'c': 'g'},
-        kwargs_omit={'s': 50, 'marker': 'x', 'c':'k'},
-        kwargs_lat_ev={'s':10, 'marker': 'o', 'c':'k'}, 
-        kwargs_lat_odd={'s':10, 'marker': 'o', 'facecolors':'none', 'edgecolors':'k'},
+        wan, 
+        center_scale = 15,
+        section_home_cell = True, 
+        color_home_cell = True, 
+        translate_centers = False,
+        show = False, 
+        legend = True, 
+        pmx = 4, 
+        pmy = 4,
+        center_color = 'r',
+        center_marker = '*',
+        lat_home_color = 'b',
+        lat_color = 'k',
         fig=None, ax=None
         ):
-    lat_vecs = wan.model.lat_vecs
-    orbs = wan.model.get_orb_vecs(cartesian=False)
+    """Plot Wannier center positions in real space.
+    
+    """
+
     centers = wan.centers
-
-    # Initialize arrays to store positions and weights
-    positions = {
-        'all': {'xs': [], 'ys': []},
-        'centers': {'xs': [[] for i in range(centers.shape[0])], 'ys':[[] for i in range(centers.shape[0])]},
-        'home even': {'xs': [], 'ys': []},
-        'home odd': {'xs': [], 'ys': []},
-        'omit': {'xs': [], 'ys': []},
-        'even': {'xs': [], 'ys': []},
-        'odd': {'xs': [], 'ys': []},
-    }
-    for tx, ty in wan.supercell:
-        if translate_centers:
-            for j in range(centers.shape[0]):
-                center = centers[j] + tx * lat_vecs[0] + ty * lat_vecs[1]
-                positions['centers']['xs'][j].append(center[0])
-                positions['centers']['ys'][j].append(center[1])
-        for i, orb in enumerate(orbs):
-            # Extract relevant parameters
-            pos = orb[0] * lat_vecs[0] + tx * lat_vecs[0] + orb[1] * lat_vecs[1] + ty * lat_vecs[1]
-            x, y = pos[0], pos[1]
-
-            # Store values in 'all'
-            positions['all']['xs'].append(x)
-            positions['all']['ys'].append(y)
-
-            # Handle omit site if applicable
-            if omit_sites is not None and i in omit_sites:
-                positions['omit']['xs'].append(x)
-                positions['omit']['ys'].append(y)
-            # Separate even and odd index sites
-            if i % 2 == 0:
-                positions['even']['xs'].append(x)
-                positions['even']['ys'].append(y)
-                if tx == ty == 0:
-                    positions['home even']['xs'].append(x)
-                    positions['home even']['ys'].append(y)
-            else:
-                positions['odd']['xs'].append(x)
-                positions['odd']['ys'].append(y)
-                if tx == ty == 0:
-                    positions['home odd']['xs'].append(x)
-                    positions['home odd']['ys'].append(y)
-
-
-    # Convert lists to numpy arrays (batch processing for cleanliness)
-    for key, data in positions.items():
-        for sub_key in data:
-            positions[key][sub_key] = np.array(data[sub_key])
+    positions_wt = wan._get_sc_weights(0)
+    positions_centers = wan._get_sc_centers()
 
     # All positions
-    xs = positions['all']['xs']
-    ys = positions['all']['ys']
+    xs_orb = positions_wt['all']['xs']
+    ys_orb = positions_wt['all']['ys']
 
-    # home cell site positions
-    xs_ev_home = positions['home even']['xs']
-    ys_ev_home = positions['home even']['ys']
-    xs_odd_home = positions['home odd']['xs']
-    ys_odd_home = positions['home odd']['ys']
-
-    # omitted site positions
-    xs_omit = positions['omit']['xs']
-    ys_omit = positions['omit']['ys']
-
-    # sublattice positions
-    xs_ev = positions['even']['xs']
-    ys_ev = positions['even']['ys']
-    xs_odd = positions['odd']['xs']
-    ys_odd = positions['odd']['ys']
-
+    # Home cell site positions
+    xs_orb_home = positions_wt['home']['xs']
+    ys_orb_home = positions_wt['home']['ys']
         
     if fig is None:
         fig, ax = plt.subplots()
 
-    # Weight plot
-
-    if omit_sites is not None :
-        ax.scatter(xs_omit, ys_omit, **kwargs_omit)
-
-    if color_home_cell:
-        # Zip the home cell coordinates into tuples
-        home_ev_coords = set(zip(xs_ev_home, ys_ev_home))
-
-        # Filter even sites: Keep (x, y) pairs that are not in home_coordinates
-        out_even = [(x, y) for x, y in zip(xs_ev, ys_ev) if (x, y) not in home_ev_coords]
-        if out_even:
-            xs_ev_out, ys_ev_out = zip(*out_even)
-        else:
-            xs_ev_out, ys_ev_out = [], []  # In case no points are left
-
-        # Zip the home cell coordinates into tuples
-        home_odd_coords = set(zip(xs_odd_home, ys_odd_home))
-
-        # Filter even sites: Keep (x, y) pairs that are not in home_coordinates
-        out_odd = [(x, y) for x, y in zip(xs_odd, ys_odd) if (x, y) not in home_odd_coords]
-        if out_even:
-            xs_odd_out, ys_odd_out = zip(*out_odd)
-        else:
-            xs_odd_out, ys_odd_out = [], []  # In case no points are left
-
-        ax.scatter(xs_ev_home, ys_ev_home, zorder=2, **kwargs_lat_ev)
-        ax.scatter(xs_odd_home, ys_odd_home, zorder=2, **kwargs_lat_odd)
-        
-        if 'c' in kwargs_lat_ev.keys():
-            kwargs_lat_ev.pop('c')
-        if 'c' in kwargs_lat_odd.keys():
-            kwargs_lat_odd.pop('c')
-
-        ax.scatter(xs_ev_out, ys_ev_out, zorder=2, **kwargs_lat_ev)
-        ax.scatter(xs_odd_out, ys_odd_out, zorder=2, **kwargs_lat_odd)
-    
-    else:
-        ax.scatter(xs_ev, ys_ev, zorder=2, **kwargs_lat_ev)
-        ax.scatter(xs_odd, ys_odd, zorder=2, **kwargs_lat_odd)
-
-    # draw lines sectioning out home supercell
+    # Draw lines sectioning out home supercell
     if section_home_cell:
+        lat_vecs = wan.model.lat_vecs
+
         c1 = np.array([0,0])
         c2 = c1 + lat_vecs[0]
         c3 = c1 + lat_vecs[1]
@@ -1607,22 +1486,49 @@ def plot_centers(
         ax.plot([c3[0], c4[0]], [c3[1], c4[1]], c='k', ls='--', lw=1)
         ax.plot([c2[0], c4[0]], [c2[1], c4[1]], c='k', ls='--', lw=1)
 
+    if color_home_cell:
+        # Zip the home cell coordinates into tuples
+        home_coords = set(zip(xs_orb_home, ys_orb_home))
+
+        # Keep (x, y) pairs that are not in home_coordinates
+        out = [(x, y) for x, y in zip(xs_orb, ys_orb) if (x, y) not in home_coords]
+        if out:
+            xs_out, ys_out = zip(*out)
+        else:
+            xs_out, ys_out = [], []  # In case no points are left
+
+        ax.scatter(xs_orb_home, ys_orb_home, zorder=1, s=20, marker='o', c=lat_home_color)
+        ax.scatter(xs_out, ys_out, zorder=1, s=20, marker='o', c=lat_color)
+    else:
+        ax.scatter(xs_orb, ys_orb, zorder=1, s=20, marker='o', c=lat_color)
+
     # scatter centers
     for i in range(centers.shape[0]):
         if translate_centers:
-            x = positions['centers']['xs'][i]
-            y = positions['centers']['ys'][i]
+            x = positions_centers['centers all']['xs'][i]
+            y = positions_centers['centers all']['ys'][i]
+
+            if i==0:
+                label = "Wannier centers"
+            else:
+                label=None
+
+            ax.scatter(
+                x, y, zorder=1, label=label, 
+                s=np.exp(11*wan.spread[i])*center_scale, 
+                marker='*', c=center_color)
+        else:
+            center = centers[i]
             if i==0:
                 label = "Wannier centers"
             else:
                 label=None
             ax.scatter(
-                x, y, zorder=1, label=label, s=np.exp(11*wan.spread[i])*center_scale, **kwargs_centers)
-        else:
-            center = centers[i]
-            label = "Wannier centers"
-            ax.scatter(
-                center[0], center[1], zorder=1, label=label, **kwargs_centers)
+                center[0], center[1], zorder=2, 
+                c=center_color,
+                alpha=0.5,
+                s=np.exp(11*wan.spread[i])*center_scale, 
+                label=label, marker='*')
 
     if legend:
         ax.legend(loc='upper right')
