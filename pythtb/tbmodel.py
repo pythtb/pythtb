@@ -1,146 +1,53 @@
 import numpy as np
 import copy
 import logging
-from itertools import product
 import warnings
-import functools
-from itertools import combinations_with_replacement as comb
-
-from traitlets import This
 from .plotting import plot_bands, plot_tb_model, plot_tb_model_3d
-from .utils import _is_int, _offdiag_approximation_warning_and_stop, is_Hermitian
+from .utils import _offdiag_approximation_warning_and_stop, is_Hermitian, deprecated, copydoc
 from .lattice import Lattice
 
 # set up logging
 logger = logging.getLogger(__name__)
 
-__all__ = ["TBModel"]
+# what is exported when "from pythtb import *" is used
+__all__ = ["TBModel", "tb_model"]
 
+# Pauli matrices
 SIGMA0 = np.array([[1, 0], [0, 1]], dtype=complex)
 SIGMAX = np.array([[0, 1], [1, 0]], dtype=complex)
 SIGMAY = np.array([[0, -1j], [1j, 0]], dtype=complex)
 SIGMAZ = np.array([[1, 0], [0, -1]], dtype=complex)
 
 
-def deprecated(message: str, category=FutureWarning):
-    """
-    Decorator to mark a function as deprecated.
-    Raises a FutureWarning with the given message when the function is called.
-    """
-
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            warnings.warn(
-                f"{func.__qualname__} is deprecated and will be removed in a future release: {message}",
-                category=category,
-                stacklevel=2,
-            )
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
-def _report(k_list, lat_per, k_metric, k_node, node_index):
-    """
-    Print a concise report of the k-path construction, including
-    segment distances and the start/end node coordinates.
-    """
-    print("----- k_path report -----")
-    np.set_printoptions(precision=5)
-    print("Real-space lattice vectors:\n", lat_per)
-    print("K-space metric tensor:\n", k_metric)
-    print("Nodes (reduced coords):\n", k_list)
-    if lat_per.shape[0] == lat_per.shape[1]:
-        gvecs = np.linalg.inv(lat_per).T
-        print("Reciprocal-space vectors:\n", gvecs)
-        print("Nodes (Cartesian coords):\n", k_list @ gvecs)
-
-    print("Segments:")
-    for n in range(1, len(k_node)):
-        length = k_node[n] - k_node[n - 1]
-        print(
-            f"  Node {n-1} {k_list[n-1]} to Node {n} {k_list[n]}: "
-            f"distance = {length:.5f}"
-        )
-
-    print("Node distances (cumulative):", k_node)
-    print("Node indices in path:", node_index)
-    print("-------------------------")
-
-def _parse_kpts(kpts, dim):
-    """
-    Parse special string cases for 1D and ensure array shape (n_nodes, dim).
-    """
-    if isinstance(kpts, str) and dim == 1:
-        presets = {
-            "full": [[0.0], [0.5], [1.0]],
-            "fullc": [[-0.5], [0.0], [0.5]],
-            "half": [[0.0], [0.5]],
-        }
-        return np.array(presets[kpts], float)
-
-    arr = np.array(kpts, float)
-    if arr.ndim == 1 and dim == 1:
-        arr = arr[:, None]
-    return arr
-
-
 class TBModel:
     r"""Tight-binding model constructor.
 
-    This class contains the tight-binding model information. 
-    It is designed to handle various aspects of tight-binding models, including the lattice structure, 
-    orbital positions, and periodic boundary conditions. It will also provide methods for constructing
-    the Hamiltonian matrix and diagonalizing the tight-binding model.
+    This class's primary purpose is to build, store,
+    and diagonalize tight-binding Hamiltonians.
+
+    .. versionchanged:: 2.0.0
+        The class was refactored to use a separate ``Lattice`` object for lattice
+        and orbital information. The ``TBModel`` class now relies on
+        the ``Lattice`` object to provide this information. 
+        The parameters for ``tb_model`` are now used in the
+        constructor of the `Lattice` class. The constructor of ``Lattice``
+        accepts some of the same parameters as before, such as ``lat``, ``orb``, ``per``, 
+        while ``dim_k`` and ``dim_r`` are inferred from ```lat`` and ``per``
 
     Parameters
     ----------
-    dim_k : int
-        Dimensionality of reciprocal space, i.e., specifies how
-        many directions are considered to be periodic.
+    lattice : Lattice
+        The lattice structure of the tight-binding model. This includes
+        lattice vectors, orbital positions, and periodic directions. The
+        `Lattice` object should be created separately and passed to `TBModel`.
 
-    dim_r : int
-        Dimensionality of real space, i.e., specifies how many
-        real space lattice vectors there are and how many coordinates are
-        needed to specify the orbital coordinates.
-
-    lat : array_like, optional
-        Array containing lattice vectors in Cartesian coordinates
-        (in arbitrary units). By default, lattice vectors are an identity matrix. 
-
-    orb : int, array_like, optional
-        Array containing reduced coordinates of all
-        tight-binding orbitals. If ``orb`` is an integer code will assume
-        that there are these many orbitals all at the origin of the unit cell.  
-        By default ``orb=1`` and the code will assume a single orbital at the origin.
-
-    per : array_like, optional
-        Specifies the indices of lattice vectors which are considered to be periodic.
-        By default, all lattice vectors are assumed to be periodic. If ``dim_k`` is smaller than ``dim_r``, 
-        then by default the first ``dim_k`` vectors are considered to be periodic.
-
-        In the example below, only the vector ``[0.0,2.0]`` is considered to be periodic 
-        (since ``per=[1]``). 
-
-    nspin : {1, 2}, optional
+    nspin : int {1, 2}, optional
         Number of explicit spin components assumed for each
-        orbital in ``orb``. Allowed values of ``nspin`` are ``1`` and ``2``. If
+        orbital. Allowed values of ``nspin`` are ``1`` and ``2``. If
         ``nspin=1`` then the model is spinless, if ``nspin=2`` then it
         is explicitly a spinfull model and each orbital is assumed to
         have two spin components. Default value of this parameter is
         ``nspin=1``.
-
-    Notes
-    -----
-    Parameter ``dim_r`` can be larger than ``dim_k``! For example,
-    a polymer is a three-dimensional molecule (one needs three
-    coordinates to specify orbital positions), but it is periodic
-    along only one direction. For a polymer, therefore, we should
-    have ``dim_k=1`` and ``dim_r=3``. See the :ref:`trestle-nb`
-    or :ref:`buckled-layer-nb` examples.
 
     Examples
     --------
@@ -153,15 +60,12 @@ class TBModel:
     are therefore 0.2 times the first lattice vector plus 0.3 times the second lattice 
     vector.
 
-    >>> from pythtb import TBModel
-    >>> tb = TBModel(
-    ...        dim_k=1, dim_r=2,
-    ...        lat=[[1, 1/2], [0, 2]],
-    ...        orb=[[0.2, 0.3], [0.1, 0.1], [0.2, 0.2]],
-    ...        per=[1]
-    ...    )
-    >>> print(tb)
-
+    >>> from pythtb import TBModel, Lattice
+    >>> lat = Lattice(
+    ...    lat_vecs=[[1, 1/2], [0, 2]], 
+    ...    orb_vecs=[[0.2, 0.3], [0.1, 0.1], [0.2, 0.2]], 
+    ...    periodic_dirs=[1])
+    >>> tb = TBModel(lattice=lat, nspin=1)
     """
 
     def __init__(
@@ -240,13 +144,15 @@ class TBModel:
         ----------
         show : bool, optional
             If True, prints the report to stdout. If False, returns the report as a string.
+            Default is True.
         short : bool, optional
-            If True, print only a short summary. If False, print full details.
+            If True, prints only a lattice summary. If False, prints hopping and onsite details as well.
+            Default is False.
 
         Returns
         -------
         str or None
-            Returns the report string if `show` is False, otherwise prints and returns None.
+            Returns the report string if ``show`` is False, otherwise prints and returns None.
 
         Notes
         -----
@@ -331,7 +237,7 @@ class TBModel:
         r"""
         Transform Hamiltonian to periodic gauge so that :math:`H(\mathbf{k}+\mathbf{G}) = H(\mathbf{k})`.
 
-        If `nspin`= 2, `H_flat` should only be flat along k and NOT spin.
+        If ``nspin = 2``, ``H_flat`` should only be flat along `k` and _NOT_ spin.
 
         Parameters
         ----------
@@ -378,7 +284,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return self._lattice
+        return copy.copy(self._lattice)
     
     @property
     def dim_r(self) -> int:
@@ -386,7 +292,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return self.lattice.dim_r
+        return copy.copy(self.lattice.dim_r)
 
     @property
     def dim_k(self) -> int:
@@ -394,7 +300,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return self.lattice.dim_k
+        return copy.copy(self.lattice.dim_k)
 
     @property
     def nspin(self) -> int:
@@ -402,7 +308,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return self._nspin
+        return copy.copy(self._nspin)
     
     @property
     def per(self) -> list[int]:
@@ -412,10 +318,9 @@ class TBModel:
 
         Each index corresponds to a lattice vector in the model.
         """
-        return self.lattice.periodic_dirs
-
+        return copy.copy(self.periodic_dirs)
     @property
-    def periodic_dirs(self) -> list[bool]:
+    def periodic_dirs(self) -> list[int]:
         """Periodic directions as a list of indices.
 
         .. versionadded:: 2.0.0
@@ -430,7 +335,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return self.lattice.norb
+        return copy.copy(self.lattice.norb)
 
     @property
     def nstate(self) -> int:
@@ -446,7 +351,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return self.lattice.orb_vecs
+        return copy.copy(self.lattice.orb_vecs)
 
     @property
     def lat_vecs(self) -> np.ndarray:
@@ -454,7 +359,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return self.lattice.lat_vecs
+        return copy.copy(self.lattice.lat_vecs)
     
     @property
     def recip_lat_vecs(self) -> np.ndarray:
@@ -462,7 +367,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return self.lattice.recip_lat_vecs
+        return copy.copy(self.lattice.recip_lat_vecs)
 
     @property
     def recip_volume(self) -> float:
@@ -470,7 +375,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return self.lattice.recip_volume
+        return copy.copy(self.lattice.recip_volume)
 
     @property
     def cell_volume(self) -> float:
@@ -478,7 +383,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return self.lattice.cell_volume
+        return copy.copy(self.lattice.cell_volume)
 
     @property
     def site_energies(self) -> np.ndarray:
@@ -609,6 +514,10 @@ class TBModel:
         """
         return self.lattice.get_orb_vecs(cartesian=cartesian)
 
+    @copydoc(Lattice.nn_bonds)
+    def nn_bonds(self, n_shells: int, report: bool = False):
+        return self.lattice.nn_bonds(n_shells, report=report)
+
     @deprecated("Use 'get_lat_vecs' instead.")
     def get_lat(self):
         """
@@ -735,6 +644,10 @@ class TBModel:
         else:
             raise ValueError("Mode should be either 'set' or 'add'.")
         
+
+    #NOTE: These next two functions are used to speed up set_hopping lookups
+    # For large models with many hoppings, this can make a big difference
+    ############################################################################    
     def _ensure_hop_index(self):
         """Create a hash index (i,j,R_per)->list index for O(1) lookups."""
         if getattr(self, "_hop_index", None) is None:
@@ -753,7 +666,43 @@ class TBModel:
         Rp = tuple(np.array(ind_R)[self.per])
         conj_Rp = tuple((-np.array(ind_R))[self.per])
         return (ind_i, ind_j, Rp), (ind_j, ind_i, conj_Rp)
+    ############################################################################
 
+    def set_nn_hops(self, hop_amps: list):
+        r"""Define nearest-neighbor hopping parameters up to a specified shell.
+
+        Parameters
+        ----------
+        hop_amp : list or array-like
+            List or array of hopping amplitudes for each shell.
+            The length of ``hop_amp`` is interpretted as the number 
+            of nearest-neighbor shells, e.g., the first element is 
+            the hopping for all first neighbors for each orbital, the second
+            element is the hopping for all next-nearest neighbors and so on.
+
+        Notes
+        -----
+        The hopping amplitudes are applied to all bonds in each shell.
+
+        Examples
+        --------
+        >>> tb.set_nn_hops(2, [1.0, 0.5])
+        """
+        n_shells = len(hop_amps)
+    
+        if not isinstance(hop_amps, (list, np.ndarray)):
+            raise TypeError("hop_amp must be a list or array.")
+
+        if len(hop_amps) != n_shells:
+            raise ValueError("hop_amp must have length equal to n_shells.")
+
+        shell_bonds = self.nn_bonds(n_shells)[1]
+
+        for shell_idx, shell in enumerate(shell_bonds):
+            amp = hop_amps[shell_idx]
+            for bond in shell:
+                i, j, R = bond
+                self.set_hop(amp, i, j, R, mode="add", allow_conjugate_pair=True)
 
     def set_hop(
         self,
@@ -781,7 +730,7 @@ class TBModel:
         ----------
         hop_amp : scalar, array-like, np.ndarray of shape ``(2, 2)``
             For spinless models (`nspin=1`):
-                - Real scalar or list/array of real scalars (one per orbital).
+                - Real or complex scalar.
             For spinful models (`nspin=2`):
                 - Scalar: interpreted as :math:`a I` for both spin components.
                 - 4-vector ``[a, b, c, d]``: interpreted as :math:`a I + b \sigma_x + c \sigma_y + d \sigma_z`:
@@ -801,7 +750,7 @@ class TBModel:
             Lattice vector (integer array, in reduced coordinates)
             pointing to the unit cell where the ket orbital is located.
             The number of coordinates must equal the dimensionality in
-            real space (``dim_r``) for consistency. but only the periodic directions of ``ind_R`` are used.
+            real space (``dim_r``) for consistency, but only the periodic directions of ``ind_R`` are used.
             If reciprocal space is zero-dimensional (as in a molecule), this parameter does not need 
             to be specified.
         mode : {'set', 'add'}, optional
@@ -814,7 +763,7 @@ class TBModel:
 
         Notes
         -----
-        Strictly speaking, this term specifies hopping amplitude for hopping from site j+R to site i, not vice-versa.
+        Strictly speaking, this term specifies hopping amplitude for hopping from site `j+R` to site i, not vice-versa.
         There is no need to specify hoppings in both :math:`i \rightarrow j+\mathbf{R}` and
         :math:`j \rightarrow i-\mathbf{R}` directions, since the latter is included automatically as
 
@@ -828,6 +777,8 @@ class TBModel:
         >>> tb.set_hop(100.0, 0, 2, [0, 1], mode="add")
         """
         #### Prechecks and formatting ####
+        mode = mode.lower()
+
         # deprecation warning
         if mode == "reset":
             logger.warning(
@@ -909,7 +860,6 @@ class TBModel:
             new_hop = [hop_use, int(ind_i), int(ind_j), np.array(ind_R)]
 
         use_index = self._hop_index.get(key, None)
-        mode = mode.lower()
         if mode == "set":
             if use_index is not None:
                 # Reset
@@ -980,7 +930,7 @@ class TBModel:
     
 
     def grad_ham(self, k_pts, cartesian=False):
-        r"""Generate the gradient of the Hamiltonian
+        r"""Generate the gradient w.r.t. k of the Hamiltonian.
 
         The gradient is the derivative of the block Hamiltonian along each reciprocal
         lattice direction :math:`v_k = \partial_k H_k` for an array of k-points.
@@ -1116,16 +1066,21 @@ class TBModel:
             Array of k-points in reduced coordinates.
             If `None`, the Hamiltonian is computed at a single point (`dim_k = 0`),
             corresponding to a finite sample.
+        flatten_spin : bool, optional
+            If True, the spin indices are flattened into the orbital indices.
+            This results in a Hamiltonian at each k-point of shape ``(norb*nspin, norb*nspin)``.
+            If False (default), the Hamiltonian has shape ``(norb, nspin, norb, nspin)``.
 
         Returns
         -------
         ham : np.ndarray 
             Array of Bloch-Hamiltonian matrices defined on the specified k-points. The Hamiltonian is Hermitian by construction.
 
-            - If `dim_k` > 0: shape is (n_kpts, n_orb, n_orb) for spinless models, or (n_kpts, n_orb, 2, n_orb, 2) 
-              for spinful models.
+            - If ``dim_k`` > 0: shape is ``(n_kpts, n_orb, n_orb)`` for spinless models, or ``(n_kpts, n_orb, 2, n_orb, 2)`` 
+              for spinful models, unless `flatten_spin` is True, in which case the shape is ``(n_kpts, n_orb*nspin, n_orb*nspin)``.
 
-            - If `dim_k` = 0: shape is (n_orb, n_orb) for spinless or (n_orb, 2, n_orb, 2) for spinful models.
+            - If ``dim_k`` = 0: shape is ``(n_orb, n_orb)`` for spinless or ``(n_orb, 2, n_orb, 2)`` for spinful models,
+              unless `flatten_spin` is True, in which case the shape is ``(n_orb*nspin, n_orb*nspin)``.
 
         Notes
         -----
@@ -1339,12 +1294,13 @@ class TBModel:
 
         .. versionadded:: 2.0.0
             Merged :func:`solve_all` and :func:`solve_one` into this function.
+            Parameter `keep_spin_ax` and `tf_speedup` added.
 
         Parameters
         ----------
         k_list : array_like, optional
             One-dimensional list or array of k-vectors, each given in reduced coordinates.
-            Shape should be (Nk, dim_k), where dim_k is the number of periodic directions.
+            Shape should be ``(Nk, dim_k)``, where ``dim_k`` is the number of periodic directions.
             Should not be specified for systems with zero-dimensional reciprocal space.
 
         return_eigvecs : bool, optional
@@ -1355,12 +1311,16 @@ class TBModel:
             If True (default), the spin axes are kept in the output eigenvectors.
             If False, the spin axes are flattened.
 
+        tf_speedup : bool, optional
+            If True, use TensorFlow to accelerate the diagonalization.
+            This requires TensorFlow to be installed. Default is False.
+
         Returns
         -------
         eval : {(Nk, nstate), (nstate)} np.ndarray 
             Array of eigenvalues. Shape is:
-            - (Nk, nbnd) for periodic systems
-            - (nbnd,) for zero-dimensional (molecular) systems
+            - (Nk, nstates) for periodic systems
+            - (nstates,) for zero-dimensional (molecular) systems
 
         evec : {(Nk, nstate, nstate), (nstate, nstate), (Nk, nstate, norb, 2), (nstate, norb, 2)} np.ndarray, optional
             Array of eigenvectors (if `return_eigvecs=True`). The ordering of bands matches that in `eval`.
@@ -1369,12 +1329,17 @@ class TBModel:
             :math:`C^{n \mathbf{k}}_j` in the expansion in orbital basis.
 
             For spinless models:
-            - Shape is (Nk, nbnd, norb)
-            For spinful models:
-            - Shape is (Nk, nbnd, norb, 2)
-            In zero-dimensional systems:
-            - (nbnd, n_orb) or (nbnd, n_orb, 2)
+            - Shape is ``(Nk, nstates, norb)`` in periodic systems
+            - Shape is ``(nstates, norb)`` in zero-dimensional systems
+            - If only one k-point is provided, the redundant k-axis is removed, resulting in shape ``(nstates, norb)``.
 
+            For spinful models:
+            - Shape is ``(Nk, nstates, norb, 2)`` for periodic systems
+            - Shape is ``(nstates, norb, 2)`` for zero-dimensional systems
+            - If only one k-point is provided, the redundant k-axis is removed, resulting in shape ``(nstates, norb, 2)``.
+            - If `keep_spin_ax=False` and the model is spinful, the spin axes are flattened into the orbital axes,
+              resulting in shapes ``(Nk, nstates, norb*2)`` or ``(nstates, norb*2)``.
+            
         Notes
         -----
         This function uses the convention described in section 3.1 of the
@@ -1442,13 +1407,62 @@ class TBModel:
         return self.solve_ham(
             k_list=k_list, return_eigvecs=eig_vectors, keep_spin_ax=True
         )
+    
+    def compute_bands(self, k_path, nk=10):
+        r"""Compute band structure along a specified k-point path.
+
+        The band structure is computed by diagonalizing the Hamiltonian at
+        a series of k-points along the specified path in reciprocal space.
+
+        .. versionadded:: 2.0.0
+
+        Parameters
+        ----------
+        k_path : list of array_like
+            List of k-points defining the path in reduced coordinates.
+            Each k-point should be an array-like of length `dim_k`.
+            The path is constructed by linearly interpolating between
+            consecutive k-points in the list.
+
+        n_kperseg : int, optional
+            Number of k-points to interpolate between each pair of consecutive
+            k-points in `k_path`. Default is 10.
+
+        flatten_spin : bool, optional
+            If True, the spin indices are flattened into the orbital indices.
+            This results in a Hamiltonian at each k-point of shape ``(norb*nspin, norb*nspin)``.
+            If False (default), the Hamiltonian has shape ``(norb, nspin, norb, nspin)``.
+
+        Returns
+        -------
+        k_vecs : np.ndarray of shape (N, dim_k)
+            Array of interpolated k-points along the path.
+
+        evals : np.ndarray of shape (N, nbnd)
+            Array of eigenvalues at each k-point along the path.
+
+        Notes
+        -----
+        This function uses linear interpolation to generate intermediate k-points
+        between those specified in `k_path`. The total number of k-points returned
+        is ``(len(k_path) - 1) * n_kperseg + 1``.
+
+        Examples
+        --------
+        Compute band structure along a path from Gamma to X to M in a 2D square lattice:
+
+        >>> k_path = [[0.0, 0.0], [0.5, 0.0], [0.5, 0.5]]
+        >>> k_vecs, evals = tb.compute_bands(k_path, n_kperseg=20)
+        """
+        k_vec, _, _ = self.k_path(k_path, nk, report=False)
+        return k_vec, self.solve_ham(k_vec, return_eigvecs=False)
 
     #TODO: Decide whether to return fin_model or modify in place
-    def cut_piece(self, num_cells, fin_dir, glue_edges=False) -> "TBModel":
-        """Cut a (d-1)-dimensional piece out of a d-dimensional tight-binding model.
+    def cut_piece(self, num_cells, periodic_dir, glue_edges=False) -> "TBModel":
+        r"""Cut a (d-1)-dimensional piece out of a d-dimensional tight-binding model.
 
         .. versionchanged:: 2.0.0
-            Changed parameter names for clarity: `num` -> `num_cells`
+            Changed parameter names for clarity: `num` -> `num_cells`, `fin_dir` -> `periodic_dir`.
         
         Constructs a (d-1)-dimensional tight-binding model out of a
         d-dimensional one by repeating the unit cell a given number of
@@ -1459,9 +1473,8 @@ class TBModel:
         num_cells : int
             How many times to repeat the unit cell.
 
-        fin_dir : int
-            Index of the real space lattice vector along
-            which you no longer wish to maintain periodicity.
+        periodic_dir : int
+            Index of the periodic lattice vector along which to make the system finite.
 
         glue_edges : bool, optional
             If True, allow hoppings from one edge to the other of a cut model.
@@ -1488,11 +1501,12 @@ class TBModel:
         Examples
         --------
         Construct two-dimensional model B out of three-dimensional model A
+        by repeating model along second lattice vector ten times
 
-        >>> A = TBModel(3, 3, ...)
 
-        model A by repeating model along second lattice vector ten times
-
+        >>> A = TBModel(Lattice([[1.0, 0.0, 0.0],
+        ...                      [0.0, 1.0, 0.0],
+        ...                      [0.0, 0.0, 1.0]], ...))
         >>> B = A.cut_piece(10, 1)
 
         Further cut two-dimensional model B into one-dimensional model
@@ -1504,9 +1518,9 @@ class TBModel:
         """
         if not isinstance(num_cells, int) or num_cells < 1:
             raise ValueError("num_cells must be a positive integer.")
-        if not isinstance(fin_dir, int) or fin_dir not in self.periodic_dirs:
+        if not isinstance(periodic_dir, int) or periodic_dir not in self.periodic_dirs:
             raise ValueError(
-                "fin_dir must be an integer corresponding to one of the periodic directions."
+                "periodic_dir must be an integer corresponding to one of the periodic directions."
             )
         if not isinstance(glue_edges, bool):
             raise ValueError("glue_edges must be a boolean.")
@@ -1517,7 +1531,7 @@ class TBModel:
         if num_cells == 1 and glue_edges:
             raise ValueError("Can't have `num=1` and gluing of the edges!")
         
-        lat_fin = self.lattice.cut_piece(num_cells, fin_dir)
+        lat_fin = self.lattice.cut_piece(num_cells, periodic_dir)
         fin_model = TBModel(lat_fin, nspin=self.nspin)
 
         onsite = []  # store onsite energies
@@ -1539,7 +1553,7 @@ class TBModel:
                 amp = self._hoppings[h][0]
 
                 ind_R = copy.deepcopy(self._hoppings[h][3])  # lattice vector of the hopping
-                jump_fin = ind_R[fin_dir]  # how many cells does the hop jump in finite directio
+                jump_fin = ind_R[periodic_dir]  # how many cells does the hop jump in finite directio
 
                 # index of "from" hopping orbital
                 hi = self._hoppings[h][1] + c * self.norb
@@ -1548,7 +1562,7 @@ class TBModel:
                 hj = self._hoppings[h][2] + (c + jump_fin) * self.norb
                
                 if fin_model.dim_k != 0:
-                    ind_R[fin_dir] = 0  # one of the directions now becomes finite
+                    ind_R[periodic_dir] = 0  # one of the directions now becomes finite
                 else:
                     ind_R = None
 
@@ -1572,7 +1586,7 @@ class TBModel:
 
     def make_finite(
             self, 
-            dirs: list[int], 
+            periodic_dirs: list[int], 
             num_cells: list[int], 
             glue_edges: list[bool] = None
             ) -> "TBModel":
@@ -1586,7 +1600,7 @@ class TBModel:
 
         Parameters
         ----------
-        dirs : list[int]
+        periodic_dirs : list[int]
             List of indices of periodic directions along which
             you wish to make the model finite.
         num_cells : list[int]
@@ -1622,13 +1636,9 @@ class TBModel:
         --------
         Construct a two-dimensional finite model by removing periodicity
         along both lattice vectors of a two-dimensional model
-        >>> lat = Lattice([[1.0, 0.0], [0.0, 1.0]], [[0.0, 0.0]])
+        >>> lat = Lattice([[1.0, 0.0], [0.0, 1.0]], [[0.0, 0.0]], periodic_dirs=[0,1])
         >>> tb = TBModel(lat)
-        >>> tb.set_hop(-1.0, 0, 0, [0, 0])
-        >>> tb.set_hop(-1.0, 0, 0, [1, 0])
-        >>> tb.set_hop(-1.0, 0, 0, [0, 1])
-        >>> tb.set_hop(-1.0, 0, 0, [1, 1])
-        >>> fin_tb = tb.make_finite(dirs=[0, 1], num_cells=[10, 5])
+        >>> fin_tb = tb.make_finite(periodic_dirs=[0, 1], num_cells=[10, 5])
         >>> fin_tb.dim_k
         0
         >>> fin_tb.norb
@@ -1636,40 +1646,34 @@ class TBModel:
         """
         if self.dim_k == 0:
             raise ValueError("Model is already finite!")
-        if not all(d in self.periodic_dirs for d in dirs):
-            raise ValueError("All directions in `dirs` must be periodic.")
-        if len(dirs) != len(set(dirs)):
-            raise ValueError("All directions in `dirs` must be unique.")
-        if len(dirs) != len(num_cells):
-            raise ValueError("Length of `dirs` must match length of `num_cells`.")
+        if not all(d in self.periodic_dirs for d in periodic_dirs):
+            raise ValueError("All directions in `periodic_dirs` must be periodic.")
+        if len(periodic_dirs) != len(set(periodic_dirs)):
+            raise ValueError("All directions in `periodic_dirs` must be unique.")
+        if len(periodic_dirs) != len(num_cells):
+            raise ValueError("Length of `periodic_dirs` must match length of `num_cells`.")
         if not all(n_cell > 0 for n_cell in num_cells):
             raise ValueError("Number of sites along finite direction must be greater than 0")
-        if len(num_cells) != self.dim_k:
-            raise ValueError("Length of `num_cells` must match number of periodic directions.")
-        
+
         if glue_edges is not None:
-            if len(glue_edges) != self.dim_k:
+            if len(glue_edges) != len(num_cells):
                 raise ValueError("Length of `glue_edges` must match number of periodic directions.")
         else:
             glue_edges = [False] * self.dim_k
 
         cut = self
         for idx, n_cell in enumerate(num_cells):
-            if n_cell == 1:
-                raise ValueError("Can't have length 1 along any direction.")
-            cut = cut.cut_piece(num_cells=n_cell, fin_dir=dirs[idx], glue_edges=glue_edges[idx])
+            cut = cut.cut_piece(num_cells=n_cell, periodic_dir=periodic_dirs[idx], glue_edges=glue_edges[idx])
 
         return cut
 
     # This function is being deprecated. The preferred way to reduce dimensionality
     # is to use `make_finite` with `num_cells=1` along the desired directions. 
-    # Since the lattice geometry is now handled by
-    # the `Lattice` class, it is more consistent to use `make_finite`.
     # This approach is more general and can handle multiple directions at once.
     # If the intention is to keep periodicity along all directions while keeping some
     # k-values fixed, this can be achieved by using the `hamiltonian` method passing the 
-    # desired k-values. Explicit manipulation of k-space in the model is discouraged. k-space
-    # is managed by 'Mesh' and 'WFArray' classes.
+    # desired k-values. Explicit manipulation of k-space sampling in the model is discouraged. k-space
+    # sampling is managed by 'Mesh' and 'WFArray' classes.
     @deprecated("use `make_finite` with `num_cells=1` instead (since v2.0).", category=FutureWarning)
     def reduce_dim(self) -> "TBModel":
         r"""
@@ -1683,44 +1687,35 @@ class TBModel:
 
     def change_nonperiodic_vector(
         self, 
-        np_dir: int, 
+        fin_dir: int, 
         new_latt_vec: np.ndarray = None, 
         to_home: bool = True, 
-        to_home_warning: bool = True
         ):
         """Change non-periodic lattice vector 
 
         .. versionchanged:: 2.0.0
-            Parameter `to_home_supress_warning` has been renamed to `to_home_warning`.
-            Note: this change inverts the meaning of the boolean parameter.
+            Parameter `to_home_supress_warning` has been removed.
+            Parameter `np_dir` renamed to `fin_dir` for clarity.
 
-        Changes one of the non-periodic "lattice vectors". Non-periodic vectors are those
-        elements of ``lat_vecs`` that are not listed as periodic in the ``periodic_dirs`` 
-        attribute set by the user during the construction of the ``Lattice``. The orbital 
-        vectors are modified accordingly so that the actual (Cartesian) coordinates of 
+        Changes one of the non-periodic "lattice vectors". Non-periodic lattice vectors 
+        are those that are not listed as periodic with the `periodic_dirs` parameter. 
+        The orbital vectors are modified accordingly so that the actual (Cartesian) coordinates of 
         orbitals remain unchanged.
 
         Parameters
         ----------
-        np_dir : int
-            Index of nonperiodic lattice vector to change.
+        fin_dir : int
+            Index of non-periodic lattice vector to change.
 
         new_latt_vec : array_like, optional
-            The new non-periodic lattice vector. If ``None`` (default), the new
-            non-periodic lattice vector is the same as the original one except
-            that all components in the periodic space have been projected out
-            (so that the new non-periodic vector is perpendicular to all
-            periodic vectors).
+            The new non-periodic lattice vector. If None (default), the new
+            non-periodic lattice vector is constructed to be orthogonal to all periodic 
+            vectors and to have the same length as the original non-periodic vector.
 
         to_home : bool, optional
             If ``True`` (default), shift all orbitals to the home cell along
-            non-periodic directions. Default behavior is to shift orbitals
+            periodic directions. Default behavior is to shift orbitals
             to the home cell.
-
-        to_home_warning : bool, optional
-            If ``True`` (default), code will log a warning message whenever
-            an orbital has shifted outside the home cell. Default behavior
-            is to log a warning message. 
 
         See Also
         --------
@@ -1738,7 +1733,7 @@ class TBModel:
           ribbon depends only on the location of the Wannier center
           in the extended direction, not on its location in the
           transverse direction. Alternatively, the new non-periodic
-          vector can be set explicitly via the ``new_latt_vec``` parameter.
+          vector can be set explicitly via the ``new_latt_vec`` parameter.
 
         Examples
         --------
@@ -1746,24 +1741,22 @@ class TBModel:
 
         >>> tb.change_nonperiodic_vector(2)
         """
-        self.lattice.change_nonperiodic_vector(np_dir, new_latt_vec)
+        self.lattice.change_nonperiodic_vector(fin_dir, new_latt_vec)
 
         if to_home:
-            self._shift_hop_to_home(to_home_warning)
-            self.lattice._shift_orb_to_home(to_home_warning)
+            self._shift_hop_to_home()
+            self.lattice._shift_orb_to_home()
 
     def make_supercell(
         self,
         sc_red_lat,
         return_sc_vectors: bool=False,
         to_home: bool=True,
-        to_home_warning: bool=True,
     ) -> "TBModel":
         """Make model on a super-cell.
 
         .. versionchanged:: 2.0.0
-            Parameter `to_home_supress_warning` has been renamed to `to_home_warning`.
-            Note: this change inverts the meaning of the boolean parameter.
+            Parameter `to_home_supress_warning` has been removed.
 
         Constructs a :class:`pythtb.TBModel` representing a super-cell 
         of the current object. This function can be used together with :func:`cut_piece`
@@ -1797,15 +1790,7 @@ class TBModel:
 
         to_home : bool, optional
             Default value is ``True``. If ``True`` will shift all orbitals
-            to the home cell along non-periodic directions.
-
-        to_home_warning : bool, optional
-            Default value is ``True``. If ``True`` prints warning messages
-            about orbitals being outside the home cell (reduced coordinate larger
-            than 1 or smaller than 0 along non-periodic direction). 
-
-            Note that setting this parameter to *True* or *False* has no effect on 
-            resulting coordinates of the model. 
+            to the home cell along periodic directions.
 
         Returns
         -------
@@ -1829,156 +1814,60 @@ class TBModel:
         Create super-cell out of 2d tight-binding model ``tb``
 
         >>> sc_tb = tb.make_supercell([[2, 1], [-1, 2]])
-
         """
+        geom = self.lattice._prepare_supercell_geometry(sc_red_lat)
+        sc_vec = geom["translations"]
+        num_sc = sc_vec.shape[0]
 
-        # Can't make super cell for model without periodic directions
-        if self.dim_r == 0:
-            raise ValueError(
-                "Must have at least one periodic direction to make a super-cell"
-            )
+        lat = Lattice(geom["lat_vecs"], geom["orb_vecs"], self.periodic_dirs)
+        sc_tb = TBModel(lat, nspin=self.nspin)
+        sc_tb._assume_position_operator_diagonal = self._assume_position_operator_diagonal
 
-        # convert array to numpy array
-        use_sc_red_lat = np.array(sc_red_lat)
+        for offset in range(num_sc):
+            base = offset * self.norb
+            for orb_idx, onsite in enumerate(self._site_energies):
+                sc_tb.set_onsite(onsite, base + orb_idx)
 
-        # checks on super-lattice array
-        if use_sc_red_lat.shape != (self.dim_r, self.dim_r):
-            raise ValueError("Dimension of sc_red_lat array must be dim_r*dim_r")
-        if use_sc_red_lat.dtype != int:
-            raise TypeError("sc_red_lat array elements must be integers")
+        sc_index = {tuple(vec.tolist()): idx for idx, vec in enumerate(sc_vec)}
+        sc_red_lat = geom["sc_red_lat"]
+        red_transform = geom["red_transform"]
+        eps = 1e-8
 
-        for i in range(self.dim_r):
-            for j in range(self.dim_r):
-                if (i == j) and (i not in self.periodic_dirs) and use_sc_red_lat[i, j] != 1:
+        for offset, cur_sc_vec in enumerate(sc_vec):
+            base = offset * self.norb
+            for hop in self._hoppings:
+                if len(hop) < 4:
                     raise ValueError(
-                        "Diagonal elements of sc_red_lat for non-periodic directions must equal 1."
-                    )
-                if (
-                    (i != j)
-                    and ((i not in self.periodic_dirs) or (j not in self.periodic_dirs))
-                    and use_sc_red_lat[i, j] != 0
-                ):
-                    raise ValueError(
-                        "Off-diagonal elements of sc_red_lat for non-periodic directions must equal 0."
+                        "Hopping without lattice vector cannot be promoted to a super-cell."
                     )
 
-        vol = np.linalg.det(use_sc_red_lat)
-        if np.abs(vol) < 1.0e-6:
-            raise ValueError("Super-cell lattice vectors volume too close to zero.")
-        if vol < 0:
-            raise ValueError("Super-cell lattice vectors volume is negative. Must form right-handed system.")
-       
+                amp, ind_i, ind_j, ind_R = hop
+                ind_R = np.array(ind_R, dtype=int)
 
-        # converts reduced vector in original lattice to reduced vector in super-cell lattice
-        def to_red_sc(red_vec_orig):
-            return np.linalg.solve(
-                np.array(use_sc_red_lat.T, dtype=float),
-                np.array(red_vec_orig, dtype=float),
-            )
-
-        # conservative estimate on range of search for super-cell vectors
-        max_R = np.max(np.abs(use_sc_red_lat)) * self.dim_r
-
-        # candidates for super-cell vectors
-        sc_cands = [
-            np.array(candidate)
-            for candidate in product(range(-max_R, max_R + 1), repeat=self.dim_r)
-        ]
-
-        # find all vectors inside super-cell
-        sc_vec = []
-        eps_shift = np.sqrt(2) * 1e-8  # shift of the grid, so to avoid double counting
-        
-        for vec in sc_cands:
-            # compute reduced coordinates of this candidate vector in the super-cell frame
-            tmp_red = to_red_sc(vec).tolist()
-            # check if in the interior
-            inside = True
-            for t in tmp_red:
-                if t <= -eps_shift or t > 1 - eps_shift:
-                    inside = False
-            if inside:
-                sc_vec.append(np.array(vec))
-
-        # number of times unit cell is repeated in the super-cell
-        num_sc = len(sc_vec)
-
-        # check that found enough super-cell vectors
-        if int(round(np.abs(np.linalg.det(use_sc_red_lat)))) != num_sc:
-            raise Exception(
-                "Super-cell generation failed! Wrong number of super-cell vectors found."
-            )
-
-        # cartesian vectors of the super lattice
-        sc_cart_lat = np.dot(use_sc_red_lat, self.lat_vecs)
-
-        # orbitals of the super-cell tight-binding model
-        sc_orb = []
-        for cur_sc_vec in sc_vec:  # go over all super-cell vectors
-            for orb in self.orb_vecs:  # go over all orbitals
-                # shift orbital and compute coordinates in
-                # reduced coordinates of super-cell
-                sc_orb.append(to_red_sc(orb + cur_sc_vec))
-
-        lat = Lattice(sc_cart_lat, sc_orb, self.periodic_dirs)
-        # create super-cell TBModel object to be returned
-        sc_tb = TBModel(lat, nspin=self._nspin)
-
-        # remember if came from w90
-        sc_tb._assume_position_operator_diagonal = (
-            self._assume_position_operator_diagonal
-        )
-
-        # repeat onsite energies
-        for i in range(num_sc):
-            for j in range(self.norb):
-                sc_tb.set_onsite(self._site_energies[j], i * self.norb + j)
-
-        # set hopping terms
-        for c, cur_sc_vec in enumerate(sc_vec):  # go over all super-cell vectors
-            for h in range(
-                len(self._hoppings)
-            ):  # go over all hopping terms of the original model
-                # amplitude of the hop is the same
-                amp = self._hoppings[h][0]
-
-                # lattice vector of the hopping
-                ind_R = copy.deepcopy(self._hoppings[h][3])
-                # super-cell component of hopping lattice vector
-                # shift also by current super cell vector
-                sc_part = np.floor(to_red_sc(ind_R + cur_sc_vec))  # round down!
-                sc_part = np.array(sc_part, dtype=int)
-                # find remaining vector in the original reduced coordinates
-                orig_part = ind_R + cur_sc_vec - np.dot(sc_part, use_sc_red_lat)
-                # remaining vector must equal one of the super-cell vectors
-                pair_ind = None
-                for p, pair_sc_vec in enumerate(sc_vec):
-                    if False not in (pair_sc_vec == orig_part):
-                        if pair_ind is not None:
-                            raise Exception("\n\nFound duplicate super cell vector!")
-                        pair_ind = p
-                if pair_ind is None:
+                total_disp = cur_sc_vec + ind_R
+                red_disp = total_disp @ red_transform
+                sc_part = np.floor(red_disp + eps).astype(int)
+                orig_part = total_disp - sc_part @ sc_red_lat
+                pair_idx = sc_index.get(tuple(orig_part.tolist()))
+                if pair_idx is None:
                     raise Exception("\n\nDid not find super cell vector!")
 
-                # index of "from" and "to" hopping indices
-                hi = self._hoppings[h][1] + c * self.norb
-                hj = self._hoppings[h][2] + pair_ind * self.norb
+                hi = ind_i + base
+                hj = ind_j + pair_idx * self.norb
 
-                # add hopping term
                 sc_tb.set_hop(
                     amp, hi, hj, sc_part, mode="add", allow_conjugate_pair=True
                 )
 
         # put orbitals to home cell if asked for
         if to_home:
-            sc_tb._shift_hop_to_home(to_home_warning)
-            sc_tb.lattice._shift_orb_to_home(to_home_warning)
+            sc_tb._shift_hop_to_home()
+            sc_tb.lattice._shift_orb_to_home()
 
-        # return new tb model and vectors if needed
-        return sc_tb if not return_sc_vectors else (sc_tb, np.array(sc_vec))
+        return sc_tb if not return_sc_vectors else (sc_tb, sc_vec.copy())
                             
 
-    def _shift_hop_to_home(self, to_home_warning: bool=True):
+    def _shift_hop_to_home(self):
         """Shifts orbital coordinates (along periodic directions) to the home
         unit cell. 
         
@@ -1994,16 +1883,7 @@ class TBModel:
             directions changes physical nature of the tight-binding model.
             This behavior might be especially non-intuitive for
             tight-binding models that came from the `cut_piece` function.
-
-        Parameters
-        ----------
-        to_home_warning: bool, optional
-            Default value is ``True``. If ``True`` logger prints warning messages
-            about orbitals being outside the home cell (reduced coordinate larger
-            than 1 or smaller than 0 along non-periodic direction). 
-
-            Note that setting this parameter to *True* or *False* has no effect on 
-            resulting coordinates of the model. 
+        
         """
 
         for i in range(self.norb):
@@ -2015,7 +1895,7 @@ class TBModel:
                 # shift only in periodic directions
                 if k in self.per:
                     disp_vec[k] = shift
-                elif k not in self.per and shift != 0 and to_home_warning:  
+                elif k not in self.per and shift != 0:  
                     logger.warning(
                         f"Warning: orbital {i} has reduced coordinate {self.orb_vecs[i,k]:.4f} along non-periodic direction {k}. "
                         f"This orbital will not be shifted to the home cell along this direction."
@@ -2073,7 +1953,7 @@ class TBModel:
         Removing orbitals will reindex the orbitals with indices higher
         than those that are removed. For example, if model has 6 orbitals
         and you remove the 2nd orbital, then the orbitals 3-6 will be
-        reindexed to 1-4 (Python counting). Indices of first two orbitals (0 and 1) 
+        reindexed to 2-5 (Python counting). Indices of first two orbitals (0 and 1) 
         are unaffected.
          
         Examples
@@ -2125,174 +2005,13 @@ class TBModel:
                     if h[2] > orb_ind:
                         self._hoppings[j][2] -= 1
 
+    @copydoc(Lattice.k_uniform_mesh)
     def k_uniform_mesh(self, mesh_size):
-        """Uniform grid of k-points in reduced coordinates.
+        return self.lattice.k_uniform_mesh(mesh_size)
 
-        The mesh along each direction is defined from [0, 1). 
-        The mesh always contains the origin.
-
-        Parameters
-        ----------
-        mesh_size : array_like
-            Number of k-points in the mesh in each periodic direction of the model.
-
-        Returns
-        -------
-        k_vec : np.ndarray
-          Array of k-vectors on the mesh that can be directly passed to function 
-          :func:`pythtb.TBModel.solve_all`. The shape of the array is 
-          (nk1, nk2, ..., dim_k) where nk1, nk2, ... are the number of k-points
-          in each direction defined by `mesh_size`.
-
-        Notes
-        -----
-        The uniform grid of k-points that can be passed to
-        function :func:`pythtb.TBModel.solve_all`. 
-
-        Examples
-        --------
-        Returns a 10x20x30 mesh of a tight binding model 
-        with three periodic directions
-
-        >>> k_vec = my_model.k_uniform_mesh([10,20,30])
-        >>> print(k_vec.shape)
-        (10, 20, 30, 3)
-
-        Solve model on the uniform mesh
-
-        >>> my_model.solve_ham(k_vec)
-
-        """
-        use_mesh = np.array(list(map(round, mesh_size)), dtype=int)
-        if use_mesh.shape != (self.dim_k,):
-            print(use_mesh.shape)
-            raise Exception("\n\nIncorrect size of the specified k-mesh!")
-        if np.min(use_mesh) <= 0:
-            raise Exception("\n\nMesh must have positive non-zero number of elements.")
-
-        axes = [np.linspace(0, 1, n, endpoint=False) for n in use_mesh]
-        mesh = np.meshgrid(*axes, indexing="ij")
-        k_vec = np.stack(mesh, axis=-1).reshape(-1, len(use_mesh))
-
-        return k_vec
-
+    @copydoc(Lattice.k_path)
     def k_path(self, kpts, nk:int, report:bool=True):
-        r"""Interpolates a path in reciprocal space.
-
-        Interpolates a path in reciprocal space between specified
-        k-points. In 2D or 3D the k-path can consist of several
-        straight segments connecting high-symmetry points ("nodes"),
-        and the results can be used to plot the bands along this path.
-
-        The interpolated path that is returned contains as
-        equidistant k-points as possible.
-
-        Parameters
-        ----------
-
-        kpts : array-like, str
-          Array of k-vectors in reciprocal space between
-          which interpolated path should be constructed. These
-          k-vectors must be given in reduced coordinates.  As a
-          special case, in 1D k-space kpts may be a string:
-
-          - `"full"`: Implies  ``[0.0, 0.5, 1.0]`` (full BZ)
-          - `"fullc"`: Implies  ``[-0.5, 0.0, 0.5]`` (full BZ, centered)
-          - `"half"`: Implies  ``[ 0.0, 0.5]``  (half BZ)
-
-        nk : int
-            Total number of k-points to be used in making the plot.
-
-        report : bool, optional
-            Optional parameter specifying whether printout
-            is desired (default is True).
-
-        Returns
-        -------
-        k_vec : np.ndarray
-            Array of (nearly) equidistant interpolated k-points. 
-
-        k_dist : np.ndarray
-            Array giving accumulated k-distance to each
-            k-point in the path. This array can be used to plot path in
-            the k-space so that the distances between the k-points in
-            the plot are exact.
-
-        k_node : np.ndarray
-            Array giving accumulated k-distance to each
-            node on the path in Cartesian coordinates. This array is
-            typically used to plot nodes (typically special points) on
-            the path in k-space.
-
-        Notes
-        -----
-        - The distance between the points is calculated in the Cartesian frame,
-          however coordinates themselves are given in dimensionless reduced coordinates!  
-          This is done so that this array can be directly passed to function
-          :func:`pythtb.TBModel.solve_ham`.
-        - Unlike array `k_vec`, `k_dist` has dimensions! Units are defined here
-          so that for a one-dimensional crystal with lattice constant equal to 
-          for example `10` the length of the Brillouin zone would equal
-          `1/10=0.1`. In other words factors of :math:`2\pi` are
-          absorbed into `kpts`.
-
-        Examples
-        ---------
-        Construct a path connecting four nodal points in k-space
-        Path will contain 401 k-points, roughly equally spaced
-
-        >>> path = [[0.0, 0.0], [0.0, 0.5], [0.5, 0.5], [0.0, 0.0]]
-        >>> (k_vec, k_dist, k_node) = my_model.k_path(path,401)
-        
-        Solve for eigenvalues on that path
-
-        >>> evals = tb.solve_all(k_vec)
-        """
-        dim = self.dim_k
-
-        # Parse kpts and validate
-        k_list = _parse_kpts(kpts, dim)
-        if k_list.shape[1] != dim:
-            raise ValueError(
-                f"Dimension mismatch: kpts shape {k_list.shape}, model dim {dim}"
-            )
-        if nk < len(k_list):
-            raise ValueError("nk must be >= number of nodes in kpts")
-
-        # Extract periodic lattice and compute k-space metric
-        lat_per = self.lat_vecs[self.per]
-        k_metric = np.linalg.inv(lat_per @ lat_per.T)
-
-        # Compute segment vectors and lengths in Cartesian metric
-        diffs = k_list[1:] - k_list[:-1]
-        seg_lengths = np.sqrt(np.einsum("ij,ij->i", diffs @ k_metric, diffs))
-
-        # Accumulated node distances
-        k_node = np.concatenate(([0.0], np.cumsum(seg_lengths)))
-
-        # Determine indices in the final array corresponding to each node
-        node_index = np.rint(k_node / k_node[-1] * (nk - 1)).astype(int)
-
-        # Initialize output arrays
-        k_vec = np.empty((nk, dim))
-        k_dist = np.empty(nk)
-
-        # Interpolate each segment
-        for i, (start, end) in enumerate(zip(node_index[:-1], node_index[1:])):
-            length = end - start
-            t = np.linspace(0, 1, length + 1)
-            k_vec[start : end + 1] = k_list[i] + np.outer(t, diffs[i])
-            k_dist[start : end + 1] = k_node[i] + t * seg_lengths[i]
-
-        # Trim any round-off overshoot
-        k_vec = k_vec[:nk]
-        k_dist = k_dist[:nk]
-
-        if report:
-            _report(k_list, lat_per, k_metric, k_node, node_index)
-
-        return k_vec, k_dist, k_node    
-    
+        return self.lattice.k_path(kpts, nk, report)   
 
     def ignore_position_operator_offdiagonal(self):
         """Set flag to ignore off-diagonal elements of the position operator.
@@ -2616,7 +2335,7 @@ class TBModel:
         cartesian: bool = False,
         abelian: bool = True,
     ):
-        r"""Compute the Berry curvature at a list of k-points.
+        r"""Compute the Berry curvature at a list of k-points via Kubo formula.
 
         The Berry curvature is computed from the derivatives of the Bloch Hamiltonian
         :math:`\partial_\mu H_k`, where :math:`\mu` is the direction in k-space.
@@ -2668,7 +2387,11 @@ class TBModel:
 
         Notes
         -----
-        This quantity is an anti-symmetric under :math:`\mu \leftrightarrow \nu`.
+        This quantity is an anti-symmetric under :math:`\mu \leftrightarrow \nu`. 
+        The Berry curvature is only defined for models with at least 2 k-space dimensions
+        (``dim_k >= 2``). The Berry curvature is computed using the Kubo formula, which
+        requires knowledge of the velocity operator :math:`\partial_\mu H_k`. This operator
+        is computed using the gradient of the Hamiltonian provided by :func:`grad_ham`.
         """
 
         if self.dim_k < 2:
@@ -2752,7 +2475,17 @@ class TBModel:
             return b_curv[dirs]
 
     def chern(self, occ_idxs=None, dirs=(0, 1), nk=200):
-        """Computes Chern number for occupied manifold.
+        r"""Computes Chern number for occupied manifold.
+
+        The Chern number is computed by integrating the Berry curvature
+        over a 2d surface in reciprocal space defined by `dirs` parameter.
+        The Chern number is given by
+
+        .. math::
+            C = \frac{1}{2\pi} \int_{\text{2d surface}} d^2k \, \Omega(k)
+
+        where :math:`\Omega(k)` is the trace of the Berry curvature
+        tensor over the occupied bands.
 
         Parameters
         ----------
@@ -2766,8 +2499,18 @@ class TBModel:
 
         Returns
         -------
-        float
+        chern : float
             Chern number for the occupied manifold.
+
+        Notes
+        -----
+        This function only works for models with at least 2 k-space
+        dimensions (``dim_k >= 2``). The Chern number is only defined
+        for 2d surfaces in k-space, so `dirs` must be a tuple of
+        length 2. The Chern number is guaranteed to be an integer
+        (within numerical accuracy) if the occupied manifold is
+        separated by an energy gap from the unoccupied manifold over
+        the entire 2d surface in k-space.
         """
 
         nks = (nk,) * self.dim_k
@@ -2790,15 +2533,17 @@ class TBModel:
         It is defined as
 
         .. math::
-            C_i = -4\pi \, \mathrm{Im} [P[X,P][Y,P]]_{ii},
+            C_i = 4\pi \, \mathrm{Im} \left(P[X,P][Y,P]\right)_{ii},
 
-        where P is the projector onto occupied states, and X,Y are position
-        operators.
+        where :math:`P` is the projector onto occupied states, :math:`X,Y` are position
+        operators, and :math:`i` is the orbital index. The local Chern marker
+        is normalized by the unit cell volume, so that its spatial average
+        gives the Chern number of the occupied manifold.
 
         Returns
         -------
         C_local : np.ndarray of shape (N,)
-            Per-site local Chern marker
+            Per-site local Chern marker.
         """
         if self.dim_k != 0:
             raise ValueError("Local Chern marker is only defined for real-space models (dim_k=0).")
@@ -3075,3 +2820,63 @@ class TBModel:
             show=show,
             cbar=cbar,
         )
+
+
+# Backward-compatibility for legacy tb_model constructor
+class tb_model(TBModel):
+    """Deprecated alias for backward-compatibility with PythTB <= 1.8.
+
+    This class preserves the old constructor signature:
+        ``tb_model(dim_k, dim_r, lat=None, orb=None, per=None, nspin=1)``
+
+    Use ``TBModel(lattice, nspin)`` going forward.
+    """
+    def __init__(self, dim_k, dim_r, lat=None, orb=None, per=None, nspin=1):
+        warnings.warn(
+            "pythtb.tb_model is deprecated and will be removed in a future release. "
+            "Use TBModel instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # Build a Lattice from v1-style arguments
+        if not isinstance(dim_k, int):
+            raise TypeError("dim_k must be an int in tb_model-compatible constructor")
+        if not isinstance(dim_r, int):
+            raise TypeError("dim_r must be an int in tb_model-compatible constructor")
+        if dim_k < 0 or dim_k > 4:
+            raise ValueError("dim_k must be between 0 and 4")
+        if dim_r < dim_k or dim_r > 4:
+            raise ValueError("dim_r must satisfy dim_r >= dim_k and <= 4")
+
+        # Lattice vectors
+        if (isinstance(lat, str) and lat == 'unit') or lat is None:
+            lat_vecs = np.identity(dim_r, float)
+        else:
+            lat_vecs = np.array(lat, dtype=float)
+            if lat_vecs.shape != (dim_r, dim_r):
+                raise ValueError("lat must have shape (dim_r, dim_r)")
+            det = np.linalg.det(lat_vecs)
+            if abs(det) < 1.0e-12:
+                raise ValueError("lattice vectors have near-zero volume")
+
+        # Orbital positions (reduced coordinates)
+        if (isinstance(orb, str) and orb == 'bravais') or orb is None:
+            orb_vecs = np.zeros((1, dim_r), dtype=float)
+        elif isinstance(orb, (int, np.integer)):
+            orb_vecs = np.zeros((int(orb), dim_r), dtype=float)
+        else:
+            orb_vecs = np.array(orb, dtype=float)
+            if orb_vecs.ndim != 2 or orb_vecs.shape[1] != dim_r:
+                raise ValueError("orb must be (norb, dim_r) in reduced coords")
+
+        # Periodic directions
+        if per is None:
+            periodic_dirs = list(range(dim_k))
+        else:
+            periodic_dirs = list(per)
+            if len(periodic_dirs) != dim_k:
+                raise ValueError("len(per) must equal dim_k")
+
+        # Construct new-style Lattice and delegate to TBModel
+        lat_obj = Lattice(lat_vecs, orb_vecs, periodic_dirs=periodic_dirs)
+        super().__init__(lattice=lat_obj, nspin=nspin)
