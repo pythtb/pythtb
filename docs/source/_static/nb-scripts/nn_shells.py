@@ -4,7 +4,7 @@
 # (graphene-nn)=
 # # Graphene n'th nearest neighbor hopping
 # 
-# This graphene model calculation illustrates a case where one can use `Lattice.nn_orb_bonds` to get the n'th nearest neighbor hoppings.
+# This graphene model calculation illustrates a case where one can use `Lattice.nn_bonds` to get the n'th nearest neighbor hoppings.
 
 # In[1]:
 
@@ -71,7 +71,7 @@ def nnn_chirality(i: int, j: int, R: tuple[int, int]) -> int:
 
 
 n_shell = 2
-shells = lat.nn_orb_bonds(n_shell=n_shell)["bonds_by_shell"]
+shells = lat.nn_bonds(n_shell=n_shell).bonds
 
 for s in range(n_shell):
     print(f"shell {s}: {len(shells[s])} hops")
@@ -106,7 +106,7 @@ nnn_model = TBModel(lat)
 
 
 n_shell = 4
-shells = lat.nn_orb_bonds(n_shell=n_shell)["bonds_by_shell"]
+shells = lat.nn_bonds(n_shell=n_shell).bonds
 
 for s in range(n_shell):
     print(f"shell {s}: {len(shells[s])} hops")
@@ -174,8 +174,8 @@ nn_model=TBModel(lat)
 
 
 # --- find shells ---
-out = lat.nn_orb_bonds(n_shell=8)  # enough to catch a second AB shell
-shells = out["bonds_by_shell"]     # list[shell] of (i, j, R)
+out = lat.nn_bonds(n_shell=8)  # enough to catch a second AB shell
+shells = out.bonds            # list[shell] of (i, j, R)
 
 def first_shell_where(pred):
     for s, hops in enumerate(shells):
@@ -306,4 +306,3 @@ for n in range(evals_nn.shape[1]):
     # ax.plot(k_dist, evals_nnn[:, n], color="b", linestyle="-", label=f"{n_shell}th nearest neighbor" if n == 0 else "")
 
 ax.legend()
-

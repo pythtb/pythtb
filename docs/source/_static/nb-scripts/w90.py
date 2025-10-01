@@ -18,7 +18,7 @@ import numpy as np
 silicon = W90(r"silicon_w90", r"silicon")
 
 
-# In[7]:
+# In[3]:
 
 
 # hard coded fermi level in eV
@@ -44,7 +44,7 @@ ax.set_ylabel(r"$H$ (eV)")
 ax.set_yscale('log')
 
 
-# In[9]:
+# In[6]:
 
 
 # get tb model in which some small terms are ignored
@@ -74,7 +74,7 @@ my_model = silicon.model(
 # Small discrepancies in the plot may arise due to the terms that were ignored in the silicon.model function call above.
 # :::
 
-# In[10]:
+# In[7]:
 
 
 fig, ax = plt.subplots()
@@ -89,4 +89,44 @@ ax.plot(list(range(int_evals.shape[0])), int_evals, "r-", zorder=-50)
 ax.set_xlim(0, int_evals.shape[0] - 1)
 ax.set_xlabel("K-path from Wannier90")
 ax.set_ylabel("Band energy (eV)")
+
+
+# In[8]:
+
+
+from pythtb import Mesh, WFArray
+
+
+# In[10]:
+
+
+nks = 20, 20, 20 # number of k points along each dimension
+mesh = Mesh(dim_k=3, axis_types=['k', 'k', 'k'])
+mesh.build_grid(shape=nks)
+print(mesh)
+
+
+# In[11]:
+
+
+wfa = WFArray(my_model, mesh)
+wfa.solve_mesh()
+
+
+# In[13]:
+
+
+k_path = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 0.0], [0.0, 0.5, 0.5], [0.5, 0.5, 0.5], [0.5, 0.0, 0.5], [0.5, 0.5, 0.5], [1.0, 1.0, 1.0    ]]
+
+
+# In[16]:
+
+
+print(my_model)
+
+
+# In[77]:
+
+
+my_model.plot_bands(k_path=k_path, nk=500, proj_orb_idx=[4, 3])
 

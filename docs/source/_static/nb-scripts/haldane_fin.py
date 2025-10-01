@@ -34,14 +34,14 @@ my_model = haldane(delta, t, t2)
 print(my_model)
 
 
-# In[4]:
-
-
-fin_model_false = my_model.make_finite([20, 20], glue_edges=[False, False])
-fin_model_true = my_model.make_finite([20, 20], glue_edges=[True, True])
-
-
 # In[5]:
+
+
+fin_model_false = my_model.make_finite([0, 1], [20, 20], glue_edges=[False, False])
+fin_model_true = my_model.make_finite([0,1], [20, 20], glue_edges=[True, True])
+
+
+# In[6]:
 
 
 # solve models
@@ -49,7 +49,7 @@ evals_false = fin_model_false.solve_ham()
 evals_true = fin_model_true.solve_ham()
 
 
-# In[6]:
+# In[7]:
 
 
 # flatten eigenvalue arrays

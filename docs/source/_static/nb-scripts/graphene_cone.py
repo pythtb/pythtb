@@ -14,7 +14,7 @@
 # Brillouin zone containing the Dirac point, and plots individual phases
 # for each plaquette in the array.
 
-# In[1]:
+# In[2]:
 
 
 from pythtb import TBModel, WFArray, Mesh, Lattice
@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 
 # First we build the tight-binding model for graphene with a staggered onsite potential.
 
-# In[2]:
+# In[3]:
 
 
 # define lattice vectors
@@ -35,7 +35,7 @@ orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
 lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
 
-# In[3]:
+# In[ ]:
 
 
 my_model = TBModel(lattice=lat)
@@ -56,7 +56,7 @@ print(my_model)
 # 
 # First we will construct the circular path of k-points around the Dirac cone.
 
-# In[4]:
+# In[6]:
 
 
 circ_step = 31 # number of steps in the circular path
@@ -73,6 +73,12 @@ for i in range(circ_step):
 kpts = np.array(kpts)
 
 
+# In[10]:
+
+
+kpts[-1]
+
+
 # ### `Mesh` class
 # We will now utilize the `Mesh` class to store the k-point mesh along the path. We pass the `TBModel` object as the argument.
 # 
@@ -82,7 +88,7 @@ kpts = np.array(kpts)
 # `n_interp` is an optional parameter that specifies the number of interpolation points between each pair of nodes in the path. By default, it is set to 1. This default behavior means that the k-point path will consist only of the nodes specified in `path_k`, without any additional points in between. If you want to create a denser k-point path with more points between the nodes, you can increase the value of `n_interp`.
 # :::
 
-# In[5]:
+# In[7]:
 
 
 mesh = Mesh(dim_k=2, axis_types=['k'])
@@ -94,7 +100,7 @@ print(mesh)
 # 
 # We now construct a `WFArray` object to hold the wavefunction data for each k-point in the mesh. The `WFArray` class is designed to work seamlessly with the `Mesh` class, allowing us to easily associate wavefunction data with the specific k-points (or parameter points) stored in the `Mesh`. 
 
-# In[6]:
+# In[11]:
 
 
 w_circ = WFArray(my_model, mesh)
@@ -102,7 +108,7 @@ w_circ = WFArray(my_model, mesh)
 
 # To populate the `WFArray` object with wavefunction data, we can use the `solve_mesh()` method, which computes the wavefunctions for each k-point in the mesh.
 
-# In[7]:
+# In[12]:
 
 
 w_circ.solve_mesh()
@@ -183,7 +189,7 @@ w_square.solve_mesh()
 # 
 # :::{note}
 # In our case, we have only one plane since the system is two-dimensional and we are interested in the Berry flux in the kx-ky plane.
-# However, if `plane` is unspecified, the Berry flux will be computed for all available planes, and will be returned with an additional set of two axes corresponding to each dimension in parameter space. Since the Berry flux is an anti-symmetric tensor, the `[0,1]` and `[1,0]` components will be related by a minus sign. So here, we specify the plane so the returned object just gets the upper left (`[0,1]`) component.
+# However, if `plane` is unspecified, the Berry flux will be computed for all available planes, and will be returned with an additional set of two axes corresponding to each dimension in parameter space. Since the Berry flux is an anti-symmetric tensor, the `[0,1]` and `[1,0]` components will be related by a minus sign. So here, we specify the plane so the returned object just gets the (`[0,1]`) component corresponding to $\Omega(\mathbf{k})^{(0,1)}$.
 # :::
 
 # In[12]:
