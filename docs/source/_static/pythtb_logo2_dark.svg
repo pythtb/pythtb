@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
-<svg width=".54071in" height=".57639in" version="1.1" viewBox="0 0 13.734 14.64" xmlns="http://www.w3.org/2000/svg">
+<svg width="1.5491in" height=".57639in" version="1.1" viewBox="0 0 39.348 14.64" xmlns="http://www.w3.org/2000/svg">
  <g transform="translate(-314.37 -231.52)">
   <g transform="translate(261.85 131.55)">
    <rect x="46.27" y="94.478" width="47.024" height="25.436" display="none" fill="#0d1117"/>
-   <path transform="matrix(.93842 0 0 .91441 -20.347 9.6892)" d="m91.229 110.45-6.312 3.6235-6.294-3.6546 0.01796-7.2781 6.312-3.6235 6.294 3.6546z" fill="none" stroke="#425066" stroke-width=".46527"/>
-   <g fill="#425066">
+   <path transform="matrix(.93842 0 0 .91441 -20.347 9.6892)" d="m91.229 110.45-6.312 3.6235-6.294-3.6546 0.01796-7.2781 6.312-3.6235 6.294 3.6546z" fill="none" stroke="#7989a7" stroke-width=".46527"/>
+   <g fill="#7989a7">
     <ellipse cx="59.355" cy="113.69" rx=".97729" ry=".90961"/>
     <ellipse cx="65.281" cy="110.72" rx=".97729" ry=".90961"/>
     <ellipse cx="53.501" cy="110.54" rx=".97729" ry=".90961"/>
     <ellipse cx="59.41" cy="100.87" rx=".97729" ry=".90961"/>
     <ellipse cx="53.545" cy="103.99" rx=".97729" ry=".90961"/>
    </g>
-   <ellipse cx="65.204" cy="103.99" rx=".97729" ry=".90961" fill="#0056f1" stroke="#000" stroke-width=".03"/>
+   <ellipse cx="65.204" cy="103.99" rx=".97729" ry=".90961" fill="#ef282d"/>
   </g>
   <g transform="translate(180.2 66.125)">
    <path d="m80.422 110.08s1.6385-4.0388 3.4666-4.7338c1.6965-0.64499 5.323 1.1462 5.323 1.1462" fill="none" stroke="#000" stroke-width=".365"/>
@@ -42,6 +42,6 @@
    </g>
    <path d="m88.997 108.98s2.1338-4.9825 4.3267-5.0266c2.1929-0.0441 4.4539 4.7721 4.4539 4.7721s1.9845 4.9423 4.1994 5.0266c2.2149 0.0843 4.263-4.8357 4.263-4.8357s2.2438-4.8641 4.5812-4.963c2.3374-0.0989 5.0902 5.5992 5.0902 5.5992" fill="none" stroke="#25292e" stroke-linecap="round" stroke-width=".465"/>
   </g>
-  <text transform="matrix(.99863 0 0 1.0014 -1.1458e-5 -4.1667e-8)" x="330.3465" y="240.61789" fill="#0042b8" font-family="Menlo" font-size="6.7629px" stroke-width=".31701" xml:space="preserve"><tspan x="330.3465" y="240.61789" fill="#0042b8" font-family="Monaco" stroke-width=".31701">PythTB</tspan></text>
+  <text transform="matrix(.99863 0 0 1.0014 -1.1458e-5 -4.1667e-8)" x="330.3465" y="240.61789" fill="#7989a7" font-family="Menlo" font-size="6.7629px" stroke-width=".31701" xml:space="preserve"><tspan x="330.3465" y="240.61789" fill="#7989a7" font-family="Monaco" stroke-width=".31701">PythTB</tspan></text>
  </g>
 </svg>
