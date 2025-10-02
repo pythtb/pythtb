@@ -90,6 +90,8 @@ print(f"Wannier fraction: {n_tfs/n_occ}")
 
 # Next, we initialize the `Wannier` object with the `TBModel` and `WFArray` objects. We initialize the Bloch-like states with `single_shot_projection` function which aligns the trial wavefunctions with the target bands specified by `band_idxs`.
 
+# $\mathcal{P}$
+
 # In[7]:
 
 

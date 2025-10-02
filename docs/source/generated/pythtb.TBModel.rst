@@ -224,6 +224,11 @@
 
 
 
+   ~pythtb.TBModel.nn_bonds
+
+
+
+
    ~pythtb.TBModel.plot_bands
 
 
@@ -260,6 +265,11 @@
 
 
    ~pythtb.TBModel.set_hop
+
+
+
+
+   ~pythtb.TBModel.set_nn_hops
 
 
 

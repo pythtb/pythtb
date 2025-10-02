@@ -149,6 +149,11 @@
 
 
 
+   ~pythtb.Lattice.k_shell_weights2
+
+
+
+
    ~pythtb.Lattice.k_uniform_mesh
 
 
@@ -165,11 +170,6 @@
 
 
    ~pythtb.Lattice.nn_k_shell
-
-
-
-
-   ~pythtb.Lattice.nn_orb_shell
 
 
 

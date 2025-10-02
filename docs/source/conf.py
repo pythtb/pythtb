@@ -148,11 +148,11 @@ html_theme_options = {
 #     "navigation_depth": 4,
 #     "collapse_navigation": False,
 #     "show_nav_level": 2,
-    # "logo": {
-    #     "image_light": "_static/logo.svg",
-    #     "image_dark": "_static/logo_dark.svg",
-    # },
-    # "github_url": "https://github.com/treycole/pythtb",
+    "logo": {
+        "image_light": "_static/logo.svg",
+        "image_dark": "_static/logo.svg",
+    },
+    "github_url": "https://github.com/pythtb/pythtb",
     "collapse_navigation": False,
     "article_header_end": ["nb-download"],
     # "external_links": [
