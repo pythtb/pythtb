@@ -1,6 +1,6 @@
-# Contributing to `pythTB`
+# Contributing to `PythTB`
 
-Thank you for your interest in contributing to `pythTB`! Your contributions help make the project more useful and accessible for everyone. Please take a moment to review the guidelines below before submitting changes.
+Thank you for your interest in contributing to `PythTB`! Your contributions help make the project more useful and accessible for everyone. Please take a moment to review the guidelines below before submitting changes.
 
 ## Code Quality and Design
 ### Clarity and maintainability
