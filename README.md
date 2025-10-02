@@ -1,6 +1,12 @@
-# PythTB
+<p align="center">
+ <img src="docs/source/_static/pythtb_logo_light.svg" width="300"/>
+</p>
+
+--------
 
  [![Conda Version](https://anaconda.org/conda-forge/pythtb/badges/version.svg)](https://anaconda.org/conda-forge/pythtb/) [![Conda Downloads](https://anaconda.org/conda-forge/pythtb/badges/downloads.svg)](https://anaconda.org/conda-forge/pythtb/) [![readthedocs status](https://app.readthedocs.org/projects/pythtb/badge/?version=dev)](https://pythtb.readthedocs.io/en/dev/)
+
+
 
 `PythTB` is a software package providing a Python implementation of the
 tight-binding approximation. It can be used to construct and solve
