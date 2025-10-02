@@ -7,15 +7,9 @@
  [![Conda Version](https://anaconda.org/conda-forge/pythtb/badges/version.svg)](https://anaconda.org/conda-forge/pythtb/) [![Conda Downloads](https://anaconda.org/conda-forge/pythtb/badges/downloads.svg)](https://anaconda.org/conda-forge/pythtb/) [![readthedocs status](https://app.readthedocs.org/projects/pythtb/badge/?version=dev)](https://pythtb.readthedocs.io/en/dev/)
 
 
+`PythTB` is a software package providing a Python implementation of the tight-binding approximation. It can be used to construct and solve tight-binding models of the electronic structure of systems of arbitrary dimensionality (crystals, slabs, ribbons, clusters, etc.), and is rich with features for computing Berry phases and related properties. For more details, please see the documentation at or http://www.physics.rutgers.edu/pythtb/.
 
-`PythTB` is a software package providing a Python implementation of the
-tight-binding approximation. It can be used to construct and solve
-tight-binding models of the electronic structure of systems of
-arbitrary dimensionality (crystals, slabs, ribbons, clusters, etc.),
-and is rich with features for computing Berry phases and related
-properties. For more details, please see:
-
-   http://www.physics.rutgers.edu/pythtb/
+If you have any questions about using or contributing to the code, please refer to the documentation at https://pythtb.readthedocs.io or post a question in the Discussions. For contributing to the code, see [CONTRIBUTING.md](CONTRIBUTING.md) and refer to the Wiki. 
 
 ## Installation
 
@@ -31,8 +25,8 @@ If you instead use `pip`, then you can install from PyPI using
 pip install pythtb 
 ```
 
-For more detailed instructions, see the [documentation website]( http://www.physics.rutgers.edu/pythtb/install.html).
+For more detailed instructions, refer to the [documentation website](https://pythtb.readthedocs.io/en/latest/install.html).
 
 ## Dependencies
 
-PythTB is compatible with Python >= 3.11. While earlier versions may work, we will not provide support for anything before this Python release.
+PythTB is compatible with Python 3.11 or later. While earlier versions may still work, we will not provide support for anything prior to this Python release.
