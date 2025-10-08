@@ -1,51 +1,8 @@
 import numpy as np
 import logging
 import copy
-from itertools import product
-from dataclasses import dataclass
-from typing import Iterator, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class NNBondsResult:
-    """Structured nearest-neighbor bond data returned by ``nn_bonds``.
-
-    Attributes
-    ----------
-    radii : np.ndarray
-        Array of shell radii (Cartesian units).
-    pairs_by_orb : list
-        Shell → orbital → array of ``[j, R...]`` neighbor indices.
-    dr_by_orb : list
-        Shell → orbital → Cartesian displacements ``Δr``.
-    deg_per_orb : np.ndarray
-        Degeneracy counts per shell/orbital.
-    bonds : list
-        Shell → list of unique tuples ``(i, j, R_tuple)``.
-    shells : list
-        Shell metadata copied from ``nn_orb_shell``.
-    """
-
-    radii: np.ndarray
-    pairs_by_orb: List[List[np.ndarray]]
-    dr_by_orb: List[List[np.ndarray]]
-    deg_per_orb: np.ndarray
-    bonds: List[List[Tuple[int, int, Tuple[int, ...]]]]
-    shells: List[dict]
-
-    def iter_bonds(self, shell: Optional[int] = None) -> Iterator[Tuple[int, int, Tuple[int, ...]]]:
-        """Iterate over unique bonds, optionally restricting to a shell (1-based)."""
-        if shell is not None:
-            idx = shell - 1
-            if idx < 0 or idx >= len(self.bonds):
-                raise IndexError("Shell index out of range.")
-            yield from self.bonds[idx]
-            return
-
-        for shell_bonds in self.bonds:
-            yield from shell_bonds
 
 __all__ = ["Lattice"]
 
