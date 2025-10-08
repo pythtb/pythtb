@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from .utils import _cart_to_red, _red_to_cart
 from .tbmodel import TBModel
@@ -5,11 +6,74 @@ from .lattice import Lattice
 
 __all__ = ["W90"]
 
+def _load_hr_fast(path, prefix):
+    hr_path = os.path.join(path, f"{prefix}_hr.dat")
+    with open(hr_path, "r") as fh:
+        fh.readline()  # skip first Wannier90 comment/header
+        num_wan = int(fh.readline())  # read number of Wannier functions
+        num_ws = int(fh.readline())  # read number of Wigner-Seitz cells
+
+        # Read degeneracies of Wigner-Seitz cells
+        deg_ws = []
+        while len(deg_ws) < num_ws:
+            line = fh.readline()
+            if not line:
+                raise RuntimeError("Unexpected EOF while reading Wigner–Seitz degeneracies.")
+            deg_ws.extend(int(val) for val in line.split())
+        # Truncate to expected count
+        deg_ws = np.asarray(deg_ws[:num_ws], dtype=int)
+
+        # Load remaining numeric table (R vectors, indices, real/imaginary parts)
+        data = np.loadtxt(fh)
+
+    # Check if data is empty
+    if data.size == 0:
+        return num_wan, {}
+
+    # Promote single row to shape (1, 7)
+    if data.ndim == 1:
+        data = data[None, :]
+    if data.shape[1] != 7:
+        raise RuntimeError("Wannier90 _hr.dat must have seven columns per row.")
+
+    R_vecs = data[:, :3].astype(np.int64)  # Triplets (R1, R2, R3)
+    i_idx = data[:, 3].astype(np.int64) - 1  # Wannier function index i
+    j_idx = data[:, 4].astype(np.int64) - 1  # Wannier function index j
+    hop_vals = data[:, 5] + 1j * data[:, 6]  # Hopping values
+
+    # Find unique R vectors and their indices (unique_R), remember first line each
+    # appears (first_idx), and how each row maps back (inverse)
+    unique_R, first_idx, inverse = np.unique(
+        R_vecs, axis=0, return_inverse=True, return_index=True
+    )
+    order = np.argsort(first_idx)  # sort shells by first occurrence
+    unique_R = unique_R[order]  # reorder unique R vectors accordingly
+
+    if deg_ws.size < unique_R.shape[0]:
+        raise RuntimeError("Not enough degeneracy entries for the R shells present.")
+    deg_ws = deg_ws[: unique_R.shape[0]]  # use only degeneracies actually needed (zeros get dropped)
+
+    remap = np.empty_like(order) 
+    remap[order] = np.arange(order.size) # permutation that maps sorted order back to original
+    inverse = remap[inverse] # remap per-row shell into new ordering
+
+    # One (num_wan x num_wan) matrix per unique R vector
+    blocks = np.zeros((unique_R.shape[0], num_wan, num_wan), dtype=complex)
+    # Scatter-add every hopping into proper (R, i, j) block
+    np.add.at(blocks, (inverse, i_idx, j_idx), hop_vals)
+
+    ham_r = {
+        tuple(int(v) for v in R_vec): {"h": blocks[idx], "deg": int(deg_ws[idx])}
+        for idx, R_vec in enumerate(unique_R)
+    }
+    return num_wan, ham_r
+
+
 class W90:
     r"""Interface to Wannier90
-    
-    This class of the PythTB package imports tight-binding model
-    parameters from an output of a `Wannier90 <http://www.wannier.org>`_ code.
+
+    This class imports tight-binding model parameters from an output 
+    of a `Wannier90 <http://www.wannier.org>`_ code.
     Upon instantiation, this class will read in the entire Wannier90 output.
     To create :class:`pythtb.TBModel` object user needs to call
     :func:`pythtb.w90.model`.
@@ -156,52 +220,7 @@ class W90:
             raise Exception("Unable to find unit_cell_cart block in the .win file.")
 
         # read in hamiltonian matrix, in eV
-        f = open(self.path + "/" + self.prefix + "_hr.dat", "r")
-        ln = f.readlines()
-        f.close()
-        
-        # get number of wannier functions
-        self.num_wan = int(ln[1])
-        # get number of Wigner-Seitz points
-        num_ws = int(ln[2])
-        # get degenereacies of Wigner-Seitz points
-        deg_ws = []
-        for j in range(3, len(ln)):
-            sp = ln[j].split()
-            for s in sp:
-                deg_ws.append(int(s))
-            if len(deg_ws) == num_ws:
-                last_j = j
-                break
-            if len(deg_ws) > num_ws:
-                raise Exception("Too many degeneracies for WS points!")
-        deg_ws = np.array(deg_ws, dtype=int)
-        # now read in matrix elements
-        # Convention used in w90 is to write out:
-        # R1, R2, R3, i, j, ham_r(i,j,R)
-        # where ham_r(i,j,R) corresponds to matrix element < i | H | j+R >
-        self.ham_r = {}  # format is ham_r[(R1,R2,R3)]["h"][i,j] for < i | H | j+R >
-        ind_R = 0  # which R vector in line is this?
-        for j in range(last_j + 1, len(ln)):
-            sp = ln[j].split()
-            # get reduced lattice vector components
-            ham_R1 = int(sp[0])
-            ham_R2 = int(sp[1])
-            ham_R3 = int(sp[2])
-            # get Wannier indices
-            ham_i = int(sp[3]) - 1
-            ham_j = int(sp[4]) - 1
-            # get matrix element
-            ham_val = float(sp[5]) + 1j * float(sp[6])
-            # store stuff, for each R store hamiltonian and degeneracy
-            ham_key = (ham_R1, ham_R2, ham_R3)
-            if ham_key not in self.ham_r:
-                self.ham_r[ham_key] = {
-                    "h": np.zeros((self.num_wan, self.num_wan), dtype=complex),
-                    "deg": deg_ws[ind_R],
-                }
-                ind_R += 1
-            self.ham_r[ham_key]["h"][ham_i, ham_j] = ham_val
+        self.num_wan, self.ham_r = _load_hr_fast(self.path, self.prefix)
 
         # check if for every non-zero R there is also -R (set-based, O(N))
         R_set = set(self.ham_r.keys())
@@ -364,6 +383,7 @@ class W90:
         tb = TBModel(self.lattice)
 
         # remember that this model was computed from w90
+        tb._from_w90 = True
         tb._assume_position_operator_diagonal = False
 
         # -------------------------
@@ -422,7 +442,8 @@ class W90:
 
             else:
                 keep = np.ones((num_wan, num_wan), dtype=bool)
-                np.fill_diagonal(keep, False)  
+                # np.fill_diagonal(keep, False)  
+                np.fill_diagonal(keep, True)  
 
             # Distance cutoff (use cached distances; compute lazily if needed)
             if max_distance is not None:
@@ -448,8 +469,10 @@ class W90:
             ii, jj = np.nonzero(keep)
             if ii.size:
                 amps = Ham[ii, jj]
-                for i, j, a in zip(ii.tolist(), jj.tolist(), amps.tolist()):
-                    tb.set_hop(a, i, j, list(R))
+                R_arr = np.repeat(np.array(R)[None, :], ii.size, axis=0)
+                tb._append_hops(amps, ii, jj, R_arr)
+                # for i, j, a in zip(ii.tolist(), jj.tolist(), amps.tolist()):
+                #     tb.set_hop(a, i, j, list(R))
 
         return tb
     
