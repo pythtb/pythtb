@@ -81,6 +81,7 @@ class TBModel:
         # By default, assume model did not come from w90 object and that
         # position operator is diagonal
         self._assume_position_operator_diagonal = True
+        self._from_w90 = False
 
         # Initialize onsite energies to zero
         if self._nspin == 1:
@@ -666,19 +667,63 @@ class TBModel:
         Rp = tuple(np.array(ind_R)[self.per])
         conj_Rp = tuple((-np.array(ind_R))[self.per])
         return (ind_i, ind_j, Rp), (ind_j, ind_i, conj_Rp)
+    
+    def _get_flattened_indices(self):
+        cache = getattr(self, "_ham_accum_cache", None)
+        hop_key = (id(self._hoppings), self.norb)
+
+        if cache is None or cache["key"] != hop_key:
+            i_indices = np.array([h[1] for h in self._hoppings])
+            j_indices = np.array([h[2] for h in self._hoppings])
+            norb = self.norb
+            flat_idx = i_indices * norb + j_indices
+
+            order = np.argsort(flat_idx, kind="mergesort")
+            flat_sorted = flat_idx[order]
+            starts = np.concatenate(([0], np.flatnonzero(np.diff(flat_sorted)) + 1))
+            uniq = flat_sorted[starts]
+
+            rows = uniq // norb
+            cols = uniq % norb
+            cols_transposed = cols * norb + rows
+
+            inverse_order = np.empty_like(order)
+            inverse_order[order] = np.arange(order.size)
+
+            cache = {
+                "key": hop_key,
+                "order": order,
+                "starts": starts,
+                "uniq": uniq,
+                "cols_transposed": cols_transposed,
+                "inverse_order": inverse_order,
+                "bucket_counts": starts,
+            }
+            self._ham_accum_cache = cache
+
+        return cache
+
+    
     ############################################################################
 
-    def set_nn_hops(self, hop_amps: list, mode="set"):
+    def set_nn_hops(self, hop_amps: list, nn_shells: list[int], mode="set"):
         r"""Define nearest-neighbor hopping parameters up to a specified shell.
 
         Parameters
         ----------
         hop_amp : list or array-like
             List or array of hopping amplitudes for each shell.
-            The length of ``hop_amp`` is interpretted as the number 
-            of nearest-neighbor shells, e.g., the first element is 
-            the hopping for all first neighbors for each orbital, the second
-            element is the hopping for all next-nearest neighbors and so on.
+            The length of ``hop_amp`` should match the length of ``nn_shells``, 
+            where each element corresponds to the hopping amplitude for that shell.
+        nn_shells : list[int]
+            List of integers specifying the shells for each hopping amplitude. Counting
+            starts from 1, so ``nn_shells=[1, 2]`` indicates nearest-neighbor and 
+            next-nearest-neighbor shells. The length of ``nn_shells`` should match the length 
+            of ``hop_amp``. Each element in ``nn_shells`` should be a positive integer.
+        mode : {'set', 'add'}, optional
+            Specifies how `hop_amp` is used
+                - "set": Set the hopping term to the value of `hop_amp`. (Default)
+                - "add": Add `hop_amp` to the previous value.
 
         Notes
         -----
@@ -686,23 +731,104 @@ class TBModel:
 
         Examples
         --------
-        >>> tb.set_nn_hops(2, [1.0, 0.5])
+        Setting nearest-neighbor and next-nearest-neighbor hoppings:
+
+        >>> tb.set_nn_hops([1.0, 0.5], [1, 2])
+
+        Setting only nearest-neighbor hoppings:
+
+        >>> tb.set_nn_hops([1.0], [1])
+
         """
-        n_shells = len(hop_amps)
-    
+        n_shells = max(nn_shells)
+
+        if n_shells == 0:
+            raise ValueError("hop_amp must have at least one element.")
+        if len(nn_shells) != n_shells:
+            raise ValueError("nn_shells must have length equal to n_shells.")
+        if not all(isinstance(shell, int) and shell > 0 for shell in nn_shells):
+            raise ValueError("Each element in nn_shells must be a positive integer.")
         if not isinstance(hop_amps, (list, np.ndarray)):
             raise TypeError("hop_amp must be a list or array.")
-
-        if len(hop_amps) != n_shells:
-            raise ValueError("hop_amp must have length equal to n_shells.")
+        if any(not isinstance(amp, (int, float, complex, list, np.ndarray)) for amp in hop_amps):
+            raise TypeError("Each element in hop_amp must be a scalar, list, or array.")
 
         shell_bonds = self.nn_bonds(n_shells)[1]
 
+        hops = dict(zip(nn_shells, hop_amps))
+
         for shell_idx, shell in enumerate(shell_bonds):
-            amp = hop_amps[shell_idx]
+            amp = hops.get(shell_idx + 1, None)
+            if amp is None:
+                continue
             for bond in shell:
                 i, j, R = bond
                 self.set_hop(amp, i, j, R, mode=mode, allow_conjugate_pair=True)
+
+    def _append_hops(self, hop_amps, i_idx, j_idx, R_vecs):
+        hop_amps = np.asarray(hop_amps)
+        i_idx = np.asarray(i_idx, dtype=int)
+        j_idx = np.asarray(j_idx, dtype=int)
+        R_vecs = np.asarray(R_vecs, dtype=int).reshape(len(i_idx), self.dim_r)
+
+        # convert amplitudes to blocks once
+        blocks = [self._val_to_block(val) for val in hop_amps]
+        entries = [[block, int(i), int(j), R_vec] for block, i, j, R_vec in zip(blocks, i_idx, j_idx, R_vecs)]
+
+        start = len(self._hoppings)
+        self._hoppings.extend(entries)
+
+        # invalidate caches
+        self._ham_accum_cache = None
+
+        # update hash index only if it already exists
+        if getattr(self, "_hop_index", None) is not None:
+            Rp = map(tuple, R_vecs[:, self.per]) if self.dim_k else (None,) * len(entries)
+            for offset, key in enumerate(zip(i_idx.tolist(), j_idx.tolist(), Rp)):
+                self._hop_index[key] = start + offset
+
+
+    def _set_hops_bulk(self, hop_amps, i_idx, j_idx, R_vecs, mode="set"):
+        mode = mode.lower()
+        if mode not in {"set", "add"}:
+            raise ValueError("mode must be 'set' or 'add'")
+
+        hop_amps = np.asarray(hop_amps)
+        i_idx = np.asarray(i_idx, dtype=int)
+        j_idx = np.asarray(j_idx, dtype=int)
+        R_vecs = np.asarray(R_vecs, dtype=int).reshape(len(i_idx), self.dim_r)
+
+        self._ensure_hop_index()
+
+        # precompute keys and conjugate keys once
+        keys = [self._hop_keys(int(i), int(j), R_vec)[0] for i, j, R_vec in zip(i_idx, j_idx, R_vecs)]
+        conj_keys = [self._hop_keys(int(i), int(j), R_vec)[1] for i, j, R_vec in zip(i_idx, j_idx, R_vecs)]
+
+        # optional: enforce no double-counting
+        if mode == "set":
+            dup = set(keys) & set(conj_keys)
+            if dup:
+                raise ValueError("Attempting to add both hop and its conjugate; set allow_conjugate_pair=True or filter first.")
+
+        blocks = [self._val_to_block(val) for val in hop_amps]
+        new_entries = list(zip(blocks, i_idx.tolist(), j_idx.tolist(), R_vecs))
+
+        if mode == "add":
+            for key, entry in zip(keys, new_entries):
+                idx = self._hop_index.get(key)
+                if idx is not None:
+                    self._hoppings[idx][0] += entry[0]
+                else:
+                    self._hoppings.append(list(entry))
+                    self._hop_index[key] = len(self._hoppings) - 1
+        else:  # mode == "set"
+            for key, entry in zip(keys, new_entries):
+                idx = self._hop_index.get(key)
+                if idx is not None:
+                    self._hoppings[idx] = list(entry)
+                else:
+                    self._hoppings.append(list(entry))
+                    self._hop_index[key] = len(self._hoppings) - 1
 
     def set_hop(
         self,
@@ -1097,6 +1223,7 @@ class TBModel:
         boundaries due to the gauge discontinuity inherent in convention I.        
 
         """
+
         # Cache invariant data to avoid repeated conversions
         dim_k = self.dim_k
         norb = self.norb
@@ -1154,23 +1281,31 @@ class TBModel:
                 else:
                     raise ValueError("Invalid spin value.")
 
+        n_hops = len(hoppings)
         hop_amps = np.array([h[0] for h in hoppings], dtype=complex)
         i_indices = np.array([h[1] for h in hoppings])
         j_indices = np.array([h[2] for h in hoppings])
-        n_hops = len(hoppings)
+
 
         if dim_k == 0:
             if nspin == 1:
-                ham = np.zeros((norb, norb), complex)
+                ham = np.zeros((norb, norb), dtype=complex)
+
+                logger.debug("Adding hoppings...")
                 np.add.at(ham, (i_indices, j_indices), hop_amps)
                 np.add.at(ham, (j_indices, i_indices), hop_amps.conj())
+
+                logger.debug("Adding onsite energies...")
                 np.fill_diagonal(ham, site_energies)
             elif nspin == 2:
                 ham = np.zeros((norb, 2, norb, 2), dtype=complex)
+
+                logger.debug("Adding hoppings...")
                 for h in range(n_hops):
                     ham[i_indices[h], :, j_indices[h], :] += hop_amps[h]
                     ham[j_indices[h], :, i_indices[h], :] += hop_amps[h].conj().T
 
+                logger.debug("Adding onsite energies...")
                 for orb in orb_idxs:
                     ham[orb, :, orb, :] += site_energies[orb]
 
@@ -1180,43 +1315,86 @@ class TBModel:
             orb_j = orb_red[j_indices]  # Shape: (n_hoppings, dim_r)
             ind_Rs = np.array([h[3] for h in hoppings], dtype=float)
 
+            #TODO: Check if this needs to be the case
+            # if not self._from_w90:
+            #     delta_r = ind_Rs - orb_i + orb_j  # Shape: (n_hoppings, dim_r)
+            # else:
+            #     delta_r = ind_Rs
+
             delta_r = ind_Rs - orb_i + orb_j  # Shape: (n_hoppings, dim_r)
             delta_r_per = delta_r[:, per]  # Shape: (n_hoppings, dim_k)
 
+            logger.debug("Calculating phases...")
             k_dot_r = k_arr @ delta_r_per.T  # Shape: (n_kpts, n_hoppings)
             phases = np.exp(1j * 2 * np.pi * k_dot_r)  # Shape: (n_kpts, n_hoppings)
 
-            if nspin == 1:
-                T_f = np.zeros((n_hops, norb, norb), complex)
-                T_r = np.zeros((n_hops, norb, norb), complex)
-                idx = np.arange(n_hops)
-                T_f[idx, i_indices, j_indices] = hop_amps
-                T_r[idx, j_indices, i_indices] = hop_amps.conj()
+            if nspin == 1:              
+
+                #NOTE: testing
+                ham_flat = np.zeros((n_kpts, norb * norb), dtype=complex)
+
+                #NOTE: new approach to accumulate identical (i,j) contributions together
+                # to avoid repeated np.add.at calls which are slow for large arrays
+                # this is because np.add.at is not optimized for repeated indices
+                # instead we sort the contributions by (i,j) and then use np.add.reduceat
+                # to sum them up in one go, then we place them in the correct positions
+                # and their conjugates
+                cache = self._get_flattened_indices()
+                order = cache["order"] # aranges the hops so that identical (i,j) are together
+                starts = cache["starts"] # starting indices of each unique (i,j)
+                uniq = cache["uniq"] # unique (i,j) flattened indices
+                cols_transposed = cache["cols_transposed"] # flattened indices of the transposed elements
+
+                # reordered contributions so that identical (i,j) are together
+                contrib_sorted = phases[:, order] * hop_amps[order] # shape (n_kpts, n_hops)
+                # For each start, sum up contributions until the next start
+                sums = np.add.reduceat(contrib_sorted, starts, axis=1)
+
+                # Add sums into representative positions (uniq) and their conjugates
+                logger.debug("Adding hoppings...")
+                ham_flat[:, uniq] += sums
+                ham_flat[:, cols_transposed] += sums.conj()
+
+                ham = ham_flat.reshape(n_kpts, norb, norb)
+                ########
+
+                # ham = np.zeros((n_kpts, norb, norb), dtype=complex)
+                # np.add.at(ham, (slice(None), i_indices, j_indices), weighted)
+                # np.add.at(ham, (slice(None), j_indices, i_indices), weighted.conj())
+
+                logger.debug("Adding onsite energies...")
+                ham[..., orb_idxs, orb_idxs] += site_energies[orb_idxs]
+
             elif nspin == 2:
-                T_f = np.zeros((n_hops, norb, 2, norb, 2), complex)
-                T_r = np.zeros((n_hops, norb, 2, norb, 2), complex)
-                for h in range(n_hops):
-                    T_f[h, i_indices[h], :, j_indices[h], :] = hop_amps[h]
-                    T_r[h, j_indices[h], :, i_indices[h], :] = hop_amps[h].conj().T
+                ham = np.zeros((n_kpts, norb, 2, norb, 2), dtype=complex)
+                weighted = phases[..., None, None] * hop_amps[None, :, :, :]  # (n_kpts, n_hops, 2, 2)
 
-            ham = np.tensordot(phases, T_f, axes=([1], [0]))
-            ham_hc = np.tensordot(phases.conj(), T_r, axes=([1], [0]))
-            np.add(ham, ham_hc, out=ham)
+                logger.debug("Adding hoppings...")
+                for s_out in range(2):
+                    for s_in in range(2):
+                        contrib = weighted[..., s_out, s_in]
+                        np.add.at(ham[:, :, s_out, :, s_in], (slice(None), i_indices, j_indices), contrib)
+                        np.add.at(
+                            ham[:, :, s_in, :, s_out],
+                            (slice(None), j_indices, i_indices),
+                            contrib.conj(),
+                        )
 
-            # fill diagonal elements with onsite energies
-            for orb in orb_idxs:
-                if nspin == 1:
-                    ham[..., orb, orb] += site_energies[orb]
-                elif nspin == 2:
-                    ham[..., orb, :, orb, :] += site_energies[orb]
+                logger.debug("Adding onsite energies...")
+                for orb in orb_idxs:
+                    ham[:, orb, :, orb, :] += site_energies[orb]
         
         if flatten_spin and nspin == 2:
+            logger.debug("Flattening spin axes...")
             ham = ham.reshape(*ham.shape[:-4], self.norb * self.nspin, self.norb * self.nspin)
 
         return ham
 
-    def _sol_ham(self, ham, return_eigvecs=False, keep_spin_ax=True, tf_speedup=False):
+    def _sol_ham(
+        self, ham, return_eigvecs=False, keep_spin_ax=True, tf_speedup=False, use_32_bit=False,
+        memory_info=False):
         """Solves Hamiltonian and returns eigenvectors, eigenvalues"""
+        # NOTE: this function is separate so that it can be jit-compiled if needed
 
         # shape(ham): (Nk, n_orb, n_orb), (Nk, n_orb, n_spin, n_orb, n_spin)
         # or in finite cases (n_orb, n_orb), (n_orb, n_spin, n_orb, n_spin)
@@ -1252,25 +1430,46 @@ class TBModel:
             if tf_speedup:
                 from tensorflow import convert_to_tensor
                 from tensorflow import complex64 as tfcomplex64
+                from tensorflow import complex128 as tfcomplex128
+                if use_32_bit:
+                    tfcomplex = tfcomplex64
+                else:
+                    tfcomplex = tfcomplex128
                 from tensorflow.linalg import eigvalsh as tfeigvalsh
 
-                H_tf = convert_to_tensor(ham_use, dtype=tfcomplex64)
+                H_tf = convert_to_tensor(ham_use, dtype=tfcomplex)
                 eval = tfeigvalsh(H_tf)
                 eval = eval.numpy()
                 return eval
             else:
+                if use_32_bit:
+                    ham_use = ham_use.astype(np.complex64)
+                else:
+                    ham_use = ham_use.astype(np.complex128)
                 return np.linalg.eigvalsh(ham_use)
         else:
             if tf_speedup:
                 from tensorflow import convert_to_tensor
                 from tensorflow import complex64 as tfcomplex64
+                from tensorflow import complex128 as tfcomplex128
+
+                if use_32_bit:
+                    tfcomplex = tfcomplex64
+                else:                    
+                    tfcomplex = tfcomplex128
+
                 from tensorflow.linalg import eigh as tfeigh
 
-                H_tf = convert_to_tensor(ham_use, dtype=tfcomplex64)
+                H_tf = convert_to_tensor(ham_use, dtype=tfcomplex)
                 eval, evec = tfeigh(H_tf)
                 eval = eval.numpy()
                 evec = evec.numpy()
             else:
+                if use_32_bit:
+                    ham_use = ham_use.astype(np.complex64)
+                else:
+                    ham_use = ham_use.astype(np.complex128)
+
                 eval, evec = np.linalg.eigh(ham_use)
 
             # transpose matrix eig since otherwise it is confusing
@@ -1286,7 +1485,7 @@ class TBModel:
             k_list = None, 
             return_eigvecs: bool = False, 
             keep_spin_ax: bool = True,
-            tf_speedup: bool = False):
+            tf_speedup: bool = False) -> tuple[np.ndarray, np.ndarray] | np.ndarray:
         r"""Diagonalize the Hamiltonian 
         
         Solve for eigenvalues and optionally eigenvectors of the tight-binding model
@@ -1361,9 +1560,10 @@ class TBModel:
 
         >>> eval, evec = tb.solve_ham([[0.0, 0.0], [0.0, 0.2]], return_eigvecs=True)
         """
-
+        logger.debug("Initializing Hamiltonian...")
         Ham = self.hamiltonian(k_list)
 
+        logger.debug("Diagonalizing Hamiltonian...")
         if return_eigvecs:
             eigvals, eigvecs = self._sol_ham(
                 Ham, return_eigvecs=return_eigvecs, keep_spin_ax=keep_spin_ax, tf_speedup=tf_speedup
@@ -1816,8 +2016,11 @@ class TBModel:
         >>> sc_tb = tb.make_supercell([[2, 1], [-1, 2]])
         """
         geom = self.lattice._prepare_supercell_geometry(sc_red_lat)
+
+        # get super-cell vectors in cartesian coordinates
         sc_vec = geom["translations"]
         num_sc = sc_vec.shape[0]
+        
 
         lat = Lattice(geom["lat_vecs"], geom["orb_vecs"], self.periodic_dirs)
         sc_tb = TBModel(lat, nspin=self.nspin)
@@ -1859,8 +2062,11 @@ class TBModel:
                     amp, hi, hj, sc_part, mode="add", allow_conjugate_pair=True
                 )
 
-        # put orbitals to home cell if asked for
         if to_home:
+            #NOTE: These two functions must be called in this order! 
+            # First shift hoppings, then orbitals. The hoppings
+            # depend on the orbital positions.
+
             sc_tb._shift_hop_to_home()
             sc_tb.lattice._shift_orb_to_home()
 
