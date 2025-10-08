@@ -774,18 +774,17 @@ class WFArray:
         return (u, psi) if return_psi else u
 
         
-    def _set_wfs(
+    def set_wfs(
         self, 
         wfs, 
         cell_periodic: bool = True, 
-        spin_flattened=False, 
-        set_projectors=True
-    ):
+        spin_flattened=False
+        ):
         """Sets the wavefunctions in the *WFArray* object.
 
-        This function sets the Bloch and cell-periodic eigenstates as class attributes
-        when `wfs` is defined on the a k-mesh. When the model is finite, only the
-        ``.wfs`` attribute is set.
+        This function is used to update the wavefunctions stored in the object.
+        It is typically called internally after diagonalization. However, 
+        it can also be called externally to manually set the wavefunctions.
 
         Parameters
         ----------
@@ -798,6 +797,18 @@ class WFArray:
         spin_flattened : bool, optional
             If True, the spin and orbital indices are flattened into a single index.
             Default is False. This must match the shape of the input ``wfs``.
+
+        Notes
+        ------
+        This function sets the Bloch and cell-periodic eigenstates as class attributes
+        when `wfs` is defined on the a k-mesh. When the model is finite, only the
+        ``.wfs`` attribute is set and ``cell_periodic`` argument is ignored.
+
+        .. warning::
+            This function should be used carefully to ensure that the wavefunctions 
+            are consistent with the mesh and model.
+            It is up to the user to ensure periodic boundary conditions and other mesh properties 
+            are properly accounted for.
         """
         if not isinstance(wfs, np.ndarray):
             raise TypeError("wfs must be a numpy ndarray.")
@@ -842,15 +853,13 @@ class WFArray:
 
             if self.mesh.is_grid:
                 self._Mmn = self.get_overlap_mat()
-
-        elif not cell_periodic:
-            raise ValueError("Cannot set non-cell-periodic wavefunctions for 0D k-space.")
         
         else:
+            if not cell_periodic:
+                logger.warning("Setting non-cell-periodic wavefunctions for 0D k-space.")
             self._wfs = wfs
     
-        if set_projectors:
-            self._set_projectors()
+        self._set_projectors()
 
 
     def _set_projectors(self):
@@ -1059,7 +1068,7 @@ class WFArray:
         evec = evec.swapaxes(-1, -2)
         evec = evec.reshape(*self.shape)
 
-        self._set_wfs(evec, cell_periodic=True, spin_flattened=False)
+        self.set_wfs(evec, cell_periodic=True, spin_flattened=False)
         self._energies = eval
 
         if self.nstates > 1:
