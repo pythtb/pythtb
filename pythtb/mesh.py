@@ -1088,6 +1088,7 @@ class Mesh:
         # Checks
         if not isinstance(shape, (tuple, list)):
             raise TypeError(f"Expected tuple or list for shape, got {type(shape)}")
+
         if len(shape) != self.num_k_axes + self.num_lambda_axes:
             raise ValueError(f"Expected {self.num_k_axes + self.num_lambda_axes} dimensions, got {len(shape)}")
         
@@ -1119,6 +1120,8 @@ class Mesh:
         else:
             raise TypeError("lambda_stop must be a complex, int, float or a list of them.")
 
+        # convert shape to ints
+        shape = tuple(int(x) for x in shape) 
         shape_k = shape[:self.num_k_axes]
         shape_lambda = shape[self.num_k_axes:]
 
