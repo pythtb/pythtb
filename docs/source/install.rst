@@ -5,10 +5,11 @@
 Install
 =======
 
-PythTB >= v2.0.0 is supported for Python >= 3.10. Versions up to 1.7.0 are
+PythTB >= v2.0.0 is supported for Python >= 3.11. PythTB versions up to 1.7.0 are
 only supported on Python < 3.0, while version 1.8.0 is compatible with 
 Python 2.7 - 3.10 (Python 2.6 and below are not recommended).
 While other versions of Python may work, they are not guaranteed to be compatible.
+
 
 To check which version of Python is
 currently installed on your system, just type
@@ -19,7 +20,9 @@ currently installed on your system, just type
 
 If you don't have Python 3.10 or higher, you can follow the instructions in
 :ref:`Installing or upgrading Python <install-python>` to install or upgrade.
-
+If you are unfamiliar with Python or are not sure whether Python and the
+needed Python modules are installed on your system, see our
+:doc:`python introduction <resources>`.
 
 Dependencies
 ------------
