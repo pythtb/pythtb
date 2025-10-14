@@ -20,4 +20,3 @@ dependencies:
       - jupyter_client
       - nbclient
       - jupyter-server-proxy
-      - -e .
