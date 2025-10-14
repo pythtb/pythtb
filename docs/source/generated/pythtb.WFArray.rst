@@ -194,17 +194,7 @@
 
 
 
-   ~pythtb.WFArray.get_projectors
-
-
-
-
    ~pythtb.WFArray.get_shell_weights
-
-
-
-
-   ~pythtb.WFArray.get_states
 
 
 
@@ -234,12 +224,17 @@
 
 
 
+   ~pythtb.WFArray.projectors
+
+
+
+
    ~pythtb.WFArray.remove_states
 
 
 
 
-   ~pythtb.WFArray.roll_states_with_bc
+   ~pythtb.WFArray.roll_states_with_pbc
 
 
 
@@ -249,7 +244,12 @@
 
 
 
-   ~pythtb.WFArray.solve_mesh
+   ~pythtb.WFArray.set_states
+
+
+
+
+   ~pythtb.WFArray.solve
 
 
 
@@ -264,7 +264,7 @@
 
 
 
-   ~pythtb.WFArray.trace_metric
+   ~pythtb.WFArray.states
 
 
 
@@ -306,6 +306,16 @@
 
 
 
+   ~pythtb.WFArray.bloch_states
+
+
+
+
+   ~pythtb.WFArray.cell_periodic
+
+
+
+
    ~pythtb.WFArray.dim_k
 
 
@@ -341,17 +351,7 @@
 
 
 
-   ~pythtb.WFArray.loop_axes
-
-
-
-
    ~pythtb.WFArray.mesh
-
-
-
-
-   ~pythtb.WFArray.mesh_shape
 
 
 
@@ -361,7 +361,7 @@
 
 
 
-   ~pythtb.WFArray.ndims
+   ~pythtb.WFArray.naxes
 
 
 
@@ -396,17 +396,27 @@
 
 
 
-   ~pythtb.WFArray.pbc_axes
-
-
-
-
    ~pythtb.WFArray.psi_nk
 
 
 
 
    ~pythtb.WFArray.shape
+
+
+
+
+   ~pythtb.WFArray.shape_k
+
+
+
+
+   ~pythtb.WFArray.shape_lambda
+
+
+
+
+   ~pythtb.WFArray.shape_mesh
 
 
 

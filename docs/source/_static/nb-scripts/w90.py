@@ -97,7 +97,7 @@ ax.set_ylabel("Band energy (eV)")
 from pythtb import Mesh, WFArray
 
 
-# In[10]:
+# In[9]:
 
 
 nks = 20, 20, 20 # number of k points along each dimension
@@ -106,26 +106,26 @@ mesh.build_grid(shape=nks)
 print(mesh)
 
 
-# In[11]:
+# In[10]:
 
 
 wfa = WFArray(my_model, mesh)
 wfa.solve_mesh()
 
 
-# In[13]:
+# In[11]:
 
 
 k_path = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 0.0], [0.0, 0.5, 0.5], [0.5, 0.5, 0.5], [0.5, 0.0, 0.5], [0.5, 0.5, 0.5], [1.0, 1.0, 1.0    ]]
 
 
-# In[16]:
+# In[12]:
 
 
 print(my_model)
 
 
-# In[77]:
+# In[13]:
 
 
 my_model.plot_bands(k_path=k_path, nk=500, proj_orb_idx=[4, 3])

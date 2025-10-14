@@ -70,8 +70,8 @@ k_nodes = [
 label = (r"$\Gamma $", r"$K$", r"$M$", r"$K^\prime$", r"$\Gamma $")
 
 # solve for eigenenergies of hamiltonian on k_path and plot bands
-model_triv.plot_bands(k_path=k_nodes, nk=201, k_label=label, fig=fig, ax=ax1, proj_orb_idx=[0])
-model_topo.plot_bands(k_path=k_nodes, nk=201, k_label=label, fig=fig, ax=ax2, proj_orb_idx=[0])
+model_triv.plot_bands(k_path=k_nodes, nk=201, ktick_labels=label, fig=fig, ax=ax1, proj_orb_idx=[0])
+model_topo.plot_bands(k_path=k_nodes, nk=201, ktick_labels=label, fig=fig, ax=ax2, proj_orb_idx=[0])
 
 ax1.set_title("Kane-Mele: trivial phase")
 ax2.set_title("Kane-Mele: topological phase")

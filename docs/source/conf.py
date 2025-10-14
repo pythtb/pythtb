@@ -149,7 +149,7 @@ html_theme_options = {
 #     "collapse_navigation": False,
 #     "show_nav_level": 2,
     "logo": {
-        "image_light": "_static/pythtb_logo2_light.svg",
+        "image_light": "_static/pythtb_logo2_dark.svg",
         "image_dark": "_static/pythtb_logo2_dark.svg",
     },
     "github_url": "https://github.com/pythtb/pythtb",

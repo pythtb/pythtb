@@ -55,7 +55,7 @@ def set_model(t, delta, lmbd):
 # The argument that we plan to vary must be named appropriately in the mesh via the `axis_names` argument in the `Mesh` constructor. If the name of the model parameter we are varying does not match the corresponding axis name in the mesh, the parameter will not be varied correctly. Here we are varying the `lmbd` parameter.
 # :::
 
-# In[4]:
+# In[3]:
 
 
 mesh = Mesh(
@@ -65,7 +65,7 @@ mesh = Mesh(
 
 # We next populate the `Mesh` with grid points. To do so, we use the `build_grid` helper function, specifying the desired shape of the grid and whether to center it around the gamma point in k-space.
 
-# In[ ]:
+# In[4]:
 
 
 mesh.build_grid(shape=(31, 21), gamma_centered=True, lambda_start=0.0, lambda_stop=1.0)
@@ -81,7 +81,7 @@ print(mesh)
 # Once again, the names matter here as well. The keys in the `fixed_params` dictionary must match the names of the arguments in the model function exactly.
 # :::
 
-# In[11]:
+# In[5]:
 
 
 # Used for initializing the Mesh
@@ -90,7 +90,7 @@ ref_model = set_model(0,0,0)
 wfa = WFArray(ref_model, mesh)
 
 
-# In[12]:
+# In[6]:
 
 
 fixed_params = {"t": -1.3, "delta": 2.0}
@@ -102,7 +102,7 @@ wfa.solve_mesh(set_model, fixed_params)
 # 
 # To compute the Chern numbers, we will use the `WFArray.chern_num` method, which calculates the integrated Berry flux for a given set of bands and a specified plane in the Brillouin zone.
 
-# In[13]:
+# In[7]:
 
 
 # compute integrated curvature

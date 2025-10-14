@@ -70,7 +70,7 @@ my_model = TBModel(lattice=lat, nspin=1)
 # Once specifying the hopping from site $i$ to site $j + \mathbf{R}_{j}$ using the `TBModel.set_hop` method, it automatically specifies the hopping from site $j$ to site $i - \mathbf{R}$ as well. 
 # :::
 
-# In[ ]:
+# In[5]:
 
 
 delta = 0.2

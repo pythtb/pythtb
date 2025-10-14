@@ -65,7 +65,7 @@ my_model.visualize_3d()
 
 # ## Band structure
 
-# In[5]:
+# In[6]:
 
 
 nodes = [
@@ -73,7 +73,7 @@ nodes = [
     [1/2, 1/2, 1/2],[3/4, 3/8, 3/8],[1/2, 0, 0]
     ]
 label = (r'$\Gamma$',r'$X$',r'$U$',r'$L$',r'$K$',r'$L^\prime$')
-my_model.plot_bands(k_path=nodes, nk=101, k_label=label)
+my_model.plot_bands(k_path=nodes, nk=101, ktick_labels=label)
 
 
 # ## Wannier flow
@@ -88,7 +88,7 @@ my_model.plot_bands(k_path=nodes, nk=101, k_label=label)
 # .. Warning:: 
 #    When using ``build_custom`` on a semi-full k-mesh, i.e. one that does includes all k-points in the first Brillouin zone except for the boundary points, we must be sure to use `Mesh.wind_bz()` to tell the `WFArray` object to properly handle the periodic boundary conditions when computing overlaps. Here, we include the boundary points which is typically the safer option.
 
-# In[ ]:
+# In[7]:
 
 
 # number of k-points along each direction in 2D grid
@@ -114,7 +114,7 @@ print(mesh)
 
 # Solve for wavefunctions on mesh with `WFArray`
 
-# In[39]:
+# In[8]:
 
 
 wfa = WFArray(my_model, mesh)
@@ -123,13 +123,13 @@ wfa.solve_mesh()
 
 # Compute hybrid Wannier functions
 
-# In[40]:
+# In[9]:
 
 
 hwfc = wfa.berry_phase(mu=1, state_idx=[0,1], contin=True, berry_evals=True)/(2*np.pi)
 
 
-# In[41]:
+# In[10]:
 
 
 # initialize plot

@@ -109,6 +109,15 @@
 
 
 
+
+
+
+
+
+
+
+
+
    ~pythtb.TBModel.add_orb
 
 
