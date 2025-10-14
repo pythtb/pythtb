@@ -15,6 +15,18 @@ were developed in connection with David Vanderbilt's book `Berry Phases in
 Electronic Structure Theory <https:/www.cambridge.org/9781107157651>`_
 (Cambridge University Press, 2018).
 
+.. admonition:: 🚀 Launch Interactive Examples
+   :class: note sd-shadow-sm sd-rounded-2
+
+   Run the interactive Jupyter notebooks directly in **Binder**.  
+   These live in ``docs/source/examples_ipynb`` and can be explored in **JupyterLab**.
+
+   .. figure:: https://mybinder.org/badge_logo.svg
+      :target: https://mybinder.org/v2/gh/pythtb/pythtb/dev?urlpath=lab/tree/docs/source/examples_ipynb/
+      :align: center
+      :width: 180px
+      :alt: Launch Binder
+
 .. toctree::
    :maxdepth: 1
    :caption: New to v2.0.0

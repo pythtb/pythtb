@@ -52,7 +52,7 @@ extensions = [
     'sphinx.ext.doctest',
    # 'sphinx.ext.imgmath',
     'matplotlib.sphinxext.plot_directive',
-    'sphinx_thebe',
+    # 'sphinx_thebe',
     'sphinx.ext.mathjax',
     "sphinx.ext.intersphinx",
     "sphinx_copybutton",

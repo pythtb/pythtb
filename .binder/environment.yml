@@ -14,7 +14,6 @@ dependencies:
       - sphinxcontrib-programoutput
       - nbconvert
       - sphinx_design
-      - sphinx_thebe
       - ipykernel
       - notebook
       - jupyter_client
