@@ -78,12 +78,17 @@ nb_execution_timeout = 600     # seconds per notebook
 nb_execution_cache_path = ".jupyter_cache"  # keep cache OUTSIDE _build so 'clean' doesn't erase it
 
 thebe_config = {
-    "repository_url": "https://github.com/pythtb/pythtb",
-    "repository_branch": "dev",
+    "binderhub_url": "https://mybinder.org",
+    "binder_options": {
+        "repo": "pythtb/pythtb",
+        "ref": "dev"
+    },
+    "kernelName": "python3",
+    # Activate on containers with class "thebe"; pair with an output container
     # CSS selector for code cells
     "selector": ".thebe",
-    "codemirror-config": {"theme": "abcdef"}
-
+    "selector_output": ".output",
+    "codemirror-config": {"theme": "abcdef"},
 }
 
 copybutton_only_copy_prompt_lines = False
@@ -115,9 +120,7 @@ html_title = f"{project} Docs"
 templates_path = ['_templates']
 html_static_path = ['_static']
 html_js_files = [
-    ("custom-icons.js", {"defer": "defer"}),
-    "https://unpkg.com/thebe@latest/lib/index.js",
-    "https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"
+    ("custom-icons.js", {"defer": "defer"})
 ]
 html_extra_path = ['misc', 'simple_fig', 'examples_py']
 html_css_files = ["custom.css"]

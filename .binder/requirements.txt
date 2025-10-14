@@ -9,3 +9,15 @@ sphinxcontrib-programoutput
 nbconvert
 sphinx_design
 sphinx_thebe
+
+# Thebe/Binder runtime essentials
+ipykernel
+notebook
+jupyter_client
+nbclient
+jupyter-server-proxy
+
+# build tools
+pip
+setuptools
+wheel
