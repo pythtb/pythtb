@@ -2942,8 +2942,8 @@ class TBModel:
 
     def plot_bands(
         self,
-        k_path,
-        ktick_labels=None,
+        k_nodes,
+        k_node_labels=None,
         nk=101,
         fig=None,
         ax=None,
@@ -2965,12 +2965,13 @@ class TBModel:
 
         Parameters
         ----------
-        k_path : list
-            List of high symmetry points to plot bands through
-        nk : int, optional
-            Number of k-points to sample along the path. Defaults to 101.
-        k_label : list[str], optional
+        k_nodes : list[list[float]]
+            List of high symmetry points (in reduced units) to plot the bands through. 
+            For example, ``[[0,0,0], [0, 1/2, 1/2]]``.
+        k_node_labels : list[str], optional
             Labels of high symmetry points. Defaults to None.
+        nk : int, optional
+            Total number of k-points to sample along the path. Defaults to 101.
         proj_orb_idx : list[int], optional
             List of orbital indices to project onto. Defaults to None.
             This will give the bands a colorscale indicating the weight of 
@@ -3006,9 +3007,9 @@ class TBModel:
         """
         return plot_bands(
             self,
-            k_path,
+            k_nodes,
             nk=nk,
-            ktick_labels=ktick_labels,
+            k_node_labels=k_node_labels,
             bands_label=bands_label,
             proj_orb_idx=proj_orb_idx,
             proj_spin=proj_spin,
