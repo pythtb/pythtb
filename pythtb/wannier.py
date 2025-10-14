@@ -504,7 +504,7 @@ class Wannier:
         
         if psi_nk is None:
             # get Bloch psi_nk energy eigenstates
-            _, psi_nk = self.energy_eigstates.get_states(flatten_spin=True, return_psi=True)
+            _, psi_nk = self.energy_eigstates.states(flatten_spin_axis=True, return_psi=True)
 
         # only keep band_idxs
         psi_nk = np.take(psi_nk, band_idxs, axis=-2)
@@ -817,7 +817,7 @@ class Wannier:
 
         # eigenenergies and eigenstates for inner/outer window
         energies = self.energy_eigstates.energies
-        u_nk = self.energy_eigstates.get_states(flatten_spin=True)
+        u_nk = self.energy_eigstates.states(flatten_spin_axis=True)
 
         # number of states in target manifold 
         if n_wfs is None:
@@ -959,7 +959,7 @@ class Wannier:
         
         # Projector of initial tilde subspace at each k-point
         init_states = self.tilde_states
-        P, _ = init_states.get_projectors(return_Q=True)
+        P, _ = init_states.projectors(return_Q=True)
         P_nbr, Q_nbr = init_states._P_nbr, init_states._Q_nbr
         T_kb = np.einsum("...ij, ...kji -> ...k", P, Q_nbr)
 
@@ -1113,8 +1113,8 @@ class Wannier:
 
         # initial subspace
         energy_eigstates = self.energy_eigstates
-        u_nk = energy_eigstates.get_states(flatten_spin=True)
-        # u_wfs_til = init_states.get_states(flatten_spin=True)
+        u_nk = energy_eigstates.states(flatten_spin_axis=True)
+        # u_wfs_til = init_states.states(flatten_spin_axis=True)
 
         if n_wfs is None:
             # assume number of states in the subspace is number of tilde states
@@ -1136,7 +1136,7 @@ class Wannier:
             P_inner = np.swapaxes(inner_states, -1, -2) @ inner_states.conj()
             Q_inner = np.eye(P_inner.shape[-1]) - P_inner
 
-            P_tilde = self.tilde_states.get_projectors()
+            P_tilde = self.tilde_states.projectors()
 
             # chosing initial subspace as highest eigenvalues
             MinMat = Q_inner @ P_tilde @ Q_inner
@@ -1151,7 +1151,7 @@ class Wannier:
             comp_states = u_nk.take(comp_bands, axis=-2)
 
           
-        P, Q = init_states.get_projectors(return_Q=True)
+        P, Q = init_states.projectors(return_Q=True)
         P_nbr, Q_nbr = init_states._P_nbr, init_states._Q_nbr
 
         T_kb = np.einsum("...ij, ...kji -> ...k", P, Q_nbr)
@@ -1417,7 +1417,7 @@ class Wannier:
             # check if we have trial wavefunctions
             if not hasattr(self, "_trial_wfs"):
                 # we use energy eigenstates tilde states
-                self.set_bloch_like_states(self.energy_eigstates.get_states(flatten_spin=True), cell_periodic=True)
+                self.set_bloch_like_states(self.energy_eigstates.states(flatten_spin_axis=True), cell_periodic=True)
             else:
                 # we initialize tilde states with previous trial wavefunctions
                 n_occ = int(self.energy_eigstates.nstates / 2)  # assuming half filled
@@ -1514,7 +1514,7 @@ class Wannier:
             alpha=alpha, iter_num=max_iter, verbose=verbose, tol=tol, grad_min=grad_min
         )
 
-        u_tilde_wfs = self.tilde_states.get_states(flatten_spin=True)
+        u_tilde_wfs = self.tilde_states.states(flatten_spin_axis=True)
         util_max_loc = np.einsum("...ji, ...jm -> ...im", U, u_tilde_wfs)
 
         self.set_bloch_like_states(util_max_loc, cell_periodic=True, spin_flattened=True)
@@ -1678,7 +1678,7 @@ class Wannier:
         ret_eigvecs : bool, optional
             If True, return the eigenvectors along with the eigenvalues. Defaults to False.
         """
-        u_tilde = self.tilde_states.get_states(flatten_spin=False)
+        u_tilde = self.tilde_states.states(flatten_spin_axis=False)
         if wan_idxs is not None:
             u_tilde = np.take_along_axis(u_tilde, wan_idxs, axis=-2)
 
