@@ -32,7 +32,8 @@ docs = [
   "sphinx-copybutton",
   "myst-nb",
   "sphinxcontrib-programoutput",
-  "nbconvert"
+  "nbconvert",
+  "sphinx_design"
 ]
 tests = ["pytest"]
 dev = [
