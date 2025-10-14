@@ -52,11 +52,12 @@ extensions = [
     'sphinx.ext.doctest',
    # 'sphinx.ext.imgmath',
     'matplotlib.sphinxext.plot_directive',
-    # 'sphinx_thebe',
+    'sphinx_thebe',
     'sphinx.ext.mathjax',
     "sphinx.ext.intersphinx",
     "sphinx_copybutton",
-    "sphinxcontrib.programoutput"
+    "sphinxcontrib.programoutput",
+    "sphinx_design"
     # "numpydoc"
 ]
 
@@ -78,9 +79,11 @@ nb_execution_cache_path = ".jupyter_cache"  # keep cache OUTSIDE _build so 'clea
 
 thebe_config = {
     "repository_url": "https://github.com/pythtb/pythtb",
-    "repository_branch": "v2",
+    "repository_branch": "dev",
     # CSS selector for code cells
-    "selector": "div.nbinput",
+    "selector": ".thebe",
+    "codemirror-config": {"theme": "abcdef"}
+
 }
 
 copybutton_only_copy_prompt_lines = False

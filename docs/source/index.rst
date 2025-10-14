@@ -11,129 +11,132 @@
 Python Tight Binding (PythTB)
 =============================
 
-The "**Pyth**\ on **T**\ ight **B**\ inding" (``PythTB``) package is
-designed to facilitate the construction and manipulation of tight-binding
-models for the electronic structure of materials. It includes tools for
-defining lattice structures, hopping parameters, and other model
-ingredients, as well as for computing electronic properties such as
-band structures and quantum geometry (Berry curvature, Berry phases,
-hybrid Wannier functions, etc.). Additionally, it interfaces with
-Wannier90 to allow for the construction of Wannierized tight-binding models.
+PythTB is a pure-Python toolbox for building and analyzing tight-binding models. With a few lines of code, you can define lattices, 
+assign hopping parameters, diagonalize the Hamiltonians on custom meshes, plot band structures, and evaluate quantum-geometry objects
+such as Berry phases, curvatures, and Chern numbers. The package also reads Wannier90 output so you can work directly with Wannierized 
+models coming from first-principles calculations.
 
-The primary location for this package is at
-`<http://www.physics.rutgers.edu/pythtb>`_ where the most up-to-date
-releases and information can be found.
+.. admonition:: Quick Links
+    :class: seealso
 
+    - :doc:`Installation <install>` - install instructions and dependencies
+    - :doc:`Usage guide <usage>` - APIs, workflows, and tips
+    - :doc:`Examples <examples>` - example scripts and notebooks
+
+Core functionality
+------------------
+
+.. grid:: 1 2 2 3
+   :gutter: 2
+
+   .. grid-item-card:: :material-regular:`build` Model construction
+      :link: usage
+      :link-type: doc
+
+      Build lattices with ``Lattice`` and populate hoppings via ``TBModel``.
+
+   .. grid-item-card:: :material-regular:`play_circle` Sampling & eigenstates
+      :link: usage
+      :link-type: doc
+
+      Create k-space or parameter meshes with ``Mesh.build_grid`` / ``Mesh.build_path`` and store eigenvectors in a ``WFArray`` that tracks phases, energies, overlaps, and quantum geometry.
+
+   .. grid-item-card:: :material-regular:`category` Topology & quantum geometry
+      :link: usage
+      :link-type: doc
+
+      Evaluate Berry connections/curvature, compute Berry phases & Chern numbers, follow hybrid Wannier centers, and analyze adiabatic cycles with ``WFArray`` tools.
+
+   .. grid-item-card:: :material-regular:`integration_instructions` Wannier90 Integration
+      :link: usage
+      :link-type: doc
+
+      Import Wannier90 tight-binding Hamiltonians via ``W90`` and continue analysis inside PythTB.
+
+   .. grid-item-card:: :material-regular:`widgets` Wannier workflows
+      :link: usage
+      :link-type: doc
+
+      Build maximally localized Wannier functions with ``Wannier``; do single-shot projections, evaluate spreads, and visualize centers, densities, and decay profiles.
+
+   .. grid-item-card:: :material-regular:`image` Visualization and export
+      :link: usage
+      :link-type: doc
+
+      Plot bands, DOS, lattices, and TB graphs with ``pythtb.plotting`` and export data for downstream workflows.
 
 Motivations and capabilities
 ----------------------------
 
-The ``PythTB`` package was written in Python for several reasons,
-including
+The ``PythTB`` package was written in Python for several reasons, including
 
--  The ease of learning and using Python
--  The wide availability of Python in the community
--  The flexibility with which Python can be interfaced with graphics and
-   visualization modules
--  In general, the easy extensibility of Python programs
+- The ease of learning and using Python
+- The wide availability of Python in the community
+- The flexibility with which Python can be interfaced with graphics and visualization modules
+- In general, the easy extensibility of Python programs
 
-You can get an idea of the capabilities of the package by
-browsing the :doc:`PythTB examples <examples>`.
+You can get an idea of the capabilities of the package by browsing the :doc:`PythTB examples <examples>`.
 
 Tight-binding models
 ^^^^^^^^^^^^^^^^^^^^^
 
-The `tight binding <http://en.wikipedia.org/wiki/Tight_binding>`_
-method is an approximate approach for solving for the electronic wave
-functions for electrons in solids assuming a basis of localized
-atomic-like orbitals. We assume here that the orbitals are
-orthonormal, and focus on the “empirical tight binding” approach in
-which the Hamiltonian matrix elements are simply parametrized, as
-opposed to being computed ab-initio.
+The `tight binding <http://en.wikipedia.org/wiki/Tight_binding>`_ method is an approximate approach for solving for the electronic wave 
+functions for electrons in solids assuming a basis of localized atomic-like orbitals. We assume here that the orbitals are orthonormal, 
+and focus on the “empirical tight binding” approach in which the Hamiltonian matrix elements are simply parametrized, as opposed to being 
+computed ab-initio.
 
+The ``PythTB`` package is intended to set up and solve tight-binding models for the electronic structure of
 
-The ``PythTB`` package is intended to set up and solve tight-binding
-models for the electronic structure of
+- 0D clusters
+- 1D chains and ladders
+- 2D layers (square lattice, hexagonal lattice, honeycomb lattice, etc.)
+- 3D crystals
+- clusters, ribbons, slabs, etc., cut from higher-dimensional crystals
+- etc.
 
--  0D clusters
--  1D chains and ladders
--  2D layers (square lattice, hexagonal lattice, honeycomb lattice,
-   etc.)
--  3D crystals
--  clusters, ribbons, slabs, etc., cut from higher-dimensional crystals
--  etc.
+It provides tools for setting up more complicated tight-binding models, e.g., by “cutting” a cluster, ribbon, or slab out of a higher-dimensional crystal, 
+and for visualizing the connectivity of a tight-binding model once it has been constructed.
 
-It provides tools for setting up more complicated
-tight-binding models, e.g., by “cutting” a cluster, ribbon, or slab
-out of a higher-dimensional crystal, and for visualizing the
-connectivity of a tight-binding model once it has been
-constructed.
-
-As currently written, it is not intended to handle realistic chemical
-interactions. So for example, the `Slater-Koster forms
-<http://en.wikipedia.org/wiki/Tight_binding#Table_of_interatomic_matrix_elements>`_
-for interactions between *s*, *p* and *d* orbitals are *not currently
-coded*, although the addition of such features could be considered for
+As currently written, it is not intended to handle realistic chemical interactions. So for example, the 
+`Slater-Koster forms <http://en.wikipedia.org/wiki/Tight_binding#Table_of_interatomic_matrix_elements>`_ for interactions 
+between *s*, *p* and *d* orbitals are *not currently coded*, although the addition of such features could be considered for 
 a future release.
 
 Topology and quantum geometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The ``PythTB`` package includes capabilities for
+``WFArray`` cooperates with ``Mesh`` to evaluate Berry phases, Berry connections, curvature, and Chern numbers on closed loops, 
+uniform grids, or mixed k–parameter meshes. Hybrid Wannier functions, polarization, adiabatic pumping, and related observables 
+follow naturally once the states are stored in a consistent gauge.
 
--  computing electron eigenvalues and eigenvectors at selected k-points
-   or on a mesh of k-points
--  generating band-structure plots
--  generating density-of-states plots
+Wannier functions and Wannier90 interface
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-It can also calculate `Berry phases, connections and curvatures
-<http://en.wikipedia.org/wiki/Berry_connection_and_curvature>`_ in
-ways that are useful for calculations of
+Starting with Version 1.7, ``PythTB`` provides two complementary Wannier toolchains:
 
--  adiabatic charge transport
--  electric polarization
--  anomalous Hall conductivity
--  topological indices
--  etc.
+- ``Wannier`` constructs maximally localized Wannier functions directly from PythTB wavefunctions. 
+  It supports single-shot projections, gauge refinement, spread and center analysis, and plotting helpers such as ``plot_centers``, 
+  ``plot_decay``, and ``plot_density``.
+- ``W90`` reads tight-binding Hamiltonians from Wannier90 output files (``*.win``, ``*_hr.dat``, ``*_centres.xyz``). 
+  You can combine imported data with the broader PythTB ecosystem, run band-structure checks, or feed the states into 
+  ``WFArray`` and ``Wannier`` for further processing.
 
-
-Wannier90 interface
-^^^^^^^^^^^^^^^^^^^^^
-
-Starting with Version 1.7, ``PythTB`` also provides an interface
-to the `Wannier90 <http://wannier.org>`_ code, which can
-be used to take the output of a first-principles density-functional
-calculation and construct from it a tight-binding model, in
-the basis of Wannier functions, that accurately reproduces the
-first-principles bandstructure. See :doc:`usage <usage>`.
+See :doc:`usage <usage>` for an end-to-end walkthrough and :doc:`examples <examples>` for notebooks that demonstrate these workflows.
 
 
 Get started with PythTB
 -----------------------
-PythTB is 
 This is a simple example showing how to define graphene tight-binding
 model with first neighbour hopping only. Below is the source code and
 plot of the resulting band structure. Here you can find :doc:`more examples <examples>`.
 
-.. raw:: html
-
-    <table style="margin-left: 20px;" align="center" border="0"><tbody><tr>
-    <td width="50%">
-
+.. thebe-button:: Launch interactive session
+    
 .. literalinclude:: simple_fig/simple_fig.py
-
-.. raw:: html
-
-    </td>
-    <td width="50%">
+   :language: python
+   :class: thebe
 
 .. image:: simple_fig/band.png
-
-.. raw:: html
-
-    </td></tr>
-    </tbody></table>
-
 
 .. _history:
 
