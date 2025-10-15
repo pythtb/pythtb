@@ -139,6 +139,9 @@
 
 
 
+
+
+
    ~pythtb.WFArray.berry_curv
 
 
@@ -239,17 +242,12 @@
 
 
 
-   ~pythtb.WFArray.set_ham
-
-
-
-
    ~pythtb.WFArray.set_states
 
 
 
 
-   ~pythtb.WFArray.solve
+   ~pythtb.WFArray.solve_model
 
 
 

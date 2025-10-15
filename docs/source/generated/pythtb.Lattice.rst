@@ -106,9 +106,6 @@
 
 
 
-
-
-
    ~pythtb.Lattice.add_orb
 
 
@@ -202,6 +199,9 @@
 
 .. autosummary::
    :nosignatures:
+
+
+
 
 
 

@@ -118,7 +118,7 @@
 
 
 
-   ~pythtb.Mesh.close_lambda_axis
+   ~pythtb.Mesh.close_axis
 
 
 
@@ -163,7 +163,7 @@
 
 
 
-   ~pythtb.Mesh.open_lambda_axis
+   ~pythtb.Mesh.open_axis
 
 
 

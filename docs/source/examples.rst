@@ -39,32 +39,27 @@ Electronic Structure Theory <https:/www.cambridge.org/9781107157651>`_
 
 .. toctree::
    :maxdepth: 1
-   :caption: Building the ``TBModel``
+   :caption: Building the TBModel
 
    examples_ipynb/0dim
+   examples_ipynb/finite_ssh
+   examples_ipynb/checkerboard
    examples_ipynb/graphene
    examples_ipynb/haldane
-   examples_ipynb/checkerboard
+   examples_ipynb/haldane_fin
    examples_ipynb/buckled_layer
    examples_ipynb/trestle
-   examples_ipynb/haldane_fin
    examples_ipynb/supercell
-   examples_ipynb/finite_ssh
 
 .. toctree::
    :maxdepth: 1
-   :caption: Berry phases and curvatures
+   :caption: Topology and quantum geometry
 
+   examples_ipynb/three_site_thouless
+   examples_ipynb/berry_curv_haldane
    examples_ipynb/boron_nitride
    examples_ipynb/graphene_cone
    examples_ipynb/haldane_bp
-   examples_ipynb/3site_cycle
-   examples_ipynb/3site_cycle_fin
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Hybrid Wannier functions
-
    examples_ipynb/haldane_hwf
    examples_ipynb/slab_hwf
    examples_ipynb/kane_mele
@@ -72,16 +67,10 @@ Electronic Structure Theory <https:/www.cambridge.org/9781107157651>`_
 
 .. toctree::
    :maxdepth: 1
-   :caption: Maximally-localized Wannier functions
+   :caption: Wannier functions and Wannier90 integration
 
    examples_ipynb/haldane_wannier
    examples_ipynb/reduced_wannier
-
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Wannier90 integration
-
    examples_ipynb/w90_quick
    examples_ipynb/w90
 
