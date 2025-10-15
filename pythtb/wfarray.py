@@ -1,8 +1,10 @@
 from .utils import _is_int, _offdiag_approximation_warning_and_stop
 from .tbmodel import TBModel
 from .mesh import Mesh
+from .lattice import Lattice
 import numpy as np
 from functools import partial
+import inspect
 import warnings
 import functools
 import logging
@@ -123,13 +125,19 @@ class WFArray:
     >>> wfa[i_kx, j_ky, ell] = eigenvectors  # shape (nstates, norb[, nspin])
     """
 
-    def __init__(self, model: TBModel, mesh: Mesh, nstates=None):
-        if not isinstance(model, TBModel):
-            raise TypeError("model must be of type pythtb.TBModel")
+    def __init__(self, lattice: Lattice, mesh: Mesh, nstates: int = None, nspin: int = 1):
+        if not isinstance(lattice, Lattice):
+            raise TypeError("lattice must be of type pythtb.Lattice")
+        
+        self._lattice = lattice
+
         if not isinstance(mesh, Mesh):
             raise TypeError("mesh must be of type pythtb.Mesh")
-        if model.dim_k != mesh.dim_k:
-            raise ValueError(f"Model dim_k ({model.dim_k}) does not match mesh dim_k ({mesh.dim_k})")
+        if self.dim_k != mesh.dim_k:
+            raise ValueError(f"Model dim_k ({self.dim_k}) does not match mesh dim_k ({mesh.dim_k})")
+        
+        self._mesh = mesh
+
         if True in (np.array(self.shape_mesh, dtype=int) <= 1).tolist():
             raise ValueError(
                 "Dimension of WFArray object in each direction must be 2 or larger.\n"
@@ -137,17 +145,17 @@ class WFArray:
                 "Maybe you need to build the mesh first?"
             )
         
-        self._model = model
-        self._lattice = model.lattice
-        self._mesh = mesh
+        # Validate number of spin components
+        if nspin not in [1, 2]:
+            raise ValueError("nspin must be 1 or 2")
+        self._nspin = nspin
 
-        if nstates is None:
-            self._nstates = self.model.nstate  # Default to total number of bands in model
-        else:
+        if nstates is not None:
             if not _is_int(nstates):
                 raise TypeError("Argument nstates is not an integer.")
-            
             self._nstates = nstates 
+        else:
+            self._nstates = self.norb * self.nspin  # Default to total number of bands
        
         # wfs indexed by [k1, k2,..., state, orb, spin]
         self._wfs = np.empty(self.shape, dtype=complex)
@@ -207,7 +215,7 @@ class WFArray:
         return self._model
 
     @property
-    def lattice(self):
+    def lattice(self) -> Lattice:
         """The :class:`Lattice` associated with the :class:`WFArray`."""
         return self._lattice
 
@@ -327,13 +335,13 @@ class WFArray:
 
     @property
     def nspin(self) -> int:
-        """The number of spin components defined in the :class:`TBModel`."""
-        return self.model.nspin
+        """The number of spin components."""
+        return self._nspin
 
     @property
     def norb(self) -> int:
-        """The number of orbitals defined in the :class:`TBModel`."""
-        return self.model.norb
+        """The number of orbitals defined in the :class:`Lattice`."""
+        return self.lattice.norb
     
     @property
     def shape_mesh(self) -> tuple:
@@ -343,7 +351,7 @@ class WFArray:
     @property
     def dim_k(self) -> int:
         """The dimension of k-space in the :class:`Mesh`."""
-        return self.model.dim_k
+        return self.lattice.dim_k
 
     @property
     def dim_lambda(self) -> int:
@@ -553,7 +561,7 @@ class WFArray:
             A new :class:`WFArray` object with the same :class:`TBModel` and :class:`Mesh`.
         """
         # make a full copy of the WFArray
-        wf_new = WFArray(self.model, self.mesh, nstates=nstates)
+        wf_new = WFArray(self.lattice, self.mesh, nstates=nstates, nspin=self.nspin)
         return wf_new
     
 
@@ -627,11 +635,14 @@ class WFArray:
         """
         return self.lattice.k_shell_weights(self.nks, n_shell, report=report)
     
-      
-    def set_ham(self, model_func=None, fixed_params: dict={}):
-        r"""Sets the Hamiltonian for the wavefunction array.
-
-        .. versionadded:: 2.0.0
+    
+    def _get_ham_from_model(
+            self, 
+            model: TBModel = None, 
+            model_func: callable = None, 
+            fixed_params: dict={}
+            ):
+        r"""Gets the Hamiltonian defined on the mesh.
 
         If a model function is provided, it is used to generate the Hamiltonian
         with the current mesh parameters. If no parameters are defined in the
@@ -640,6 +651,9 @@ class WFArray:
 
         Parameters
         ----------
+        model : TBModel, optional
+            A tight-binding model instance. If not provided, the model function
+            must be used to generate the Hamiltonian.
         model_func : callable, optional
             A function that takes mesh parameters as input and returns a
             :class:`TBModel`.
@@ -659,50 +673,6 @@ class WFArray:
         If `axis_names` were not specified in the Mesh initialization, they will be
         set to the default values of 'k_i' and 'l_i', where i is the
         index of the axis.
-
-        Examples
-        --------
-        Say we have a model function defined as follows:
-
-        >>> def model_func(param1, param2):
-        ...     lat_vecs = [[1, 0], [0, 1]]
-        ...     orb_vecs = [[0,0], [0.5, 0.5]]
-        ...     lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
-        ...     model = TBModel(lattice=lat, nspin=1)
-        ...     # Set model hoppings and onsite energies with parameters
-        ...     return model
-
-        The returned model will be 2D in k-space for this example.
-        We want to vary ``param2``, and store the Hamiltonian for each value of ``param2``.
-
-        First, we construct the ``Mesh`` by specifying the dimensions and axis types/names:
-
-        >>> mesh = Mesh(dim_k=2, dim_lambda=1, axis_types=['k','k','l'], axis_names=['k1', 'k2', 'param2'])
-
-        Note that we must name the last axis as ``param2`` to follow the name we set in the model function.
-        We build the mesh values by using ``build_grid``. We will construct a uniform 2D grid in k-space of shape
-        ``(20, 20)`` and a uniform 1D grid for ``param2`` with 5 points going from 0 to :math:`2\pi`.
-
-        >>> mesh.build_grid(shape=(20, 20, 5), lambda_start=0, lambda_end=2*np.pi)
-
-        To initialize the ``WFArray``, we generate a reference model with some set of parameters fixed. This
-        is so that we have the lattice structure stored in the ``WFArray``. We pass the reference model and mesh
-        to the ``WFArray`` constructor.
-
-        >>> ref_model = model_func(0, 0)
-        >>> wfa = WFArray(ref_model, mesh)
-
-        Now say we want to keep ``param_1`` fixed to be 1. We can do this by setting the `fixed_params` argument 
-        when calling `set_ham`.
-
-        >>> wfa.set_ham(model_func=model_func, fixed_params={'param1': 1})
-
-        The Hamiltonian now has the correct form with respect to the fixed parameters. The model is 
-        spinless and has 2 orbitals, so the shape of the Hamiltonian is:
-
-        >>> wfa.hamiltonian.shape
-        (20, 20, 5, 2, 2)
-
         """
 
         if model_func is not None and self.mesh.num_lambda_axes == self.dim_lambda == 0:
@@ -711,32 +681,69 @@ class WFArray:
             raise ValueError("Model function is required when mesh has parameters.")
 
         flat = self.mesh.flat
-        n_orb = self.norb
-        n_spin = self.nspin
-        n_states = self.nstates
 
         if model_func is None:
-            Hk = self.model.hamiltonian(k_pts=flat)
+            if model.lattice != self.lattice:
+                raise ValueError("Model lattice does not match WFArray lattice.")
+            
+            # self._lattice = model.lattice
+            Hk = model.hamiltonian(k_pts=flat)
 
             if self.mesh.is_grid:
                 shape_k = self.mesh.shape_k
                 Hk = Hk.reshape(*shape_k, *Hk.shape[1:])
-            
-            self._H = Hk
-            return
+
+            return Hk
+        
+        n_orb = self.norb
+        n_spin = self.nspin
+        n_states = self.nstates
+        
+        dim_lambda = self.mesh.dim_lambda
+        lambda_shape = self.nlams
+        lambda_keys = self.mesh.axis_names[self.mesh.num_k_axes:]
+
+        if any(name is None for name in lambda_keys):
+            raise ValueError(
+                "Parameter axis is unnamed. Set `axis_names` in Mesh so WFArray can match them to model parameters."
+            )
+        
+        sig = inspect.signature(model_func)
+        params = sig.parameters
+        accepts_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+        valid_names = {
+             name
+             for name, p in params.items()
+             if p.kind in (
+                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                 inspect.Parameter.KEYWORD_ONLY,
+             )
+         }
+        
+        def _require(names: set[str], label: str) -> None:
+            if accepts_kwargs:
+                 return
+            missing = [name for name in names if name not in valid_names]
+            if missing:
+                raise TypeError(
+                    f"{model_func.__name__}() does not accept the {label} "
+                    f"{', '.join(missing)}. "
+                    "Make sure the mesh axis names match the model_func signature. "
+                    f"Valid names are: {', '.join(valid_names)}"
+                )
+        _require(set(lambda_keys), "mesh axis name(s)")
+        _require(set(fixed_params), "fixed parameter(s)")
 
         model_gen = partial(model_func, **fixed_params)
         self.fixed_params = fixed_params
         self.model_func = model_func
         
-        dim_lambda = self.mesh.dim_lambda
-        lambda_shape = self.nlams
-        lambda_keys = self.mesh.axis_names[self.mesh.num_k_axes:]
         lambda_ranges = [
             self.mesh.get_axis_range(i, j) 
             for i,j in zip(self.mesh.lambda_axis_indices, self.mesh.lambda_component_indices)
         ]
 
+        # Initialize storage for wavefunctions and energies
         if self.dim_k > 0:
             n_kpts = np.prod(self.nks)
             shape_k = self.mesh.shape_k
@@ -756,15 +763,21 @@ class WFArray:
             elif n_spin == 2:
                 H_kl = np.zeros(( *lambda_shape, n_orb, n_spin, n_orb, n_spin), dtype=complex)
 
+        # Loop over parameter sets
         for idx, param_set in enumerate(np.ndindex(*lambda_shape)):
             # kwargs for model_fxn with specified parameter values
             param_dict = {lambda_keys[i]: lambda_ranges[i][param_set] for i in range(dim_lambda)}
 
             # Generate the model with modified parameters
-            modified_model = model_gen(**param_dict)
+            modified_model: TBModel = model_gen(**param_dict)
+            # self._lattice = modified_model.lattice
 
+            if not isinstance(modified_model, TBModel):
+                raise TypeError("model_gen must return an instance of TBModel.")
+            if modified_model.lattice != self.lattice:
+                raise ValueError("Model lattice does not match WFArray lattice.")
+            
             ham = modified_model.hamiltonian(k_pts=k_flat)
-
             H_kl[param_set] = ham
 
         if self.dim_k > 0:
@@ -791,7 +804,7 @@ class WFArray:
             elif n_spin == 2:
                 H_kl = H_kl.reshape(*lambda_shape, n_orb, n_spin, n_orb, n_spin)
 
-        self._H = H_kl
+        return H_kl
 
     def states(
             self, 
@@ -921,28 +934,36 @@ class WFArray:
             return P, Q
         return P
 
-    def solve(
+    def solve_model(
             self, 
+            model: TBModel = None,
             model_func: callable = None, 
             fixed_params: dict = None, 
             use_tf: bool = False
             ):
-        r"""Diagonalizes the Hamiltonian over the :class:`Mesh` points.
+        r"""Diagonalizes the :class:`TBModel` over the :class:`Mesh` points.
 
         .. versionadded:: 2.0.0
 
-        Populates the state array with the eigenstates and eigenenergies of the Hamiltonian defined 
-        on the points set in `Mesh`. If the Hamiltonian has
+        Populates the state array with the eigenstates and eigenenergies of the Hamiltonian generated
+        by the :class:`TBModel` on the points set in `Mesh`. 
 
-        If the `Mesh` has parametric dimensions, a `model_func` must be provided that returns
-        the modified model. The names of the varying arguments of the function must match the :math:`\lambda`
-        axis names defined in the `Mesh`. Some of the arguments in the `model_func` may be kept fixed
-        by specifying their names as keys and values as the values in the `fixed_params` dictionary.
+        If the :class:`Mesh` has parametric dimensions, a ``model_func`` must be provided that returns
+        the modified :class:`TBModel`. Some of the arguments in the ``model_func`` may be kept fixed by specifying 
+        their names as keys and values as the values in the ``fixed_params`` dictionary.
+        The keys of ``fixed_params`` must match parameter names of the ``model_func``.
+        Additionally, if some of the parameters are left variable, these names of the parameters in the ``model_func``
+        must also match the names of the :math:`\lambda` axes defined in the :class:`Mesh`. This will generate the 
+        Hamiltonian at the values of the parameters specified by the mesh. See examples for more details.
 
         Parameters
         ----------
+        model : TBModel, optional
+            A tight-binding model instance. If not provided, the model function
+            must be used to generate the Hamiltonian.
         model_func : callable, optional
             A function that returns a :class:`TBModel` given a set of parameters.
+            Only should be used if the mesh has parametric dimensions.
         fixed_params :  dict, optional
             A dictionary of fixed parameters to be passed to the model function.
             It has the structure ``{<param_name>: <param_value>, ...}``. 
@@ -952,10 +973,6 @@ class WFArray:
             If True, uses the `tf.linalg.eigh` function to diagonalize the Hamiltonian.
             This can be beneficial for large systems where GPU acceleration is available.
             This requires TensorFlow to be installed. Default is False.
-            
-        See Also
-        --------
-        `WFArray.set_ham`
 
         Notes
         ------
@@ -1012,8 +1029,8 @@ class WFArray:
         >>> mesh.build_grid(shape=(20, 20, 5), lambda_start=0, lambda_end=2*np.pi)
 
         To initialize the ``WFArray``, we generate a reference model with some set of parameters fixed. This
-        is so that we have the lattice structure stored in the ``WFArray``. We pass the reference model and mesh
-        to the ``WFArray`` constructor.
+        is so that we can infer the lattice structure and orbital information from the model. We pass the reference 
+        model and mesh to the ``WFArray`` constructor.
 
         >>> ref_model = model_func(0, 0)
         >>> wfa = WFArray(ref_model, mesh)
@@ -1036,14 +1053,11 @@ class WFArray:
         >>> wfa.wfs.shape
         (20, 20, 5, 2, 2)
         """
-        if not hasattr(self, "_H"):
-            self.set_ham(model_func=model_func, fixed_params=fixed_params)
-
-        ham = self.hamiltonian
+        ham = self._get_ham_from_model(model=model, model_func=model_func, fixed_params=fixed_params)
 
         # flatten spin axes if present
         if self.nspin == 2:
-            ham = ham.reshape(*ham.shape[:-4], self.model.nstate, self.model.nstate)
+            ham = ham.reshape(*ham.shape[:-4], self.nstates, self.nstates)
 
         if not np.allclose(ham, ham.swapaxes(-1, -2).conj()):
             raise ValueError("Hamiltonian matrix is not Hermitian.")
@@ -1062,6 +1076,7 @@ class WFArray:
         else:
             # diagonalize hamiltonian
             eval, evec = np.linalg.eigh(ham)
+
         # transpose matrix eig since otherwise it is confusing
         # now eig[i,:] is eigenvector for eval[i]-th eigenvalue
         evec = evec.swapaxes(-1, -2)
@@ -1087,6 +1102,9 @@ class WFArray:
                 for comp in overlap:
                     logger.debug(f"Imposing PBC in mesh direction {ax} for k-component {comp}")
                     self._impose_pbc(idx, comp)
+
+        # Set the Hamiltonian attribute
+        self._H = ham
 
 
     @deprecated("Use `solve` instead.")
@@ -1127,7 +1145,7 @@ class WFArray:
 
         per_dir = list(range(flat_k_mesh.shape[-1]))
         # slice second dimension to only keep only periodic dimensions in orb
-        per_orb = self.model.orb_vecs[:, per_dir]
+        per_orb = self.lattice.orb_vecs[:, per_dir]
 
         # compute a list of phase factors: exp(pm i k . tau) of shape [k_val, orbital]
         phases = np.exp(lam * 1j * 2 * np.pi * per_orb @ flat_k_mesh.T, dtype=complex).T
@@ -1186,7 +1204,7 @@ class WFArray:
             The last dimension is present only if the model has spin.
         """
 
-        if k_dir not in self.model.per:
+        if k_dir not in self.lattice.periodic_dirs:
             raise Exception(
                 "Periodic boundary condition can be specified only along periodic directions!"
             )
@@ -1196,7 +1214,7 @@ class WFArray:
         if mesh_dir < 0 or mesh_dir >= self.naxes:
             raise IndexError("mesh_dir outside the range!")
         
-        orb_vecs = self.model.orb_vecs
+        orb_vecs = self.lattice.orb_vecs
         # Compute phase factors from orbital vectors dotted with G parallel to k_dir
         phase = np.exp(-2j * np.pi * orb_vecs[:, k_dir])
         phase = phase if self.nspin == 1 else phase[:, np.newaxis]
@@ -1275,7 +1293,7 @@ class WFArray:
                 "Cannot impose periodic boundary conditions in 0D k-space.\n"
                 "Use `_impose_loop` instead."
                 )
-        if k_dir not in self.model.per:
+        if k_dir not in self.lattice.periodic_dirs:
             raise ValueError(
                 "Periodic boundary condition can be specified only along periodic directions!"
             )
@@ -1443,15 +1461,15 @@ class WFArray:
         # Use only the real-space components that actually correspond to k-space
         # directions, in the *model.per* order. This matters when dim_k < dim_r or
         # when the periodic axes are not the first dim_k Cartesian components.
-        per = getattr(self.model, "per", None)
+        per = getattr(self.lattice, "periodic_dirs", None)
         if per is None:
             # Fallback to the first dim_k components, but warn because this may be wrong
-            if self.dim_k != self.model.dim_r:
+            if self.dim_k != self.lattice.dim_r:
                 logger.warning(
-                    "WFArray._boundary_phase_for_shift: model.per is missing; "
+                    "WFArray._boundary_phase_for_shift: lattice.periodic_dirs is missing; "
                     "falling back to first dim_k real-space components."
                 )
-            orb = self.model.orb_vecs[:, :dim_k]
+            orb = self.lattice.orb_vecs[:, :dim_k]
         else:
             per = np.asarray(per, dtype=int)
             if per.size < dim_k:
@@ -1459,7 +1477,7 @@ class WFArray:
                     f"model.per lists only {per.size} periodic directions but dim_k={dim_k}."
                 )
             # Select exactly dim_k periodic components in the order used for k-space
-            orb = self.model.orb_vecs[:, per[:dim_k]]
+            orb = self.lattice.orb_vecs[:, per[:dim_k]]
 
         dot = np.tensordot(G_comp, orb, axes=([G_comp.ndim-1],[1]))  # (*nks, norb)
 
@@ -1743,7 +1761,7 @@ class WFArray:
         for mu in dirs:
             shift_vec = self._unit_shift(mu)
             wfs_shifted = self.roll_states_with_pbc(
-                idx_vec=shift_vec, flatten_spin_axis=True)
+                shift_vec=shift_vec, flatten_spin_axis=True)
             wfs_shifted = np.take(wfs_shifted, state_idx, axis=-2)
 
             # < u_{n, k} | u_{m, k + delta k_mu} >
@@ -2316,7 +2334,7 @@ class WFArray:
 
                 for ax in range(ndims):
                     if self.mesh.is_axis_closed(ax) or (not self.mesh.is_axis_looped(ax) and not self.mesh.is_axis_bz_winding(ax)):
-                        logger.debug(f"Axis {ax} is periodic and closed or open and non-periodic. "
+                        logger.debug(f"Axis {ax} is closed or non-periodic. "
                                     f"Removing last point in the flux array to avoid overcounting.")
                         U_wilson = np.delete(U_wilson, -1, axis=ax)
 
@@ -2403,7 +2421,7 @@ class WFArray:
         Berry_curv = np.zeros_like(Berry_flux, dtype=complex)
 
         # Get delta vectors for each dimension in parameter space
-        recip_lat_vecs = self.model.recip_lat_vecs  # Expressed in inverse cartesian (x,y,z) coordinates
+        recip_lat_vecs = self.lattice.recip_lat_vecs  # Expressed in inverse cartesian (x,y,z) coordinates
         dks = np.zeros((dim_total, dim_total))
         dks[:dim_k, :dim_k] = recip_lat_vecs / np.array([nk-1 for nk in self.nks])[:, None]
 
@@ -2488,13 +2506,13 @@ class WFArray:
             state_idx = np.arange(self.nstates)  # assume half-filled occupied
 
         # shape of the Berry flux array: (nk1, nk2, ..., nkd)
-        berry_flux = self.berry_flux(state_idx=state_idx, plane=plane, abelian=True)
+        berry_flux = self.berry_flux(state_idx=state_idx, plane=plane, non_abelian=False)
         # shape of chern (if plane is (0,1)): (nk3, ..., nkd)
         chern = np.sum(berry_flux, axis=plane) / (2 * np.pi)
 
         return chern
 
-    def position_matrix(self, k_idx, occ, dir):
+    def position_matrix(self, mesh_idx, state_idx, dir):
         r"""Position matrix for a given k-point and set of states.
 
         Position operator is defined in reduced coordinates.
@@ -2514,12 +2532,13 @@ class WFArray:
 
         Parameters
         ----------
-        k_idx: array-like of int 
-            Set of integers specifying the k-point of interest in the mesh.
-        occ: array-like, 'all'
+        mesh_idx: array-like of int 
+            Set of integers specifying the (k, :math:`\lambda`)-point of interest in the mesh.
+        state_idx: array-like, 'all'
             List of states to be included (can be 'all' to include all states).
         dir: int
-            Direction along which to compute the position matrix.
+            Direction of the position operator. ``0`` corresponds to the first
+            non-periodic direction, ``1`` to the second, and so on.
 
         Returns
         -------
@@ -2541,31 +2560,86 @@ class WFArray:
         and `occ` (list of states to be included, which can optionally be 'all').
         """
 
-        # Check for special case of parameter occ
-        if isinstance(occ, str) and occ.lower() == "all":
-            occ = np.arange(self.nstates, dtype=int)
-        elif isinstance(occ, (list, np.ndarray, tuple, range)):
-            occ = list(occ)
-            occ = np.array(occ, dtype=int)
+        # Check for special case of parameter state_idx
+        if isinstance(state_idx, str) and state_idx.lower() == "all":
+            state_idx = np.arange(self.nstates, dtype=int)
+        elif isinstance(state_idx, (list, np.ndarray, tuple, range)):
+            state_idx = list(state_idx)
+            state_idx = np.array(state_idx, dtype=int)
         else:
             raise TypeError(
-                "occ must be a list, numpy array, tuple, or 'all' defining "
-                "band indices of itnterest."
+                "state_idx must be a list, numpy array, tuple, or 'all' defining "
+                "band indices of interest."
             )
 
-        if occ.ndim != 1:
-            raise Exception(
-                """\n\nParameter occ must be a one-dimensional array or string "All"."""
+        if state_idx.ndim != 1:
+            raise ValueError(
+                """Parameter state_idx must be a one-dimensional array or string "All"."""
             )
-
-        # check if model came from w90
-        if not self._model._assume_position_operator_diagonal:
-            _offdiag_approximation_warning_and_stop()
         
-        evec = self.wfs[tuple(k_idx)][occ]
-        return self.model.position_matrix(evec, dir)
+        if isinstance(mesh_idx, (list, np.ndarray, tuple)):
+            mesh_idx = tuple(mesh_idx)
+        else:
+            raise TypeError(
+                "mesh_idx must be a list, numpy array, or tuple defining "
+                "k-point indices of interest."
+            )
 
-    def position_expectation(self, dir, mesh_idx=None, occ='all'):
+        # # check if model came from w90
+        # if not self._assume_position_operator_diagonal:
+        #     _offdiag_approximation_warning_and_stop()
+        evec = self.wfs[tuple(mesh_idx)][state_idx]
+
+        # make sure specified direction is not periodic!
+        if dir in self.lattice.periodic_dirs:
+            raise Exception(
+                "Can not compute position matrix elements along periodic direction!"
+            )
+        # make sure direction is not out of range
+        if dir < 0 or dir >= self.lattice.dim_r:
+            raise Exception("Direction out of range!")
+
+        # check shape of evec
+        if not isinstance(evec, np.ndarray):
+            raise TypeError("evec must be a numpy array.")
+        
+        # check number of dimensions of evec
+        if self.nspin == 1:
+            if evec.ndim != 2:
+                raise ValueError(
+                    "evec must be a 2D array with shape (band, orbital) for spinless models."
+                )
+        elif self.nspin == 2:
+            if evec.ndim != 3:
+                raise ValueError(
+                    "evec must be a 3D array with shape (band, orbital, spin) for spinful models."
+                )
+
+        # get coordinates of orbitals along the specified direction
+        pos_tmp = self.lattice.orb_vecs[:, dir]
+        # reshape arrays in the case of spinfull calculation
+        if self.nspin == 2:
+            # tile along spin direction if needed
+            pos_use = np.tile(pos_tmp, (2, 1)).transpose().flatten()
+            evec_use = evec.reshape((evec.shape[0], evec.shape[1] * evec.shape[2]))
+        else:
+            pos_use = pos_tmp
+            evec_use = evec
+
+        # position matrix elements
+        pos_mat = np.zeros((evec_use.shape[0], evec_use.shape[0]), dtype=complex)
+        # go over all bands
+        for i in range(evec_use.shape[0]):
+            for j in range(evec_use.shape[0]):
+                pos_mat[i, j] = np.dot(evec_use[i].conj(), pos_use * evec_use[j])
+
+        # make sure matrix is Hermitian
+        if not np.allclose(pos_mat, pos_mat.T.conj()):
+            raise ValueError("Position matrix is not Hermitian.")
+
+        return pos_mat
+
+    def position_expectation(self, dir, mesh_idx=None, state_idx='all'):
         r"""Position expectation value for a given k-point and set of states.
 
         These elements :math:`X_{n n}` can be interpreted as an
@@ -2608,46 +2682,34 @@ class WFArray:
         hybrid Wannier function centers (which are instead
         returned by :func:`position_hwf`).
         """
-
-        # Check for special case of parameter occ
-        if isinstance(occ, str) and occ.lower() == "all":
-            occ = np.arange(self.nstates, dtype=int)
-        elif isinstance(occ, (list, np.ndarray, tuple, range)):
-            occ = list(occ)
-            occ = np.array(occ, dtype=int)
-            if occ.ndim != 1:
-                raise ValueError(
-                    """Parameter occ must be a one-dimensional array or string "all"."""
-                )
-        else:
-            raise TypeError(
-                "occ must be a list, numpy array, tuple, or 'all' defining "
-                "band indices of interest."
-            )
-
-        # check if model came from w90
-        if not self.model._assume_position_operator_diagonal:
-            _offdiag_approximation_warning_and_stop()
         
         if mesh_idx is None:
             pos_exp = np.zeros((*self.shape_mesh, self.nstates), dtype=float)
             # loop over all mesh points
             for idx in np.ndindex(*self.shape_mesh):
-                evec = self.wfs[tuple(idx)][occ]
-                pos_exp[idx] = self.model.position_expectation(evec, dir)
+                pos_exp_mat = self.position_matrix(idx, state_idx, dir).diagonal()
+                pos_exp[idx] = np.array(np.real(pos_exp_mat), dtype=float)
+
             return pos_exp
         else:
-            evec = self.wfs[tuple(mesh_idx)][occ]
-            return self.model.position_expectation(evec, dir)
+            pos_exp_mat = self.position_matrix(mesh_idx, state_idx, dir).diagonal()
+            return np.array(np.real(pos_exp_mat), dtype=float)
 
-    def position_hwf(self, mesh_idx, occ, dir, hwf_evec=False, basis="wavefunction"):
+    def position_hwf(
+            self, 
+            mesh_idx, 
+            state_idx,
+            dir, 
+            hwf_evec=False, 
+            basis="wavefunction"
+            ):
         r"""Eigenvalues and eigenvectors of the position operator in a given basis.
 
         Parameters
         ----------
         mesh_idx: array-like of int
             Set of integers specifying the index of interest in the mesh.
-        occ: array-like, 'all'
+        state_idx: array-like, 'all'
             List of states to be included (can be 'all' to include all states).
         dir: int
             Direction along which to compute the position operator.
@@ -2697,29 +2759,40 @@ class WFArray:
         For backwards compatibility the default value of *basis* here is different
         from that in :func:`pythtb.TBModel.position_hwf`.
         """
-        # Check for special case of parameter occ
-        if isinstance(occ, str) and occ.lower() == "all":
-            occ = np.arange(self.nstates, dtype=int)
-        elif isinstance(occ, (list, np.ndarray, tuple, range)):
-            occ = list(occ)
-            occ = np.array(occ, dtype=int)
-        else:
-            raise TypeError(
-                "occ must be a list, numpy array, tuple, or 'all' defining "
-                "band indices of itnterest."
-            )
-        if occ.ndim != 1:
-            raise Exception(
-                """\n\nParameter occ must be a one-dimensional array or string "all"."""
-            )
+        # get position matrix
+        pos_mat = self.position_matrix(mesh_idx=mesh_idx, state_idx=state_idx, dir=dir)
+        evec = self.wfs[tuple(mesh_idx)][state_idx]
 
-        # check if model came from w90
-        if not self.model._assume_position_operator_diagonal:
-            _offdiag_approximation_warning_and_stop()
-
-        evec = self.wfs[tuple(mesh_idx)][occ]
-        return self.model.position_hwf(evec, dir, hwf_evec, basis)
-    
+        # diagonalize position matrix
+        if not hwf_evec:
+            hwfc = np.linalg.eigvalsh(pos_mat)
+            return hwfc
+        else: 
+            hwfc, hwf = np.linalg.eigh(pos_mat)
+            # transpose so eig[i, :] is eigenvector for eval[i]-th eigenvalue
+            hwf = hwf.T
+            # convert to right basis
+            if basis.lower().strip() in ["wavefunction", "bloch"]:
+                return hwfc, hwf
+            elif basis.lower().strip() == "orbital":
+                if self._nspin == 1:
+                    ret_hwf = np.zeros((hwf.shape[0], self.norb), dtype=complex)
+                    for i in range(ret_hwf.shape[0]):
+                        ret_hwf[i] = np.dot(hwf[i], evec) # project onto orbital basis
+                    hwf = ret_hwf
+                else:
+                    ret_hwf = np.zeros((hwf.shape[0], self.norb * 2), dtype=complex)
+                    # flatten spin indices
+                    evec_use = evec.reshape([hwf.shape[0], self.norb * 2])
+                    for i in range(ret_hwf.shape[0]):
+                        ret_hwf[i] = np.dot(hwf[i], evec_use) # project onto orbital basis
+                    # restore spin indices
+                    hwf = ret_hwf.reshape([hwf.shape[0], self.norb, 2])
+                return hwfc, hwf
+            else:
+                raise ValueError(
+                    "Basis must be either 'wavefunction', 'bloch', or 'orbital'"
+                )    
 
     # TODO allow for subbands
     def _trace_metric(self):
