@@ -795,20 +795,18 @@ class Mesh:
         if component_idx in ax.loop_components:
             ax.remove_loop_component(component_idx)
 
+    def close_axis(self, axis_idx: int, component_idx: int):
+        r"""Declare an axis as closed for a given component.
 
-    def close_lambda_axis(self, lambda_axis: int, lambda_component: int):
-        r"""Declare a parametric (lambda) axis as closed for a given component.
-
-        Calling this function will mark a :math:`\lambda` axis as being closed for a given
-        :math:`\lambda` component of the vector in :math:`(\mathbf{k}, \lambda)`-space. 
+        Calling this function will mark an axis as being closed for a given
+        component of the vector in :math:`(\mathbf{k}, \lambda)`-space. 
         This means that the two ends of the axis correspond to the same Hamiltonian, and
         the eigenstates at the two ends should be considered identical with equal phase.
 
-        ... warning::
-            It is up to the user to ensure that the Hamiltonian is indeed the same
-            at the two ends of the axis. This function does not check this condition.
-            If this is not the case, the results may be incorrect.
-            This function should only be used for lambda axes and lambda components.
+        ... note::
+            Closing an axis will also mark it as looped for the given component.
+            k-axes are marked as closed automatically when the difference between
+            the first and last points is 0 or 1 (in reduced units).
 
         Parameters
         ----------
@@ -819,10 +817,11 @@ class Mesh:
 
         Notes
         -----
-        - Closing a lambda axis will also mark it as looped for the given component.
-        - This function should only be used for lambda axes and lambda components.
-          k-axes are marked as closed automatically when the difference between
-          the first and last points is 0 or 1 (in reduced units).
+        ... warning::
+            It is up to the user to ensure that the Hamiltonian is indeed the same
+            at the two ends of the axis. This function does not check this condition.
+            If this is not the case, the results may be incorrect.
+          
 
         Examples
         ---------
@@ -841,21 +840,21 @@ class Mesh:
         There may be instances where the axis and component differ. For example,
         if we have a two-dimensional k-space, but only build a mesh in 
         """
-        if lambda_axis < 0 or lambda_axis >= self.num_axes or lambda_axis < (self.num_k_axes - 1):
-            raise IndexError(f"lambda_axis {lambda_axis} out of bounds for {self.num_axes} axes. Must be a lambda axis.")
-        if lambda_component < 0 or lambda_component >= self.dim_total or lambda_component < (self.dim_k - 1):
-            raise IndexError(f"lambda_component {lambda_component} out of bounds for {self.dim_total} components")
-        # self._endpt_mask[lambda_axis, lambda_component] = True
-        ax = self.axes[lambda_axis]
-        if lambda_component not in ax.endpoint_components:
-            ax.add_endpoint_component(lambda_component)
-            ax.add_loop_component(lambda_component)  # closed implies looped
+        if axis_idx < 0 or axis_idx >= self.num_axes:
+            raise IndexError(f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes")
+        if component_idx < 0 or component_idx >= self.dim_total:
+            raise IndexError(f"component_idx {component_idx} out of bounds for {self.dim_total} components")
+        
+        # self._endpt_mask[axis_idx, component_idx] = True
+        ax = self.axes[axis_idx]
+        if component_idx not in ax.endpoint_components:
+            ax.add_endpoint_component(component_idx)
 
-    def open_lambda_axis(self, lambda_axis: int, lambda_component: int):
-        r"""Declare a parametric (lambda) axis as open for a given component.
+    def open_axis(self, axis_idx: int, component_idx: int):
+        r"""Declare an axis as open for a given component.
 
-        Calling this function will mark a :math:`\lambda` axis as being open for a given
-        :math:`\lambda` component of the vector in :math:`(\mathbf{k}, \lambda)`-space. 
+        Calling this function will mark an axis as being open (not closed) for a given
+        component of the vector in :math:`(\mathbf{k}, \lambda)`-space. 
         This means that the two ends of the axis correspond to different Hamiltonians, and
         the eigenstates at the two ends should be considered distinct.
 
@@ -888,13 +887,14 @@ class Mesh:
         There may be instances where the axis and component differ. For example,
         if we have a two-dimensional k-space, but only build a mesh in 
         """
-        if lambda_axis < 0 or lambda_axis >= self.num_axes or lambda_axis < (self.num_k_axes - 1):
-            raise IndexError(f"lambda_axis {lambda_axis} out of bounds for {self.num_axes} axes. Must be a lambda axis.")
-        if lambda_component < 0 or lambda_component >= self.dim_total or lambda_component < (self.dim_k - 1):
-            raise IndexError(f"lambda_component {lambda_component} out of bounds for {self.dim_total} components")
-        ax = self.axes[lambda_axis]
-        if lambda_component in ax.endpoint_components:
-            ax.remove_endpoint_component(lambda_component)
+        if axis_idx < 0 or axis_idx >= self.num_axes:
+            raise IndexError(f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes")
+        if component_idx < 0 or component_idx >= self.dim_total:
+            raise IndexError(f"component_idx {component_idx} out of bounds for {self.dim_total} components")
+        
+        ax = self.axes[axis_idx]
+        if component_idx in ax.endpoint_components:
+            ax.remove_endpoint_component(component_idx)
 
     def is_axis_closed(self, axis_idx: int, comp: int = 'any') -> bool:
         """Return True iff sampling axis *axis_idx* contains endpoint for at least one component."""
