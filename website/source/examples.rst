@@ -21,7 +21,7 @@ to untar this file use the following unix command::
 Note that there is also a useful `collection of PythTB sample programs
 <https://minisites.cambridgecore.org/berryphases/ptb_samples.html>`_ that
 were developed in connection with David Vanderbilt's book `Berry Phases in
-Electronic Structure Theory <https:/www.cambridge.org/9781107157651>`_
+Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
 (Cambridge University Press, 2018).
 
 Simple example
