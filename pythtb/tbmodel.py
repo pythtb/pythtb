@@ -293,7 +293,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return copy.copy(self.lattice.dim_r)
+        return self.lattice.dim_r
 
     @property
     def dim_k(self) -> int:
@@ -301,7 +301,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return copy.copy(self.lattice.dim_k)
+        return self.lattice.dim_k
 
     @property
     def nspin(self) -> int:
@@ -309,7 +309,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return copy.copy(self._nspin)
+        return self._nspin
     
     @property
     def per(self) -> list[int]:
@@ -1941,11 +1941,11 @@ class TBModel:
 
         >>> tb.change_nonperiodic_vector(2)
         """
-        self.lattice.change_nonperiodic_vector(fin_dir, new_latt_vec)
+        self._lattice.change_nonperiodic_vector(fin_dir, new_latt_vec)
 
         if to_home:
             self._shift_hop_to_home()
-            self.lattice._shift_orb_to_home()
+            self._lattice._shift_orb_to_home()
 
     def make_supercell(
         self,
@@ -2015,7 +2015,7 @@ class TBModel:
 
         >>> sc_tb = tb.make_supercell([[2, 1], [-1, 2]])
         """
-        geom = self.lattice._prepare_supercell_geometry(sc_red_lat)
+        geom = self._lattice._prepare_supercell_geometry(sc_red_lat)
 
         # get super-cell vectors in cartesian coordinates
         sc_vec = geom["translations"]
@@ -2068,7 +2068,7 @@ class TBModel:
             # depend on the orbital positions.
 
             sc_tb._shift_hop_to_home()
-            sc_tb.lattice._shift_orb_to_home()
+            sc_tb._lattice._shift_orb_to_home()
 
         return sc_tb if not return_sc_vectors else (sc_tb, sc_vec.copy())
                             
@@ -2103,7 +2103,7 @@ class TBModel:
                     disp_vec[k] = shift
                 elif k not in self.per and shift != 0:  
                     logger.warning(
-                        f"Warning: orbital {i} has reduced coordinate {self.orb_vecs[i,k]:.4f} along non-periodic direction {k}. "
+                        f"Orbital {i} has reduced coordinate {self.orb_vecs[i,k]:.4f} along non-periodic direction {k}. "
                         f"This orbital will not be shifted to the home cell along this direction."
                     )
 
@@ -2135,7 +2135,7 @@ class TBModel:
         """
 
         # Append orbital position
-        self.lattice.add_orb(orb_pos)
+        self._lattice.add_orb(orb_pos)
 
         # Append default site energy and specified flag
         if self.nspin == 1:
@@ -2190,7 +2190,7 @@ class TBModel:
         # put the orbitals to be removed in descending order
         orb_index = sorted(indices, reverse=True)
 
-        self.lattice.remove_orb(orb_index)
+        self._lattice.remove_orb(orb_index)
 
         # remove indices one by one
         for i, orb_ind in enumerate(orb_index):
@@ -2213,12 +2213,12 @@ class TBModel:
 
     @copydoc(Lattice.k_uniform_mesh)
     def k_uniform_mesh(self, mesh_size):
-        return self.lattice.k_uniform_mesh(mesh_size)
+        return self._lattice.k_uniform_mesh(mesh_size)
 
     @copydoc(Lattice.k_path)
     def k_path(self, kpts, nk:int, report:bool=True):
-        return self.lattice.k_path(kpts, nk, report)   
-
+        return self._lattice.k_path(kpts, nk, report)   
+    
     def ignore_position_operator_offdiagonal(self):
         """Set flag to ignore off-diagonal elements of the position operator.
 
@@ -3009,7 +3009,7 @@ class TBModel:
             self,
             k_nodes,
             nk=nk,
-            k_node_labels=k_node_labels,
+            ktick_labels=k_node_labels,
             bands_label=bands_label,
             proj_orb_idx=proj_orb_idx,
             proj_spin=proj_spin,
