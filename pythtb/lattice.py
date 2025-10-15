@@ -77,6 +77,15 @@ class Lattice():
         self._set_lat_vecs(lat_vecs)
         self._set_orb_vecs(orb_vecs)
 
+    def __eq__(self, value):
+        if not isinstance(value, Lattice):
+            return False
+        return (
+            np.allclose(self.lat_vecs, value.lat_vecs) and
+            np.allclose(self.orb_vecs, value.orb_vecs) and
+            self.periodic_dirs == value.periodic_dirs
+        )
+
     def _set_orb_vecs(self, orb_vecs):
 
         if isinstance(orb_vecs, int):
@@ -526,7 +535,7 @@ class Lattice():
         self, 
         fin_dir: int, 
         new_lat_vec=None
-    ) -> "Lattice":
+    ):
         r"""Change non-periodic lattice vector.
 
         Returns  :class:`Lattice` in which one of the non-periodic "lattice vectors"
@@ -608,6 +617,8 @@ class Lattice():
         # update lattice vectors and orbitals
         self.lat_vecs = np.array(new_lat, dtype=float)
         self.orb_vecs = np.array(new_orb, dtype=float)
+
+        logger.info(f"Updated lattice vectors to {new_lat} and orbitals to {new_orb} after changing nonperiodic vector.")
 
         # Are cartesian coordinates of orbitals the same in two cases?
         for idx, orb_cart in enumerate(og_orb_cart):
