@@ -685,7 +685,9 @@ class WFArray:
         if model_func is None:
             if model.lattice != self.lattice:
                 raise ValueError("Model lattice does not match WFArray lattice.")
-            
+            if model.nspin != self.nspin:
+                raise ValueError("Model spin does not match WFArray spin.")
+
             # self._lattice = model.lattice
             Hk = model.hamiltonian(k_pts=flat)
 
@@ -776,6 +778,8 @@ class WFArray:
                 raise TypeError("model_gen must return an instance of TBModel.")
             if modified_model.lattice != self.lattice:
                 raise ValueError("Model lattice does not match WFArray lattice.")
+            if modified_model.nspin != self.nspin:
+                raise ValueError("Model spin does not match WFArray spin.")
             
             ham = modified_model.hamiltonian(k_pts=k_flat)
             H_kl[param_set] = ham

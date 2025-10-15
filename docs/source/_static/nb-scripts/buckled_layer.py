@@ -2,20 +2,25 @@
 # coding: utf-8
 
 # (buckled-layer-nb)=
-# # Slab geometry
+# # Buckled layer slab
 # 
-# This is a simple illustration of a slab geometry in which
-# the orbitals are specified in a 3D space, but the system is only
-# extensive in 2D, so that k-space is only 2D.
+# We examine a buckled layer slab model. Orbitals live in 3D real space, but the system is periodic only in the $x$–$y$ plane so the crystal momentum remains two-dimensional.
+# 
+# :::{admonition} What you will learn
+# :class: tip
+# - Build a slab-style `TBModel` whose real space is lower dimensional than reciprocal space.
+# - Define a high-symmetry path in the 2D Brillouin zone for plotting.
+# - Compare the convenience of `TBModel.plot_bands` with manual diagonalization using `TBModel.solve_ham`.
+# :::
 
-# In[10]:
+# In[1]:
 
 
 from pythtb import TBModel, Lattice
 import matplotlib.pyplot as plt
 
 
-# In[6]:
+# In[2]:
 
 
 import plotly.io as pio
@@ -23,7 +28,7 @@ import plotly.io as pio
 pio.renderers.default = "notebook"    # or "notebook", "browser", etc.
 
 
-# In[7]:
+# In[3]:
 
 
 # define 3D real-space lattice vectors
@@ -55,7 +60,11 @@ my_model.visualize_3d()
 
 # Now we specify the k-space path for the band structure calculation by listing a set of nodes. The path will consist of straight line segments connecting these nodes.
 
-# In[8]:
+# ## High-symmetry path
+# 
+# We prescribe a sequence of nodes in the 2D Brillouin zone and let `TBModel.plot_bands` interpolate straight segments between them. This path will feed both plotting workflows below.
+
+# In[4]:
 
 
 path = [[0.0, 0.0], [0.0, 0.5], [0.5, 0.5], [0.0, 0.0]]
@@ -63,36 +72,33 @@ path = [[0.0, 0.0], [0.0, 0.5], [0.5, 0.5], [0.0, 0.0]]
 label = (r"$\Gamma $", r"$X$", r"$M$", r"$\Gamma $")
 
 
-# ### `TBModel.plot_bands`
+# ## Quick look with `TBModel.plot_bands`
 # 
-# We can find the bands in two different ways. First we will use the `TBModel.plot_bands` method to visualize the band structure.
-# This is useful for quickly assessing the overall shape of the band structure and identifying key features such as band gaps and degeneracies.
+# `plot_bands` handles path construction, diagonalization, and plotting in one call. It is great for rapid inspection of gaps, degeneracies, and orbital projections without managing k-point arrays or diagonalization manually.
 
-# In[15]:
-
-
-my_model.plot_bands(path, k_label=label, nk=100)
+# In[6]:
 
 
-# ### `TBModel.solve_ham`
+my_model.plot_bands(k_nodes=path, k_node_labels=label, nk=100)
+
+
+# ## Manual diagonalisation via `TBModel.solve_ham`
 # 
-# Alternatively, we can use the `TBModel.solve_ham` method to compute the band structure directly. This method requires the k-points to be specified as input. To generate the k-points, we can use the `TBModel.k_path` method to construct the path through k-space, passing the desired path and the number of k-points as arguments. The `k_path` method will return the k-vectors, the distances along the path, and the original node positions.
+# For finer control we can manually compute the interpolated k-points along path using `TBModel.k_path`. This will return the k-vectors along the path, the cumulative k-point distances from the first node normalized to a maximum of 1, and the cumulative distances of the high-symmetry k-points. We can then use the k-vectors to diagonalize the model.
 
-# In[12]:
+# In[7]:
 
 
 (k_vec, k_dist, k_node) = my_model.k_path(path, 81)
 
 
-# Now we can call the `TBModel.solve_ham` method with the k-vectors obtained from `k_path` to compute the band structure.
-
-# In[13]:
+# In[8]:
 
 
 evals = my_model.solve_ham(k_vec)
 
 
-# In[14]:
+# In[9]:
 
 
 fig, ax = plt.subplots()
@@ -110,3 +116,11 @@ for n in range(len(k_node)):
 
 ax.plot(k_dist, evals)
 
+
+# ## Next steps
+
+# :::{admonition} Next steps
+# :class: seealso
+# - Slice the slab with `cut_piece` to form a ribbon and study edge modes along the remaining periodic direction.
+# :::
+# 

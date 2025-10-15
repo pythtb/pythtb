@@ -12,7 +12,7 @@ the 'Source code' link under each example.
 Note that there is also a useful `collection of PythTB sample programs
 <https://minisites.cambridgecore.org/berryphases/ptb_samples.html>`_ that
 were developed in connection with David Vanderbilt's book `Berry Phases in
-Electronic Structure Theory <https:/www.cambridge.org/9781107157651>`_
+Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
 (Cambridge University Press, 2018).
 
 .. admonition:: 🚀 Launch Interactive Examples
@@ -46,7 +46,6 @@ Electronic Structure Theory <https:/www.cambridge.org/9781107157651>`_
    examples_ipynb/checkerboard
    examples_ipynb/graphene
    examples_ipynb/haldane
-   examples_ipynb/haldane_fin
    examples_ipynb/buckled_layer
    examples_ipynb/trestle
    examples_ipynb/supercell
@@ -56,14 +55,13 @@ Electronic Structure Theory <https:/www.cambridge.org/9781107157651>`_
    :caption: Topology and quantum geometry
 
    examples_ipynb/three_site_thouless
-   examples_ipynb/berry_curv_haldane
-   examples_ipynb/boron_nitride
    examples_ipynb/graphene_cone
    examples_ipynb/haldane_bp
    examples_ipynb/haldane_hwf
-   examples_ipynb/slab_hwf
    examples_ipynb/kane_mele
    examples_ipynb/fkm_model
+   examples_ipynb/boron_nitride
+   examples_ipynb/slab_hwf
 
 .. toctree::
    :maxdepth: 1

@@ -2,26 +2,35 @@
 # coding: utf-8
 
 # (ssh-edge-nb)=
-# # SSH model topological edge states
+# # Finite SSH chain and edge modes
 # 
-# This example demonstrates the emergence of topological edge states in a finite Su-Schrieffer-Heeger (SSH) chain as a function of the hopping parameters.
+# We sweep the Su–Schrieffer–Heeger (SSH) model from the trivial to the topological phase, tracking boundary states in a finite chain and relating them to the bulk Berry phase.
+# 
+# :::{admonition} What you will learn
+# :class: tip
+# - Build a parameterised SSH `TBModel` and visualise its unit cell.
+# - Cut a finite chain and monitor how eigenvalues/eigenvectors evolve with hopping ratios.
+# - Analyze edge localization from wavefunction amplitudes.
+# - Compare bulk polarization via Berry phases computed with `WFArray`.
+# :::
 
 # In[1]:
 
 
 from pythtb import TBModel, WFArray, Mesh, Lattice
-from pythtb.utils import pauli_decompose
 import matplotlib.pyplot as plt
 import numpy as np
 
 
-# Define the model generator
+# ## Model generator
+# 
+# `ssh(v, w)` returns the periodic two-site unit cell with intracell hopping `v` and intercell hopping `w`. 
 # 
 # :::{hint}
-# You can also get the SSH model using the `pythtb.models` library
+# `pythtb.models.ssh` exposes the same model function defined here.
 # :::
 
-# In[20]:
+# In[2]:
 
 
 def ssh(v, w):
@@ -36,92 +45,93 @@ def ssh(v, w):
     return my_model
 
 
-# In[21]:
+# In[3]:
 
 
 model = ssh(1, 1/2)
 model.visualize()
 
 
-# ## Finite Model
+# ## Finite chain sweep
 # 
-# Get the eigenvalues and eigenvectors for each intracell hopping $w$
+# For each intercell hopping $w$ we cut a chain of `n_cells` unit cells, diagonalize it, and stash both eigenvalues and eigenvectors to analyse edge behaviour.
 
-# In[22]:
+# In[4]:
 
 
-nlam = 100
-w_values = np.linspace(0, 1, nlam)
-v = 0.5
-evals_w = []
-evecs_w = []
+t = 1
 n_cells = 30
-for w in w_values:
+n_delta = 101
+delta_values = np.linspace(-1, 1, n_delta)
+
+evals_d = []
+evecs_d = []
+for delta in delta_values:
+    v = t + delta
+    w = t - delta
     finite_model = ssh(v, w).cut_piece(n_cells, 0)
     evals, evecs = finite_model.solve_ham(return_eigvecs=True)
-    evals_w.append(evals)
-    evecs_w.append(evecs)
+    evals_d.append(evals)
+    evecs_d.append(evecs)
 
 
-# Plotting the energies as a function of $w$ shows that two zero-energy levels emerge at the topological phase transition where $|w| > |v|$.
-# These zero energy states are edge modes, as visible in the edge state density plot.
+# The dispersion versus $w$ reveals a pair of mid-gap levels once $|w| > |v|$. Evaluating the wavefunction of one of those states confirms that it is exponentially localised at the boundary.
 
-# In[23]:
+# In[5]:
 
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
 # Plot the eigenvalues
-ax1.plot(w_values, evals_w, c='r')
+ax1.plot(delta_values, evals_d, c='r')
 
-# Mark the v hopping on the plot
-ax1.axvline(x=v, color='b', linestyle='--', lw=1, label=r'$v$ hopping')
-
-ax1.set_xlabel(r"$w$")
-ax1.set_ylabel(r"$E$")
-ax1.set_xlim(0, 1.0)
-ax1.set_ylim(-2, 2)
 ax1.set_title(f"Finite SSH Chain with {n_cells} unit cells")
-ax1.legend()
+ax1.set_xlabel(r"$\delta$")
+ax1.set_ylabel(r"$E$")
+ax1.set_ylim(-2, 2)
 
-# Plot edge state density at last w=1.0
+# Plot edge state density
 band_idx = n_cells
-density = np.abs(evecs_w[-1][band_idx, :])**2
-position = np.arange(len(density)) / 2
-ax2.plot(position, density)
+delta_idx = 40
+density = np.abs(evecs_d[delta_idx][band_idx, :])**2
+x_position = np.arange(len(density)) / 2
+ax2.plot(x_position, density)
 ax2.set_xlabel(r"$x$")
-ax2.set_ylabel(rf"$\psi_{{{band_idx}}}(x)$")
-ax2.set_title(r"Edge state density at $w=1.0$")
+ax2.set_ylabel(r"$|\psi(x)|^2$")
+ax2.set_title(rf"Edge state density at $\delta={delta_values[delta_idx]:.3f}$")
 
 
-# ## Bulk polarization and Berry phase
+# ## Bulk polarization from Berry phases
+# 
+# We compare the Berry-phase-derived polarizations for the trivial ($|w| < |v|$) and topological ($|w| > |v|$) regimes using a 1D $k$-mesh and `WFArray.berry_phase`. Values are reported modulo the lattice constant.
 
-# In[24]:
+# In[15]:
 
 
-model = ssh(v, 0)
 nk = 100
-
 mesh = Mesh(dim_k=1, axis_types=['k'])
-mesh.build_grid(shape=(nk,))
+mesh.build_grid(shape=(nk,), gamma_centered=True)
 
-wfa = WFArray(model, mesh)
-wfa.solve_mesh()
-P1 = wfa.berry_phase(0, [1]) / (2 * np.pi)
-P1
+v = 1.0
+model_triv = ssh(v, 0.2)
+model_top = ssh(v, 1.2)
+lattice = model_triv.lattice
+
+wfa_triv = WFArray(lattice, mesh)
+wfa_triv.solve_model(model_triv)
+P_triv = wfa_triv.berry_phase(0, [0]) / (2 * np.pi)
+
+wfa_top = WFArray(model_top.lattice, mesh)
+wfa_top.solve_model(model_top)
+P_top = wfa_top.berry_phase(0, [0]) / (2 * np.pi)
+
+print(f"Polarization |w|<|v|: {P_triv:.3f}")
+print(f"Polarization |w|>|v|: {P_top:.3f}")
 
 
-# In[25]:
-
-
-model = ssh(v, 1)
-nk = 100
-
-mesh = Mesh(dim_k=1, axis_types=['k'])
-mesh.build_grid(shape=(nk,))
-
-wfa = WFArray(model, mesh)
-wfa.solve_mesh()
-P2 = wfa.berry_phase(0, [0]) / (2 * np.pi)
-P2
-
+# :::{admonition} Next steps
+# :class: seealso
+# - Sweep both hoppings on a 2D grid to map the phase boundary where the mid-gap modes emerge.
+# - Add an onsite staggered potential to break chiral symmetry and track how the edge states shift.
+# - Couple two SSH chains with a weak inter-chain hopping and investigate how the edge spectrum hybridises.
+# :::

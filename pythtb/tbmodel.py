@@ -2755,7 +2755,7 @@ class TBModel:
             raise ValueError("Local Chern marker is only defined for real-space models (dim_k=0).")
         
         H = self.hamiltonian()
-        coords = self.get_orb(cartesian=True)
+        coords = self.get_orb_vecs(cartesian=True)
         uc_vol = self.lattice.cell_volume
 
         N = H.shape[0]

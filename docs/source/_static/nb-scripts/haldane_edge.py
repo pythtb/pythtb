@@ -47,16 +47,16 @@ my_model.set_hop(t2c, 0, 0, [0, 1])
 print(my_model)
 
 
-# In[ ]:
+# In[4]:
 
 
 # cut finite models with slices in both directions
 # first direction open, second direction glued
-fin_model = my_model.make_finite(dirs=[0,1], num_cells=[10, 10], glue_edges=[False, False])
-fin_model_half = my_model.make_finite(dirs=[0,1], num_cells=[10, 10], glue_edges=[True, False])
+fin_model = my_model.make_finite(periodic_dirs=[0,1], num_cells=[10, 10], glue_edges=[False, False])
+fin_model_half = my_model.make_finite(periodic_dirs=[0,1], num_cells=[10, 10], glue_edges=[True, False])
 
 
-# In[9]:
+# In[5]:
 
 
 # solve finite models
@@ -64,7 +64,7 @@ fin_model_half = my_model.make_finite(dirs=[0,1], num_cells=[10, 10], glue_edges
 (evals_half, evecs_half) = fin_model_half.solve_ham(return_eigvecs=True)
 
 
-# In[16]:
+# In[6]:
 
 
 # pick index of state in the middle of the gap
@@ -79,7 +79,7 @@ ax.set_ylabel("y coordinate")
 plt.show()
 
 
-# In[17]:
+# In[7]:
 
 
 (fig, ax) = fin_model_half.visualize(

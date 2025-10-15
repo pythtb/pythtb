@@ -14,7 +14,7 @@
 # Brillouin zone containing the Dirac point, and plots individual phases
 # for each plaquette in the array.
 
-# In[16]:
+# In[1]:
 
 
 from pythtb import TBModel, WFArray, Mesh, Lattice
@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 
 # First we build the tight-binding model for graphene with a staggered onsite potential.
 
-# In[18]:
+# In[2]:
 
 
 # define lattice vectors
@@ -35,7 +35,7 @@ orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
 lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
 
-# In[19]:
+# In[3]:
 
 
 my_model = TBModel(lattice=lat)
@@ -56,7 +56,7 @@ print(my_model)
 # 
 # First we will construct the circular path of k-points around the Dirac cone.
 
-# In[20]:
+# In[4]:
 
 
 circ_step = 31 # number of steps in the circular path
@@ -82,7 +82,7 @@ kpts = np.array(kpts)
 # `n_interp` is an optional parameter that specifies the number of interpolation points between each pair of nodes in the path. By default, it is set to 1. This default behavior means that the k-point path will consist only of the nodes specified in `path_k`, without any additional points in between. If you want to create a denser k-point path with more points between the nodes, you can increase the value of `n_interp`.
 # :::
 
-# In[21]:
+# In[5]:
 
 
 mesh = Mesh(dim_k=2, axis_types=['k'])
@@ -94,30 +94,24 @@ print(mesh)
 # 
 # We now construct a `WFArray` object to hold the wavefunction data for each k-point in the mesh. The `WFArray` class is designed to work seamlessly with the `Mesh` class, allowing us to easily associate wavefunction data with the specific k-points (or parameter points) stored in the `Mesh`. 
 
-# In[22]:
+# In[6]:
 
 
-w_circ = WFArray(my_model, mesh)
+w_circ = WFArray(my_model.lattice, mesh)
 
 
 # To populate the `WFArray` object with wavefunction data, we can use the `solve_mesh()` method, which computes the wavefunctions for each k-point in the mesh.
 
-# In[23]:
+# In[7]:
 
 
-w_circ.solve_mesh()
-
-
-# In[24]:
-
-
-w_circ.get_overlap_mat()
+w_circ.solve_model(my_model)
 
 
 # ### Berry phase
 # We can compute the Berry phase along the circular path using the `berry_phase` method of the `WFArray` object. This method takes a list of band indices as input and returns the Berry phase for those bands.
 
-# In[9]:
+# In[11]:
 
 
 berry_phase_0 = w_circ.berry_phase(0, [0])
@@ -125,16 +119,16 @@ berry_phase_1 = w_circ.berry_phase(0, [1])
 berry_phase_both = w_circ.berry_phase(0, [0, 1])
 
 print(f"Berry phase along circle with radius {circ_radius} and centered at k-point {circ_center}")
-print(f"for band 0 equals    : {berry_phase_0}")
-print(f"for band 1 equals    : {berry_phase_1}")
-print(f"for both bands equals: {berry_phase_both}")
+print(f"for band 0 equals     : {berry_phase_0: .7f}")
+print(f"for band 1 equals     : {berry_phase_1: .7f}")
+print(f"for both bands equals : {berry_phase_both: .7f}")
 
 
 # ## Square patch around Dirac cone
 # 
 # Next, we construct a two-dimensional square patch covering the Dirac cone. We will construct the side length of the square patch such that the area of the patch equals the area enclosed by the loop around the Dirac point with radius `circ_radius` constructed above (`square_length` = $\sqrt{\pi \texttt{circ\_radius}^2}$)
 
-# In[10]:
+# In[12]:
 
 
 square_step = 50
@@ -165,7 +159,7 @@ for i in range(square_step):
 # The `points` array must have a shape that corresponds to `shape_k`. For example, if `shape_k` is `(4, 4)`, then `points` should have the shape `(4, 4, 2)` to represent the k-point coordinates in 2D.
 # :::
 
-# In[11]:
+# In[13]:
 
 
 mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
@@ -176,11 +170,11 @@ print(mesh)
 # ### `WFArray` class
 # Now we do the same thing as before to solve the model on these k-points, by calling `solve_k_mesh` on the `WFArray` object.
 
-# In[12]:
+# In[14]:
 
 
-w_square = WFArray(my_model, mesh)
-w_square.solve_mesh()
+w_square = WFArray(my_model.lattice, mesh)
+w_square.solve_model(my_model)
 
 
 # ### Berry flux
@@ -192,7 +186,7 @@ w_square.solve_mesh()
 # However, if `plane` is unspecified, the Berry flux will be computed for all available planes, and will be returned with an additional set of two axes corresponding to each dimension in parameter space. Since the Berry flux is an anti-symmetric tensor, the `[0,1]` and `[1,0]` components will be related by a minus sign. So here, we specify the plane so the returned object just gets the (`[0,1]`) component corresponding to $\Omega(\mathbf{k})^{(0,1)}$.
 # :::
 
-# In[13]:
+# In[15]:
 
 
 b_flux_0 = w_square.berry_flux([0], plane=(0, 1))
@@ -207,7 +201,7 @@ print("for both bands equals: ", np.sum(b_flux_both))
 
 # Let's plot the Berry curvature distribution in the kx-ky plane. 
 
-# In[14]:
+# In[16]:
 
 
 fig, ax = plt.subplots()
@@ -228,7 +222,7 @@ plt.colorbar(img)
 fig.tight_layout()
 
 
-# In[15]:
+# In[17]:
 
 
 fig, ax = plt.subplots()

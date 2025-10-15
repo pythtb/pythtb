@@ -153,7 +153,7 @@ wann_center1 = berry_phase1 / (2*np.pi)
 wann_center2 = berry_phase2 / (2*np.pi)
 
 
-# In[10]:
+# In[21]:
 
 
 fig, (ax_onsite, ax_wann) = plt.subplots(
@@ -167,16 +167,16 @@ onsite = np.vstack([
 ])
 
 ax_onsite.plot(all_lambda, onsite[0], "ro-", label="orbital 0")
-ax_onsite.plot(all_lambda, onsite[1], "go-", label="orbital 0")
-ax_onsite.plot(all_lambda, onsite[2], "bo-", label="orbital 0")
+ax_onsite.plot(all_lambda, onsite[1], "gs-", label="orbital 1")
+ax_onsite.plot(all_lambda, onsite[2], "b*-", label="orbital 2")
 
 ax_onsite.set_ylabel("Onsite energy")
 ax_onsite.set_title("Onsite modulation across the pump cycle")
 ax_onsite.legend(bbox_to_anchor=(0.57, 0.2))
 
-ax_wann.plot(all_lambda, wann_center0, "ro-", ms=5, label='Band 0')
-ax_wann.plot(all_lambda, wann_center1, "go-", ms=5, label='Band 1')
-ax_wann.plot(all_lambda, wann_center2, "bo-", ms=5, label='Band 2')
+ax_wann.plot(all_lambda, wann_center0, c='purple', marker="o", ms=5, label='Band 0')
+ax_wann.plot(all_lambda, wann_center1, c='orange', marker="s", ms=5, label='Band 1')
+ax_wann.plot(all_lambda, wann_center2, c='b', marker="*", ms=5, label='Band 2')
 ax_wann.grid()
 ax_wann.legend(bbox_to_anchor=(0.2, 0.4))
 

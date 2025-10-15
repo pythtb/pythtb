@@ -70,7 +70,7 @@ k_vec, k_dist, k_node = my_model.k_path(path, nk)
 evals = my_model.solve_ham(k_vec)
 
 
-# In[5]:
+# In[6]:
 
 
 fig, ax = plt.subplots()
@@ -87,5 +87,5 @@ ax.set_xlabel("Path in k-space")
 ax.set_ylabel("Band energy")
 
 # plot bands
-ax.plot(k_dist, evals)
+ax.plot(k_dist, evals, c='b')
 

@@ -33,7 +33,8 @@ docs = [
   "myst-nb",
   "sphinxcontrib-programoutput",
   "nbconvert",
-  "sphinx_design"
+  "sphinx_design",
+  "sphinx_gallery"
 ]
 tests = ["pytest"]
 dev = [

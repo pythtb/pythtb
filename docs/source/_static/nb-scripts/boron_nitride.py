@@ -4,9 +4,15 @@
 # (boron-nitride-nb)=
 # # Boron-nitride ribbon
 # 
-# This boron-nitride ribbon calculation illustrates a case where it is a good idea to change a nonperiodic lattice vector to be
-# normal to the periodic direction(s).  While the model is physically the same before and after the change, as shown by the
-# identical band structures, the Berry phase is consistent with the polarization in the extended direction only after the change.
+# We compare two descriptions of a boron-nitride nanoribbon: one in the original oblique unit cell, and another after reorienting the non-periodic lattice vector so it is orthogonal to the periodic direction. Both models share the same band structure, yet only the orthogonalized cell yields a Berry phase consistent with the ribbon’s physical polarization.
+# 
+# :::{admonition} What you will learn
+# :class: tip
+# - Build a 2D honeycomb model and cut out a ribbon with `TBModel.cut_piece`.
+# - Re-define the non-periodic lattice vector with `TBModel.change_nonperiodic_vector` to clean up geometric invariants.
+# - Use `Mesh` and `WFArray` to solve a 1D Brillouin-zone problem and compute Berry phases.
+# - Diagnose how cell geometry influences Wilson loops and polarization.
+# :::
 
 # In[1]:
 
@@ -42,7 +48,7 @@ my_model.visualize()
 
 # ## `TBModel.cut_piece`
 # 
-# Now we cut out 3 unit cells along second direction with open boundary conditions to make a ribbon model.
+# We first carve a ribbon by repeating the boron-nitride sheet three times along the second lattice vector and opening the boundary in that direction. `cut_piece` replicates the hoppings and onsite terms while removing the corresponding crystal-momentum axis.
 
 # In[3]:
 
@@ -54,78 +60,68 @@ model_orig.visualize()
 
 # ## `TBModel.change_nonperiodic_vector`
 # 
-# Construct and display new model with nonperiodic lattice vector changed to be normal to the periodic direction
+# Next we redefine the non-periodic lattice vector so it points exactly normal to the periodic direction. This leaves the tight-binding spectrum unchanged but simplifies the geometry that underlies Berry-phase calculations. 
+# 
+# :::note
+# The default behavior of `change_nonperiodic_vector` is to orthogonalize the non-periodic vector to the periodic one. One can also specify a custom vector.
+# :::
 
-# In[5]:
+# In[24]:
 
 
 model_perp = model_orig.copy()
-model_perp.change_nonperiodic_vector(1, to_home=False)
-print(model_perp)
+model_perp.change_nonperiodic_vector(1, to_home=True)
+model_perp.report(short=True)
 model_perp.visualize()
 
 
 # ## Bands and Berry phase
-#   
-# Solve both models, showing that the band structures are the same, but Berry phases are different.
 # 
-# We will utilize the `Mesh` to store the k-points, and then solve the model on this mesh using the `WFArray` class and its method
-# `solve_mesh`.
-# 
-# To compute the Berry phase, we use `WFArray.berry_phase`, passing the band indices and the mesh axis corresponding to direction we compute the Berry phase.
+# We solve both ribbon models on the same 1D $k$-mesh using `WFArray.solve_model`, verify that their band structures coincide, and then compute the Berry phase along the periodic direction using `WFArray.berry_phase`. The orthogonalized cell produces the expected zero Berry phase (by mirror symmetry), while the oblique cell does not.
 
-# In[6]:
+# In[26]:
 
 
-fig, ax = plt.subplots(1, 2, figsize=(6.5, 2.8))
+fig, ax = plt.subplots(1, 2, figsize=(8, 4), sharey=True)
 
 def run_model(model, panel, title):
     k_nodes = [[-0.5], [0.5]]
 
-    model.plot_bands(k_path=k_nodes, nk=100, fig=fig, ax=ax[panel], lc="k", lw=0.5)
-    ax[panel].set_title(title)
+    model.plot_bands(k_nodes=k_nodes, nk=100, fig=fig, ax=ax[panel], lw=1)
     ax[panel].set_xticklabels([-0.5, 0.5])
 
     mesh = Mesh(dim_k=model.dim_k, axis_types=["k"])
     mesh.build_grid(shape=(40,), gamma_centered=True)
-    wf = WFArray(model, mesh)
-    wf.solve_mesh()
+    wf = WFArray(model.lattice, mesh)
+    wf.solve_model(model)
 
     n_occ = model.nstate // 2
-    berry_phase = wf.berry_phase(0, range(n_occ))
+    berry_phase = wf.berry_phase(mu=0, state_idx=range(n_occ))
+    ax[panel].set_title(fr"{title}: $\phi=${berry_phase: .3f}")
+
     print(f"Berry Phase {title} = {berry_phase:.7f}")
 
-run_model(model_orig, 0, "Original model")
-run_model(model_perp, 1, "Revised model")
+run_model(model_orig, 0, "Original")
+run_model(model_perp, 1, "Shifted")
 
+ax[1].set_ylabel(None)
 fig.tight_layout()
 plt.show()
 
 
-# ## Notes
+# ## Note about mirror symmetry
 # 
-# :::{note}
+# Let $x$ denote the ribbon direction (periodic) and $y$ the transverse direction (finite). The ribbon has an $M_x$ mirror symmetry, so the polarization—and hence the Berry phase—must be either $0$ or $\pi$.  
 # 
-# Let $x$ be along the extended direction and $y$ be normal to it.
+# In the original oblique cell the reciprocal loop vector $\mathbf{b}_0$ used in the Wilson loop has both $x$ and $y$ components. The Berry phase therefore mixes shifts of Wannier centers along $y$ with the desired polarization along $x$, yielding a spurious result.  
 # 
-# This model has an $M_x$ mirror symmetry, so the Berry phase is
-# expected to be $0$ or $\pi$. We find it to be zero, but only after the
-# 'change_nonperiodic_vector' method is used to force the nonperiodic
-# "lattice vector" to be perpedicular to the extended direction.
+# After `change_nonperiodic_vector`, $\mathbf{b}_0$ points purely along $x$. The Wilson loop samples overlaps with phase factors depending only on $x$, so the Berry phase reflects the true ribbon polarization and vanishes as dictated by symmetry. The band structure remains unchanged because it depends only on the periodic direction.
+
+# ## Next steps
 # 
-# The physical meaning of the Berry phase in the original model
-# calculation is rather subtle. It is related to the position of
-# the joint Wannier center (i.e., summed over occupied bands) in
-# the direction of reciprocal lattice vector 0, which has a
-# $y$ component as well as an $x$ component (since it must be normal
-# to real space lattice vector 1). The joint Wannier center gets
-# displaced along $y$ as the hopping $t$ is changed, so the Berry
-# phase calculation gets "contaminated" by this displacement.
-# 
-# Another way to see this is to note that the Wilson loop operator
-# involves a product of overlaps of states at $k$ and $k+\Delta k$,
-# where $\Delta k$ is along reciprocal lattice vector 0. Since this
-# vector has a $y$ component, the Wilson loop operator involves
-# phase factors $e^{i k \cdot r}$ that depend on both $x$ and $y$ positions of the orbitals. Thus, the Berry phase
-# calculation is sensitive to displacements of Wannier centers in $y$ as well as in $x$. In the oblique cell, the reciprocal loop vector $\mathbf{b_1}$ has a y-component. This means the Wilson loop closure multiplies states by phases depending on both x and y orbital positions. As a result, the Berry phase along the “periodic x” direction is contaminated by shifts of Wannier centers in y. Orthogonalizing the non-periodic lattice vector removes this mixing: now $\mathbf{b_1}$ points purely along x, so the Berry phase tracks only polarization along x. With mirror symmetry, this is forced to vanish, and indeed the Berry phase comes out zero. The band structure is unaffected because it depends only on x-periodicity, not on the definition of the non-periodic cell vector.
+# :::{admonition} Next steps
+# :class: seealso
+# - Tilt the non-periodic lattice vector by a controlled angle and plot how the Berry phase deviates from the mirror-symmetric value.
+# - Compute edge Wannier centers with `WFArray.position_expectation` to visualise how the polarization migrates when the cell is oblique.
 # :::
+# 

@@ -173,3 +173,39 @@ ax[1].set_title("Haldane model density of states")
 ax[1].set_xlabel("Band energy")
 ax[1].set_ylabel("Number of states")
 
+
+# ## Finite Haldane model DOS
+# 
+# The density of states (DOS) for the finite Haldane model can be calculated using the eigenvalues obtained from the diagonalization of the Hamiltonian. The DOS is a measure of the number of available states at each energy level and can provide insights into the electronic properties of the system.
+
+# In[14]:
+
+
+fin_model_true = my_model.make_finite([0,1], [20, 20], glue_edges=[True, True])
+evals_true = fin_model_true.solve_ham()
+
+fin_model_false = my_model.make_finite([0,1], [20, 20], glue_edges=[False, False])
+evals_false = fin_model_false.solve_ham()
+
+
+# In[15]:
+
+
+# flatten eigenvalue arrays
+evals_false = evals_false.flatten()
+evals_true = evals_true.flatten()
+
+# now plot density of states
+fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+ax[0].hist(evals_false, 50, range=(-4.0, 4.0))
+ax[0].set_ylim(0.0, 80.0)
+ax[0].set_title("Finite Haldane model without PBC")
+ax[0].set_xlabel("Band energy")
+ax[0].set_ylabel("Number of states")
+
+ax[1].hist(evals_true, 50, range=(-4.0, 4.0))
+ax[1].set_ylim(0.0, 80.0)
+ax[1].set_title("Finite Haldane model with PBC")
+ax[1].set_xlabel("Band energy")
+ax[1].set_ylabel("Number of states")
+

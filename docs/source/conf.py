@@ -9,8 +9,8 @@
 import sys
 import pythtb
 import logging
-import warnings
-# warnings.filterwarnings("error", category=SyntaxWarning)
+import plotly.io as pio
+pio.renderers.default = 'sphinx_gallery'
 logging.getLogger("pythtb").setLevel(logging.WARNING)
 
 project = u'PythTB'
@@ -57,7 +57,8 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx_copybutton",
     "sphinxcontrib.programoutput",
-    "sphinx_design"
+    "sphinx_design",
+    "sphinx_gallery"
     # "numpydoc"
 ]
 
@@ -76,6 +77,17 @@ myst_enable_extensions = [
 nb_execution_mode = "cache"        # instead of "auto"
 nb_execution_timeout = 600     # seconds per notebook
 nb_execution_cache_path = ".jupyter_cache"  # keep cache OUTSIDE _build so 'clean' doesn't erase it
+nb_render_priority = {
+    "html": (
+        "application/vnd.jupyter.widget-view+json",
+        "application/vnd.plotly.v1+json",   # <- key line
+        "text/html",
+        "image/svg+xml",
+        "image/png",
+        "text/markdown",
+        "text/plain",
+    )
+}
 
 thebe_config = {
     "binderhub_url": "https://mybinder.org",
@@ -121,6 +133,9 @@ templates_path = ['_templates']
 html_static_path = ['_static']
 html_js_files = [
     ("custom-icons.js", {"defer": "defer"})
+]
+html_js_files += [
+    ("plotly-2.34.0.min.js", {"defer": "defer"}),  # update filename to what you vendored
 ]
 html_extra_path = ['misc', 'simple_fig', 'examples_py']
 html_css_files = ["custom.css"]
