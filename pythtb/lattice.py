@@ -1396,7 +1396,7 @@ class Lattice():
             kpts = kpts @ np.linalg.inv(B).T
 
         # cumulative distances between points
-        _, k_dist, _ = self.lattice.k_path(kpts, nk=kpts.shape[0], report=False)
+        _, k_dist, _ = self.k_path(kpts, nk=kpts.shape[0], report=False)
         # k_dist = kpath_distance(kpts, b1=B[0], b2=B[1], b3=B[2])
 
         if k_nodes is not None:
