@@ -1,10 +1,11 @@
-import numpy as np
 import copy
 import logging
 import warnings
+import numpy as np
 from .plotting import plot_bands, plot_tb_model, plot_tb_model_3d
 from .utils import _offdiag_approximation_warning_and_stop, is_Hermitian, deprecated, copydoc
 from .lattice import Lattice
+from .hoptable import HoppingTable
 
 # set up logging
 logger = logging.getLogger(__name__)
@@ -97,9 +98,8 @@ class TBModel:
         self._site_energies_specified = np.zeros(self.norb, dtype=bool)
         self._site_energies_specified[:] = False
 
-        # Initialize hoppings to empty list
-        self._hoppings = []
-        self._hop_index = None  # lazily built for O(1) set_hop
+        # Initialize hoppings container
+        self._hoppings = HoppingTable(self.dim_r, self._nspin == 2)
 
     def __repr__(self):
         r"""Return a string representation of the ``TBModel`` object.
@@ -183,51 +183,51 @@ class TBModel:
 
                 output.append(f"  # {i} ===> {energy_str}")
 
+            amps, i_idx, j_idx, R_vecs = self._hoppings.components()
+
             output.append("Hoppings:")
-            for i, hopping in enumerate(self._hoppings):
-                out_str = f"  < {hopping[1]:^1} | H | {hopping[2]:^1}"
-                if len(hopping) == 4:
+            for hop_idx in range(len(self._hoppings)):
+                hop_from = int(i_idx[hop_idx])
+                hop_to = int(j_idx[hop_idx])
+                R_vec = R_vecs[hop_idx]
+
+                out_str = f"  < {hop_from:^1} | H | {hop_to:^1}"
+                if np.any(R_vec):
                     out_str += " + ["
-                    for j, v in enumerate(hopping[3]):
-                        out_str += f"{v:^5.1f}"
-                        if j != len(hopping[3]) - 1:
-                            out_str += ", "
-                        else:
-                            out_str += "] >  ===> "
-                else:
-                    out_str += " >  ===> "
+                    for comp, value in enumerate(R_vec):
+                        out_str += f"{value:^5.1f}"
+                        out_str += ", " if comp != len(R_vec) - 1 else "]"
+                out_str += " >  ===> "
+
+                amp = amps[hop_idx]
                 if self._nspin == 1:
-                    out_str += f"{hopping[0]:^7.4f}"
-                elif self._nspin == 2:
-                    out_str += str(hopping[0].round(4)).replace("\n", " ")
+                    out_str += f"{complex(amp):^7.4f}"
+                else:
+                    out_str += str(np.asarray(amp).round(4)).replace("\n", " ")
                 output.append(out_str)
 
             output.append("Hopping distances:")
 
-            for i, hopping in enumerate(self._hoppings):
-                hop_from = hopping[1]
-                hop_to = hopping[2]
+            if len(self._hoppings):
+                orb_cart = self.get_orb_vecs(cartesian=True)
+                lat_vecs = self.lat_vecs
+                for hop_idx in range(len(self._hoppings)):
+                    hop_from = int(i_idx[hop_idx])
+                    hop_to = int(j_idx[hop_idx])
+                    R_vec = R_vecs[hop_idx]
 
-                pos_i = np.dot(self.orb_vecs[hopping[1]], self.lat_vecs)
-                pos_j = np.dot(self.orb_vecs[hopping[2]], self.lat_vecs)
+                    pos_i = orb_cart[hop_from]
+                    pos_j = orb_cart[hop_to] + R_vec @ lat_vecs
 
-                out_str = f"  | pos({hop_from:^1}) - pos({hop_to:^1}"
-
-                if len(hopping) == 4:
-                    pos_j += np.dot(hopping[3], self.lat_vecs)
-
-                    out_str += " + ["
-                    for j, Rv in enumerate(hopping[3]):
-                        out_str += f"{Rv:^5.1f}"
-                        if j != len(hopping[3]) - 1:
-                            out_str += ", "
-                        else:
-                            out_str += "]"
-
-                distance = np.linalg.norm(pos_j - pos_i)
-
-                out_str += f") | = {distance:^7.3f}"
-                output.append(out_str)
+                    out_str = f"  | pos({hop_from:^1}) - pos({hop_to:^1}"
+                    if np.any(R_vec):
+                        out_str += " + ["
+                        for comp, value in enumerate(R_vec):
+                            out_str += f"{value:^5.1f}"
+                            out_str += ", " if comp != len(R_vec) - 1 else "]"
+                    distance = np.linalg.norm(pos_j - pos_i)
+                    out_str += f") | = {distance:^7.3f}"
+                    output.append(out_str)
 
         if show:
             print("\n".join(output))
@@ -408,17 +408,22 @@ class TBModel:
             - 'to_orbital': index of ending orbital
             - 'lattice_vector': (optional) lattice vector displacement
         """
-        raw = list(self._hoppings)
-        formatted = []
-        for hop in raw:
-            amp, i, j, *R = hop
+        amps, i_idx, j_idx, R_vecs = self._hoppings.components()
+        formatted: list[dict] = []
+        for hop_idx in range(len(self._hoppings)):
+            amp = amps[hop_idx]
+            if self._nspin == 2:
+                amplitude = np.asarray(amp).copy()
+            else:
+                amplitude = complex(amp)
             entry = {
-                "amplitude": amp,
-                "from_orbital": i,
-                "to_orbital": j,
+                "amplitude": amplitude,
+                "from_orbital": int(i_idx[hop_idx]),
+                "to_orbital": int(j_idx[hop_idx]),
             }
-            if R:
-                entry["lattice_vector"] = R[0].tolist()
+            R_vec = R_vecs[hop_idx]
+            if np.any(R_vec):
+                entry["lattice_vector"] = R_vec.tolist()
             formatted.append(entry)
         return formatted
 
@@ -461,7 +466,6 @@ class TBModel:
         This is useful for resetting the model to a state without any hoppings.
         """
         self._hoppings.clear()
-        self._hop_index = None
         logger.info("Cleared all hoppings.")
 
     def clear_onsite(self):
@@ -646,62 +650,135 @@ class TBModel:
             raise ValueError("Mode should be either 'set' or 'add'.")
         
 
-    #NOTE: These next two functions are used to speed up set_hopping lookups
-    # For large models with many hoppings, this can make a big difference
-    ############################################################################    
-    def _ensure_hop_index(self):
-        """Create a hash index (i,j,R_per)->list index for O(1) lookups."""
-        if getattr(self, "_hop_index", None) is None:
-            self._hop_index = {}
-            for idx, h in enumerate(self._hoppings):
-                if self.dim_k == 0:
-                    key = (h[1], h[2], None)
-                else:
-                    key = (h[1], h[2], tuple(np.array(h[3])[self.per]))
-                self._hop_index[key] = idx
-
-    def _hop_keys(self, ind_i, ind_j, ind_R):
-        """Return primary and conjugate keys using only periodic components of R."""
-        if self.dim_k == 0:
-            return (ind_i, ind_j, None), (ind_j, ind_i, None)
-        Rp = tuple(np.array(ind_R)[self.per])
-        conj_Rp = tuple((-np.array(ind_R))[self.per])
-        return (ind_i, ind_j, Rp), (ind_j, ind_i, conj_Rp)
-    
     def _get_flattened_indices(self):
-        cache = getattr(self, "_ham_accum_cache", None)
-        hop_key = (id(self._hoppings), self.norb)
+        return self._hoppings.flatten_cache(self.norb)
 
-        if cache is None or cache["key"] != hop_key:
-            i_indices = np.array([h[1] for h in self._hoppings])
-            j_indices = np.array([h[2] for h in self._hoppings])
-            norb = self.norb
-            flat_idx = i_indices * norb + j_indices
+    def _normalize_kpoints(self, k_pts, *, allow_none_for_finite: bool = False) -> np.ndarray | None:
+        """Validate and reshape user-provided k-points."""
+        dim_k = self.dim_k
+        if dim_k == 0:
+            if k_pts is None:
+                return None
+            if allow_none_for_finite:
+                return None
+            raise ValueError("k_pts should not be specified for finite (dim_k=0) models.")
 
-            order = np.argsort(flat_idx, kind="mergesort")
-            flat_sorted = flat_idx[order]
-            starts = np.concatenate(([0], np.flatnonzero(np.diff(flat_sorted)) + 1))
-            uniq = flat_sorted[starts]
+        if k_pts is None:
+            raise ValueError("Must supply k_pts for periodic systems (dim_k > 0).")
 
-            rows = uniq // norb
-            cols = uniq % norb
-            cols_transposed = cols * norb + rows
+        k_arr = np.asarray(k_pts, dtype=float)
+        if k_arr.ndim == 1:
+            if k_arr.shape[0] != dim_k:
+                raise ValueError(f"k_pts must have shape ({dim_k},) for a single point.")
+            k_arr = k_arr.reshape(1, dim_k)
+        if k_arr.ndim != 2 or k_arr.shape[1] != dim_k:
+            raise ValueError(f"k_pts must have shape (Nk, {dim_k}).")
+        return k_arr
 
-            inverse_order = np.empty_like(order)
-            inverse_order[order] = np.arange(order.size)
+    def _hamiltonian_finite(self, amps, i_idx, j_idx, site_energies, *, flatten_spin: bool):
+        norb = self.norb
+        nspin = self._nspin
 
-            cache = {
-                "key": hop_key,
-                "order": order,
-                "starts": starts,
-                "uniq": uniq,
-                "cols_transposed": cols_transposed,
-                "inverse_order": inverse_order,
-                "bucket_counts": starts,
-            }
-            self._ham_accum_cache = cache
+        if nspin == 1:
+            amps = amps.astype(complex)
+            ham = np.zeros((norb, norb), dtype=complex)
+            if amps.size:
+                np.add.at(ham, (i_idx, j_idx), amps)
+                np.add.at(ham, (j_idx, i_idx), amps.conj())
+            np.fill_diagonal(ham, site_energies)
+            return ham
 
-        return cache
+        # spinful
+        amps = np.asarray(amps, dtype=complex)
+        ham = np.zeros((norb, 2, norb, 2), dtype=complex)
+        if amps.size:
+            for hop_idx in range(amps.shape[0]):
+                block = amps[hop_idx]
+                ham[i_idx[hop_idx], :, j_idx[hop_idx], :] += block
+                ham[j_idx[hop_idx], :, i_idx[hop_idx], :] += block.conj().T
+        for orb in range(norb):
+            ham[orb, :, orb, :] += site_energies[orb]
+        if flatten_spin:
+            ham = ham.reshape(norb * 2, norb * 2)
+        return ham
+
+    def _hamiltonian_periodic(
+        self,
+        k_vecs: np.ndarray,
+        amps,
+        i_idx,
+        j_idx,
+        R_vecs,
+        site_energies,
+        *,
+        flatten_spin: bool,
+    ):
+        norb = self.norb
+        nspin = self._nspin
+        per = np.asarray(self.per)
+        orb_red = np.asarray(self.orb_vecs)
+
+        n_kpts = k_vecs.shape[0]
+        n_hops = amps.shape[0]
+
+        i_idx = i_idx.astype(int)
+        j_idx = j_idx.astype(int)
+        R_vecs = R_vecs.astype(float)
+
+        orb_i = orb_red[i_idx]
+        orb_j = orb_red[j_idx]
+        delta_r = R_vecs - orb_i + orb_j
+        delta_r_per = delta_r[:, per]
+
+        if n_hops:
+            k_dot_r = k_vecs @ delta_r_per.T
+            phases = np.exp(1j * 2 * np.pi * k_dot_r)
+        else:
+            phases = None
+
+        if nspin == 1:
+            amps = amps.astype(complex)
+            ham = np.zeros((n_kpts, norb, norb), dtype=complex)
+            if n_hops:
+                cache = self._get_flattened_indices()
+                order = cache["order"]
+                starts = cache["starts"]
+                uniq = cache["uniq"]
+                cols_transposed = cache["cols_transposed"]
+
+                ham_flat = ham.reshape(n_kpts, -1)
+                contrib = phases[:, order] * amps[order]
+                sums = np.add.reduceat(contrib, starts, axis=1)
+                ham_flat[:, uniq] += sums
+                ham_flat[:, cols_transposed] += sums.conj()
+
+            diag = np.arange(norb)
+            ham[:, diag, diag] += site_energies
+            return ham
+
+        # spinful
+        amps = np.asarray(amps, dtype=complex)
+        ham = np.zeros((n_kpts, norb, 2, norb, 2), dtype=complex)
+        if n_hops:
+            weighted = phases[..., None, None] * amps[None, :, :, :]
+            for s_out in range(2):
+                for s_in in range(2):
+                    contrib = weighted[..., s_out, s_in]
+                    np.add.at(
+                        ham[:, :, s_out, :, s_in],
+                        (slice(None), i_idx, j_idx),
+                        contrib,
+                    )
+                    np.add.at(
+                        ham[:, :, s_in, :, s_out],
+                        (slice(None), j_idx, i_idx),
+                        contrib.conj(),
+                    )
+        for orb in range(norb):
+            ham[:, orb, :, orb, :] += site_energies[orb]
+        if flatten_spin:
+            ham = ham.reshape(n_kpts, norb * 2, norb * 2)
+        return ham
 
     
     ############################################################################
@@ -771,22 +848,13 @@ class TBModel:
         j_idx = np.asarray(j_idx, dtype=int)
         R_vecs = np.asarray(R_vecs, dtype=int).reshape(len(i_idx), self.dim_r)
 
-        # convert amplitudes to blocks once
         blocks = [self._val_to_block(val) for val in hop_amps]
-        entries = [[block, int(i), int(j), R_vec] for block, i, j, R_vec in zip(blocks, i_idx, j_idx, R_vecs)]
-
-        start = len(self._hoppings)
-        self._hoppings.extend(entries)
-
-        # invalidate caches
-        self._ham_accum_cache = None
-
-        # update hash index only if it already exists
-        if getattr(self, "_hop_index", None) is not None:
-            Rp = map(tuple, R_vecs[:, self.per]) if self.dim_k else (None,) * len(entries)
-            for offset, key in enumerate(zip(i_idx.tolist(), j_idx.tolist(), Rp)):
-                self._hop_index[key] = start + offset
-
+        self._hoppings.extend(
+            blocks,
+            i_idx.tolist(),
+            j_idx.tolist(),
+            R_vecs.tolist(),
+        )
 
     def _set_hops_bulk(self, hop_amps, i_idx, j_idx, R_vecs, mode="set"):
         mode = mode.lower()
@@ -798,37 +866,15 @@ class TBModel:
         j_idx = np.asarray(j_idx, dtype=int)
         R_vecs = np.asarray(R_vecs, dtype=int).reshape(len(i_idx), self.dim_r)
 
-        self._ensure_hop_index()
-
-        # precompute keys and conjugate keys once
-        keys = [self._hop_keys(int(i), int(j), R_vec)[0] for i, j, R_vec in zip(i_idx, j_idx, R_vecs)]
-        conj_keys = [self._hop_keys(int(i), int(j), R_vec)[1] for i, j, R_vec in zip(i_idx, j_idx, R_vecs)]
-
-        # optional: enforce no double-counting
-        if mode == "set":
-            dup = set(keys) & set(conj_keys)
-            if dup:
-                raise ValueError("Attempting to add both hop and its conjugate; set allow_conjugate_pair=True or filter first.")
-
-        blocks = [self._val_to_block(val) for val in hop_amps]
-        new_entries = list(zip(blocks, i_idx.tolist(), j_idx.tolist(), R_vecs))
-
-        if mode == "add":
-            for key, entry in zip(keys, new_entries):
-                idx = self._hop_index.get(key)
-                if idx is not None:
-                    self._hoppings[idx][0] += entry[0]
-                else:
-                    self._hoppings.append(list(entry))
-                    self._hop_index[key] = len(self._hoppings) - 1
-        else:  # mode == "set"
-            for key, entry in zip(keys, new_entries):
-                idx = self._hop_index.get(key)
-                if idx is not None:
-                    self._hoppings[idx] = list(entry)
-                else:
-                    self._hoppings.append(list(entry))
-                    self._hop_index[key] = len(self._hoppings) - 1
+        for amp, i, j, R in zip(hop_amps, i_idx, j_idx, R_vecs, strict=True):
+            self.set_hop(
+                amp,
+                int(i),
+                int(j),
+                R,
+                mode=mode,
+                allow_conjugate_pair=True,
+            )
 
     def set_hop(
         self,
@@ -913,93 +959,45 @@ class TBModel:
             )
             mode = "set"
 
-        # make sure ind_i and ind_j are not out of scope
-        if ind_i < 0 or ind_i >= self.norb:
-            raise ValueError("Index ind_i is not within range of number of orbitals.")
-        if ind_j < 0 or ind_j >= self.norb:
-            raise ValueError("Index ind_j is not within range of number of orbitals.")
-
-        # Check ind_R
-        if ind_R is not None and self.dim_k == 0:
-            raise ValueError("No periodic directions, so ind_R should not be specified.")
-        if isinstance(ind_R, np.ndarray):
-            if ind_R.ndim != 1:
-                raise ValueError("If ind_R is a numpy array, it must be 1-dimensional.")
-            if ind_R.shape[0] != self.dim_r:
-                raise ValueError(
-                    "If ind_R is a numpy array, its length must equal dim_r."
-                )
-            if not np.issubdtype(ind_R.dtype, np.integer):
-                raise ValueError("If ind_R is a numpy array, it must be of integer type.")
-            ind_R = ind_R.astype(int)
-        elif isinstance(ind_R, (list, tuple)):
-            if len(ind_R) != self.dim_r:
-                raise ValueError(
-                    "If ind_R is a list or tuple, its length must equal dim_r."
-                )
-            ind_R = np.array(ind_R, dtype=int)
-            if ind_R.ndim != 1:
-                raise ValueError("If ind_R is a list or tuple, it must be 1-dimensional.")
-        elif isinstance(ind_R, (int, np.integer)):
-            if self.dim_k != 1:
-                raise ValueError(
-                    "If dim_k is not 1, should not use integer for ind_R. Instead use list."
-                )
-            tmpR = np.zeros(self.dim_r, dtype=int)
-            tmpR[self.per] = ind_R
-            ind_R = tmpR
-        elif ind_R is None:
-            if self.dim_k != 0:
-                raise ValueError("Must specify ind_R when we have a periodic direction.")
-        else:
-            raise TypeError(
-                "ind_R is not of correct type. Should be array-type or integer."
-            )
+        ind_i, ind_j, R_vec = self._hoppings.normalize_entry(
+            ind_i,
+            ind_j,
+            ind_R,
+            norb=self.norb,
+            dim_k=self.dim_k,
+            periodic_dirs=self.periodic_dirs,
+        )
 
         # Do not allow onsite hoppings to be specified here
         if ind_i == ind_j:
-            # not extended
-            if self.dim_k == 0:
-                raise ValueError(
-                    "Do not use set_hop for onsite terms. Use set_onsite instead."
-                )
-            # hopping within unit cell
-            elif ind_R is not None and bool(np.all(ind_R == 0)):
+            if self.dim_k == 0 or bool(np.all(R_vec == 0)):
                 raise ValueError(
                     "Do not use set_hop for onsite terms. Use set_onsite instead."
                 )
 
-        self._ensure_hop_index()
-        key, conj_key = self._hop_keys(int(ind_i), int(ind_j), ind_R)
-        if not allow_conjugate_pair and (conj_key in self._hop_index):
-            raise ValueError(
-                f"Conjugate element already specified for i={ind_i}, j={ind_j}, R={ind_R}. "
-                "Either avoid double entry or set allow_conjugate_pair=True."
-            )
-
-        # convert to 2x2 matrix if needed
         hop_use = self._val_to_block(hop_amp)
-        # hopping term parameters to be stored
-        if self.dim_k == 0:
-            new_hop = [hop_use, int(ind_i), int(ind_j)]
-        else:
-            new_hop = [hop_use, int(ind_i), int(ind_j), np.array(ind_R)]
+        table = self._hoppings
 
-        use_index = self._hop_index.get(key, None)
+        existing_idx = table.find(ind_i, ind_j, R_vec)
+        if not allow_conjugate_pair:
+            conj_idx = table.find(ind_j, ind_i, -R_vec)
+            if conj_idx is not None and (existing_idx is None or conj_idx != existing_idx):
+                raise ValueError(
+                    f"Conjugate element already specified for i={ind_i}, j={ind_j}, R={R_vec.tolist()}. "
+                    "Either avoid double entry or set allow_conjugate_pair=True."
+                )
+
+        mode = mode.lower()
         if mode == "set":
-            if use_index is not None:
-                # Reset
-                self._hoppings[use_index] = new_hop
+            if existing_idx is not None:
+                table.update(existing_idx, amplitude=hop_use, R=R_vec)
             else:
-                # Append
-                self._hoppings.append(new_hop)
-                self._hop_index[key] = len(self._hoppings) - 1
+                table.append(hop_use, ind_i, ind_j, R_vec)
         elif mode == "add":
-            if use_index is not None:
-                self._hoppings[use_index][0] += new_hop[0]
+            if existing_idx is not None:
+                table.accumulate(existing_idx, hop_use)
             else:
-                self._hoppings.append(new_hop)
-                self._hop_index[key] = len(self._hoppings) - 1
+                table.append(hop_use, ind_i, ind_j, R_vec)
         else:
             raise ValueError("Wrong value of mode parameter. Should be either `set` or `add`.")
     
@@ -1086,92 +1084,76 @@ class TBModel:
         """
         dim_k = self.dim_k
 
-        if k_pts is not None:
-            # if kpnt is just a number then convert it to an array
-            if isinstance(k_pts, (int, np.integer, float)):
-                if dim_k != 1:
-                    raise ValueError(
-                        "k_pts should be a 2D array of shape (n_kpts, dim_k)."
-                    )
-                k_arr = np.array([[k_pts]])
-            elif isinstance(k_pts, (list, np.ndarray)):
-                k_arr = np.array(k_pts)
-                if k_arr.ndim == 1:
-                    if k_arr.shape[0] != dim_k:
-                        return ValueError(
-                            "If 'k_pts' is a single k-point, it must be of shape dim_k."
-                        )
-                    else:
-                        # Reshape to (1, dim_k)
-                        k_arr = k_arr[None, :]
-            else:
-                raise TypeError(
-                    "k_pts should be a list or numpy array, or possibly a number for 1d k-space."
-                )
-
-            # check that k-vector is of corect size
-            if k_arr.ndim != 2 or k_arr.shape[-1] != dim_k:
-                raise ValueError("k_arr should be a 2D array of shape (n_kpts, dim_k).")
-        else:
-            raise TypeError("k_pts should not be None for velocity operator.")
+        k_arr = self._normalize_kpoints(k_pts)
 
         norb = self.norb
         nspin = self._nspin
         per = np.asarray(self.per)
-        orb_red = np.asarray(self.orb_vecs)  # shape (norb, dim_r)
-        hoppings = self._hoppings
+        orb_red = np.asarray(self.orb_vecs)
 
-        i_indices = np.array([h[1] for h in hoppings])
-        j_indices = np.array([h[2] for h in hoppings])
-        amps = np.array([h[0] for h in hoppings], dtype=complex)
+        table = self._hoppings
+        amps, i_indices, j_indices, R_vecs = table.components()
+        n_hops = i_indices.size
 
-        # Precompute delta_r for all hoppings
-        orb_i = orb_red[i_indices]  # Shape: (n_hoppings, dim_r)
-        orb_j = orb_red[j_indices]  # Shape: (n_hoppings, dim_r)
+        i_indices = i_indices.astype(int)
+        j_indices = j_indices.astype(int)
+        R_vecs = R_vecs.astype(float)
 
-        ind_Rs = np.array([h[3] for h in hoppings], dtype=float)
+        orb_i = orb_red[i_indices]
+        orb_j = orb_red[j_indices]
 
-        delta_r = ind_Rs - orb_i + orb_j  # Shape: (n_hoppings, dim_r)
-        delta_r_per = delta_r[:, per]  # Shape: (n_hoppings, dim_k)
+        delta_r = R_vecs - orb_i + orb_j
+        delta_r_per = delta_r[:, per]
 
-        # # Compute phase factors for all k-points and hoppings
-        k_dot_r = k_arr @ delta_r_per.T  # Shape: (n_kpts, n_hoppings)
-        phases = np.exp(1j * 2 * np.pi * k_dot_r)  # Shape: (n_kpts, n_hoppings)
+        if n_hops:
+            k_dot_r = k_arr @ delta_r_per.T
+            phases = np.exp(1j * 2 * np.pi * k_dot_r)
+        else:
+            phases = np.zeros((k_arr.shape[0], 0), dtype=complex)
         if cartesian:
-            deriv_phase = (1j * delta_r_per @ self.get_lat()[self.per, :]).T[
-                :, None, :
-            ] * phases[None, ...]
+            lattice = self.get_lat()[self.per, :]
+            coeff = (1j * delta_r_per @ lattice).T[:, None, :]
         else:
-            deriv_phase = (1j * 2 * np.pi * delta_r_per).T[:, None, :] * phases[
-                None, ...
-            ]
+            coeff = (1j * 2 * np.pi * delta_r_per).T[:, None, :]
 
-        n_hops = len(hoppings)
+        deriv_phase = coeff * phases[None, ...] if n_hops else coeff[:, :, :0]
+
         if nspin == 1:
-            T_f = np.zeros((n_hops, norb, norb), complex)
-            T_r = np.zeros((n_hops, norb, norb), complex)
-            idx = np.arange(n_hops)
-            T_f[idx, i_indices, j_indices] = amps
-            T_r[idx, j_indices, i_indices] = amps.conj()
+            amps_use = np.asarray(amps, dtype=complex)
+            vel = np.zeros((dim_k, k_arr.shape[0], norb, norb), dtype=complex)
+            if n_hops:
+                cache = self._get_flattened_indices()
+                order = cache["order"]
+                starts = cache["starts"]
+                uniq = cache["uniq"]
+                cols_transposed = cache["cols_transposed"]
 
-        else:
-            # spinful: each amp is a 2×2 block
-            T_f = np.zeros((n_hops, norb, 2, norb, 2), complex)
-            T_r = np.zeros_like(T_f)
-            for h in range(n_hops):
-                T_f[h, i_indices[h], :, j_indices[h], :] = amps[h]
-                T_r[h, j_indices[h], :, i_indices[h], :] = amps[h].conj().T
+                vel_flat = vel.reshape(dim_k, k_arr.shape[0], -1)
+                contrib_sorted = deriv_phase[:, :, order] * amps_use[order]
+                sums = np.add.reduceat(contrib_sorted, starts, axis=2)
+                vel_flat[..., uniq] += sums
+                vel_flat[..., cols_transposed] += sums.conj()
+            return vel
 
-        # compute forward contribution into vel array
-        vel = np.tensordot(deriv_phase, T_f, axes=([2], [0]))
-        # compute reverse contribution in temporary buffer
-        temp = np.tensordot(deriv_phase.conj(), T_r, axes=([2], [0]))
-        # add in-place to avoid extra allocation
-        np.add(vel, temp, out=vel)
+        vel = np.zeros((dim_k, k_arr.shape[0], norb, 2, norb, 2), dtype=complex)
+        if n_hops:
+            weighted = deriv_phase[..., None, None] * amps[None, None, :, :, :]
+            for s_out in range(2):
+                for s_in in range(2):
+                    contrib = weighted[..., s_out, s_in]
+                    np.add.at(
+                        vel,
+                        (slice(None), slice(None), i_indices, s_out, j_indices, s_in),
+                        contrib,
+                    )
+                    np.add.at(
+                        vel,
+                        (slice(None), slice(None), j_indices, s_in, i_indices, s_out),
+                        contrib.conj(),
+                    )
 
         return vel
     
-
     def hamiltonian(self, k_pts=None, flatten_spin=False):
         r"""Generate the Bloch Hamiltonian for an array of k-points in reduced coordinates.
 
@@ -1223,172 +1205,30 @@ class TBModel:
         boundaries due to the gauge discontinuity inherent in convention I.        
 
         """
-
-        # Cache invariant data to avoid repeated conversions
-        dim_k = self.dim_k
-        norb = self.norb
-        nspin = self._nspin
-        per = np.asarray(self.per)
-        orb_red = np.asarray(self.orb_vecs)  # shape (norb, dim_r)
-        orb_idxs = np.arange(norb)
         site_energies = np.asarray(self._site_energies)
-        hoppings = self._hoppings
+        amps, i_idx, j_idx, R_vecs = self._hoppings.components()
 
-        if k_pts is not None:
-            # if kpnt is just a number then convert it to an array
-            if isinstance(k_pts, (int, np.integer, float)):
-                if dim_k != 1:
-                    raise ValueError(
-                        "k_pts should be a 2D array of shape (n_kpts, dim_k)."
-                    )
-                k_arr = np.array([[k_pts]])
-            elif isinstance(k_pts, (list, np.ndarray)):
-                k_arr = np.asarray(k_pts)
-                if k_arr.ndim == 1:
-                    if k_arr.shape[0] != dim_k:
-                        return ValueError(
-                            "If 'k_pts' is a single k-point, it must be of shape dim_k."
-                        )
-                    else:
-                        # Reshape to (1, dim_k)
-                        k_arr = k_arr[None, :]
-            else:
-                raise TypeError(
-                    "k_pts should be a list or numpy array, or possibly a number for 1d k-space."
-                )
+        if self.dim_k == 0:
+            if k_pts is not None:
+                raise ValueError("k_pts should not be specified for finite (dim_k=0) models.")
+            return self._hamiltonian_finite(
+                amps,
+                i_idx,
+                j_idx,
+                site_energies,
+                flatten_spin=flatten_spin,
+            )
 
-            # check that k-vector is of corect size
-            if k_arr.ndim != 2 or k_arr.shape[-1] != dim_k:
-                raise ValueError("k_arr should be a 2D array of shape (n_kpts, dim_k).")
-
-            n_kpts = k_arr.shape[0]
-            if nspin == 1:
-                ham = np.zeros((n_kpts, norb, norb), dtype=complex)
-            elif nspin == 2:
-                ham = np.zeros((n_kpts, norb, 2, norb, 2), dtype=complex)
-            else:
-                raise ValueError("Invalid spin value.")
-        else:
-            if dim_k != 0:
-                raise ValueError(
-                    "Must provide a list of k-vectors for the Bloch Hamiltonian of extended systems."
-                )
-            else:  # finite sample
-                if nspin == 1:
-                    ham = np.zeros((norb, norb), dtype=complex)
-                elif nspin == 2:
-                    ham = np.zeros((norb, 2, norb, 2), dtype=complex)
-                else:
-                    raise ValueError("Invalid spin value.")
-
-        n_hops = len(hoppings)
-        hop_amps = np.array([h[0] for h in hoppings], dtype=complex)
-        i_indices = np.array([h[1] for h in hoppings])
-        j_indices = np.array([h[2] for h in hoppings])
-
-
-        if dim_k == 0:
-            if nspin == 1:
-                ham = np.zeros((norb, norb), dtype=complex)
-
-                logger.debug("Adding hoppings...")
-                np.add.at(ham, (i_indices, j_indices), hop_amps)
-                np.add.at(ham, (j_indices, i_indices), hop_amps.conj())
-
-                logger.debug("Adding onsite energies...")
-                np.fill_diagonal(ham, site_energies)
-            elif nspin == 2:
-                ham = np.zeros((norb, 2, norb, 2), dtype=complex)
-
-                logger.debug("Adding hoppings...")
-                for h in range(n_hops):
-                    ham[i_indices[h], :, j_indices[h], :] += hop_amps[h]
-                    ham[j_indices[h], :, i_indices[h], :] += hop_amps[h].conj().T
-
-                logger.debug("Adding onsite energies...")
-                for orb in orb_idxs:
-                    ham[orb, :, orb, :] += site_energies[orb]
-
-        else:
-            # Compute phase factors for all k-points and hoppings
-            orb_i = orb_red[i_indices]  # Shape: (n_hoppings, dim_r)
-            orb_j = orb_red[j_indices]  # Shape: (n_hoppings, dim_r)
-            ind_Rs = np.array([h[3] for h in hoppings], dtype=float)
-
-            #TODO: Check if this needs to be the case
-            # if not self._from_w90:
-            #     delta_r = ind_Rs - orb_i + orb_j  # Shape: (n_hoppings, dim_r)
-            # else:
-            #     delta_r = ind_Rs
-
-            delta_r = ind_Rs - orb_i + orb_j  # Shape: (n_hoppings, dim_r)
-            delta_r_per = delta_r[:, per]  # Shape: (n_hoppings, dim_k)
-
-            logger.debug("Calculating phases...")
-            k_dot_r = k_arr @ delta_r_per.T  # Shape: (n_kpts, n_hoppings)
-            phases = np.exp(1j * 2 * np.pi * k_dot_r)  # Shape: (n_kpts, n_hoppings)
-
-            if nspin == 1:              
-
-                #NOTE: testing
-                ham_flat = np.zeros((n_kpts, norb * norb), dtype=complex)
-
-                #NOTE: new approach to accumulate identical (i,j) contributions together
-                # to avoid repeated np.add.at calls which are slow for large arrays
-                # this is because np.add.at is not optimized for repeated indices
-                # instead we sort the contributions by (i,j) and then use np.add.reduceat
-                # to sum them up in one go, then we place them in the correct positions
-                # and their conjugates
-                cache = self._get_flattened_indices()
-                order = cache["order"] # aranges the hops so that identical (i,j) are together
-                starts = cache["starts"] # starting indices of each unique (i,j)
-                uniq = cache["uniq"] # unique (i,j) flattened indices
-                cols_transposed = cache["cols_transposed"] # flattened indices of the transposed elements
-
-                # reordered contributions so that identical (i,j) are together
-                contrib_sorted = phases[:, order] * hop_amps[order] # shape (n_kpts, n_hops)
-                # For each start, sum up contributions until the next start
-                sums = np.add.reduceat(contrib_sorted, starts, axis=1)
-
-                # Add sums into representative positions (uniq) and their conjugates
-                logger.debug("Adding hoppings...")
-                ham_flat[:, uniq] += sums
-                ham_flat[:, cols_transposed] += sums.conj()
-
-                ham = ham_flat.reshape(n_kpts, norb, norb)
-                ########
-
-                # ham = np.zeros((n_kpts, norb, norb), dtype=complex)
-                # np.add.at(ham, (slice(None), i_indices, j_indices), weighted)
-                # np.add.at(ham, (slice(None), j_indices, i_indices), weighted.conj())
-
-                logger.debug("Adding onsite energies...")
-                ham[..., orb_idxs, orb_idxs] += site_energies[orb_idxs]
-
-            elif nspin == 2:
-                ham = np.zeros((n_kpts, norb, 2, norb, 2), dtype=complex)
-                weighted = phases[..., None, None] * hop_amps[None, :, :, :]  # (n_kpts, n_hops, 2, 2)
-
-                logger.debug("Adding hoppings...")
-                for s_out in range(2):
-                    for s_in in range(2):
-                        contrib = weighted[..., s_out, s_in]
-                        np.add.at(ham[:, :, s_out, :, s_in], (slice(None), i_indices, j_indices), contrib)
-                        np.add.at(
-                            ham[:, :, s_in, :, s_out],
-                            (slice(None), j_indices, i_indices),
-                            contrib.conj(),
-                        )
-
-                logger.debug("Adding onsite energies...")
-                for orb in orb_idxs:
-                    ham[:, orb, :, orb, :] += site_energies[orb]
-        
-        if flatten_spin and nspin == 2:
-            logger.debug("Flattening spin axes...")
-            ham = ham.reshape(*ham.shape[:-4], self.norb * self.nspin, self.norb * self.nspin)
-
-        return ham
+        k_arr = self._normalize_kpoints(k_pts)
+        return self._hamiltonian_periodic(
+            k_arr,
+            amps,
+            i_idx,
+            j_idx,
+            R_vecs,
+            site_energies,
+            flatten_spin=flatten_spin,
+        )
 
     def _sol_ham(
         self, ham, return_eigvecs=False, keep_spin_ax=True, tf_speedup=False, use_32_bit=False,
@@ -1746,41 +1586,38 @@ class TBModel:
         fin_model._assume_position_operator_diagonal = (
             self._assume_position_operator_diagonal
         )
-        # put all hopping terms
-        for c in range(num_cells):  # go over all cells in finite direction
-            for h in range(len(self._hoppings)):  # go over all hoppings in one cell
-                # amplitude of the hop is the same
-                amp = self._hoppings[h][0]
+        amps, from_idx, to_idx, R_vecs = self._hoppings.components()
+        for c in range(num_cells):
+            for amp, ind_i, ind_j, ind_R in zip(amps, from_idx, to_idx, R_vecs, strict=True):
+                hop_amp = amp.copy() if self._nspin == 2 else complex(amp)
+                R_vec = ind_R.copy()
+                jump_fin = int(R_vec[periodic_dir])
 
-                ind_R = copy.deepcopy(self._hoppings[h][3])  # lattice vector of the hopping
-                jump_fin = ind_R[periodic_dir]  # how many cells does the hop jump in finite directio
+                hi = int(ind_i) + c * self.norb
+                hj = int(ind_j) + (c + jump_fin) * self.norb
 
-                # index of "from" hopping orbital
-                hi = self._hoppings[h][1] + c * self.norb
-
-                # index of "to" hopping orbital
-                hj = self._hoppings[h][2] + (c + jump_fin) * self.norb
-               
                 if fin_model.dim_k != 0:
-                    ind_R[periodic_dir] = 0  # one of the directions now becomes finite
+                    R_vec[periodic_dir] = 0
+                    R_arg = R_vec
                 else:
-                    ind_R = None
+                    R_arg = None
 
-                # decide whether this hopping should be added or not
                 to_add = True
-                # if edges are not glued then neglect all jumps that spill out
                 if not glue_edges:
                     if hj < 0 or hj >= self.norb * num_cells:
                         to_add = False
-                # if edges are glued then do mod division to wrap up the hopping
                 else:
                     hj = int(hj) % int(self.norb * num_cells)
 
-                # add hopping to a finite model
                 if to_add:
                     fin_model.set_hop(
-                            amp, hi, hj, ind_R, mode="add", allow_conjugate_pair=True
-                        )
+                        hop_amp,
+                        hi,
+                        hj,
+                        R_arg,
+                        mode="add",
+                        allow_conjugate_pair=True,
+                    )
 
         return fin_model
 
@@ -2036,18 +1873,13 @@ class TBModel:
         red_transform = geom["red_transform"]
         eps = 1e-8
 
+        amps, ind_is, ind_js, R_vecs = self._hoppings.components()
+
         for offset, cur_sc_vec in enumerate(sc_vec):
             base = offset * self.norb
-            for hop in self._hoppings:
-                if len(hop) < 4:
-                    raise ValueError(
-                        "Hopping without lattice vector cannot be promoted to a super-cell."
-                    )
-
-                amp, ind_i, ind_j, ind_R = hop
-                ind_R = np.array(ind_R, dtype=int)
-
-                total_disp = cur_sc_vec + ind_R
+            for amp, ind_i, ind_j, ind_R in zip(amps, ind_is, ind_js, R_vecs, strict=True):
+                R_vec = ind_R.copy()
+                total_disp = cur_sc_vec + R_vec
                 red_disp = total_disp @ red_transform
                 sc_part = np.floor(red_disp + eps).astype(int)
                 orig_part = total_disp - sc_part @ sc_red_lat
@@ -2055,11 +1887,16 @@ class TBModel:
                 if pair_idx is None:
                     raise Exception("\n\nDid not find super cell vector!")
 
-                hi = ind_i + base
-                hj = ind_j + pair_idx * self.norb
+                hi = int(ind_i) + base
+                hj = int(ind_j) + pair_idx * self.norb
+
+                if self._nspin == 2:
+                    amp_use = amp.copy()
+                else:
+                    amp_use = complex(amp)
 
                 sc_tb.set_hop(
-                    amp, hi, hj, sc_part, mode="add", allow_conjugate_pair=True
+                    amp_use, hi, hj, sc_part, mode="add", allow_conjugate_pair=True
                 )
 
         if to_home:
@@ -2093,27 +1930,19 @@ class TBModel:
         """
 
         for i in range(self.norb):
-            # find displacement vector needed to bring back to home cell
             disp_vec = np.zeros(self.dim_r, dtype=int)
             for k in range(self.dim_r):
-                shift = np.floor(self.orb_vecs[i, k]).astype(int)
-
-                # shift only in periodic directions
+                shift = int(np.floor(self.orb_vecs[i, k]))
                 if k in self.per:
                     disp_vec[k] = shift
-                elif k not in self.per and shift != 0:  
+                elif shift != 0:
                     logger.warning(
                         f"Orbital {i} has reduced coordinate {self.orb_vecs[i,k]:.4f} along non-periodic direction {k}. "
-                        f"This orbital will not be shifted to the home cell along this direction."
+                        "This orbital will not be shifted to the home cell along this direction."
                     )
 
-            # shift hoppings
-            if self.dim_k != 0:
-                for h in range(len(self._hoppings)):
-                    if self._hoppings[h][1] == i:
-                        self._hoppings[h][3] -= disp_vec
-                    if self._hoppings[h][2] == i:
-                        self._hoppings[h][3] += disp_vec
+            if self.dim_k != 0 and np.any(disp_vec):
+                self._hoppings.shift_orbital(i, disp_vec)
 
     def add_orb(self, orb_pos):
         """Adds a new orbital to the model with the specified coordinates.
@@ -2193,23 +2022,13 @@ class TBModel:
         self._lattice.remove_orb(orb_index)
 
         # remove indices one by one
-        for i, orb_ind in enumerate(orb_index):
-            # adjust variables
+        for _, orb_ind in enumerate(orb_index):
             self._site_energies = np.delete(self._site_energies, orb_ind, 0)
             self._site_energies_specified = np.delete(
                 self._site_energies_specified, orb_ind
             )
-            # adjust hopping terms (in reverse)
-            for j in range(len(self._hoppings) - 1, -1, -1):
-                h = self._hoppings[j]
-                # remove all terms that involve this orbital
-                if h[1] == orb_ind or h[2] == orb_ind:
-                    del self._hoppings[j]
-                else:  # otherwise modify term
-                    if h[1] > orb_ind:
-                        self._hoppings[j][1] -= 1
-                    if h[2] > orb_ind:
-                        self._hoppings[j][2] -= 1
+
+        self._hoppings.remove_orbitals(orb_index)
 
     @copydoc(Lattice.k_uniform_mesh)
     def k_uniform_mesh(self, mesh_size):
