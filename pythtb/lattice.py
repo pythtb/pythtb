@@ -1167,56 +1167,6 @@ class Lattice():
         if return_shell:
             return w, k_shell, idx_shell
         return w
-    
-    def k_shell_weights2(self, nks, n_shell: int, report: bool = False):
-        r"""Compute finite-difference shell weights for ∇_k on a Monkhorst–Pack mesh.
-
-        We solve for weights w_s such that:
-            sum_s w_s * (sum_{i in shell s} c_i c_i^T) = I_{dim_k},
-        where c_i = s_i / nks are neighbor shifts in *fractional-k* units.
-
-        Parameters
-        ----------
-        nks : sequence of int
-            Mesh sizes along each periodic k-direction (length dim_k).
-        n_shell : int
-            Number of shells to include.
-        report : bool
-            If True, prints diagnostics.
-
-        Returns
-        -------
-        w : np.ndarray
-            Shape (n_shell,), the shell weights.
-        k_shell : list[np.ndarray]
-            Cartesian Δk vectors per shell (from nn_k_shell).
-        idx_shell : list[np.ndarray]
-            Integer shift vectors per shell (from nn_k_shell).
-        """
-        k_shell, idx_shell = self.nn_k_shell(nks, n_shell, report=False)
-        nks = np.asarray(nks, dtype=float)
-        dk = int(self.dim_k)
-        if dk == 0:
-            raise ValueError("k-shell weights are not defined when dim_k == 0.")
-
-        # Build linear system: sum_s w_s * S_s = I, with S_s = Σ_i c_i c_i^T
-        S_list = []
-        for shifts in idx_shell:
-            c = shifts / nks  # (M_s, dim_k)
-            S_list.append(c.T @ c)  # (dim_k, dim_k)
-
-        A = np.stack([S.reshape(-1) for S in S_list], axis=1)  # ((dk*dk), n_shell)
-        y = np.eye(dk).reshape(-1)  # ((dk*dk),)
-
-        w, residuals, rank, sing = np.linalg.lstsq(A, y, rcond=None)
-
-        if report:
-            cond = np.linalg.cond(A.T @ A) if A.shape[0] != A.shape[1] else np.linalg.cond(A)
-            print("k-shell weights:")
-            print(f"  dim_k={dk}, n_shell={n_shell}, rank={rank}/{A.shape[1]}, cond≈{cond:.3e}")
-            print(f"  residual ‖A w − y‖ ≈ {np.linalg.norm(A @ w - y):.3e}")
-
-        return w, k_shell, idx_shell
 
     def k_path(self, kpts, nk:int, report:bool=True):
         r"""Interpolates a path in reciprocal space.
@@ -1303,7 +1253,8 @@ class Lattice():
 
         # Extract periodic lattice and compute k-space metric
         lat_per = self.lat_vecs[self.periodic_dirs]
-        k_metric = np.linalg.inv(lat_per @ lat_per.T)
+        B = self.recip_lat_vecs
+        k_metric = B @ B.T 
 
         # Compute segment vectors and lengths in Cartesian metric
         diffs = k_list[1:] - k_list[:-1]
@@ -1406,6 +1357,78 @@ class Lattice():
         k_points = np.stack(mesh, axis=-1).reshape(-1, len(use_mesh))
 
         return k_points
+    
+    def get_kpath_distance(
+            self, 
+            kpts, 
+            k_nodes=None, 
+            labels=None, 
+            cartesian=False, 
+            tol=1e-8
+            ):
+        """Transform k-points to k-distance along a path.
+
+        Parameters
+        ----------
+        kpts : array_like
+            Array of k-points in reduced coordinates.
+        k_nodes : array_like, optional
+            Array of special k-point nodes along the path.
+        labels : list of str, optional
+            Labels corresponding to the k_nodes.
+        tol : float, optional
+            Tolerance for matching k-points, by default 1e-8
+
+        Returns
+        -------
+        k_dist : array
+            Cumulative k-point distances along the path.
+        node_dist : array, optional
+            Distances of the special k-point nodes.
+        node_indices : dict, optional
+            Indices of the special k-point nodes.
+        label_indices : dict, optional
+            Mapping from labels to k-point nodes.
+        """
+        B = self.recip_lat_vecs
+
+        if cartesian:
+            kpts = kpts @ np.linalg.inv(B).T
+
+        # cumulative distances between points
+        _, k_dist, _ = self.lattice.k_path(kpts, nk=kpts.shape[0], report=False)
+        # k_dist = kpath_distance(kpts, b1=B[0], b2=B[1], b3=B[2])
+
+        if k_nodes is not None:
+            node_indices = {}
+            for i, node in enumerate(k_nodes):
+                mask = np.all(np.isclose(kpts, node, atol=tol), axis=1)
+                idx = np.where(mask)[0]
+
+                if len(idx) > 0:
+                    node_indices[f"{str(node)}"] = list(idx)
+                else:
+                    node_indices[f"{str(node)}"] = None
+
+            # flatten all values into a single list
+            all_indices = [idx for indices in node_indices.values() for idx in indices]
+
+            # sort them
+            all_indices_sorted = np.sort(all_indices)
+        
+            # now you can index into k_dist
+            node_dist = k_dist[all_indices_sorted]
+
+            if labels is not None: 
+                label_indices = {}
+                for i, node in enumerate(k_nodes):
+                    label_indices[labels[i]] = node
+                return k_dist, node_dist, node_indices, label_indices
+            else:
+                return k_dist, node_dist, node_indices
+
+        else:
+            return k_dist
     
 
     def visualize(
