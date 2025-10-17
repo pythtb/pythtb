@@ -630,24 +630,28 @@ def plot_tb_model(
     hopping_coords = []
 
     # maximum magnitudes of hopping strengths
-    mags = [np.amax(abs(hop[0])) for hop in model._hoppings]
-    biggest_hop = np.amax(mags)
-    # transparency propto hopping strength
-    arrow_alphas = mags / biggest_hop if biggest_hop != 0 else np.ones(len(mags))
-    arrow_alphas = (
-        0.3 + 0.7 * arrow_alphas**2
-    )  # nonlinear mapping for greater visual difference
+    amps, hop_i, hop_j, hop_R = model._hoppings.components()
+    n_hops = len(model._hoppings)
+    if n_hops:
+        if model._nspin == 2:
+            mags = np.array([np.max(np.abs(amp)) for amp in amps], dtype=float)
+        else:
+            mags = np.abs(amps.astype(complex))
+    else:
+        mags = np.array([], dtype=float)
+
+    biggest_hop = np.max(mags) if mags.size else 0.0
+    arrow_alphas = mags / biggest_hop if biggest_hop else np.ones_like(mags)
+    arrow_alphas = 0.3 + 0.7 * arrow_alphas**2
 
     if draw_hoppings:
-        for h_idx, h in enumerate(model._hoppings):
-            amp = h[0]
-            i_orb = h[1]
-            j_orb = h[2]
+        for h_idx in range(n_hops):
+            i_orb = int(hop_i[h_idx])
+            j_orb = int(hop_j[h_idx])
 
-            r_vec = None
+            r_vec = hop_R[h_idx] if model.dim_k != 0 else None
             intracell = True
-            if model.dim_k != 0 and len(h) == 4:
-                r_vec = h[3]
+            if r_vec is not None:
                 intracell = np.all(r_vec == 0)
 
             for shift in range(2):  # draw both i->j+R and i-R->j hop
@@ -940,22 +944,26 @@ def plot_tb_model_3d(
     # Draw hopping terms ---
     if draw_hoppings:
         hopping_traces = []
-        # Compute hopping strengths for opacity.
-        mags = [np.amax(np.abs(hop[0])) for hop in model._hoppings]
-        biggest_hop = np.amax(mags) if mags else 1.0
-        arrow_alphas = (
-            np.array(mags) / biggest_hop if biggest_hop != 0 else np.ones(len(mags))
-        )
+        amps, hop_i, hop_j, hop_R = model._hoppings.components()
+        n_hops = len(model._hoppings)
+        if n_hops:
+            if model._nspin == 2:
+                mags = np.array([np.max(np.abs(amp)) for amp in amps], dtype=float)
+            else:
+                mags = np.abs(amps.astype(complex))
+        else:
+            mags = np.array([], dtype=float)
+        biggest_hop = np.max(mags) if mags.size else 1.0
+        arrow_alphas = mags / biggest_hop if biggest_hop else np.ones_like(mags)
         arrow_alphas = 0.3 + 0.7 * arrow_alphas**2  # Non-linear mapping.
-        for h_idx, h in enumerate(model._hoppings):
-            amp = h[0]
-            i_orb = h[1]
-            j_orb = h[2]
-            r_vec = None
+        for h_idx in range(n_hops):
+            amp = amps[h_idx]
+            i_orb = int(hop_i[h_idx])
+            j_orb = int(hop_j[h_idx])
+            r_vec = hop_R[h_idx] if model.dim_k != 0 else None
             intracell = True
 
-            if model.dim_k != 0 and len(h) == 4:
-                r_vec = h[3]
+            if r_vec is not None:
                 intracell = np.all(np.array(r_vec) == 0)
 
             # Draw hopping for both directions.
