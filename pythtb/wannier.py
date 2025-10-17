@@ -109,7 +109,7 @@ class Wannier:
     @property
     def model(self) -> "TBModel":
         """TBModel object associated with the Wannier functions."""
-        return self.energy_eigstates.model
+        return self._model
 
     @property
     def mesh(self) -> Mesh:
@@ -345,7 +345,7 @@ class Wannier:
         if cartesian:
             return self.centers
         else:
-            return self.centers @ np.linalg.inv(self.model.lat_vecs)
+            return self.centers @ np.linalg.inv(self._model.lat_vecs)
         
     def _get_trial_wfs(self, twf_list=None):
         if twf_list is None:
@@ -1018,8 +1018,8 @@ class Wannier:
                 states_min = np.array(min_states_sliced)
 
             # update projectors
-            min_wfa = WFArray(self.model, self.mesh, nstates=states_min.shape[-2])
-            min_wfa._set_wfs(states_min, cell_periodic=True, spin_flattened=True)
+            min_wfa = WFArray(self._model.lattice, self.mesh, nstates=states_min.shape[-2], nspin=self._model.nspin)
+            min_wfa.set_states(states_min, is_cell_periodic=True, is_spin_flattened=True)
             P_new = min_wfa._P
             P_nbr_new = min_wfa._P_nbr
 
@@ -1144,8 +1144,8 @@ class Wannier:
             eigvecs = np.swapaxes(eigvecs, -1, -2)
 
             init_evecs = eigvecs[..., -(n_wfs - N_inner) :, :]
-            init_states = WFArray(self.model, self.mesh, nstates=init_evecs.shape[-2])
-            init_states._set_wfs(init_evecs, cell_periodic=False, spin_flattened=True)
+            init_states = WFArray(self._model.lattice, self.mesh, nstates=init_evecs.shape[-2], nspin=self._model.nspin)
+            init_states.set_states(init_evecs, is_cell_periodic=False, is_spin_flattened=True)
 
             comp_bands = list(np.setdiff1d(disentang_bands, frozen_bands))
             comp_states = u_nk.take(comp_bands, axis=-2)
@@ -1187,8 +1187,8 @@ class Wannier:
             else:
                 states_min = comp_min
 
-            min_wfa = WFArray(self.model, self.mesh, nstates=states_min.shape[-2])
-            min_wfa._set_wfs(states_min, cell_periodic=True, spin_flattened=True)
+            min_wfa = WFArray(self._model.lattice, self.mesh, nstates=states_min.shape[-2], nspin=self._model.nspin)
+            min_wfa.set_states(states_min, is_cell_periodic=True, is_spin_flattened=True)
             P_new = min_wfa._P
             P_nbr_new = min_wfa._P_nbr
 
