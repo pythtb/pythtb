@@ -161,6 +161,33 @@ def levi_civita(n, d):
 
     return epsilon
 
+def kpath_distance(
+        k_frac: np.ndarray, 
+        b1: np.ndarray, 
+        b2: np.ndarray, 
+        b3: np.ndarray) -> np.ndarray:
+    """
+    Build 1D cumulative k-path distance (in 1/Å) from fractional k-points.
+
+    Parameters
+    ----------
+    k_frac : (nks, 3)
+        Fractional k-points (crystal coords).
+    b1,b2,b3 : (3,) in 1/Å
+        Reciprocal lattice basis vectors in Cartesian coords.
+
+    Returns
+    -------
+    x : (nks,)
+        Cumulative distance along the path.
+    """
+    B = np.vstack([b1, b2, b3]).T     # 3x3, columns are basis vectors
+    k_cart = (k_frac @ B.T)           # (nks,3) Cartesian k
+    dk = np.linalg.norm(np.diff(k_cart, axis=0), axis=1)
+    x = np.zeros(len(k_cart), dtype=float)
+    x[1:] = np.cumsum(dk)
+    return x
+
 def get_k_shell(model, nks, N_sh: int, report: bool = False):
     """Generates shells of k-points around the Gamma point.
 
@@ -230,9 +257,9 @@ def get_k_shell(model, nks, N_sh: int, report: bool = False):
     return k_shell, idx_shell
 
 
-def get_fd_weights(nks, dim_k, N_sh=1, report=False):
+def get_fd_weights(model, nks, dim_k, N_sh=1, report=False):
     """Generates the finite difference weights on a k-shell."""
-    k_shell, idx_shell = get_k_shell(N_sh=N_sh, report=report)
+    k_shell, idx_shell = get_k_shell(model, nks, N_sh=N_sh, report=report)
     cart_idx = list(comb(range(dim_k), 2))
     n_comb = len(cart_idx)
 
