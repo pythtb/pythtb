@@ -1,10 +1,15 @@
 import os
 import numpy as np
+import re
 from .utils import _cart_to_red, _red_to_cart
 from .tbmodel import TBModel
 from .lattice import Lattice
+from .utils import deprecated, kpath_distance
+
 
 __all__ = ["W90"]
+
+BOHRTOANG = 0.52917721092  # Bohr radius in Angstroms
 
 def _load_hr_fast(path, prefix):
     hr_path = os.path.join(path, f"{prefix}_hr.dat")
@@ -192,6 +197,7 @@ class W90:
         f = open(self.path + "/" + self.prefix + ".win", "r")
         ln = f.readlines()
         f.close()
+        
         # get lattice vector
         self.lat = np.zeros((3, 3), dtype=float)
         found = False
@@ -201,7 +207,7 @@ class W90:
                 if sp[0].lower() == "begin" and sp[1].lower() == "unit_cell_cart":
                     # get units right
                     if ln[i + 1].strip().lower() == "bohr":
-                        pref = 0.5291772108
+                        pref = BOHRTOANG
                         skip = 1
                     elif ln[i + 1].strip().lower() in ["ang", "angstrom"]:
                         pref = 1.0
@@ -565,12 +571,20 @@ class W90:
         shells = np.sort(list(set(shells)))
 
         return shells
-
+    
+    @deprecated("use .solve_ham() instead (since v2.0).", category=FutureWarning)
     def w90_bands_consistency(self):
+        """
+        .. deprecated:: 2.0.0
+            Use .w90_bands() instead.
+        """
+        return self.w90_bands()
+
+    def w90_bands(self, return_kdist: bool = False, return_k_cart: bool = False):
         r"""Read interpolated band structure from Wannier90 output files.
 
-        .. versionchanged:: 2.0.0
-            Returned energies now have axes `(kpts, band)` instead of `(band, kpts)`.
+        .. versionadded:: 2.0.0
+            Added ``return_kdist`` to optionally return cumulative path distances.
 
         This function reads in band structure as interpolated by
         Wannier90. Please note that this is not the same as the band
@@ -587,9 +601,13 @@ class W90:
         These files will be generated only if the *prefix*.win file
         contains the *kpoint_path* block.
 
+        Parameters
+        ----------
+        return_kdist : bool, optional
+            If True, also return the cumulative k-path distance (in 1/Å).
+
         Returns
         -------
-
         kpts : array
             k-points in reduced coordinates used in the
             interpolation in Wannier90 code. The format of *kpts* is
@@ -598,6 +616,9 @@ class W90:
 
         ene : array
             Energies interpolated by Wannier90 in eV. Format is ``ene[kpt,band]``.
+        k_dist : array, optional
+            Cumulative distances along the path (1/Å) as reported by Wannier90.
+            Returned when ``return_kdist=True``.
 
         Notes
         -----
@@ -634,7 +655,6 @@ class W90:
         >>> for i in range(w90_evals.shape[0]):
         >>>     ax.plot(range(w90_evals.shape[1]), w90_evals[i], "k-", zorder=-100)
         >>> fig.savefig("comparison.pdf")
-
         """
 
         # read in kpoints in reduced coordinates
@@ -649,4 +669,114 @@ class W90:
         # correct shape
         ene = ene.reshape((self.num_wan, kpts.shape[0])).T
 
-        return (kpts, ene)
+        B = self.lattice.recip_lat_vecs
+        k_dist = kpath_distance(kpts, b1=B[0], b2=B[1], b3=B[2])
+
+        results = (kpts, ene)
+        if return_kdist:
+            results += (k_dist,)
+        if return_k_cart:
+            k_cart = kpts @ self.lattice.recip_lat_vecs
+            results += (k_cart,)
+        return results
+
+    def qe_bands(self, return_k_cart=False, return_meta=False, return_kdist=False):
+        """
+        Read band structure from Quantum ESPRESSO output files.
+
+        Parameters
+        ----------
+        return_k_cart : bool, optional
+            If True, also return k-points in Cartesian coordinates.
+        return_meta : bool, optional
+            If True, return header metadata (nbnd, nks) when available.
+        return_kdist : bool, optional
+            If True, also return cumulative k-path distances (1/Å).
+
+        Returns
+        -------
+        tuple
+            Returns ``(k_frac, energies[, k_dist][, k_cart][, meta])`` depending
+            on the requested flags. When ``return_kdist`` is True the
+            cumulative distance is computed from the lattice reciprocal vectors.
+        """
+        path = self.path + "/" + self.prefix + "_bands.dat"
+        # Try to grab nbnd/nks from header
+        meta = {}
+        m = re.search(r"nbnd\s*=\s*(\d+).+nks\s*=\s*(\d+)", open(path).read(5000), re.I|re.S)
+        if m:
+            meta["nbnd"] = int(m.group(1))
+            meta["nks"]  = int(m.group(2))
+
+        def is_k_marker(s: str) -> bool:
+            # k-marker line has exactly three floats
+            try:
+                vals = [float(x) for x in s.split()]
+                return len(vals) == 3
+            except ValueError:
+                return False
+
+        klist = []          # list of [kx, ky, kz] (fractional)
+        energies_rows = []  # list of list-of-energies per k
+        ebuf = []
+
+        with open(path, "r") as f:
+            for line in f:
+                s = line.strip()
+                if not s:
+                    continue
+                if is_k_marker(s):
+                    # starting a new k-point: flush previous energies if any
+                    if ebuf:
+                        energies_rows.append(ebuf)
+                        ebuf = []
+                    kx, ky, kz = (float(x) for x in s.split())
+                    klist.append([kx, ky, kz])
+                else:
+                    # energy values (possibly many per line)
+                    try:
+                        vals = [float(x) for x in s.split()]
+                    except ValueError:
+                        continue
+                    ebuf.extend(vals)
+
+        # flush last k
+        if ebuf:
+            energies_rows.append(ebuf)
+
+        # Convert
+        E_raw = np.array(energies_rows, dtype=float)   # ragged → rectangular next
+        k_cart = np.array(klist, dtype=float)
+        # k_cart in units of 2pi/alat
+        alat = np.linalg.norm(self.lattice.lat_vecs[0])
+        k_cart *= (2 * np.pi / alat)
+
+        # Infer dimensions if header absent / inconsistent
+        nks = meta.get("nks", E_raw.shape[0])
+        nbnd = meta.get("nbnd", int(max(len(row) for row in E_raw)))
+
+        # Normalize to (nks, nbnd)
+        E = np.full((nks, nbnd), np.nan, dtype=float)
+        for i in range(min(nks, len(E_raw))):
+            row = E_raw[i]
+            E[i, :min(nbnd, len(row))] = row[:nbnd]
+
+        B = self.lattice.recip_lat_vecs
+        # B in units of 1/A, in QE units are Bohr
+        # B /= BOHRTOANG
+        k_frac = k_cart @ np.linalg.inv(B)
+
+        k_dist = None
+        if return_kdist:
+            B = self.lattice.recip_lat_vecs
+            k_dist = kpath_distance(k_frac, b1=B[0], b2=B[1], b3=B[2])
+
+        result = [k_frac, E]
+        if return_kdist:
+            result.append(k_dist)
+        if return_k_cart:
+            result.append(k_cart)
+        if return_meta:
+            result.append(meta)
+
+        return tuple(result)
