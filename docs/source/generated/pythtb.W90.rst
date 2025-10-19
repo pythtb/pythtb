@@ -100,7 +100,33 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
    ~pythtb.W90.dist_hop
+
+
+
+
+   ~pythtb.W90.kpoint_path_nodes
 
 
 
@@ -110,7 +136,17 @@
 
 
 
+   ~pythtb.W90.qe_bands
+
+
+
+
    ~pythtb.W90.shells
+
+
+
+
+   ~pythtb.W90.w90_bands
 
 
 

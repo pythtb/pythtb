@@ -66,7 +66,7 @@ model_orig.visualize()
 # The default behavior of `change_nonperiodic_vector` is to orthogonalize the non-periodic vector to the periodic one. One can also specify a custom vector.
 # :::
 
-# In[24]:
+# In[4]:
 
 
 model_perp = model_orig.copy()
@@ -79,7 +79,7 @@ model_perp.visualize()
 # 
 # We solve both ribbon models on the same 1D $k$-mesh using `WFArray.solve_model`, verify that their band structures coincide, and then compute the Berry phase along the periodic direction using `WFArray.berry_phase`. The orthogonalized cell produces the expected zero Berry phase (by mirror symmetry), while the oblique cell does not.
 
-# In[26]:
+# In[5]:
 
 
 fig, ax = plt.subplots(1, 2, figsize=(8, 4), sharey=True)

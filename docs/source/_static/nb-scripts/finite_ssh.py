@@ -77,7 +77,7 @@ for delta in delta_values:
 
 # The dispersion versus $w$ reveals a pair of mid-gap levels once $|w| > |v|$. Evaluating the wavefunction of one of those states confirms that it is exponentially localised at the boundary.
 
-# In[5]:
+# In[ ]:
 
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
@@ -93,6 +93,11 @@ ax1.set_ylim(-2, 2)
 # Plot edge state density
 band_idx = n_cells
 delta_idx = 40
+ax1.scatter(
+    delta_values[delta_idx], evals_d[delta_idx][band_idx], 
+    color='b', s=70, marker='*', label='Edge state', zorder=2
+    )
+ax1.legend()
 density = np.abs(evecs_d[delta_idx][band_idx, :])**2
 x_position = np.arange(len(density)) / 2
 ax2.plot(x_position, density)
@@ -105,7 +110,7 @@ ax2.set_title(rf"Edge state density at $\delta={delta_values[delta_idx]:.3f}$")
 # 
 # We compare the Berry-phase-derived polarizations for the trivial ($|w| < |v|$) and topological ($|w| > |v|$) regimes using a 1D $k$-mesh and `WFArray.berry_phase`. Values are reported modulo the lattice constant.
 
-# In[15]:
+# In[6]:
 
 
 nk = 100

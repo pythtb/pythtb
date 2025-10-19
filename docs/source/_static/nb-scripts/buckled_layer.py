@@ -76,7 +76,7 @@ label = (r"$\Gamma $", r"$X$", r"$M$", r"$\Gamma $")
 # 
 # `plot_bands` handles path construction, diagonalization, and plotting in one call. It is great for rapid inspection of gaps, degeneracies, and orbital projections without managing k-point arrays or diagonalization manually.
 
-# In[6]:
+# In[5]:
 
 
 my_model.plot_bands(k_nodes=path, k_node_labels=label, nk=100)
@@ -86,19 +86,19 @@ my_model.plot_bands(k_nodes=path, k_node_labels=label, nk=100)
 # 
 # For finer control we can manually compute the interpolated k-points along path using `TBModel.k_path`. This will return the k-vectors along the path, the cumulative k-point distances from the first node normalized to a maximum of 1, and the cumulative distances of the high-symmetry k-points. We can then use the k-vectors to diagonalize the model.
 
-# In[7]:
+# In[6]:
 
 
 (k_vec, k_dist, k_node) = my_model.k_path(path, 81)
 
 
-# In[8]:
+# In[7]:
 
 
 evals = my_model.solve_ham(k_vec)
 
 
-# In[9]:
+# In[8]:
 
 
 fig, ax = plt.subplots()

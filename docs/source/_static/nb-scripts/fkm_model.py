@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-# In[ ]:
+# In[2]:
 
 
 import plotly.io as pio
@@ -63,7 +63,7 @@ def set_model(t: float, dt: float, soc: float) -> TBModel:
     return model
 
 
-# In[12]:
+# In[4]:
 
 
 t = 1.0      # spin-independent first-neighbor hop

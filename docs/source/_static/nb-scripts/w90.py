@@ -4,7 +4,7 @@
 # (w90-nb)=
 # # Wannier90 example with silicon
 
-# In[1]:
+# In[6]:
 
 
 from pythtb import W90 
@@ -12,27 +12,27 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-# In[2]:
+# In[7]:
 
 
-silicon = W90(r"silicon_w90", r"silicon")
+silicon = W90("silicon_w90", "silicon")
 
 
-# In[3]:
+# In[8]:
 
 
 # hard coded fermi level in eV
 fermi_ev = 6.2285135
 
 
-# In[4]:
+# In[9]:
 
 
 # all pair distances between the orbitals
 print("Shells:\n", silicon.shells())
 
 
-# In[5]:
+# In[10]:
 
 
 # plot hopping terms as a function of distance on a log scale
@@ -44,7 +44,7 @@ ax.set_ylabel(r"$H$ (eV)")
 ax.set_yscale('log')
 
 
-# In[6]:
+# In[11]:
 
 
 # get tb model in which some small terms are ignored
@@ -74,59 +74,27 @@ my_model = silicon.model(
 # Small discrepancies in the plot may arise due to the terms that were ignored in the silicon.model function call above.
 # :::
 
-# In[7]:
-
-
-fig, ax = plt.subplots()
-(w90_kpt, w90_evals) = silicon.w90_bands_consistency()
-
-ax.plot(list(range(w90_evals.shape[0])), w90_evals - fermi_ev, "k-", zorder=-100)
-
-# now interpolate from the model on the same path in k-space
-int_evals = my_model.solve_ham(w90_kpt)
-ax.plot(list(range(int_evals.shape[0])), int_evals, "r-", zorder=-50)
-
-ax.set_xlim(0, int_evals.shape[0] - 1)
-ax.set_xlabel("K-path from Wannier90")
-ax.set_ylabel("Band energy (eV)")
-
-
-# In[8]:
-
-
-from pythtb import Mesh, WFArray
-
-
-# In[9]:
-
-
-nks = 20, 20, 20 # number of k points along each dimension
-mesh = Mesh(dim_k=3, axis_types=['k', 'k', 'k'])
-mesh.build_grid(shape=nks)
-print(mesh)
-
-
-# In[10]:
-
-
-wfa = WFArray(my_model, mesh)
-wfa.solve_mesh()
-
-
-# In[11]:
-
-
-k_path = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 0.0], [0.0, 0.5, 0.5], [0.5, 0.5, 0.5], [0.5, 0.0, 0.5], [0.5, 0.5, 0.5], [1.0, 1.0, 1.0    ]]
-
-
 # In[12]:
 
 
-print(my_model)
+w90_kpt, w90_evals, w90_kdist = silicon.w90_bands(return_kdist=True)
 
 
 # In[13]:
 
 
-my_model.plot_bands(k_path=k_path, nk=500, proj_orb_idx=[4, 3])
+int_evals = my_model.solve_ham(w90_kpt)
+
+
+# In[14]:
+
+
+fig, ax = plt.subplots()
+
+ax.plot(list(range(w90_evals.shape[0])), w90_evals - fermi_ev, "k-", zorder=0)
+ax.plot(list(range(int_evals.shape[0])), int_evals, "r--", zorder=1)
+
+ax.set_xlim(0, int_evals.shape[0] - 1)
+ax.set_xlabel("K-path from Wannier90")
+ax.set_ylabel("Band energy (eV)")
 

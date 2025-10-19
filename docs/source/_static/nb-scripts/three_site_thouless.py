@@ -153,7 +153,7 @@ wann_center1 = berry_phase1 / (2*np.pi)
 wann_center2 = berry_phase2 / (2*np.pi)
 
 
-# In[21]:
+# In[10]:
 
 
 fig, (ax_onsite, ax_wann) = plt.subplots(
@@ -227,7 +227,7 @@ finite_wfa.solve_model(model_func=finite_model_builder, fixed_params=fixed_param
 # 
 # `WFArray.position_expectation(dir=0)` returns the $\langle x \rangle$ of each eigenstate in units of the lattice spacing. Bulk states cluster near the chain midpoint, while edge-localized states pin to either end.
 
-# In[12]:
+# In[14]:
 
 
 x_expectation = finite_wfa.position_expectation(dir=0)
@@ -237,7 +237,7 @@ x_expectation = finite_wfa.position_expectation(dir=0)
 # 
 # Eigenenergies of the finite chain traced over the adiabatic cycle. Point color encodes the position expectation value $\langle x \rangle$: bulk states (green at the chain center) stay in the gap, while edge-localized states (dark/light extremes) thread the gap and connect the valence and conduction manifolds. This matches the non-zero Chern number found for the periodic system.
 
-# In[13]:
+# In[15]:
 
 
 lambda_points = finite_mesh.get_param_points()

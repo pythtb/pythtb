@@ -145,12 +145,6 @@ bflux = wfa.berry_flux(state_idx=[0], plane=(0,1))
 # 
 # We map the mesh points into Cartesian momentum coordinates using the reciprocal lattice vectors, then plot the Berry flux density with `pcolormesh`. The peak at the $K^\prime$ point signals the topological character of the band.
 
-# In[45]:
-
-
-mesh.grid[0,0]
-
-
 # In[46]:
 
 

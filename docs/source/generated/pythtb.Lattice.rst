@@ -121,6 +121,11 @@
 
 
 
+   ~pythtb.Lattice.get_kpath_distance
+
+
+
+
    ~pythtb.Lattice.get_lat_vecs
 
 
@@ -142,11 +147,6 @@
 
 
    ~pythtb.Lattice.k_shell_weights
-
-
-
-
-   ~pythtb.Lattice.k_shell_weights2
 
 
 
