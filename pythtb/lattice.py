@@ -1168,8 +1168,12 @@ class Lattice():
             return w, k_shell, idx_shell
         return w
 
-    def k_path(self, kpts, nk:int, report:bool=True):
+    def k_path(self, k_nodes, nk: int, report: bool=True):
         r"""Interpolates a path in reciprocal space.
+
+        .. versionchanged:: 2.0.0
+            The returned k-dist now includes the factors of :math:`2\pi`.
+            See notes for further details.
 
         Interpolates a path in reciprocal space between specified
         k-points. In 2D or 3D the k-path can consist of several
@@ -1181,20 +1185,17 @@ class Lattice():
 
         Parameters
         ----------
-
-        kpts : array-like, str
-          Array of k-vectors in reciprocal space between
-          which interpolated path should be constructed. These
-          k-vectors must be given in reduced coordinates.  As a
-          special case, in 1D k-space kpts may be a string:
+        k_nodes : array-like, str
+          Array of k-vectors in reduced units, between
+          which the interpolated path will be constructed.
+          In 1D k-space, value may be a string:
 
           - `"full"`: Implies  ``[0.0, 0.5, 1.0]`` (full BZ)
           - `"fullc"`: Implies  ``[-0.5, 0.0, 0.5]`` (full BZ, centered)
           - `"half"`: Implies  ``[ 0.0, 0.5]``  (half BZ)
 
         nk : int
-            Total number of k-points to be used in making the plot.
-
+            Total number of k-points along the path.
         report : bool, optional
             Optional parameter specifying whether printout
             is desired (default is True).
@@ -1203,17 +1204,16 @@ class Lattice():
         -------
         k_vec : np.ndarray
             Array of (nearly) equidistant interpolated k-points. 
-
         k_dist : np.ndarray
             Array giving accumulated k-distance to each
-            k-point in the path. This array can be used to plot path in
-            the k-space so that the distances between the k-points in
-            the plot are exact.
-
+            k-point in the path. This array is useful when plotting
+            bands along the path. The distances between the points
+            can be used to ensure that the plot accurately reflects
+            the k-space geometry.
         k_node : np.ndarray
             Array giving accumulated k-distance to each
-            node on the path in Cartesian coordinates. This array is
-            typically used to plot nodes (typically special points) on
+            node on the path in Cartesian coordinates. This array can
+            be used to plot nodes (typically high-symmetry points) on
             the path in k-space.
 
         Notes
@@ -1222,11 +1222,10 @@ class Lattice():
           however coordinates themselves are given in dimensionless reduced coordinates!  
           This is done so that this array can be directly passed to function
           :func:`pythtb.TBModel.solve_ham`.
-        - Unlike array `k_vec`, `k_dist` has dimensions! Units are defined here
-          so that for a one-dimensional crystal with lattice constant equal to 
-          for example `10` the length of the Brillouin zone would equal
-          `1/10=0.1`. In other words factors of :math:`2\pi` are
-          absorbed into `kpts`.
+        - Unlike array `k_vec`, `k_dist` has dimensions! Units are defined
+          so that for a one-dimensional crystal with lattice constant equal to
+          for example :math:`10` the length of the Brillouin zone would equal
+          :math:`2\pi/10`.
 
         Examples
         ---------
@@ -1240,13 +1239,11 @@ class Lattice():
 
         >>> evals = tb.solve_ham(k_vec)
         """
-        dim = self.dim_k
-
         # Parse kpts and validate
-        k_list = _parse_kpts(kpts, dim)
-        if k_list.shape[1] != dim:
+        k_list = _parse_kpts(k_nodes, self.dim_k)
+        if k_list.shape[1] != self.dim_k:
             raise ValueError(
-                f"Dimension mismatch: kpts shape {k_list.shape}, model dim {dim}"
+                f"Dimension mismatch: kpts shape {k_list.shape}, model dim {self.dim_k}"
             )
         if nk < len(k_list):
             raise ValueError("nk must be >= number of nodes in kpts")
@@ -1267,7 +1264,7 @@ class Lattice():
         node_index = np.rint(k_node / k_node[-1] * (nk - 1)).astype(int)
 
         # Initialize output arrays
-        k_vec = np.empty((nk, dim))
+        k_vec = np.empty((nk, self.dim_k))
         k_dist = np.empty(nk)
 
         # Interpolate each segment
@@ -1306,8 +1303,8 @@ class Lattice():
 
         return k_vec, k_dist, k_node  
     
-
-    def k_uniform_mesh(self, mesh_size):
+    @staticmethod
+    def k_uniform_mesh(mesh_size):
         r"""Uniform grid of k-points in reduced coordinates.
 
         The mesh along each direction is defined from [0, 1). 
@@ -1321,8 +1318,7 @@ class Lattice():
         Returns
         -------
         k_points : np.ndarray
-          Array of k-vectors on the mesh that can be directly passed to function 
-          :func:`pythtb.TBModel.solve_all`. The shape of the array is 
+          Array of k-vectors with shape
           ``(nk1, nk2, ..., dim_k)`` where ``nk1``, ``nk2``, ... are the number of k-points
           in each direction defined by ``mesh_size``.
 
@@ -1346,11 +1342,8 @@ class Lattice():
 
         """
         use_mesh = np.array(list(map(round, mesh_size)), dtype=int)
-        if use_mesh.shape != (self.dim_k,):
-            print(use_mesh.shape)
-            raise Exception("\n\nIncorrect size of the specified k-mesh!")
         if np.min(use_mesh) <= 0:
-            raise Exception("\n\nMesh must have positive non-zero number of elements.")
+            raise ValueError("Mesh must have positive non-zero number of elements.")
 
         axes = [np.linspace(0, 1, n, endpoint=False) for n in use_mesh]
         mesh = np.meshgrid(*axes, indexing="ij")
