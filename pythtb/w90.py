@@ -1,78 +1,16 @@
-import os
-import numpy as np
 import re
-from .utils import _cart_to_red, _red_to_cart
+from pathlib import Path
+
+import numpy as np
+
 from .tbmodel import TBModel
 from .lattice import Lattice
-from .utils import deprecated, kpath_distance
-
+from .utils import _cart_to_red, _red_to_cart, deprecated, kpath_distance
 
 __all__ = ["W90"]
 
 BOHRTOANG = 0.52917721092  # Bohr radius in Angstroms
-
-def _load_hr_fast(path, prefix):
-    hr_path = os.path.join(path, f"{prefix}_hr.dat")
-    with open(hr_path, "r") as fh:
-        fh.readline()  # skip first Wannier90 comment/header
-        num_wan = int(fh.readline())  # read number of Wannier functions
-        num_ws = int(fh.readline())  # read number of Wigner-Seitz cells
-
-        # Read degeneracies of Wigner-Seitz cells
-        deg_ws = []
-        while len(deg_ws) < num_ws:
-            line = fh.readline()
-            if not line:
-                raise RuntimeError("Unexpected EOF while reading Wigner–Seitz degeneracies.")
-            deg_ws.extend(int(val) for val in line.split())
-        # Truncate to expected count
-        deg_ws = np.asarray(deg_ws[:num_ws], dtype=int)
-
-        # Load remaining numeric table (R vectors, indices, real/imaginary parts)
-        data = np.loadtxt(fh)
-
-    # Check if data is empty
-    if data.size == 0:
-        return num_wan, {}
-
-    # Promote single row to shape (1, 7)
-    if data.ndim == 1:
-        data = data[None, :]
-    if data.shape[1] != 7:
-        raise RuntimeError("Wannier90 _hr.dat must have seven columns per row.")
-
-    R_vecs = data[:, :3].astype(np.int64)  # Triplets (R1, R2, R3)
-    i_idx = data[:, 3].astype(np.int64) - 1  # Wannier function index i
-    j_idx = data[:, 4].astype(np.int64) - 1  # Wannier function index j
-    hop_vals = data[:, 5] + 1j * data[:, 6]  # Hopping values
-
-    # Find unique R vectors and their indices (unique_R), remember first line each
-    # appears (first_idx), and how each row maps back (inverse)
-    unique_R, first_idx, inverse = np.unique(
-        R_vecs, axis=0, return_inverse=True, return_index=True
-    )
-    order = np.argsort(first_idx)  # sort shells by first occurrence
-    unique_R = unique_R[order]  # reorder unique R vectors accordingly
-
-    if deg_ws.size < unique_R.shape[0]:
-        raise RuntimeError("Not enough degeneracy entries for the R shells present.")
-    deg_ws = deg_ws[: unique_R.shape[0]]  # use only degeneracies actually needed (zeros get dropped)
-
-    remap = np.empty_like(order) 
-    remap[order] = np.arange(order.size) # permutation that maps sorted order back to original
-    inverse = remap[inverse] # remap per-row shell into new ordering
-
-    # One (num_wan x num_wan) matrix per unique R vector
-    blocks = np.zeros((unique_R.shape[0], num_wan, num_wan), dtype=complex)
-    # Scatter-add every hopping into proper (R, i, j) block
-    np.add.at(blocks, (inverse, i_idx, j_idx), hop_vals)
-
-    ham_r = {
-        tuple(int(v) for v in R_vec): {"h": blocks[idx], "deg": int(deg_ws[idx])}
-        for idx, R_vec in enumerate(unique_R)
-    }
-    return num_wan, ham_r
-
+_KPOINT_LABEL_PATTERN = re.compile(r"^(?P<base>[^\d]+?)(?P<suffix>\d+)?$", re.UNICODE)
 
 class W90:
     r"""Interface to Wannier90
@@ -189,78 +127,290 @@ class W90:
     """
 
     def __init__(self, path, prefix):
-        # store path and prefix
-        self.path = path
+        self.folder = Path(path).expanduser()
+        if not self.folder.exists():
+            raise FileNotFoundError(f"Wannier90 folder not found: {self.folder}")
+        self.path = str(self.folder)
         self.prefix = prefix
 
-        # read in lattice_vectors
-        f = open(self.path + "/" + self.prefix + ".win", "r")
-        ln = f.readlines()
-        f.close()
-        
-        # get lattice vector
-        self.lat = np.zeros((3, 3), dtype=float)
-        found = False
-        for i in range(len(ln)):
-            sp = ln[i].split()
-            if len(sp) >= 2:
-                if sp[0].lower() == "begin" and sp[1].lower() == "unit_cell_cart":
-                    # get units right
-                    if ln[i + 1].strip().lower() == "bohr":
-                        pref = BOHRTOANG
-                        skip = 1
-                    elif ln[i + 1].strip().lower() in ["ang", "angstrom"]:
-                        pref = 1.0
-                        skip = 1
-                    else:
-                        pref = 1.0
-                        skip = 0
-                    # now get vectors
-                    for j in range(3):
-                        sp = ln[i + skip + 1 + j].split()
-                        for k in range(3):
-                            self.lat[j, k] = float(sp[k]) * pref
-                    found = True
-                    break
-        if not found:
-            raise Exception("Unable to find unit_cell_cart block in the .win file.")
-
+        win_lines = self._load_win_lines()
+        self._win_lines = win_lines
+        self.lat = self._parse_unit_cell_block(win_lines)
+       
         # read in hamiltonian matrix, in eV
-        self.num_wan, self.ham_r = _load_hr_fast(self.path, self.prefix)
+        self.num_wan, self.ham_r = self._load_hr_fast()
 
-        # check if for every non-zero R there is also -R (set-based, O(N))
-        R_set = set(self.ham_r.keys())
-        for R in R_set:
-            if R != (0, 0, 0):
-                if (-R[0], -R[1], -R[2]) not in R_set:
-                    raise Exception(f"Did not find negative R for R = {R}!")
+        # check if for every non-zero R there is also -R
+        self._validate_hr_symmetry()
 
         # read in wannier centers
-        f = open(self.path + "/" + self.prefix + "_centres.xyz", "r")
-        ln = f.readlines()
-        f.close()
-        # Wannier centers in Cartesian, Angstroms
-        xyz_cen = []
-        for i in range(2, 2 + self.num_wan):
-            sp = ln[i].split()
-            if sp[0] == "X":
-                tmp = []
-                for j in range(3):
-                    tmp.append(float(sp[j + 1]))
-                xyz_cen.append(tmp)
-            else:
-                raise Exception("Inconsistency in the centres file.")
-        self.xyz_cen = np.array(xyz_cen, dtype=float)
-        # get orbital positions in reduced coordinates
-        self.red_cen = _cart_to_red(
-            (self.lat[0], self.lat[1], self.lat[2]), self.xyz_cen
-        )
+        self.xyz_cen, self.red_cen = self._load_centers()
 
         self.lattice = Lattice(self.lat, self.red_cen, periodic_dirs=[0,1,2])
 
         # caches (filled lazily)
         self._vecR_cache = {}
         self._dist_cache = {}
+
+    def _load_win_lines(self):
+        win_path = self.folder / f"{self.prefix}.win"
+        try:
+            with win_path.open("r") as fh:
+                return fh.readlines()
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(f"Unable to locate Wannier90 input file {win_path}") from exc
+        
+    def _load_hr_fast(self):
+        hr_path = self.folder / f"{self.prefix}_hr.dat"
+        with hr_path.open("r") as fh:
+            fh.readline()  # skip first Wannier90 comment/header
+            num_wan = int(fh.readline())  # read number of Wannier functions
+            num_ws = int(fh.readline())  # read number of Wigner-Seitz cells
+
+            # Read degeneracies of Wigner-Seitz cells
+            deg_ws = []
+            while len(deg_ws) < num_ws:
+                line = fh.readline()
+                if not line:
+                    raise RuntimeError("Unexpected EOF while reading Wigner–Seitz degeneracies.")
+                deg_ws.extend(int(val) for val in line.split())
+            # Truncate to expected count
+            deg_ws = np.asarray(deg_ws[:num_ws], dtype=int)
+
+            # Load remaining numeric table (R vectors, indices, real/imaginary parts)
+            data = np.loadtxt(fh)
+
+        # Check if data is empty
+        if data.size == 0:
+            return num_wan, {}
+
+        # Promote single row to shape (1, 7)
+        if data.ndim == 1:
+            data = data[None, :]
+        if data.shape[1] != 7:
+            raise RuntimeError("Wannier90 _hr.dat must have seven columns per row.")
+
+        R_vecs = data[:, :3].astype(np.int64)  # Triplets (R1, R2, R3)
+        i_idx = data[:, 3].astype(np.int64) - 1  # Wannier function index i
+        j_idx = data[:, 4].astype(np.int64) - 1  # Wannier function index j
+        hop_vals = data[:, 5] + 1j * data[:, 6]  # Hopping values
+
+        # Find unique R vectors and their indices (unique_R), remember first line each
+        # appears (first_idx), and how each row maps back (inverse)
+        unique_R, first_idx, inverse = np.unique(
+            R_vecs, axis=0, return_inverse=True, return_index=True
+        )
+        order = np.argsort(first_idx)  # sort shells by first occurrence
+        unique_R = unique_R[order]  # reorder unique R vectors accordingly
+
+        if deg_ws.size < unique_R.shape[0]:
+            raise RuntimeError("Not enough degeneracy entries for the R shells present.")
+        deg_ws = deg_ws[: unique_R.shape[0]]  # use only degeneracies actually needed (zeros get dropped)
+
+        remap = np.empty_like(order) 
+        remap[order] = np.arange(order.size) # permutation that maps sorted order back to original
+        inverse = remap[inverse] # remap per-row shell into new ordering
+
+        # One (num_wan x num_wan) matrix per unique R vector
+        blocks = np.zeros((unique_R.shape[0], num_wan, num_wan), dtype=complex)
+        # Scatter-add every hopping into proper (R, i, j) block
+        np.add.at(blocks, (inverse, i_idx, j_idx), hop_vals)
+
+        ham_r = {
+            tuple(int(v) for v in R_vec): {"h": blocks[idx], "deg": int(deg_ws[idx])}
+            for idx, R_vec in enumerate(unique_R)
+        }
+        return num_wan, ham_r
+        
+    def _extract_win_block(self, win_lines, name):
+        begin = f"begin {name}".lower()
+        end = f"end {name}".lower()
+        inside = False
+        block = []
+        for raw in win_lines:
+            stripped = raw.strip()
+            lower = stripped.lower()
+            if not inside and lower.startswith(begin):
+                inside = True
+                continue
+            if inside:
+                if lower.startswith(end):
+                    break
+                block.append(raw.rstrip("\n"))
+        return block
+    
+    def _parse_unit_cell_block(self, win_lines):
+        block = self._extract_win_block(win_lines, "unit_cell_cart")
+        if not block:
+            raise Exception("Unable to find unit_cell_cart block in the .win file.")
+
+        scale = 1.0
+        first = block[0].strip().lower()
+        if first in {"bohr", "ang", "angstrom"}:
+            if first == "bohr":
+                scale = BOHRTOANG
+            block = block[1:]
+        if len(block) < 3:
+            raise ValueError("unit_cell_cart block must contain three lattice vectors.")
+
+        lat = np.zeros((3, 3), dtype=float)
+        for row_idx in range(3):
+            parts = block[row_idx].split()
+            if len(parts) < 3:
+                raise ValueError("Each unit_cell_cart row must have three components.")
+            lat[row_idx] = [float(parts[col]) * scale for col in range(3)]
+        return lat
+    
+    def _validate_hr_symmetry(self):
+        R_set = set(self.ham_r.keys())
+        for R in R_set:
+            if R != (0, 0, 0) and (-R[0], -R[1], -R[2]) not in R_set:
+                raise Exception(f"Did not find negative R for R = {R}!")
+            
+    def _load_centers(self):
+        centres_path = self.folder / f"{self.prefix}_centres.xyz"
+        try:
+            with centres_path.open("r") as fh:
+                lines = fh.readlines()
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(f"Unable to locate Wannier center file {centres_path}") from exc
+
+        coords = []
+        start = 2
+        for idx in range(self.num_wan):
+            try:
+                fields = lines[start + idx].split()
+            except IndexError as exc:
+                raise Exception("Centres file shorter than expected.") from exc
+            if not fields or fields[0] != "X":
+                raise Exception("Inconsistency in the centres file.")
+            coords.append([float(value) for value in fields[1:4]])
+
+        xyz_cen = np.asarray(coords, dtype=float)
+        red = _cart_to_red((self.lat[0], self.lat[1], self.lat[2]), xyz_cen)
+        return xyz_cen, red
+    
+    def kpoint_path_nodes(self, *, latex: bool = True):
+        """
+        Return the reduced-coordinate nodes declared in the ``kpoint_path`` block.
+
+        Parameters
+        ----------
+        latex : bool, optional
+            When True (default) convert labels into LaTeX-friendly strings,
+            e.g. ``"G" -> r"$\\Gamma$"``.
+
+        Returns
+        -------
+        coords : numpy.ndarray
+            Array with shape ``(n_nodes, 3)`` containing the reduced coordinates.
+        labels : list[str]
+            Labels for each node, optionally formatted for LaTeX rendering.
+        """
+        block = self._extract_win_block(self._win_lines, "kpoint_path")
+        if not block:
+            raise ValueError("No kpoint_path block present in the .win file.")
+
+        entries: list[tuple[str, np.ndarray]] = []
+        for line in block:
+            tokens = line.split()
+            if not tokens:
+                continue
+            if len(tokens) % 4:
+                raise ValueError(
+                    "Each kpoint_path entry must be a label followed by three coordinates."
+                )
+            for offset in range(0, len(tokens), 4):
+                label = tokens[offset]
+                try:
+                    coords = np.array(
+                        [float(tokens[offset + 1]), float(tokens[offset + 2]), float(tokens[offset + 3])],
+                        dtype=float,
+                    )
+                except ValueError as exc:
+                    raise ValueError(f"Failed to parse coordinates for k-point '{label}'.") from exc
+                entries.append((label, coords))
+
+        if not entries:
+            raise ValueError("kpoint_path block is empty.")
+
+        labels: list[str] = []
+        coords_list: list[np.ndarray] = []
+        prev_label = None
+        prev_coords = None
+        for label, coords in entries:
+            if prev_label is not None and label == prev_label and np.allclose(coords, prev_coords):
+                # Skip duplicated node introduced by segment chaining (e.g. P1->P2, P2->P3)
+                continue
+            labels.append(label)
+            coords_list.append(coords)
+            prev_label = label
+            prev_coords = coords
+
+        coords_arr = np.vstack(coords_list)
+        if latex:
+            labels = [self._format_k_label(lbl) for lbl in labels]
+
+        return coords_arr, labels
+
+    def _format_k_label(self, label: str) -> str:
+        special = {
+            "g": r"\Gamma",
+            "gamma": r"\Gamma",
+            "Γ": r"\Gamma",
+            "delta": r"\Delta",
+            "Δ": r"\Delta",
+            "theta": r"\Theta",
+            "Θ": r"\Theta",
+            "lambda": r"\Lambda",
+            "λ": r"\Lambda",
+            "xi": r"\Xi",
+            "ξ": r"\Xi",
+            "pi": r"\Pi",
+            "π": r"\Pi",
+            "sigma": r"\Sigma",
+            "σ": r"\Sigma",
+            "upsilon": r"\Upsilon",
+            "υ": r"\Upsilon",
+            "phi": r"\Phi",
+            "ϕ": r"\Phi",
+            "psi": r"\Psi",
+            "ψ": r"\Psi",
+            "omega": r"\Omega",
+            "ω": r"\Omega",
+        }
+
+        raw = label.strip()
+        if not raw:
+            return "$$"
+
+        match = _KPOINT_LABEL_PATTERN.match(raw)
+        if match:
+            base = match.group("base").strip()
+            suffix = match.group("suffix")
+
+            key = base.lower()
+            latex_base = special.get(key)
+            if latex_base is None:
+                latex_base = special.get(base)
+
+            if latex_base is None:
+                if len(base) == 1 and base.isalpha():
+                    latex_base = base
+                else:
+                    latex_base = rf"\mathrm{{{base}}}"
+        else:
+            latex_base = rf"\mathrm{{{raw}}}"
+            suffix = None
+
+        if match:
+            suffix = match.group("suffix")
+        else:
+            suffix = None
+
+        if suffix:
+            return rf"${latex_base}_{{{suffix}}}$"
+        return rf"${latex_base}$"
 
     def _get_vecR(self, R):
         """Cartesian vector for reduced lattice vector R, cached."""
@@ -580,7 +730,12 @@ class W90:
         """
         return self.w90_bands()
 
-    def w90_bands(self, return_kdist: bool = False, return_k_cart: bool = False):
+    def w90_bands(
+            self, 
+            return_k_cart: bool = False,
+            return_k_dist: bool = False, 
+            return_k_nodes: bool = False,
+        ):
         r"""Read interpolated band structure from Wannier90 output files.
 
         .. versionadded:: 2.0.0
@@ -656,28 +811,27 @@ class W90:
         >>>     ax.plot(range(w90_evals.shape[1]), w90_evals[i], "k-", zorder=-100)
         >>> fig.savefig("comparison.pdf")
         """
+        kpts_path = self.folder / f"{self.prefix}_band.kpt"
+        ene_path = self.folder / f"{self.prefix}_band.dat"
 
         # read in kpoints in reduced coordinates
-        kpts = np.loadtxt(self.path + "/" + self.prefix + "_band.kpt", skiprows=1)
-        # ignore weights
-        kpts = kpts[:, :3]
-
+        kpts = np.loadtxt(kpts_path, skiprows=1)[:, :3]
         # read in energies
-        ene = np.loadtxt(self.path + "/" + self.prefix + "_band.dat")
-        # ignore kpath distance
-        ene = ene[:, 1]
-        # correct shape
-        ene = ene.reshape((self.num_wan, kpts.shape[0])).T
+        ene_raw = np.loadtxt(ene_path)
+        ene = ene_raw[:, 1].reshape((self.num_wan, kpts.shape[0])).T
 
         B = self.lattice.recip_lat_vecs
         k_dist = kpath_distance(kpts, b1=B[0], b2=B[1], b3=B[2])
 
         results = (kpts, ene)
-        if return_kdist:
+        if return_k_dist:
             results += (k_dist,)
         if return_k_cart:
             k_cart = kpts @ self.lattice.recip_lat_vecs
             results += (k_cart,)
+        if return_k_nodes:
+            k_nodes, k_labels = self.kpoint_path_nodes(latex=True)
+            results += (k_nodes, k_labels)
         return results
 
     def qe_bands(self, return_k_cart=False, return_meta=False, return_kdist=False):
@@ -700,10 +854,10 @@ class W90:
             on the requested flags. When ``return_kdist`` is True the
             cumulative distance is computed from the lattice reciprocal vectors.
         """
-        path = self.path + "/" + self.prefix + "_bands.dat"
+        bands_path = self.folder / f"{self.prefix}_bands.dat"
         # Try to grab nbnd/nks from header
         meta = {}
-        m = re.search(r"nbnd\s*=\s*(\d+).+nks\s*=\s*(\d+)", open(path).read(5000), re.I|re.S)
+        m = re.search(r"nbnd\s*=\s*(\d+).+nks\s*=\s*(\d+)", open(bands_path).read(5000), re.I|re.S)
         if m:
             meta["nbnd"] = int(m.group(1))
             meta["nks"]  = int(m.group(2))
@@ -716,11 +870,8 @@ class W90:
             except ValueError:
                 return False
 
-        klist = []          # list of [kx, ky, kz] (fractional)
-        energies_rows = []  # list of list-of-energies per k
-        ebuf = []
-
-        with open(path, "r") as f:
+        klist, energies_rows, ebuf = [], [], []
+        with bands_path.open("r") as f:
             for line in f:
                 s = line.strip()
                 if not s:
@@ -745,7 +896,7 @@ class W90:
             energies_rows.append(ebuf)
 
         # Convert
-        E_raw = np.array(energies_rows, dtype=float)   # ragged → rectangular next
+        E_raw = np.array(energies_rows, dtype=float) 
         k_cart = np.array(klist, dtype=float)
         # k_cart in units of 2pi/alat
         alat = np.linalg.norm(self.lattice.lat_vecs[0])
@@ -762,13 +913,10 @@ class W90:
             E[i, :min(nbnd, len(row))] = row[:nbnd]
 
         B = self.lattice.recip_lat_vecs
-        # B in units of 1/A, in QE units are Bohr
-        # B /= BOHRTOANG
         k_frac = k_cart @ np.linalg.inv(B)
 
         k_dist = None
         if return_kdist:
-            B = self.lattice.recip_lat_vecs
             k_dist = kpath_distance(k_frac, b1=B[0], b2=B[1], b3=B[2])
 
         result = [k_frac, E]
