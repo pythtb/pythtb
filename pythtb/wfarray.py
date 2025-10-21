@@ -83,7 +83,7 @@ class WFArray:
     :ref:`formalism`
     :ref:`haldane-bp-nb` : For an example of using :class:`WFArray` on a regular grid of points in k-space.
     :ref:`cone-nb` : For an example of using :class:`WFArray` on a non-regular grid of points in k-space.
-    :ref:`3site-cycle-nb` : For an example of using :class:`Mesh` with an adiabatic dimension.
+    :ref:`three-site-thouless-nb` : For an example of using :class:`Mesh` with an adiabatic dimension.
         This example shows how one of the directions of :class:`WFArray` object need not be a k-vector direction, 
         but can instead be a Hamiltonian parameter :math:`\lambda`. See also discussion after equation 4.1 in
         :ref:`formalism`.
@@ -1626,19 +1626,23 @@ class WFArray:
         Returns
         -------
         M : np.ndarray
-            Overlap matrix with shape ``[*shape_k, *shape_lambda, num_nnbrs, n_states, n_states]``
+            Overlap matrix with shape ``(*shape_k, *shape_lambda, num_nnbrs, n_states, n_states)``
 
         Notes
         -----
-        - `get_overlap_mat` delegates neighbor lookup to :meth:`roll_states_with_pbc`, so the
+        - :func:`get_overlap_mat` delegates neighbor lookup to :meth:`roll_states_with_pbc`, so the
           behaviour at mesh boundaries depends entirely on how each sampling axis is
           labelled in the :class:`Mesh`:
+
             - **Periodic, no endpoints**
+
               Axes marked as looped/winding the BZ but without
               duplicated endpoints. We wrap with :func:`numpy.roll`, so the last k-point is 
               paired with the first and a Bloch phase is applied automatically. Every element 
               of the returned link tensor is meaningful.
+
             - **Periodic, endpoints included** 
+
               Axes that include the terminal point
               explicitly (``endpoint=True`` or user-provided meshes that repeat the BZ
               boundary). These are considered “closed” and we *do not* wrap. Instead the
@@ -1646,11 +1650,14 @@ class WFArray:
               final slice in the returned links therefore vanishes; drop it when forming
               Wilson loops or Berry phases. Calling the functions :meth:`wilson_loop` or
               :meth:`berry_phase` will automatically handle this for you.
+
             - **Non-periodic axes**
+            
               Lambda axes or open directions. They take the same
               zero-filled code path as the previous case because no physical neighbour
               exists beyond the edge. Those terminal slices should likewise be ignored by
               downstream consumers.
+
         - In practice, after calling `get_overlap_mat`, discard rows where the entire matrix is
           zero (typically the last index along any closed or nonperiodic axis) before
           accumulating Wilson loops or other path-ordered products.
@@ -1727,15 +1734,19 @@ class WFArray:
 
         Notes
         -----
-        - `get_links` delegates neighbor lookup to :meth:`roll_states_with_pbc`, so the
+        - func:`get_links` delegates neighbor lookup to :meth:`roll_states_with_pbc`, so the
           behaviour at mesh boundaries depends entirely on how each sampling axis is
           labelled in the :class:`Mesh`:
+
             - **Periodic, no endpoints**
+
               Axes marked as looped/winding the BZ but without
               duplicated endpoints. We wrap with :func:`numpy.roll`, so the last k-point is 
               paired with the first and a Bloch phase is applied automatically. Every element 
               of the returned link tensor is meaningful.
+
             - **Periodic, endpoints included** 
+
               Axes that include the terminal point
               explicitly (``endpoint=True`` or user-provided meshes that repeat the BZ
               boundary). These are considered “closed” and we *do not* wrap. Instead the
@@ -1743,11 +1754,14 @@ class WFArray:
               final slice in the returned links therefore vanishes; drop it when forming
               Wilson loops or Berry phases. Calling the functions :meth:`wilson_loop` or
               :meth:`berry_phase` will automatically handle this for you.
+
             - **Non-periodic axes**
+
               Lambda axes or open directions. They take the same
               zero-filled code path as the previous case because no physical neighbour
               exists beyond the edge. Those terminal slices should likewise be ignored by
               downstream consumers.
+
         - In practice, after calling `get_links`, discard rows where the entire matrix is
           zero (typically the last index along any closed or nonperiodic axis) before
           accumulating Wilson loops or other path-ordered products.
@@ -2027,7 +2041,7 @@ class WFArray:
         ---------
         :ref:`haldane-bp-nb` : For an example
         :ref:`cone-nb` : For an example
-        :ref:`3site-cycle-nb` : For an example
+        :ref:`three-site-thouless-nb` : For an example
         :func:`berry_loop` : For a function that computes Berry phase in a 1d loop.
         :ref:`formalism` : Sec. 4.5 for the discretized formula used to compute Berry phase.
 
