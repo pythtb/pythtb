@@ -115,6 +115,11 @@ class Wannier:
     def mesh(self) -> Mesh:
         """Mesh object associated with the Wannier functions."""
         return self.energy_eigstates.mesh
+    
+    @property
+    def lattice(self):
+        """Lattice object associated with the Wannier functions."""
+        return self.model.lattice
 
     @property
     def energy_eigstates(self) -> WFArray:
@@ -400,10 +405,10 @@ class Wannier:
         minus sign.
         """
         self._trial_wfs = self._get_trial_wfs(tf_list)
-        self._tilde_states: WFArray = WFArray(self.model, self.mesh, nstates=self.num_twfs)
+        self._tilde_states: WFArray = WFArray(self.lattice, self.mesh, nstates=self.num_twfs)
 
 
-    def set_bloch_like_states(self, states, cell_periodic=True, spin_flattened=False):
+    def set_bloch_like_states(self, states, is_cell_periodic=True, is_spin_axis_flat=False):
         r"""Set the Bloch-like states for the Wannier functions.
 
         These states are Fourier transformed to form the Wannier functions. 
@@ -451,13 +456,13 @@ class Wannier:
                 f"but got {states.shape}."
             )
         
-        if self.model.nspin == 2 and not spin_flattened:
+        if self.model.nspin == 2 and not is_spin_axis_flat:
             states = states.reshape((*states.shape[:-2], -1))
 
         logger.info("Setting Bloch-like states...")
-        self.tilde_states._set_wfs(
-            states, cell_periodic=cell_periodic, 
-            spin_flattened=True
+        self.tilde_states.set_states(
+            states, is_cell_periodic=is_cell_periodic, 
+            is_spin_axis_flat=is_spin_axis_flat
         )
 
         # Fourier transform Bloch-like states to set WFs
@@ -613,7 +618,7 @@ class Wannier:
             psi_til_til = self._single_shot_project(
                 self.tilde_states.psi_nk, twfs, state_idx=band_idxs
             )
-            self.set_bloch_like_states(psi_til_til, cell_periodic=False, spin_flattened=True)
+            self.set_bloch_like_states(psi_til_til, is_cell_periodic=False, is_spin_axis_flat=True)
 
         else:
             # projecting onto Bloch energy eigenstates
@@ -625,7 +630,7 @@ class Wannier:
             psi_tilde = self._single_shot_project(
                 self.energy_eigstates.psi_nk, twfs, state_idx=band_idxs
             )
-            self.set_bloch_like_states(psi_tilde, cell_periodic=False, spin_flattened=True)
+            self.set_bloch_like_states(psi_tilde, is_cell_periodic=False, is_spin_axis_flat=True)
 
 
     def _spread_recip(self, decomp=False):
@@ -964,17 +969,21 @@ class Wannier:
         T_kb = np.einsum("...ij, ...kji -> ...k", P, Q_nbr)
 
         omega_I_prev = (1 / Nk) * w_b * np.sum(T_kb)
+        logger.info(f"Initial Omega_I: {omega_I_prev.real}")
         if verbose:
-            logger.info(f"Initial Omega_I: {omega_I_prev.real}")
+            print(f"Initial Omega_I: {omega_I_prev.real}")
 
         P_min = np.copy(P)  # for start of iteration
         P_nbr_min = np.copy(P_nbr)  # for start of iteration
         Q_nbr_min = np.copy(Q_nbr)  # for start of iteration
         
         if tf_speedup:
-            from tensorflow import convert_to_tensor
-            from tensorflow import complex64 as tfcomplex64
-            from tensorflow.linalg import eigh as tfeigh
+            try:
+                from tensorflow import convert_to_tensor
+                from tensorflow import complex64 as tfcomplex64
+                from tensorflow.linalg import eigh as tfeigh
+            except ImportError:
+                raise ImportError("TensorFlow must be installed to use tf_speedup option.")
 
         #### Start of minimization iteration ####
         for i in range(iter_num):
@@ -1018,8 +1027,8 @@ class Wannier:
                 states_min = np.array(min_states_sliced)
 
             # update projectors
-            min_wfa = WFArray(self._model.lattice, self.mesh, nstates=states_min.shape[-2], nspin=self._model.nspin)
-            min_wfa.set_states(states_min, is_cell_periodic=True, is_spin_flattened=True)
+            min_wfa = WFArray(self.lattice, self.mesh, nstates=states_min.shape[-2], nspin=self._model.nspin)
+            min_wfa.set_states(states_min, is_cell_periodic=True, is_spin_axis_flat=True)
             P_new = min_wfa._P
             P_nbr_new = min_wfa._P_nbr
 
@@ -1035,20 +1044,23 @@ class Wannier:
             Q_nbr_min = np.eye(P_nbr_min.shape[-1]) - P_nbr_min
             T_kb = np.einsum("...ij, ...kji -> ...k", P_min, Q_nbr_min)
             omega_I_new = (1 / Nk) * w_b * np.sum(T_kb)
+            delta = omega_I_new - omega_I_prev
+            logger.info(f"iter {i:4d} | Ω_I = {omega_I_new.real:12.9e} | ΔΩ = {delta.real:10.5e}")
 
             if verbose:
-                delta = omega_I_new - omega_I_prev
-                logger.info(f"iter {i:4d} | Ω_I = {omega_I_new.real:12.9e} | ΔΩ = {delta.real:10.5e}")
+                print(f"iter {i:4d} | Ω_I = {omega_I_new.real:12.9e} | ΔΩ = {delta.real:10.5e}")
 
-            if abs(omega_I_prev - omega_I_new) <= tol:
+            if abs(delta) <= tol:
+                logger.info(f"Converged within tolerance in {i} iterations. Breaking the loop.")
                 if verbose:
-                    logger.info(f"Converged within tolerance in {i} iterations. Breaking the loop.")
+                    print(f"Converged within tolerance in {i} iterations. Breaking the loop.")
                 break
 
             if omega_I_new > omega_I_prev:
                 beta = max(beta - 0.01, 0)
+                logger.warning(f"Warning: Ω_I is increasing. Reducing beta to {beta}.")
                 if verbose:
-                    logger.info(f"Warning: Ω_I is increasing. Reducing beta to {beta}.")
+                    print(f"Warning: Ω_I is increasing. Reducing beta to {beta}.")
 
             omega_I_prev = omega_I_new
 
@@ -1144,8 +1156,8 @@ class Wannier:
             eigvecs = np.swapaxes(eigvecs, -1, -2)
 
             init_evecs = eigvecs[..., -(n_wfs - N_inner) :, :]
-            init_states = WFArray(self._model.lattice, self.mesh, nstates=init_evecs.shape[-2], nspin=self._model.nspin)
-            init_states.set_states(init_evecs, is_cell_periodic=False, is_spin_flattened=True)
+            init_states = WFArray(self.lattice, self.mesh, nstates=init_evecs.shape[-2], nspin=self._model.nspin)
+            init_states.set_states(init_evecs, is_cell_periodic=False, is_spin_axis_flat=True)
 
             comp_bands = list(np.setdiff1d(disentang_bands, frozen_bands))
             comp_states = u_nk.take(comp_bands, axis=-2)
@@ -1156,9 +1168,10 @@ class Wannier:
 
         T_kb = np.einsum("...ij, ...kji -> ...k", P, Q_nbr)
         omega_I_prev = (1 / Nk) * w_b * np.sum(T_kb)
+        logger.info(f"Initial Omega_I: {omega_I_prev.real}")
         if verbose:
-            logger.info(f"Initial Omega_I: {omega_I_prev.real}")
-        
+            print(f"Initial Omega_I: {omega_I_prev.real}")
+
         P_min = np.copy(P)  # for start of iteration
         P_nbr_min = np.copy(P_nbr)  # for start of iteration
 
@@ -1187,8 +1200,8 @@ class Wannier:
             else:
                 states_min = comp_min
 
-            min_wfa = WFArray(self._model.lattice, self.mesh, nstates=states_min.shape[-2], nspin=self._model.nspin)
-            min_wfa.set_states(states_min, is_cell_periodic=True, is_spin_flattened=True)
+            min_wfa = WFArray(self.lattice, self.mesh, nstates=states_min.shape[-2], nspin=self._model.nspin)
+            min_wfa.set_states(states_min, is_cell_periodic=True, is_spin_axis_flat=True)
             P_new = min_wfa._P
             P_nbr_new = min_wfa._P_nbr
 
@@ -1204,20 +1217,23 @@ class Wannier:
             Q_nbr_min = np.eye(P_nbr_min.shape[-1]) - P_nbr_min
             T_kb = np.einsum("...ij, ...kji -> ...k", P_min, Q_nbr_min)
             omega_I_new = (1 / Nk) * w_b * np.sum(T_kb)
+            delta = omega_I_new - omega_I_prev
+            logger.info(f"iter {i:4d} | Ω_I = {omega_I_new.real:12.9e} | ΔΩ = {delta.real:10.5e}")
 
             if verbose:
-                delta = omega_I_new - omega_I_prev
-                logger.info(f"iter {i:4d} | Ω_I = {omega_I_new.real:12.9e} | ΔΩ = {delta.real:10.5e}")
+                print(f"iter {i:4d} | Ω_I = {omega_I_new.real:12.9e} | ΔΩ = {delta.real:10.5e}")
 
-            if abs(omega_I_prev - omega_I_new) <= tol:
+            if abs(delta) <= tol:
+                logger.info(f"Converged within tolerance in {i} iterations. Breaking the loop.")
                 if verbose:
-                    logger.info(f"Converged within tolerance in {i} iterations. Breaking the loop.")
+                    print(f"Converged within tolerance in {i} iterations. Breaking the loop.")
                 break
 
             if omega_I_new > omega_I_prev:
                 beta = max(beta - 0.01, 0)
+                logger.warning(f"Warning: Ω_I is increasing. Reducing beta from {beta + 0.01} to {beta}.")
                 if verbose:
-                    logger.info(f"Warning: Ω_I is increasing. Reducing beta to {beta}.")
+                    print(f"Warning: Ω_I is increasing. Reducing beta to {beta}.")
 
             omega_I_prev = omega_I_new
 
@@ -1300,23 +1316,23 @@ class Wannier:
 
             grad_mag = np.linalg.norm(np.sum(G, axis=tuple(self.mesh.k_axis_indices)))
             omega_tilde_new = self._get_omega_til(M, w_b, k_shell)
+            delta = omega_tilde_new - omega_tilde_prev
+            logger.info(f"iter {i:4d} | Ω_tilde = {omega_tilde_new.real:12.9e} | ΔΩ = {delta.real:12.5e} | ‖∇‖ = {grad_mag:10.5e}")
 
             if verbose:
-                delta = omega_tilde_new - omega_tilde_prev
-                logger.info(f"iter {i:4d} | Ω_tilde = {omega_tilde_new.real:12.9e} | ΔΩ = {delta.real:12.5e} | ‖∇‖ = {grad_mag:10.5e}")
+                print(f"iter {i:4d} | Ω_tilde = {omega_tilde_new.real:12.9e} | ΔΩ = {delta.real:12.5e} | ‖∇‖ = {grad_mag:10.5e}")
 
             # Check for convergence
-            if (
-                abs(grad_mag) <= grad_min
-                and abs(omega_tilde_prev - omega_tilde_new) <= tol
-            ):
+            if (abs(grad_mag) <= grad_min and abs(delta) <= tol):
+                logger.info(f"Converged within tolerance in {i} iterations. Breaking the loop.")
                 if verbose:
-                    logger.info(f"Converged within tolerance in {i} iterations. Breaking the loop.")
+                    print(f"Converged within tolerance in {i} iterations. Breaking the loop.")
                 break
 
             if grad_mag_prev < grad_mag and i != 0:
+                logger.warning("Warning: Gradient increasing.")
                 if verbose:
-                    logger.info("Warning: Gradient increasing.")
+                    print("Warning: Gradient increasing.")
                 # Reduce step size to try and stabilize
                 # eps *= 0.9
 
@@ -1417,7 +1433,7 @@ class Wannier:
             # check if we have trial wavefunctions
             if not hasattr(self, "_trial_wfs"):
                 # we use energy eigenstates tilde states
-                self.set_bloch_like_states(self.energy_eigstates.states(flatten_spin_axis=True), cell_periodic=True)
+                self.set_bloch_like_states(self.energy_eigstates.states(flatten_spin_axis=True), is_cell_periodic=True)
             else:
                 # we initialize tilde states with previous trial wavefunctions
                 n_occ = int(self.energy_eigstates.nstates / 2)  # assuming half filled
@@ -1437,7 +1453,7 @@ class Wannier:
             tf_speedup=tf_speedup,
         )
 
-        self.set_bloch_like_states(util_min, cell_periodic=True, spin_flattened=True)
+        self.set_bloch_like_states(util_min, is_cell_periodic=True, is_spin_axis_flat=True)
 
     def max_localize(
             self, 
@@ -1517,7 +1533,7 @@ class Wannier:
         u_tilde_wfs = self.tilde_states.states(flatten_spin_axis=True)
         util_max_loc = np.einsum("...ji, ...jm -> ...im", U, u_tilde_wfs)
 
-        self.set_bloch_like_states(util_max_loc, cell_periodic=True, spin_flattened=True)
+        self.set_bloch_like_states(util_max_loc, is_cell_periodic=True, is_spin_axis_flat=True)
 
     def min_spread(
         self,
@@ -1645,7 +1661,7 @@ class Wannier:
                 state_idx=list(range(self.tilde_states.nstates)),
             )
 
-        self.set_bloch_like_states(psi_til_til, cell_periodic=False, spin_flattened=True)
+        self.set_bloch_like_states(psi_til_til, is_cell_periodic=False, is_spin_axis_flat=True)
 
         ### Finding optimal gauge with maxloc ###
         self.max_localize(
