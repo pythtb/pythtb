@@ -13,13 +13,13 @@ BOHRTOANG = 0.52917721092  # Bohr radius in Angstroms
 _KPOINT_LABEL_PATTERN = re.compile(r"^(?P<base>[^\d]+?)(?P<suffix>\d+)?$", re.UNICODE)
 
 class W90:
-    r"""Interface to Wannier90
+    r"""Interface to Wannier90 
 
     This class imports tight-binding model parameters from an output 
     of a `Wannier90 <http://www.wannier.org>`_ code.
-    Upon instantiation, this class will read in the entire Wannier90 output.
-    To create :class:`pythtb.TBModel` object user needs to call
-    :func:`pythtb.w90.model`.
+    Upon instantiation, this class will read in the Wannier90 output
+    files from the specified folder. To create :class:`pythtb.TBModel`
+    object use the :meth:`model` function.
 
     The `Wannier90 <http://www.wannier.org>`_ code is a
     post-processing tool that takes as an input electron wavefunctions
@@ -58,7 +58,7 @@ class W90:
 
     The final two files (*prefix*\_band.kpt and *prefix*\_band.dat)
     are optional. Please see documentation of function
-    :func:`pythtb.w90.w90_bands_consistency` for more detail.
+    :meth:`w90_bands` for more detail.
 
     Parameters
     ----------
@@ -266,6 +266,13 @@ class W90:
         for R in R_set:
             if R != (0, 0, 0) and (-R[0], -R[1], -R[2]) not in R_set:
                 raise Exception(f"Did not find negative R for R = {R}!")
+
+    @staticmethod
+    def _wrap01(x: np.ndarray) -> np.ndarray:
+        out = np.mod(x, 1.0)
+        # snap 1.0 → 0.0 to avoid 2π glitches
+        out[np.isclose(out, 1.0, atol=1e-12)] = 0.0
+        return out
             
     def _load_centers(self):
         centres_path = self.folder / f"{self.prefix}_centres.xyz"
@@ -289,8 +296,8 @@ class W90:
         xyz_cen = np.asarray(coords, dtype=float)
         red = _cart_to_red((self.lat[0], self.lat[1], self.lat[2]), xyz_cen)
         return xyz_cen, red
-    
-    def kpoint_path_nodes(self, *, latex: bool = True):
+      
+    def _kpoint_path_nodes(self, *, latex: bool = True):
         """
         Return the reduced-coordinate nodes declared in the ``kpoint_path`` block.
 
@@ -422,6 +429,7 @@ class W90:
         self._vecR_cache[R] = vecR
         return vecR
 
+
     def _get_dist_matrix(self, R):
         """Distance for reduced lattice vector R, cached."""
         if not hasattr(self, "_dist_cache"):
@@ -550,7 +558,7 @@ class W90:
         deg0 = float(hr0["deg"])  # scalar
         onsite = (hr0["h"].diagonal() / deg0).real
         # sanity check: imaginary part should be tiny
-        if np.max(np.abs(np.imag(np.diag(hr0["h"]) / deg0))) > 1.0e-9:
+        if np.max(np.abs(np.imag(np.diag(hr0["h"]) / deg0))) > 1e-9:
             raise Exception("Onsite terms should be real!")
         tb.set_onsite(onsite - zero_energy)
 
@@ -739,7 +747,7 @@ class W90:
         r"""Read interpolated band structure from Wannier90 output files.
 
         .. versionadded:: 2.0.0
-            Added ``return_kdist`` to optionally return cumulative path distances.
+            Added ``return_k_dist`` to optionally return cumulative path distances.
 
         This function reads in band structure as interpolated by
         Wannier90. Please note that this is not the same as the band
@@ -758,22 +766,34 @@ class W90:
 
         Parameters
         ----------
-        return_kdist : bool, optional
+        return_k_cart : bool, optional
+            If True, also return k-points in Cartesian coordinates.
+        return_k_dist : bool, optional
             If True, also return the cumulative k-path distance (in 1/Å).
+        return_k_nodes : bool, optional
+            If True, also return the k-point nodes and labels used in the path.
+            Format is ``(k_nodes, k_labels)`` where ``k_nodes`` is an array
+            of reduced coordinates and ``k_labels`` is a list of strings.
 
         Returns
         -------
         kpts : array
             k-points in reduced coordinates used in the
-            interpolation in Wannier90 code. The format of *kpts* is
-            the same as the one used by the input to
-            :func:`pythtb.TBModel.solve_all`.
-
+            interpolation in Wannier90 code. The expected format is
+            the same as the input to
+            :func:`pythtb.TBModel.solve_ham`.
         ene : array
             Energies interpolated by Wannier90 in eV. Format is ``ene[kpt,band]``.
         k_dist : array, optional
             Cumulative distances along the path (1/Å) as reported by Wannier90.
-            Returned when ``return_kdist=True``.
+            Returned when ``return_k_dist=True``. Useful for plotting band structures.
+        k_cart : array, optional
+            k-points in Cartesian coordinates (1/Å).
+            Returned when ``return_k_cart=True``.
+        k_nodes : tuple[array, list[str]], optional
+            Tuple ``(k_nodes, k_labels)`` containing the reduced coordinates
+            of the k-point nodes and their labels.
+            Returned when ``return_k_nodes=True``.
 
         Notes
         -----
@@ -791,7 +811,8 @@ class W90:
         --------
         Get band structure from `Wannier90`
 
-        >>> (w90_kpt, w90_evals) = silicon.w90_bands_consistency()
+        >>> w90_kpt, w90_evals, w90_k_dist, w90_k_nodes, w90_k_labels = silicon.w90_bands(
+        ... return_k_dist=True, return_k_nodes=True)
 
         Get simplified model
 
@@ -805,7 +826,7 @@ class W90:
         
         >>> import matplotlib.pyplot as plt
         >>> fig, ax = plt.subplots()
-        >>> for i in range(evals.shape[0]):
+        >>> for i in range(evals.shape[1]):
         >>>     ax.plot(range(evals.shape[1]), evals[i], "r-", zorder=-50)
         >>> for i in range(w90_evals.shape[0]):
         >>>     ax.plot(range(w90_evals.shape[1]), w90_evals[i], "k-", zorder=-100)
@@ -827,10 +848,10 @@ class W90:
         if return_k_dist:
             results += (k_dist,)
         if return_k_cart:
-            k_cart = kpts @ self.lattice.recip_lat_vecs
+            k_cart = kpts @ B
             results += (k_cart,)
         if return_k_nodes:
-            k_nodes, k_labels = self.kpoint_path_nodes(latex=True)
+            k_nodes, k_labels = self._kpoint_path_nodes(latex=True)
             results += (k_nodes, k_labels)
         return results
 
