@@ -84,6 +84,8 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
   - Supports rotation, zooming, and interactive highlighting
 - `TBModel.get_recip_lat()`: Returns reciprocal lattice vectors
 - `TBModel.set_nn_hoppings()`: Bulk setting of nearest-neighbor hoppings for faster model construction
+- `TBModel.make_finite()`: Constructs a finite-sized supercell with open boundary conditions
+  - Convenience function for chaining `cut_piece()` along different directions
 - **Read-only properties**: Core attributes (e.g., `dim_r`, `dim_k`, `nspin`, `spinful`, `per`, `norb`, `nstate`, `lat`, `orb`, `site_energies`, `hoppings`) are now accessible via properties, preventing unintended modification
 
 ##### Performance Improvements:
