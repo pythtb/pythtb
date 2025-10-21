@@ -29,37 +29,38 @@ Core functionality
 .. grid:: 1 2 2 3
    :gutter: 2
 
-   .. grid-item-card:: :material-regular:`build` Model construction
+   .. grid-item-card:: :material-outlined:`hub` Model construction
       :link: usage
       :link-type: doc
 
-      Build lattices with ``Lattice`` and populate hoppings via ``TBModel``.
+      Build tight-binding models with ``TBModel``. Define unit cells and
+      lattice geometry with ``Lattice``.
 
-   .. grid-item-card:: :material-regular:`play_circle` Sampling & eigenstates
+   .. grid-item-card:: :material-outlined:`blur_on` State sampling
       :link: usage
       :link-type: doc
 
-      Create k-space or parameter meshes with ``Mesh.build_grid`` / ``Mesh.build_path`` and store eigenvectors in a ``WFArray`` that tracks phases, energies, overlaps, and quantum geometry.
+      Create k-space and parameter sampling-meshes with ``Mesh``.
 
-   .. grid-item-card:: :material-regular:`category` Topology & quantum geometry
+   .. grid-item-card:: :material-outlined:`all_inclusive` Topology & quantum geometry
       :link: usage
       :link-type: doc
 
-      Evaluate Berry connections/curvature, compute Berry phases & Chern numbers, follow hybrid Wannier centers, and analyze adiabatic cycles with ``WFArray`` tools.
+      Evaluate Berry connections, curvature, and phases, compute Chern numbers, follow hybrid Wannier centers, and analyze adiabatic cycles with ``WFArray`` tools.
 
-   .. grid-item-card:: :material-regular:`integration_instructions` Wannier90 Integration
+   .. grid-item-card:: :material-outlined:`extension` Wannier90 Integration
       :link: usage
       :link-type: doc
 
       Import Wannier90 tight-binding Hamiltonians via ``W90`` and continue analysis inside PythTB.
 
-   .. grid-item-card:: :material-regular:`widgets` Wannier workflows
+   .. grid-item-card:: :material-outlined:`token` Wannier workflows
       :link: usage
       :link-type: doc
 
       Build maximally localized Wannier functions with ``Wannier``; do single-shot projections, evaluate spreads, and visualize centers, densities, and decay profiles.
 
-   .. grid-item-card:: :material-regular:`image` Visualization and export
+   .. grid-item-card:: :material-outlined:`image` Visualization
       :link: usage
       :link-type: doc
 

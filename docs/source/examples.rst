@@ -31,52 +31,52 @@ Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
    :maxdepth: 1
    :caption: New to v2.0.0
 
-   examples_ipynb/v2_tutorial
-   examples_ipynb/lattice
-   examples_ipynb/mesh
-   examples_ipynb/nn_shells
+   examples/v2_tutorial
+   examples/lattice
+   examples/mesh
+   examples/nn_shells
 
 
 .. toctree::
    :maxdepth: 1
    :caption: Building the TBModel
 
-   examples_ipynb/0dim
-   examples_ipynb/finite_ssh
-   examples_ipynb/checkerboard
-   examples_ipynb/graphene
-   examples_ipynb/haldane
-   examples_ipynb/buckled_layer
-   examples_ipynb/trestle
-   examples_ipynb/supercell
+   examples/0dim
+   examples/finite_ssh
+   examples/checkerboard
+   examples/graphene
+   examples/haldane
+   examples/buckled_layer
+   examples/trestle
+   examples/supercell
 
 .. toctree::
    :maxdepth: 1
    :caption: Topology and quantum geometry
 
-   examples_ipynb/three_site_thouless
-   examples_ipynb/graphene_cone
-   examples_ipynb/haldane_bp
-   examples_ipynb/haldane_hwf
-   examples_ipynb/kane_mele
-   examples_ipynb/fkm_model
-   examples_ipynb/boron_nitride
-   examples_ipynb/slab_hwf
+   examples/three_site_thouless
+   examples/graphene_cone
+   examples/haldane_bp
+   examples/haldane_hwf
+   examples/kane_mele
+   examples/fkm_model
+   examples/boron_nitride
+   examples/slab_hwf
 
 .. toctree::
    :maxdepth: 1
    :caption: Wannier functions and Wannier90 integration
 
-   examples_ipynb/haldane_wannier
-   examples_ipynb/reduced_wannier
-   examples_ipynb/w90_quick
-   examples_ipynb/w90
+   examples/haldane_wannier
+   examples/reduced_wannier
+   examples/w90_quick
+   examples/w90
 
 .. toctree::
    :maxdepth: 1
    :caption: Visualization
 
-   examples_ipynb/visualize
-   examples_ipynb/plot_bands
-   examples_ipynb/haldane_edge
-   examples_ipynb/visualize_3d
+   examples/visualize
+   examples/plot_bands
+   examples/haldane_edge
+   examples/visualize_3d

@@ -1,0 +1,34 @@
+#!/bin/bash
+set -e  # Exit immediately if any command fails
+
+# Build dirhtml docs
+make dirhtml
+
+# Find an available port starting at 8000
+PORT=8000
+while lsof -i :$PORT >/dev/null 2>&1; do
+  PORT=$((PORT + 1))
+done
+
+echo "Starting local server on http://localhost:$PORT"
+
+# Start local server in background
+python3 -m http.server "$PORT" --directory build/dirhtml >/dev/null 2>&1 &
+
+# Give the server a moment to start
+sleep 1
+
+# Open the docs in the default browser
+URL="http://localhost:$PORT"
+if command -v open &> /dev/null; then
+  # macOS
+  open "$URL"
+elif command -v xdg-open &> /dev/null; then
+  # Linux
+  xdg-open "$URL"
+elif command -v start &> /dev/null; then
+  # Windows (Git Bash)
+  start "$URL"
+else
+  echo "Please open $URL in your browser."
+fi

@@ -166,22 +166,17 @@ html_sidebars = {
 
 
 html_theme_options = {
-#     "navigation_depth": 4,
-#     "collapse_navigation": False,
-#     "show_nav_level": 2,
     "logo": {
         "image_light": "_static/pythtb_logo2_dark.svg",
         "image_dark": "_static/pythtb_logo2_dark.svg",
     },
     "github_url": "https://github.com/pythtb/pythtb",
     "collapse_navigation": False,
+#     "navigation_depth": 4,
     "article_header_end": ["nb-download"],
-    # "external_links": [
-    #     {"Changelog": "", "url": ""},
-    # ],
     "header_links_before_dropdown": 6,
-    "show_toc_level": 3,
-    # Add light/dark mode and documentation version switcher:
+    "show_toc_level": 2,
+#     "show_nav_level": 2,
     # "navbar_start": ["navbar-logo", "version-switcher"],
     "navbar_start": ["navbar-logo"],
     "navbar_center": ["navbar-nav"],

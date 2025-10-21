@@ -120,7 +120,7 @@ ax.set_ylabel("Energy (arb. units)")
 ax.set_title("NH$_3$ molecular energy levels")
 
 
-# **Energy levels (minimal NH₃ TB model)**
+# **Energy levels (minimal $\text{NH}_3$ TB model)**
 # 
 # With one N orbital and three H orbitals (only N–H hopping $t$), the ($\text{C}_{3v}$) symmetry yields:
 # - **$\text{A}_1$ bonding** (lowest): mixing of N with the symmetric H combination.
@@ -128,16 +128,13 @@ ax.set_title("NH$_3$ molecular energy levels")
 # - **$\text{A}_1$ antibonding** (highest).
 # 
 # Analytic energies:
-# $$
 # 
+# $$
 # E_{\pm}=\frac{\varepsilon_N+\varepsilon_H}{2}
-# \pm \sqrt{\Big(\tfrac{\varepsilon_N-\varepsilon_H}{2}\Big)^2 + 3t^2},
-# \qquad
-# E_{E}=\varepsilon_H \;\;(\text{doublet}).
-# 
+# \pm \sqrt{(\tfrac{\varepsilon_N - \varepsilon_H}{2})^2 + 3t^2}, \ \ \ E_{E}=\varepsilon_H \;\;(\text{doublet}).
 # $$
 # 
-# So the spectrum is ordered: **A₁ (bonding)** < **E (doublet)** < **A₁ (antibonding)**.
+# So the spectrum is ordered: **$\text{A}_1$ (bonding)** < **$\text{E}$ (doublet)** < **$\text{A}_1$ (antibonding)**.
 
 # In[9]:
 

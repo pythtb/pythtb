@@ -121,12 +121,19 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
    ~pythtb.W90.dist_hop
-
-
-
-
-   ~pythtb.W90.kpoint_path_nodes
 
 
 

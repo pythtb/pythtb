@@ -196,11 +196,6 @@
 
 
 
-   ~pythtb.TBModel.grad_ham
-
-
-
-
    ~pythtb.TBModel.hamiltonian
 
 
@@ -302,6 +297,11 @@
 
 
    ~pythtb.TBModel.solve_one
+
+
+
+
+   ~pythtb.TBModel.velocity
 
 
 

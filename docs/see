@@ -1,9 +1,22 @@
 #!/bin/bash
+set -e  # Exit immediately if any command fails
 
-# copy file based on machine name
-# insert your own machine if you wish
-if [ "`hostname`" = "coh" ];then
-  firefox build/html/index.html &
+# Start a local server in the background
+python3 -m http.server 8000 --directory build/dirhtml &
+
+# Give the server a moment to start
+sleep 1
+
+# Open the docs in the default browser
+if command -v open &> /dev/null; then
+  # macOS
+  open http://localhost:8000
+elif command -v xdg-open &> /dev/null; then
+  # Linux
+  xdg-open http://localhost:8000
+elif command -v start &> /dev/null; then
+  # Windows (Git Bash)
+  start http://localhost:8000
 else
-  open build/html/index.html
+  echo "Please open http://localhost:8000 in your browser."
 fi

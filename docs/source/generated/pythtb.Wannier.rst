@@ -252,6 +252,11 @@
 
 
 
+   ~pythtb.Wannier.lattice
+
+
+
+
    ~pythtb.Wannier.mesh
 
 
