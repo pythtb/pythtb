@@ -58,14 +58,22 @@ class WFArray:
     
     Parameters
     ----------
-    model : :class:`TBModel`
-        Tight-binding model providing the orbital basis.
+    lattice : :class:`Lattice`
+        Lattice structure. This provides information about the lattice vectors, the
+        orbital positions, and the periodic directions. Used to determine the phase
+        factors for Bloch <-> cell-periodic transformations. If the model is finite,
+        this can be a lattice with zero k-dimensions, and the lattice vectors are 
+        only used to define orbital positions.
     mesh : :class:`Mesh`
         Sampling grid. The number of k-type axes can be anything from zero (purely
         parametric sweep) to the full ``model.dim_k``; when it is smaller it is
         interpreted as a path or lower-dimensional slice.
+    spinful : bool, optional
+        Whether the model includes spin degrees of freedom (defaults to ``False``).
+        This determines the shape of the stored wavefunction array. If ``True``,
+        each orbital is assumed to have two spin components (`WFArray.nspin == 2`).
     nstates : int, optional
-        Number of bands per mesh point to store (defaults to ``model.nstate``).
+        Number of bands per mesh point to store (defaults to ``WFArray.norb * WFArray.nspin``).
 
     See Also
     --------
@@ -101,8 +109,6 @@ class WFArray:
       When no k-axes are present the same container can still hold parameter-only
       eigenstates (useful for adiabatic/finite systems).
 
-    
-
     Examples
     --------
     Populate a uniform Monkhorst-Pack grid and compute the Berry curvature
@@ -125,7 +131,7 @@ class WFArray:
     >>> wfa[i_kx, j_ky, ell] = eigenvectors  # shape (nstates, norb[, nspin])
     """
 
-    def __init__(self, lattice: Lattice, mesh: Mesh, nstates: int = None, nspin: int = 1):
+    def __init__(self, lattice: Lattice, mesh: Mesh, nstates: int = None, spinful: bool = False):
         if not isinstance(lattice, Lattice):
             raise TypeError("lattice must be of type pythtb.Lattice")
         
@@ -145,15 +151,14 @@ class WFArray:
                 "Maybe you need to build the mesh first?"
             )
         
-        # Validate number of spin components
-        if nspin not in [1, 2]:
-            raise ValueError("nspin must be 1 or 2")
-        self._nspin = nspin
+        if not isinstance(spinful, bool):
+            raise TypeError("Argument spinful must be a boolean.")
+        self._spinful = spinful
 
         if nstates is not None:
             if not _is_int(nstates):
-                raise TypeError("Argument nstates is not an integer.")
-            self._nstates = nstates 
+                raise TypeError("Argument nstates must be an integer.")
+            self._nstates = nstates
         else:
             self._nstates = self.norb * self.nspin  # Default to total number of bands
        
@@ -336,7 +341,12 @@ class WFArray:
     @property
     def nspin(self) -> int:
         """The number of spin components."""
-        return self._nspin
+        return 2 if self.spinful else 1
+
+    @property
+    def spinful(self) -> bool:
+        """Whether the model includes spin degrees of freedom."""
+        return self._spinful
 
     @property
     def norb(self) -> int:
@@ -2779,7 +2789,7 @@ class WFArray:
             if basis.lower().strip() in ["wavefunction", "bloch"]:
                 return hwfc, hwf
             elif basis.lower().strip() == "orbital":
-                if self._nspin == 1:
+                if self.nspin == 1:
                     ret_hwf = np.zeros((hwf.shape[0], self.norb), dtype=complex)
                     for i in range(ret_hwf.shape[0]):
                         ret_hwf[i] = np.dot(hwf[i], evec) # project onto orbital basis

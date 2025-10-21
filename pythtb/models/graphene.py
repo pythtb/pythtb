@@ -45,7 +45,7 @@ def graphene(delta: float, t: float) -> TBModel:
     orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
     lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
-    my_model = TBModel(lattice=lat, nspin=1)
+    my_model = TBModel(lattice=lat, spinful=False)
 
     my_model.set_onsite([-delta, delta])
     my_model.set_hop(t, 0, 1, [0, 0])

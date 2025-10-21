@@ -19,6 +19,28 @@ SIGMAX = np.array([[0, 1], [1, 0]], dtype=complex)
 SIGMAY = np.array([[0, -1j], [1j, 0]], dtype=complex)
 SIGMAZ = np.array([[1, 0], [0, -1]], dtype=complex)
 
+try:
+    from tensorflow import convert_to_tensor
+    from tensorflow.linalg import eigvalsh as tf_eigvalsh, eigh as tf_eigh
+    from tensorflow import complex64 as tf_complex64, complex128 as tf_complex128
+except ImportError:  # TensorFlow not installed – keep optional
+    tf_eigvalsh = tf_eigh = tf_complex64 = tf_complex128 = None
+
+def _tensorflow_solve(ham, *, return_eigvecs: bool, use_32_bit: bool):
+    if convert_to_tensor is None:
+        raise ImportError(
+            "TensorFlow support requires `pip install pythtb[speedup]` "
+            "or a manual tensorflow install."
+        )
+
+    dtype = tf_complex64 if use_32_bit else tf_complex128
+    tensor = convert_to_tensor(ham, dtype=dtype)
+
+    if return_eigvecs:
+        evals, evecs = tf_eigh(tensor)
+        return evals.numpy(), evecs.numpy()
+    evals = tf_eigvalsh(tensor)
+    return evals.numpy()
 
 class TBModel:
     r"""Tight-binding model constructor.
@@ -31,9 +53,9 @@ class TBModel:
         and orbital information. The ``TBModel`` class now relies on
         the ``Lattice`` object to provide this information. 
         The parameters for ``tb_model`` are now used in the
-        constructor of the `Lattice` class. The constructor of ``Lattice``
-        accepts some of the same parameters as before, such as ``lat``, ``orb``, ``per``, 
-        while ``dim_k`` and ``dim_r`` are inferred from ```lat`` and ``per``
+        constructor of the `Lattice` class, such as ``lat``, ``orb``, ``per``, 
+        while ``dim_k`` and ``dim_r`` are inferred from ```lat`` and ``per``.
+        The ``nspin`` parameter was renamed to ``spinful`` for clarity.
 
     Parameters
     ----------
@@ -42,13 +64,10 @@ class TBModel:
         lattice vectors, orbital positions, and periodic directions. The
         `Lattice` object should be created separately and passed to `TBModel`.
 
-    nspin : int {1, 2}, optional
-        Number of explicit spin components assumed for each
-        orbital. Allowed values of ``nspin`` are ``1`` and ``2``. If
-        ``nspin=1`` then the model is spinless, if ``nspin=2`` then it
-        is explicitly a spinfull model and each orbital is assumed to
-        have two spin components. Default value of this parameter is
-        ``nspin=1``.
+    spinful : bool, optional
+        If True, the model is spinful and each orbital is assumed to
+        have two spin components. If False, the model is spinless.
+        Default value of this parameter is False.
 
     Examples
     --------
@@ -66,18 +85,14 @@ class TBModel:
     ...    lat_vecs=[[1, 1/2], [0, 2]], 
     ...    orb_vecs=[[0.2, 0.3], [0.1, 0.1], [0.2, 0.2]], 
     ...    periodic_dirs=[1])
-    >>> tb = TBModel(lattice=lat, nspin=1)
+    >>> tb = TBModel(lattice=lat, spinful=False)
     """
 
     def __init__(
-        self, lattice: Lattice, nspin: int = 1
+        self, lattice: Lattice, spinful: bool = False
     ):
         self._lattice = lattice
-
-        # Validate number of spin components
-        if nspin not in [1, 2]:
-            raise ValueError("nspin must be 1 or 2")
-        self._nspin = nspin
+        self._nspin = 2 if spinful else 1
 
         # By default, assume model did not come from w90 object and that
         # position operator is diagonal
@@ -111,7 +126,7 @@ class TBModel:
         """
         return (
             f"pythtb.TBModel(dim_r={self.dim_r}, dim_k={self.dim_k}, "
-            f"norb={self.norb}, nspin={self._nspin})"
+            f"norb={self.norb}, spinful={self.spinful})"
         )
 
     def __str__(self):
@@ -168,6 +183,7 @@ class TBModel:
         output.append(header)
         lat_report = self.lattice._report_list()
         lat_report.pop(0)  # remove header
+        lat_report.insert(2, f"spinful                     = {self.spinful}")
         lat_report.insert(4, f"number of spin components   = {self.nspin}")
         lat_report.insert(5, f"number of electronic states = {self.nstate}")
         output.extend(lat_report)
@@ -310,7 +326,15 @@ class TBModel:
         .. versionadded:: 2.0.0
         """
         return self._nspin
-    
+
+    @property
+    def spinful(self) -> bool:
+        """Whether the model includes spin degrees of freedom.
+
+        .. versionadded:: 2.0.0
+        """
+        return self._nspin == 2
+
     @property
     def per(self) -> list[int]:
         """Periodic directions as a list of indices. Alias for `periodic_dirs`.
@@ -320,6 +344,7 @@ class TBModel:
         Each index corresponds to a lattice vector in the model.
         """
         return copy.copy(self.periodic_dirs)
+    
     @property
     def periodic_dirs(self) -> list[int]:
         """Periodic directions as a list of indices.
@@ -546,52 +571,60 @@ class TBModel:
 
 
     def set_onsite(self, onsite_en, ind_i=None, mode="set"):
-        r"""Define on-site energies for tight-binding orbitals.
+        r"""
+        Define on-site energies for tight-binding orbitals.
 
-        You can set the energy for a single orbital (by specifying `ind_i`), or for all
-        orbitals at once (by passing a list/array to `onsite_en`).
+        You can set the energy for a single orbital (by specifying ``ind_i``),
+        or for all orbitals at once (by passing a list/array to ``onsite_en``).
 
         .. deprecated:: 2.0.0
-            Using 'reset' for `mode` is deprecated, use 'set' instead.
+            ``mode="reset"`` is deprecated. Use ``mode="set"`` instead.
 
         Parameters
         ----------
-        onsite_en : float, array-like, np.ndarray of shape ``(2, 2)``
-            If `ind_i` is unspecified or None, `onsite_en` must be a list/array of length `norb`.
-            Otherwise, it may be a single value or a 2x2 matrix in the spinful case.
+        onsite_en : float or array-like or (2, 2) ndarray
+            If ``ind_i`` is ``None``, ``onsite_en`` must be a list/array of length
+            ``norb`` (one value per orbital). Otherwise it may be a single value.
+            In spinful models it may also be a 2 x 2 Hermitian matrix.
 
-            For spinless models (``nspin=1``):
-                - Real scalar or list/array of real scalars (one per orbital).
-            For spinful models (``nspin=2``):
-                - Scalar: interpreted as :math:`a I` for both spin components.
-                - 4-vector ``[a, b, c, d]``: interpreted as :math:`a I + b \sigma_x + c \sigma_y + d \sigma_z`: 
-                    
-                    .. math::
-                        \begin{bmatrix}
-                            a + d & b - i c \\
-                            b + i c & a - d
-                        \end{bmatrix}
+            **Spinless**  (``spinful=False``)
 
-                - Full 2x2 Hermitian matrix.
+            - Real scalar, or list/array of real scalars (one per orbital).
+
+            **Spinful**  (``spinful=True``)
+
+            - **Scalar** ``a``: interpreted as :math:`a I` (same value for both spins).
+            - **4-vector** ``[a, b, c, d]``: interpreted as :math:`a I + b\,\sigma_x + c\,\sigma_y + d\,\sigma_z`, i.e.
+                .. math::
+
+                    \begin{bmatrix}
+                    a + d & b - i c \\
+                    b + i c & a - d
+                    \end{bmatrix}
+
+            - **Full matrix**: a 2 x 2 Hermitian ndarray.
 
         ind_i : int, optional
-            Index of tight-binding orbital to update. If None, all orbitals are updated and
-            an array of the same shape as `onsite_en` is expected.
+            Orbital index to update. If ``None``, all orbitals are updated and
+            ``onsite_en`` must be a sequence of length ``norb``.
+
         mode : {'set', 'add'}, optional
-            Specifies how `onsite_en` is used
-            - "set": On-site energy is set to the value of `onsite_en`. (Default)
-            - "add": Adds to the previous value of on-site energy.
+            How to apply ``onsite_en``.
+
+            - ``'set'``: replace the value(s).
+            - ``'add'``: add to existing value(s).
 
         Notes
         -----
-        If called multiple times with "add", values are accumulated.
+        When called multiple times with ``mode='add'``, values accumulate.
 
         Examples
         --------
-        >>> tb.set_onsite([0.0, 1.0, 2.0])
-        >>> tb.set_onsite(100.0, 1, mode="add")
-        >>> tb.set_onsite(0.0, 1, mode="set")
+        >>> tb.set_onsite([0.0, 1.0, 2.0])              # all orbitals
+        >>> tb.set_onsite(100.0, ind_i=1, mode="add")   # single orbital
+        >>> tb.set_onsite(0.0, ind_i=1, mode="set")
         >>> tb.set_onsite([2.0, 3.0, 4.0], mode="set")
+        >>> tb.set_onsite([1.0, 0.2, 0.0, -0.1], ind_i=0)  # spinful 4-vector
         """
         # Handle deprecated 'reset' mode
         mode = mode.lower()
@@ -677,9 +710,8 @@ class TBModel:
 
     def _hamiltonian_finite(self, amps, i_idx, j_idx, site_energies, *, flatten_spin: bool):
         norb = self.norb
-        nspin = self._nspin
 
-        if nspin == 1:
+        if not self.spinful:
             amps = amps.astype(complex)
             ham = np.zeros((norb, norb), dtype=complex)
             if amps.size:
@@ -689,8 +721,9 @@ class TBModel:
             return ham
 
         # spinful
+        nspin = self.nspin
         amps = np.asarray(amps, dtype=complex)
-        ham = np.zeros((norb, 2, norb, 2), dtype=complex)
+        ham = np.zeros((norb, nspin, norb, nspin), dtype=complex)
         if amps.size:
             for hop_idx in range(amps.shape[0]):
                 block = amps[hop_idx]
@@ -699,7 +732,7 @@ class TBModel:
         for orb in range(norb):
             ham[orb, :, orb, :] += site_energies[orb]
         if flatten_spin:
-            ham = ham.reshape(norb * 2, norb * 2)
+            ham = ham.reshape(norb * nspin, norb * nspin)
         return ham
 
     def _hamiltonian_periodic(
@@ -714,7 +747,6 @@ class TBModel:
         flatten_spin: bool,
     ):
         norb = self.norb
-        nspin = self._nspin
         per = np.asarray(self.per)
         orb_red = np.asarray(self.orb_vecs)
 
@@ -736,7 +768,7 @@ class TBModel:
         else:
             phases = None
 
-        if nspin == 1:
+        if not self.spinful:
             amps = amps.astype(complex)
             ham = np.zeros((n_kpts, norb, norb), dtype=complex)
             if n_hops:
@@ -757,12 +789,13 @@ class TBModel:
             return ham
 
         # spinful
+        nspin = self.nspin
         amps = np.asarray(amps, dtype=complex)
-        ham = np.zeros((n_kpts, norb, 2, norb, 2), dtype=complex)
+        ham = np.zeros((n_kpts, norb, nspin, norb, nspin), dtype=complex)
         if n_hops:
             weighted = phases[..., None, None] * amps[None, :, :, :]
-            for s_out in range(2):
-                for s_in in range(2):
+            for s_out in range(nspin):
+                for s_in in range(nspin):
                     contrib = weighted[..., s_out, s_in]
                     np.add.at(
                         ham[:, :, s_out, :, s_in],
@@ -777,7 +810,7 @@ class TBModel:
         for orb in range(norb):
             ham[:, orb, :, orb, :] += site_energies[orb]
         if flatten_spin:
-            ham = ham.reshape(n_kpts, norb * 2, norb * 2)
+            ham = ham.reshape(n_kpts, norb * nspin, norb * nspin)
         return ham
 
     
@@ -890,7 +923,7 @@ class TBModel:
         In the notation of tight-binding formalism, this function specifies:
 
         .. math::
-            H_{ij}(\mathbf{R}) = \langle \phi_{\\mathbf{0},i} | H | \phi_{\mathbf{R},j} \rangle
+            H_{ij}(\mathbf{R}) = \langle \phi_{\mathbf{0},i} | H | \phi_{\mathbf{R},j} \rangle
 
         where :math:`\langle \phi_{\mathbf{0},i} |` is the i-th orbital in the home unit cell,
         and :math:`| \phi_{\mathbf{R},j} \rangle` is the j-th orbital in a cell shifted by lattice vector :math:`\mathbf{R}`.
@@ -901,9 +934,9 @@ class TBModel:
         Parameters
         ----------
         hop_amp : scalar, array-like, np.ndarray of shape ``(2, 2)``
-            For spinless models (`nspin=1`):
+            For spinless models (`spinful=False`):
                 - Real or complex scalar.
-            For spinful models (`nspin=2`):
+            For spinful models (`spinful=True`):
                 - Scalar: interpreted as :math:`a I` for both spin components.
                 - 4-vector ``[a, b, c, d]``: interpreted as :math:`a I + b \sigma_x + c \sigma_y + d \sigma_z`:
 
@@ -913,7 +946,7 @@ class TBModel:
                             b + i c & a - d
                         \end{bmatrix}
 
-                - Full 2x2 Hermitian matrix.
+                - Full 2 x 2 Hermitian matrix.
         ind_i : int
             Index of bra orbital (in home unit cell).
         ind_j : int
@@ -1006,12 +1039,12 @@ class TBModel:
         r"""
         Convert input value to appropriate matrix block for onsite or hopping.
 
-        For nspin=1, returns the value (should be real or complex scalar).
+        For spinful=False, returns the value (should be real or complex scalar).
         For nspin=2:
-            - Scalar: returns a 2x2 matrix proportional to the identity.
-            - Array with up to four elements: returns a 2x2 matrix as
+            - Scalar: returns a 2 x 2 matrix proportional to the identity.
+            - Array with up to four elements: returns a 2 x 2 matrix as
               :math:`a I + b \sigma_x + c \sigma_y + d \sigma_z`.
-            - 2x2 matrix: returns the matrix as is.
+            - 2 x 2 matrix: returns the matrix as is.
 
         Parameters
         ----------
@@ -1029,7 +1062,7 @@ class TBModel:
             If input is not a valid format.
         """
         # spinless case
-        if self._nspin == 1:
+        if not self.spinful:
             if not isinstance(
                 val, (int, np.integer, np.floating, float, complex, np.complexfloating)
             ):
@@ -1053,11 +1086,13 @@ class TBModel:
         return block
     
 
-    def grad_ham(self, k_pts, cartesian=False):
-        r"""Generate the gradient w.r.t. k of the Hamiltonian.
+    def velocity(self, k_pts, cartesian=False):
+        r"""Generate the velocity operator in the orbital basis.
 
-        The gradient is the derivative of the block Hamiltonian along each reciprocal
-        lattice direction :math:`v_k = \partial_k H_k` for an array of k-points.
+        The velocity is related to the derivative of the block Hamiltonian along 
+        each reciprocal lattice direction 
+        :math:`\mathbf{v}_\mathbf{k} = \hbar \partial_\mathbf{k} H_\mathbf{k}` for 
+        an array of k-points. Here, we use units where :math:`\hbar = 1`.
 
         .. versionadded:: 2.0.0
 
@@ -1080,14 +1115,13 @@ class TBModel:
         with respect to k, i.e.,
 
         .. math::
-            v_k^{\mu} = i \frac{\partial H(k)}{\partial k_{\mu}}
+            v_k^{\mu} = \hbar \frac{\partial H(k)}{\partial k_{\mu}}
         """
         dim_k = self.dim_k
 
         k_arr = self._normalize_kpoints(k_pts)
 
         norb = self.norb
-        nspin = self._nspin
         per = np.asarray(self.per)
         orb_red = np.asarray(self.orb_vecs)
 
@@ -1111,14 +1145,14 @@ class TBModel:
         else:
             phases = np.zeros((k_arr.shape[0], 0), dtype=complex)
         if cartesian:
-            lattice = self.get_lat()[self.per, :]
+            lattice = self.get_lat_vecs()[self.per, :]
             coeff = (1j * delta_r_per @ lattice).T[:, None, :]
         else:
             coeff = (1j * 2 * np.pi * delta_r_per).T[:, None, :]
 
         deriv_phase = coeff * phases[None, ...] if n_hops else coeff[:, :, :0]
 
-        if nspin == 1:
+        if not self.spinful:
             amps_use = np.asarray(amps, dtype=complex)
             vel = np.zeros((dim_k, k_arr.shape[0], norb, norb), dtype=complex)
             if n_hops:
@@ -1134,12 +1168,13 @@ class TBModel:
                 vel_flat[..., uniq] += sums
                 vel_flat[..., cols_transposed] += sums.conj()
             return vel
-
-        vel = np.zeros((dim_k, k_arr.shape[0], norb, 2, norb, 2), dtype=complex)
+        
+        nspin = self.nspin
+        vel = np.zeros((dim_k, k_arr.shape[0], norb, nspin, norb, nspin), dtype=complex)
         if n_hops:
             weighted = deriv_phase[..., None, None] * amps[None, None, :, :, :]
-            for s_out in range(2):
-                for s_in in range(2):
+            for s_out in range(nspin):
+                for s_in in range(nspin):
                     contrib = weighted[..., s_out, s_in]
                     np.add.at(
                         vel,
@@ -1184,11 +1219,11 @@ class TBModel:
         ham : np.ndarray 
             Array of Bloch-Hamiltonian matrices defined on the specified k-points. The Hamiltonian is Hermitian by construction.
 
-            - If ``dim_k`` > 0: shape is ``(n_kpts, n_orb, n_orb)`` for spinless models, or ``(n_kpts, n_orb, 2, n_orb, 2)`` 
-              for spinful models, unless `flatten_spin` is True, in which case the shape is ``(n_kpts, n_orb*nspin, n_orb*nspin)``.
+            - If ``dim_k`` > 0: shape is ``(n_kpts, norb, norb)`` for spinless models, or ``(n_kpts, norb, nspin, norb, nspin)`` 
+              for spinful models, unless `flatten_spin` is True, in which case the shape is ``(n_kpts, norb*nspin, norb*nspin)``.
 
-            - If ``dim_k`` = 0: shape is ``(n_orb, n_orb)`` for spinless or ``(n_orb, 2, n_orb, 2)`` for spinful models,
-              unless `flatten_spin` is True, in which case the shape is ``(n_orb*nspin, n_orb*nspin)``.
+            - If ``dim_k`` = 0: shape is ``(norb, norb)`` for spinless or ``(norb, nspin, norb, nspin)`` for spinful models,
+              unless `flatten_spin` is True, in which case the shape is ``(norb*nspin, norb*nspin)``.
 
         Notes
         -----
@@ -1264,60 +1299,34 @@ class TBModel:
 
         if not np.allclose(ham_use, ham_use.swapaxes(-1, -2).conj()):
             raise ValueError("Hamiltonian matrix is not Hermitian.")
-
-        # solve matrix
-        if not return_eigvecs:
-            if tf_speedup:
-                from tensorflow import convert_to_tensor
-                from tensorflow import complex64 as tfcomplex64
-                from tensorflow import complex128 as tfcomplex128
-                if use_32_bit:
-                    tfcomplex = tfcomplex64
-                else:
-                    tfcomplex = tfcomplex128
-                from tensorflow.linalg import eigvalsh as tfeigvalsh
-
-                H_tf = convert_to_tensor(ham_use, dtype=tfcomplex)
-                eval = tfeigvalsh(H_tf)
-                eval = eval.numpy()
-                return eval
+        
+        if tf_speedup:
+            result = _tensorflow_solve(
+                ham_use, return_eigvecs=return_eigvecs, use_32_bit=use_32_bit
+                )
+            if return_eigvecs:
+                # return later
+                eval, evec = result
             else:
-                if use_32_bit:
-                    ham_use = ham_use.astype(np.complex64)
-                else:
-                    ham_use = ham_use.astype(np.complex128)
-                return np.linalg.eigvalsh(ham_use)
+                return result
+            
         else:
-            if tf_speedup:
-                from tensorflow import convert_to_tensor
-                from tensorflow import complex64 as tfcomplex64
-                from tensorflow import complex128 as tfcomplex128
-
-                if use_32_bit:
-                    tfcomplex = tfcomplex64
-                else:                    
-                    tfcomplex = tfcomplex128
-
-                from tensorflow.linalg import eigh as tfeigh
-
-                H_tf = convert_to_tensor(ham_use, dtype=tfcomplex)
-                eval, evec = tfeigh(H_tf)
-                eval = eval.numpy()
-                evec = evec.numpy()
+            if use_32_bit:
+                ham_use = ham_use.astype(np.complex64)
             else:
-                if use_32_bit:
-                    ham_use = ham_use.astype(np.complex64)
-                else:
-                    ham_use = ham_use.astype(np.complex128)
-
+                ham_use = ham_use.astype(np.complex128)
+            if return_eigvecs:
+                # return later
                 eval, evec = np.linalg.eigh(ham_use)
-
+            else:
+                return np.linalg.eigvalsh(ham_use)
+            
+        if return_eigvecs:
             # transpose matrix eig since otherwise it is confusing
             # now eig[i,:] is eigenvector for eval[i]-th eigenvalue
             evec = evec.swapaxes(-1, -2)
             if keep_spin_ax:
                 evec = evec.reshape(*shape_evecs)
-
             return eval, evec
 
     def solve_ham(
@@ -1448,7 +1457,7 @@ class TBModel:
             k_list=k_list, return_eigvecs=eig_vectors, keep_spin_ax=True
         )
     
-    def compute_bands(self, k_path, nk=10):
+    def compute_bands(self, k_nodes, nk=10):
         r"""Compute band structure along a specified k-point path.
 
         The band structure is computed by diagonalizing the Hamiltonian at
@@ -1458,7 +1467,7 @@ class TBModel:
 
         Parameters
         ----------
-        k_path : list of array_like
+        k_nodes : list of array_like
             List of k-points defining the path in reduced coordinates.
             Each k-point should be an array-like of length `dim_k`.
             The path is constructed by linearly interpolating between
@@ -1484,17 +1493,17 @@ class TBModel:
         Notes
         -----
         This function uses linear interpolation to generate intermediate k-points
-        between those specified in `k_path`. The total number of k-points returned
-        is ``(len(k_path) - 1) * n_kperseg + 1``.
+        between those specified in `k_nodes`. The total number of k-points returned
+        is ``nk``.
 
         Examples
         --------
         Compute band structure along a path from Gamma to X to M in a 2D square lattice:
 
-        >>> k_path = [[0.0, 0.0], [0.5, 0.0], [0.5, 0.5]]
-        >>> k_vecs, evals = tb.compute_bands(k_path, n_kperseg=20)
+        >>> k_nodes = [[0.0, 0.0], [0.5, 0.0], [0.5, 0.5]]
+        >>> k_vecs, evals = tb.compute_bands(k_nodes, n_kperseg=20)
         """
-        k_vec, _, _ = self.k_path(k_path, nk, report=False)
+        k_vec, _, _ = self.k_path(k_nodes, nk, report=False)
         return k_vec, self.solve_ham(k_vec, return_eigvecs=False)
 
     #TODO: Decide whether to return fin_model or modify in place
@@ -1572,7 +1581,7 @@ class TBModel:
             raise ValueError("Can't have `num=1` and gluing of the edges!")
         
         lat_fin = self.lattice.cut_piece(num_cells, periodic_dir)
-        fin_model = TBModel(lat_fin, nspin=self.nspin)
+        fin_model = TBModel(lat_fin, spinful=self.spinful)
 
         onsite = []  # store onsite energies
         for _ in range(num_cells):  # go over all cells in finite direction
@@ -1860,7 +1869,7 @@ class TBModel:
         
 
         lat = Lattice(geom["lat_vecs"], geom["orb_vecs"], self.periodic_dirs)
-        sc_tb = TBModel(lat, nspin=self.nspin)
+        sc_tb = TBModel(lat, spinful=self.spinful)
         sc_tb._assume_position_operator_diagonal = self._assume_position_operator_diagonal
 
         for offset in range(num_sc):
@@ -1967,7 +1976,7 @@ class TBModel:
         self._lattice.add_orb(orb_pos)
 
         # Append default site energy and specified flag
-        if self.nspin == 1:
+        if not self.spinful:
             self._site_energies = np.append(self._site_energies, 0.0)
         else:
             new_block = np.zeros((1, 2, 2), dtype=complex)
@@ -2047,11 +2056,11 @@ class TBModel:
         """
         self._assume_position_operator_diagonal = True
 
-    def position_matrix(self, evec: np.ndarray, dir: int):
+    def position_matrix(self, evecs: np.ndarray, dir: int):
         r"""Position operator matrix elements
 
         Returns matrix elements of the position operator along
-        direction `dir` for eigenvectors `evec` at a single k-point.
+        direction `dir` for eigenvectors `evecs` at a single k-point.
         Position operator is defined in reduced coordinates.
 
         The returned object :math:`X` is
@@ -2064,13 +2073,17 @@ class TBModel:
         Here :math:`r^{\alpha}` is the position operator along direction
         :math:`\alpha` that is selected by `dir`.
 
+        .. versionchanged:: 2.0.0
+            Parameter `evec` renamed to `evecs` to clarify that multiple
+            eigenvectors can be passed at once.
+
         Parameters
         ----------
-        evec : np.ndarray
+        evecs : np.ndarray
             Eigenvectors for which we are computing matrix
             elements of the position operator.  The shape of this array
-            is ``evec[band, orbital]`` if `nspin` = 1 and
-            ``evec[band, orbital, spin]`` if `nspin` = 2.
+            is ``evecs[band, orbital]`` if ``spinful=False`` and
+            ``evecs[band, orbital, spin]`` if ``spinful=True``.
 
         dir : int
             Direction along which we are computing the center.
@@ -2105,49 +2118,45 @@ class TBModel:
 
         # make sure specified direction is not periodic!
         if dir in self.per:
-            raise Exception(
+            raise ValueError(
                 "Can not compute position matrix elements along periodic direction!"
             )
         # make sure direction is not out of range
         if dir < 0 or dir >= self.dim_r:
-            raise Exception("Direction out of range!")
+            raise ValueError("Direction out of range!")
 
         # check if model came from w90
         if not self._assume_position_operator_diagonal:
             _offdiag_approximation_warning_and_stop()
 
         # check shape of evec
-        if not isinstance(evec, np.ndarray):
+        if not isinstance(evecs, np.ndarray):
             raise TypeError("evec must be a numpy array.")
         # check number of dimensions of evec
-        if self.nspin == 1:
-            if evec.ndim != 2:
+        if not self.spinful:
+            if evecs.ndim != 2:
                 raise ValueError(
                     "evec must be a 2D array with shape (band, orbital) for spinless models."
                 )
-        elif self.nspin == 2:
-            if evec.ndim != 3:
+        elif self.spinful:
+            if evecs.ndim != 3:
                 raise ValueError(
                     "evec must be a 3D array with shape (band, orbital, spin) for spinful models."
                 )
 
         # get coordinates of orbitals along the specified direction
         pos_tmp = self.orb_vecs[:, dir]
-        # reshape arrays in the case of spinfull calculation
-        if self._nspin == 2:
+        # reshape arrays in the case of spinful calculation
+        if self.spinful:
             # tile along spin direction if needed
             pos_use = np.tile(pos_tmp, (2, 1)).transpose().flatten()
-            evec_use = evec.reshape((evec.shape[0], evec.shape[1] * evec.shape[2]))
+            evec_use = evecs.reshape(evecs.shape[0], -1) # flatten spin index
         else:
             pos_use = pos_tmp
-            evec_use = evec
+            evec_use = evecs
 
-        # position matrix elements
-        pos_mat = np.zeros((evec_use.shape[0], evec_use.shape[0]), dtype=complex)
-        # go over all bands
-        for i in range(evec_use.shape[0]):
-            for j in range(evec_use.shape[0]):
-                pos_mat[i, j] = np.dot(evec_use[i].conj(), pos_use * evec_use[j])
+        # <u_i | r | u_j> = sum_orb r_orb u_i*(orb) u_j(orb)
+        pos_mat = np.einsum("im,m,jm->ij", evec_use.conj(), pos_use, evec_use)
 
         # make sure matrix is Hermitian
         if not np.allclose(pos_mat, pos_mat.T.conj()):
@@ -2155,20 +2164,24 @@ class TBModel:
 
         return pos_mat
 
-    def position_expectation(self, evec: np.ndarray, dir: int):
+    def position_expectation(self, evecs: np.ndarray, dir: int):
         r"""Returns diagonal matrix elements of the position operator.
         
         These elements :math:`X_{n n}` can be interpreted as an
         average position of n-th Bloch state ``evec[n]`` along
         direction `dir`. 
 
+        .. versionchanged:: 2.0.0
+            Parameter `evec` renamed to `evecs` to clarify that multiple
+            eigenvectors can be passed at once.
+
         Parameters
         ----------
-        evec : np.ndarray
+        evecs : np.ndarray
             Eigenvectors for which we are computing matrix
             elements of the position operator. The shape of this array
-            is ``evec[band, orbital]`` if ``nspin=1`` and
-            ``evec[band, orbital, spin]`` if ``nspin=2``.
+            is ``evecs[band, orbital]`` if ``spinful=True`` and
+            ``evecs[band, orbital, spin]`` if ``spinful=False``.
 
         dir : int
             Direction along which we are computing matrix
@@ -2211,10 +2224,16 @@ class TBModel:
         if not self._assume_position_operator_diagonal:
             _offdiag_approximation_warning_and_stop()
 
-        pos_exp = self.position_matrix(evec, dir).diagonal()
+        pos_exp = self.position_matrix(evecs, dir).diagonal()
         return np.array(np.real(pos_exp), dtype=float)
 
-    def position_hwf(self, evec, dir, hwf_evec=False, basis="orbital"):
+    def position_hwf(
+            self, 
+            evecs: np.ndarray, 
+            dir: int, 
+            hwf_evec=False, 
+            basis="orbital"
+            ):
         r"""Eigenvalues and eigenvectors of the position operator
 
         Returns eigenvalues and optionally eigenvectors of the
@@ -2227,31 +2246,32 @@ class TBModel:
         ``dir``. The eigenvalues are average positions of these
         localized states.
 
+        .. versionchanged:: 2.0.0
+            Parameter `evec` renamed to `evecs` to clarify that multiple
+            eigenvectors can be passed at once.
+
         Parameters
         ----------
-        evec : np.ndarray
+        evecs : np.ndarray
             Eigenvectors for which we are computing matrix
             elements of the position operator. The shape of this array
-            is ``evec[band, orbital]`` if ``nspin=1`` and
-            ``evec[band, orbital, spin]`` if ``nspin=2``.
-
+            is ``evecs[band, orbital]`` if ``spinful=True`` and
+            ``evecs[band, orbital, spin]`` if ``spinful=False``.
         dir : int
             Direction along which we are computing matrix
             elements. This integer must not be one of the periodic
             directions since position operator matrix element in that
             case is not well defined.
-
         hwf_evec : bool, optional
             Default is ``False``. If set to ``True`` this function will
             return not only eigenvalues but also eigenvectors of :math:`X`. 
-
         basis : {"orbital", "wavefunction", "bloch"}, optional
             Default is "orbital". If ``basis="wavefunction"`` or ``basis="bloch"``, the hybrid
             Wannier function `hwf` is returned in the basis of the input
             wave functions. That is, the elements of ``hwf[i, j]`` give the amplitudes
             of the i-th hybrid Wannier function on the j-th input state.
             If ``basis="orbital"``, the elements of ``hwf[i, orb]`` (or ``hwf[i, orb, spin]``
-            if ``nspin=2``) give the amplitudes of the i-th hybrid Wannier function on
+            if ``spinful=True``) give the amplitudes of the i-th hybrid Wannier function on
             the specified basis function. 
 
         Returns
@@ -2259,23 +2279,22 @@ class TBModel:
         hwfc : np.ndarray
             Eigenvalues of the position operator matrix :math:`X`
             (also called hybrid Wannier function centers).
-            Length of this vector equals number of bands given in ``evec``
+            Length of this vector equals number of bands given in ``evecs``
             input array. Hybrid Wannier function centers are ordered in ascending order.
             Note that in general `n`-th hwfc does not correspond to `n`-th
-            state in ``evec``.
-
+            state in ``evecs``.
         hwf : np.ndarray
             Eigenvectors of the position operator matrix :math:`X`.
             (also called hybrid Wannier functions).  These are returned only if
             parameter ``hwf_evec = True``.
 
             The shape of this array is ``[h,x]`` or ``[h,x,s]`` depending on value of
-            ``basis`` and ``nspin``.
+            ``basis`` and ``spinful``.
 
             - If ``basis`` is "bloch" then ``x`` refers to indices of
               Bloch states.
             - If ``basis`` is "orbital" then ``x`` (or ``x`` and ``s``)
-              correspond to orbital index (or orbital and spin index if ``nspin=2``).
+              correspond to orbital index (or orbital and spin index if ``spinful=True``).
 
         See Also
         --------
@@ -2288,7 +2307,7 @@ class TBModel:
         Note that these eigenvectors are not maximally localized
         Wannier functions in the usual sense because they are
         localized only along one direction. They are also not the
-        average positions of the Bloch states `evec`, which are
+        average positions of the Bloch states ``evecs``, which are
         instead computed by :func:`position_expectation`.
 
         See Fig. 3 in [1]_ for a discussion of the hybrid Wannier function centers in the
@@ -2314,7 +2333,7 @@ class TBModel:
             _offdiag_approximation_warning_and_stop()
 
         # get position matrix
-        pos_mat = self.position_matrix(evec, dir)
+        pos_mat = self.position_matrix(evecs=evecs, dir=dir)
 
         # diagonalize
         if not hwf_evec:
@@ -2333,12 +2352,12 @@ class TBModel:
                     ret_hwf = np.zeros((hwf.shape[0], self.norb), dtype=complex)
                     # sum over bloch states to get hwf in orbital basis
                     for i in range(ret_hwf.shape[0]):
-                        ret_hwf[i] = np.dot(hwf[i], evec)
+                        ret_hwf[i] = np.dot(hwf[i], evecs)
                     hwf = ret_hwf
                 else:
                     ret_hwf = np.zeros((hwf.shape[0], self.norb * 2), dtype=complex)
                     # get rid of spin indices
-                    evec_use = evec.reshape([hwf.shape[0], self.norb * 2])
+                    evec_use = evecs.reshape([hwf.shape[0], self.norb * 2])
                     # sum over states
                     for i in range(ret_hwf.shape[0]):
                         ret_hwf[i] = np.dot(hwf[i], evec_use)
@@ -2346,8 +2365,8 @@ class TBModel:
                     hwf = ret_hwf.reshape([hwf.shape[0], self.norb, 2])
                 return (hwfc, hwf)
             else:
-                raise Exception(
-                    "\n\nBasis must be either 'wavefunction', 'bloch', or 'orbital'"
+                raise ValueError(
+                    "Basis must be either 'wavefunction', 'bloch', or 'orbital'"
                 )
 
     def berry_curvature(
@@ -2358,7 +2377,7 @@ class TBModel:
         occ_idxs=None,
         dirs="all",
         cartesian: bool = False,
-        abelian: bool = True,
+        non_abelian: bool = False,
     ):
         r"""Compute the Berry curvature at a list of k-points via Kubo formula.
 
@@ -2427,7 +2446,7 @@ class TBModel:
                 """
             )
 
-        v_k = self.grad_ham(k_pts, cartesian=cartesian)  # (Nk, dim_k, n_orb, n_orb)
+        v_k = self.velocity(k_pts, cartesian=cartesian)  # (Nk, dim_k, n_orb, n_orb)
         # flatten spin axis if present
         new_shape = (v_k.shape[:2]) + (self.nstate, self.nstate)
         v_k = v_k.reshape(*new_shape)
@@ -2492,7 +2511,7 @@ class TBModel:
             - np.matmul(v_occ_cond[None, :], v_cond_occ[:, None])
         )
 
-        if abelian:
+        if not non_abelian:
             b_curv = np.trace(b_curv, axis1=-1, axis2=-2)
         if dirs == "all":
             return b_curv
@@ -2850,7 +2869,7 @@ class tb_model(TBModel):
     This class preserves the old constructor signature:
         ``tb_model(dim_k, dim_r, lat=None, orb=None, per=None, nspin=1)``
 
-    Use ``TBModel(lattice, nspin)`` going forward.
+    Use ``TBModel(lattice, spinful)`` going forward.
     """
     def __init__(self, dim_k, dim_r, lat=None, orb=None, per=None, nspin=1):
         warnings.warn(
@@ -2900,4 +2919,5 @@ class tb_model(TBModel):
 
         # Construct new-style Lattice and delegate to TBModel
         lat_obj = Lattice(lat_vecs, orb_vecs, periodic_dirs=periodic_dirs)
-        super().__init__(lattice=lat_obj, nspin=nspin)
+        spinful = nspin == 2
+        super().__init__(lattice=lat_obj, spinful=spinful)

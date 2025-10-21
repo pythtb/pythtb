@@ -44,7 +44,7 @@ def checkerboard(delta, t) -> TBModel:
     orb_vecs = [[0, 0], [1/2, 1/2]]
     lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
-    model = TBModel(lattice=lat, nspin=1)
+    model = TBModel(lattice=lat, spinful=False)
 
     # set on-site energies
     model.set_onsite([-delta, delta], mode="set")

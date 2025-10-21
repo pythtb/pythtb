@@ -65,7 +65,7 @@ def haldane(
     orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
 
     lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
-    model = TBModel(lattice=lat, nspin=1)
+    model = TBModel(lattice=lat, spinful=False)
 
     model.set_onsite([-delta, delta], mode="set")
 

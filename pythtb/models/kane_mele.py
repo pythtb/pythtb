@@ -66,7 +66,7 @@ def kane_mele(delta, t, soc, rashba) -> TBModel:
     lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
     # make two dimensional tight-binding Kane-Mele model
-    ret_model = TBModel(lattice=lat, nspin=2)
+    ret_model = TBModel(lattice=lat, spinful=True)
 
     # set on-site energies
     ret_model.set_onsite([delta, -delta])

@@ -30,7 +30,7 @@ def ssh(v, w):
     orb_vecs = [[0], [1/2]]
     lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0])
 
-    my_model = TBModel(lattice=lat, nspin=1)
+    my_model = TBModel(lattice=lat, spinful=False)
 
     my_model.set_hop(v, 0, 1, [0])
     my_model.set_hop(w, 1, 0, [0])

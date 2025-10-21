@@ -33,7 +33,7 @@ def fu_kane_mele(t, soc, m, beta):
     orb_vecs = [[0, 0, 0], [0.25, 0.25, 0.25]]
     lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1, 2])
 
-    model = TBModel(lattice=lat, nspin=2)
+    model = TBModel(lattice=lat, spinful=True)
 
     h = m * np.sin(beta) * np.array([1, 1, 1])
     dt = m * np.cos(beta)
