@@ -207,23 +207,20 @@ class TBModel:
                 hop_to = int(j_idx[hop_idx])
                 R_vec = R_vecs[hop_idx]
 
-                out_str = f"  < {hop_from:^1} | H | {hop_to:^1}"
-                if np.any(R_vec):
-                    out_str += " + ["
-                    for comp, value in enumerate(R_vec):
-                        out_str += f"{value:^5.1f}"
-                        out_str += ", " if comp != len(R_vec) - 1 else "]"
-                out_str += " >  ===> "
+                coords = ", ".join(f"{value:^5.1f}" for value in R_vec)
+                disp = f" + [{coords}]" if self.dim_k else ""
+                out_str = f"  < {hop_from:^1} | H | {hop_to:^1}{disp} >  ===> "
 
                 amp = amps[hop_idx]
-                if self._nspin == 1:
-                    out_str += f"{complex(amp):^7.4f}"
+                if self.spinful:
+                    amp_str = str(np.asarray(amp).round(4)).replace("\n", " ")
                 else:
-                    out_str += str(np.asarray(amp).round(4)).replace("\n", " ")
+                    amp_str = f"{complex(amp):^7.4f}"
+
+                out_str += amp_str
                 output.append(out_str)
 
             output.append("Hopping distances:")
-
             if len(self._hoppings):
                 orb_cart = self.get_orb_vecs(cartesian=True)
                 lat_vecs = self.lat_vecs
@@ -235,14 +232,14 @@ class TBModel:
                     pos_i = orb_cart[hop_from]
                     pos_j = orb_cart[hop_to] + R_vec @ lat_vecs
 
-                    out_str = f"  | pos({hop_from:^1}) - pos({hop_to:^1}"
-                    if np.any(R_vec):
-                        out_str += " + ["
-                        for comp, value in enumerate(R_vec):
-                            out_str += f"{value:^5.1f}"
-                            out_str += ", " if comp != len(R_vec) - 1 else "]"
+                    coords = ", ".join(f"{value:5.1f}" for value in R_vec)
+                    disp = f" + [{coords}]" if self.dim_k else ""
+
                     distance = np.linalg.norm(pos_j - pos_i)
-                    out_str += f") | = {distance:^7.3f}"
+
+                    out_str = (
+                    f"  | pos({hop_from:>2}) - pos({hop_to:<2}){disp} | = {distance:7.3f}"
+                    )
                     output.append(out_str)
 
         if show:
