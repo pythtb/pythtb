@@ -358,8 +358,8 @@ class Wannier:
         
         # number of trial functions to define
         num_tf = len(twf_list)
-        if self.model.nspin == 2:
-            tfs = np.zeros([num_tf, self.model.norb, 2], dtype=complex)
+        if self.model.spinful:
+            tfs = np.zeros([num_tf, self.model.norb, self.model.nspin], dtype=complex)
             for j, tf in enumerate(twf_list):
                 assert isinstance(
                     tf, (list, np.ndarray)
@@ -367,8 +367,7 @@ class Wannier:
                 for orb, spin, amp in tf:
                     tfs[j, orb, spin] = amp
                 tfs[j] /= np.linalg.norm(tfs[j])
-
-        elif self.model.nspin == 1:
+        else:
             # initialize array containing tfs = "trial functions"
             tfs = np.zeros([num_tf, self.model.norb], dtype=complex)
             for j, tf in enumerate(twf_list):
@@ -455,8 +454,8 @@ class Wannier:
                 f"Bloch-like states must have shape (nk1, ..., nstates, n_orbs[, n_spins]), "
                 f"but got {states.shape}."
             )
-        
-        if self.model.nspin == 2 and not is_spin_axis_flat:
+
+        if self.model.spinful and not is_spin_axis_flat:
             states = states.reshape((*states.shape[:-2], -1))
 
         logger.info("Setting Bloch-like states...")
@@ -528,7 +527,7 @@ class Wannier:
         A_k = self._compute_Amn(psi_nk, twfs, state_idx)
         V_k, _, Wh_k = np.linalg.svd(A_k, full_matrices=False)
 
-        if self.model.nspin == 2:
+        if self.model.spinful:
             # flatten spin dimensions
             psi_nk = psi_nk.reshape((*psi_nk.shape[:-2], -1))
 
@@ -1027,7 +1026,7 @@ class Wannier:
                 states_min = np.array(min_states_sliced)
 
             # update projectors
-            min_wfa = WFArray(self.lattice, self.mesh, nstates=states_min.shape[-2], nspin=self._model.nspin)
+            min_wfa = WFArray(self.lattice, self.mesh, nstates=states_min.shape[-2], spinful=self._model.spinful)
             min_wfa.set_states(states_min, is_cell_periodic=True, is_spin_axis_flat=True)
             P_new = min_wfa._P
             P_nbr_new = min_wfa._P_nbr
@@ -1156,7 +1155,7 @@ class Wannier:
             eigvecs = np.swapaxes(eigvecs, -1, -2)
 
             init_evecs = eigvecs[..., -(n_wfs - N_inner) :, :]
-            init_states = WFArray(self.lattice, self.mesh, nstates=init_evecs.shape[-2], nspin=self._model.nspin)
+            init_states = WFArray(self.lattice, self.mesh, nstates=init_evecs.shape[-2], spinful=self._model.spinful)
             init_states.set_states(init_evecs, is_cell_periodic=False, is_spin_axis_flat=True)
 
             comp_bands = list(np.setdiff1d(disentang_bands, frozen_bands))
@@ -1200,7 +1199,7 @@ class Wannier:
             else:
                 states_min = comp_min
 
-            min_wfa = WFArray(self.lattice, self.mesh, nstates=states_min.shape[-2], nspin=self._model.nspin)
+            min_wfa = WFArray(self.lattice, self.mesh, nstates=states_min.shape[-2], spinful=self._model.spinful)
             min_wfa.set_states(states_min, is_cell_periodic=True, is_spin_axis_flat=True)
             P_new = min_wfa._P
             P_nbr_new = min_wfa._P_nbr
@@ -1699,8 +1698,8 @@ class Wannier:
             u_tilde = np.take_along_axis(u_tilde, wan_idxs, axis=-2)
 
         H_k = self.energy_eigstates.hamiltonian
-        if self.model.nspin == 2:
-            new_shape = H_k.shape[:-4] + (2 * self.model.norb, 2 * self.model.norb)
+        if self.model.spinful:
+            new_shape = H_k.shape[:-4] + (self.model.nspin * self.model.norb, self.model.nspin * self.model.norb)
             H_k = H_k.reshape(*new_shape)
 
         H_rot_k = u_tilde.conj() @ H_k @ np.swapaxes(u_tilde, -1, -2)
