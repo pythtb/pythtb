@@ -127,12 +127,6 @@
 
 
 
-
-
-
-
-
-
    ~pythtb.W90.dist_hop
 
 

@@ -419,6 +419,11 @@
 
 
 
+   ~pythtb.WFArray.spinful
+
+
+
+
    ~pythtb.WFArray.u_nk
 
 

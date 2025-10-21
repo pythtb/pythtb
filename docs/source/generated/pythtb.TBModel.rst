@@ -422,3 +422,8 @@
 
 
 
+
+   ~pythtb.TBModel.spinful
+
+
+

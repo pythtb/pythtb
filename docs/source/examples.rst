@@ -62,15 +62,15 @@ Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
    examples/fkm_model
    examples/boron_nitride
    examples/slab_hwf
+   examples/local_chern
 
 .. toctree::
    :maxdepth: 1
    :caption: Wannier functions and Wannier90 integration
 
+   examples/w90
    examples/haldane_wannier
    examples/reduced_wannier
-   examples/w90_quick
-   examples/w90
 
 .. toctree::
    :maxdepth: 1
