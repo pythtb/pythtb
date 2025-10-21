@@ -369,25 +369,36 @@ class Lattice():
         # Select the real-space lattice vectors that generate k-space.
         # Prefer an explicit list (e.g. self.per holds indices of periodic directions).
         # Fallback: take the first dim_k lattice vectors.
-        lat = np.asarray(self.lat_vecs)            # shape (dim_r, dim_r) in Cartesian coords
+        lat = np.asarray(self.lat_vecs, dtype=float)            # shape (dim_r, dim_r) in Cartesian coords
         per = np.asarray(self.periodic_dirs, dtype=int)
-    
         if per.size != self.dim_k:
             raise ValueError(f"'per' must list exactly dim_k={self.dim_k} periodic directions.")
+        
         A_sub = lat[per, :]                    # (dim_k, dim_r)
 
-        # Check linear independence of the chosen periodic vectors
-        if np.linalg.matrix_rank(A_sub) != self.dim_k:
-            raise ValueError(
-                "Periodic real-space vectors are not linearly independent; "
-                "cannot construct reciprocal lattice for k-subspace."
-            )
+        # Fast path: square case -> inverse transpose
+        if self.dim_k == self.dim_r:
+            # rows of B satisfy A_sub @ B.T = 2π I → B = 2π (A_sub^{-1})^T
+            try:
+                B = (2.0 * np.pi) * np.linalg.inv(A_sub).T
+            except np.linalg.LinAlgError:
+                raise ValueError("Real-space lattice vectors are linearly dependent (singular).")
+        else:
+            # Rectangular case (dim_k < dim_r): minimum-norm solution
+            # Check independence via Cholesky of Gram matrix (SPD iff independent)
+            G = A_sub @ A_sub.T # (dim_k, dim_k)
 
-        # Minimum-norm reciprocal set in the embedding R^{dim_r}:
-        # rows b_i satisfy A_sub @ B^T = 2pi I_{dim_k}
-        G = A_sub @ A_sub.T             # (dim_k, dim_k) Gram matrix
-        X = np.linalg.solve(G, A_sub)   # (dim_k, dim_r)
-        B = (2 * np.pi) * X             # (dim_k, dim_r)
+            try:
+                # Cholesky proves PD and is faster than matrix_rank/SVD
+                np.linalg.cholesky(G)
+            except np.linalg.LinAlgError:
+                raise ValueError("Periodic real-space vectors are not linearly independent; "
+                                "cannot construct reciprocal lattice for k-subspace.")
+            
+            # Solve G X = A_sub -> A_sub @ B.T = 2pi I, with X = G^{-1} A_sub
+            X = np.linalg.solve(G, A_sub)  # (dim_k, dim_r)
+            # Rows b_i satisfy A_sub @ B^T = 2pi I_{dim_k}
+            B = (2.0 * np.pi) * X
 
         return B
 
