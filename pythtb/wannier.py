@@ -1911,12 +1911,14 @@ class Wannier:
 
     @copydoc(plot_decay)
     def plot_decay(
-        self, wan_idx, fit_deg=None, fit_rng=None, ylim=None, 
-        fig=None, ax=None, show=False
+        self, 
+        wan_idx, 
+        fig=None, 
+        ax=None, 
+        show=False
         ):
 
-        return plot_decay(self, wan_idx=wan_idx, fit_deg=fit_deg, fit_rng=fit_rng,
-            ylim=ylim, fig=fig, ax=ax, show=show)
+        return plot_decay(self, wan_idx=wan_idx, fig=fig, ax=ax, show=show)
 
     @copydoc(plot_density)
     def plot_density(
