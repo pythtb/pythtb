@@ -74,20 +74,9 @@ myst_enable_extensions = [
     "attrs_inline"
 ]
 
-nb_execution_mode = "cache"        # instead of "auto"
+nb_execution_mode = "cache"    # instead of "auto"
 nb_execution_timeout = 600     # seconds per notebook
 nb_execution_cache_path = ".jupyter_cache"  # keep cache OUTSIDE _build so 'clean' doesn't erase it
-nb_render_priority = {
-    "html": (
-        "application/vnd.jupyter.widget-view+json",
-        "application/vnd.plotly.v1+json",   # <- key line
-        "text/html",
-        "image/svg+xml",
-        "image/png",
-        "text/markdown",
-        "text/plain",
-    )
-}
 
 thebe_config = {
     "binderhub_url": "https://mybinder.org",
@@ -156,6 +145,7 @@ html_context = {
 
 html_sidebars = {
     "index": [],
+    "about": [],
     "install": [],
     "getstarted": [],
     "CHANGELOG": [],

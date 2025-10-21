@@ -18,11 +18,10 @@ Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
 .. admonition:: 🚀 Launch Interactive Examples
    :class: note sd-shadow-sm sd-rounded-2
 
-   Run the interactive Jupyter notebooks directly in **Binder**.  
-   These live in ``docs/source/examples_ipynb`` and can be explored in **JupyterLab**.
+   Click below to run the interactive Jupyter notebooks directly in **Binder**.
 
    .. figure:: https://mybinder.org/badge_logo.svg
-      :target: https://mybinder.org/v2/gh/pythtb/pythtb/dev?urlpath=lab/tree/docs/source/examples_ipynb/
+      :target: https://mybinder.org/v2/gh/pythtb/pythtb/dev?urlpath=lab/tree/docs/source/examples/
       :align: center
       :width: 180px
       :alt: Launch Binder
@@ -35,7 +34,6 @@ Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
    examples/lattice
    examples/mesh
    examples/nn_shells
-
 
 .. toctree::
    :maxdepth: 1
@@ -77,6 +75,6 @@ Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
    :caption: Visualization
 
    examples/visualize
-   examples/plot_bands
+   examples/graphene_bands
    examples/haldane_edge
    examples/visualize_3d

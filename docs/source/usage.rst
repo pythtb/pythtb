@@ -1,8 +1,6 @@
 Usage
 =====
 
-PythTB module consists of these primary classes:
-
 * :class:`pythtb.TBModel` 
    Class for constructing tight-binding models and their Hamiltonians.
 * :class:`pythtb.WFArray` 
@@ -20,9 +18,9 @@ PythTB module consists of these primary classes:
    Class for interfacing `PythTB` with `Wannier90 <http://www.wannier.org>`_ allowing for the construction
    of tight-binding models based on first-principles density functional theory calculations.
 * :class:`pythtb.Wannier` 
-   Class for constructing Wannier functions from Bloch wavefunctions defined on a full mesh. These Bloch
-   wavefunctions can be obtained from either tight-binding models or from first-principles calculations using the
-   :class:`pythtb.W90` class. The Wannier functions' spread can then be minimized using the disentanglement and
+   Class for constructing Wannier functions from Bloch wavefunctions defined on a full k-mesh with 
+   the help of the :class:`pythtb.WFArray` class.  
+   The quadratic spread can then be minimized using the disentanglement and
    maximal localization algorithms implemented in the :class:`pythtb.Wannier` class.
 
 .. currentmodule:: pythtb

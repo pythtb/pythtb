@@ -3,11 +3,20 @@
 {% if sourcename and sourcename.endswith('.ipynb') %}
 {% set base = sourcename.split('/')[-1] %}        {# e.g. foo.ipynb #}
 {% set stem = base[:-6] %}                          {# -> foo #}
+{% set binder_url = "https://mybinder.org/v2/gh/"
+   ~ github_user ~ "/" ~ github_repo ~ "/" ~ github_version
+   ~ "?labpath=" ~ ("docs/source/" ~ sourcename)|urlencode %}
 <div class="nb-download-top" style="display:flex; gap:.5rem; align-items:center;">
+  <a class="btn btn-sm nb-binder"
+     href="{{ binder_url }}"
+     target="_blank" rel="noopener">
+    <i class="fa-solid fa-rocket"></i> Run in Binder
+  </a>
   <!-- .ipynb lives under _sources/<sourcename> in HTML builds -->
   <a class="btn btn-sm nb-ipynb" href="{{ pathto('_sources/' ~ sourcename, 1) }}" download="{{ base }}">
     <i class="fa-solid fa-download"></i> Download .ipynb
   </a>
+
   <!-- Prefer examples_py/, then fall back to _static/nb-scripts/, then same-dir -->
   <a class="btn btn-sm nb-py" href="{{ pathto('_static/nb-scripts/' ~ stem ~ '.py', 1) }}" 
      data-alt1="{{ pathto('_static/nb-scripts/' ~ stem ~ '.py', 1) }}"
