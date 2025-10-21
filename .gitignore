@@ -2,6 +2,9 @@
 ## project repositories. Documentation about this file format
 ## can be found here: https://git-scm.com/docs/gitignore#_pattern_format
 
+# Profiling
+profiling
+
 # old website
 website/
 
