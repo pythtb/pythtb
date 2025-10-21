@@ -1374,9 +1374,6 @@ def plot_density(
 def plot_decay(
         wan, 
         wan_idx: int, 
-        fit_deg=None, 
-        fit_rng=None, 
-        ylim=None, 
         fig=None, 
         ax=None, 
         show=False, 
@@ -1416,38 +1413,16 @@ def plot_decay(
     avg_w0i_wt_bins = np.array(avg_w0i_wt_bins)
     r_ledge = np.array(r_ledge)
     r_cntr = np.array(r_cntr)
-
-    if fit_rng is None:
-        cutoff = int(0.7*max_r)
-        init_r = int(0.2*max_r)
-        fit_rng = [init_r, cutoff]
-    else:
-        cutoff = fit_rng[-1]
-
+    cutoff = int(0.7*max_r)
+    
     ax.scatter(r[r<cutoff], w0i_wt[r<cutoff], zorder=1, s=10, c='b')
 
     # bar of avgs
     ax.bar(r_ledge[r_ledge<cutoff], avg_w0i_wt_bins[r_ledge<cutoff], width=1, align='edge', ec='k', zorder=0, ls='-', alpha=0.3)
 
-    # fit line
-    if fit_deg is None:
-        deg = 1 # polynomial fit degree
-    r_fit = r_cntr[np.logical_and(r_cntr > fit_rng[0], r_cntr < fit_rng[1])]
-    w0i_wt_fit = avg_w0i_wt_bins[np.logical_and(r_cntr > fit_rng[0], r_cntr < fit_rng[1])]
-    fit = np.polyfit(r_fit, np.log(w0i_wt_fit), deg)
-    fit_line = np.sum(np.array([r_fit**(deg-i) * fit[i] for i in range(deg+1)]), axis=0)
-    fit_label = rf"$Ce^{{{fit[-2]: 0.2f} r  {'+'.join([fr'{c: .2f} r^{deg-j}' for j, c in enumerate(fit[:-3])])}}}$"
-    ax.plot(r_fit, np.exp(fit_line), c='lime', ls='--', lw=2.5, label=fit_label)
-
-    ax.legend()
-    ax.set_xlabel(r'$|\mathbf{r}- \mathbf{{r}}_c|$', size=12)
+    ax.set_xlabel(r'$|\mathbf{r} - \mathbf{{r}}_c|$', size=12)
     ax.set_ylabel(rf"$|w_{wan_idx}(\mathbf{{r}}- \mathbf{{r}}_c)|^2$", size=12)
-    # ax.set_xlabel(r'$|\vec{R}+\vec{\tau}_j|$')
-    # ax.set_xlim(-4e-1, cutoff)
-    if ylim is None:
-        ax.set_ylim(0.8*min(w0i_wt[r<cutoff]), 1.5)
-    else:
-        ax.set_ylim(ylim)
+    ax.set_ylim(0.8*min(w0i_wt[r<cutoff]), 1.5)
     ax.set_yscale('log')
 
     if show:
