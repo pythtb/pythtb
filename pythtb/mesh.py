@@ -166,6 +166,57 @@ class Axis:
     
 
 class Mesh:
+    r"""Initialize a Mesh object storing and managing a mesh in :math:`(k, \lambda)`-space.
+
+    .. versionadded:: 2.0.0
+
+    This class is responsible for constructing a mesh sampling of the combined reciprocal space and 
+    additional adiabatic parameters, i.e. :math:`(k, \lambda)`-space.
+    It provides methods to build both grid and path representations of the mesh, or a custom mesh
+    with user-defined points. The mesh can be a pure k-space mesh, a pure parameter space mesh,
+    or a mixed mesh with axes in both spaces. The mesh can also be a grid or a path. 
+
+    A grid mesh has an axis for each dimension of the mesh, while a path mesh has a single axis
+    that traces a path through the combined :math:`(k, \lambda)`-space. For example, a 2D k-space grid has two k-axes,
+    while a 1D path mesh would have a single axis that moves through k-space. A mesh has axes that represent 
+    the dimensions of the mesh, and the last axis represents the vector components in :math:`(k, \lambda)`-space. 
+    A grid is defined such that each mesh dimension (axis) corresponds to one vector component, while a path has a 
+    single axis that may vary multiple vector components simultaneously.
+
+    Parameters
+    ----------
+    dim_k : int
+        The dimensionality of k-space. This will influence the dimension of
+        the vector at each mesh point.
+    axis_types : list[str]
+        A list of axis types, which can be ``"k"`` or ``"l"`` for k-space and parametric
+        space respectively. The length of this list will determine the number of 
+        dimensions in the mesh.
+    dim_lambda : int, optional
+        The dimensionality of parameter space. If left unspecified, the
+        parameter space dimension will be automatically inferred from the axis types.
+        If creating a path through a higher-dimensional parameter space, this must be
+        specified.
+    axis_names : list[str], optional
+        A list of axis names, which can be used for parametrically populating
+        a :class:`pythtb.WFArray`. If unspecified, default names will be generated.
+        See examples listed below for more details.
+
+    See Also
+    --------
+    :ref:`haldane-bp-nb`
+    :ref:`kane-mele-nb`
+    :ref:`three-site-thouless-nb`
+    :ref:`cubic-slab-hwf-nb`
+    :ref:`haldane-hwf-nb`
+
+    Notes
+    -----
+    .. warning::
+        The parameter space is assumed to be orthogonal to the k-space. This means that when varying the parameter
+        along its axis, the k-components are held fixed. Paths through a mixed parameter and k-space are not 
+        currently supported.
+    """
     def __init__(
         self,  
         dim_k: int, 
@@ -173,58 +224,7 @@ class Mesh:
         dim_lambda: int | None = None,
         axis_names: list[str] = None
     ):
-        r"""Initialize a Mesh object storing and managing a mesh in :math:`(k, \lambda)`-space.
 
-        .. versionadded:: 2.0.0
-
-        This class is responsible for constructing a mesh sampling of the combined reciprocal space and 
-        additional adiabatic parameters, i.e. :math:`(k, \lambda)`-space.
-        It provides methods to build both grid and path representations of the mesh, or a custom mesh
-        with user-defined points. The mesh can be a pure k-space mesh, a pure parameter space mesh,
-        or a mixed mesh with axes in both spaces. The mesh can also be a grid or a path. 
-
-        A grid mesh has an axis for each dimension of the mesh, while a path mesh has a single axis
-        that traces a path through the combined :math:`(k, \lambda)`-space. For example, a 2D k-space grid has two k-axes,
-        while a 1D path mesh would have a single axis that moves through k-space. A mesh has axes that represent 
-        the dimensions of the mesh, and the last axis represents the vector components in :math:`(k, \lambda)`-space. 
-        A grid is defined such that each mesh dimension (axis) corresponds to one vector component, while a path has a 
-        single axis that may vary multiple vector components simultaneously.
-
-        Parameters
-        ----------
-        dim_k : int
-            The dimensionality of k-space. This will influence the dimension of
-            the vector at each mesh point.
-        axis_types : list[str]
-            A list of axis types, which can be ``"k"`` or ``"l"`` for k-space and parametric
-            space respectively. The length of this list will determine the number of 
-            dimensions in the mesh.
-        dim_lambda : int, optional
-            The dimensionality of parameter space. If left unspecified, the
-            parameter space dimension will be automatically inferred from the axis types.
-            If creating a path through a higher-dimensional parameter space, this must be
-            specified.
-        axis_names : list[str], optional
-            A list of axis names, which can be used for parametrically populating
-            a :class:`pythtb.WFArray`. If unspecified, default names will be generated.
-            See examples listed below for more details.
-
-        See Also
-        --------
-        :ref:`haldane-bp-nb`
-        :ref:`kane-mele-nb`
-        :ref:`3site-cycle-nb`
-        :ref:`3site-cycle-fin-nb`
-        :ref:`cubic-slab-hwf-nb`
-        :ref:`haldane-hwf-nb`
-
-        Notes
-        -----
-        .. warning::
-            The parameter space is assumed to be orthogonal to the k-space. This means that when varying the parameter
-            along its axis, the k-components are held fixed. Paths through a mixed parameter and k-space are not 
-            currently supported.
-        """
         
         self._dim_k = dim_k
 
@@ -258,11 +258,15 @@ class Mesh:
 
     @property
     def points(self):
+        r"""Mesh point array of shape ``(N1*N2*...*Nd, dim_k + dim_lambda)``."""
         return self._points
 
     @property
     def flat(self):
-        r"""Mesh point array of shape ``(N1*N2*...*Nd, dim_k + dim_lambda)``."""
+        r"""Mesh point array of shape ``(N1*N2*...*Nd, dim_k + dim_lambda)``.
+
+        Alias for `points` property.
+        """
         return self._points
     
     @property
@@ -272,6 +276,7 @@ class Mesh:
 
     @property
     def nodes(self):
+        r"""For path meshes, the original nodes used to build the path."""
         return self._nodes 
     
     @property
