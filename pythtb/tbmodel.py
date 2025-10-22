@@ -1350,7 +1350,7 @@ class TBModel:
             self, 
             k_pts = None, 
             return_eigvecs: bool = False, 
-            flatten_spin_ax: bool = True,
+            flatten_spin_axis: bool = True,
             tf_speedup: bool = False) -> tuple[np.ndarray, np.ndarray] | np.ndarray:
         r"""Diagonalize the Hamiltonian 
         
@@ -1439,7 +1439,7 @@ class TBModel:
         logger.debug("Diagonalizing Hamiltonian...")
         if return_eigvecs:
             eigvals, eigvecs = self._sol_ham(
-                Ham, return_eigvecs=return_eigvecs, keep_spin_ax=flatten_spin_ax, tf_speedup=tf_speedup
+                Ham, return_eigvecs=return_eigvecs, keep_spin_ax=flatten_spin_axis, tf_speedup=tf_speedup
             )
             if self.dim_k != 0:
                 if eigvals.ndim != 2:
