@@ -5,21 +5,19 @@
 Install
 =======
 
-PythTB >= v2.0.0 is supported for Python >= 3.11. PythTB versions up to 1.7.0 are
-only supported on Python < 3.0, while version 1.8.0 is compatible with 
-Python 2.7 - 3.10 (Python 2.6 and below are not recommended).
-While other versions of Python may work, they are not guaranteed to be compatible.
+PythTB >= v2.0.0 supports **Python >= 3.11**.  
+Versions up to v1.8.0 are compatible with **Python 2.7–3.10**, 
+while v1.7.0 and below are limited to **Python 2.x**.  
+Although other versions may work, they are not officially supported.
 
-
-To check which version of Python is
-currently installed on your system, just type
+To check your Python version, run:
 
 .. code-block:: bash
 
    python -V
 
-If you don't have Python 3.10 or higher, you can follow the instructions in
-:ref:`Installing or upgrading Python <install-python>` to install or upgrade.
+If you do not have Python 3.11 or higher, 
+see :ref:`Installing or upgrading Python <install-python>` below.
 If you are unfamiliar with Python or are not sure whether Python and the
 needed Python modules are installed on your system, see our
 :doc:`python introduction <resources>`.
@@ -32,69 +30,112 @@ PythTB requires the following Python packages to be installed:
 *  `numpy <https://numpy.org/>`_
 *  `matplotlib <https://matplotlib.org/stable/>`_
 
-Optionally, you may also want to install the following packages
+Optionally, you may also want to install the following packages 
 to enhance your experience with PythTB:
 
-*  `ipython <http://www.ipython.org>`_ - a powerful interactive shell.
+*  `ipython <http://www.ipython.org>`_ - interactive shell.
 *  `jupyter <https://jupyter.org/>`_ - for running Jupyter notebooks.
-*  `plotly <https://plotly.com/python/>`_ - for interactive plotting capabilities with 3D models.
-*  `tensorflow <https://www.tensorflow.org/>`_ - for faster computations.
+*  `plotly <https://plotly.com/python/>`_ - 3D visualizations and interactive plots.
+*  `tensorflow <https://www.tensorflow.org/>`_ - accelerated tensor computation.
 
-Installing from PyPI with ``pip``
-----------------------------------
-
-These instructions also assume that
-`pip <https://pip.pypa.io/en/stable/>`_, the standard package
-manager for Python, is installed on your system. If not, we recommend
-that you `install it <https://pip.pypa.io/en/stable/installing/>`_.
-
-To install the latest version of PythTB with pip simply type in terminal
+Quick Installation
+------------------
+You can install PythTB directly from either **PyPI** or **Conda-Forge**.
 
 .. code-block:: bash
 
+   # Using pip
    pip install pythtb --upgrade
 
-To install an older version of PythTB, you can specify the version number like this:
+   # Or using conda
+   conda install -c conda-forge pythtb
 
-.. code-block:: bash
-
-   pip install pythtb==X.Y.Z
-
-To install all the optional dependencies, you can run
-
-.. code-block:: bash
-
-   pip install .[optional] 
-   
-.. tip::
-
-   If you don't have root access try installing PythTB into your home 
-   folder by executing
-
-   .. code-block:: bash
-
-      pip install pythtb --upgrade --user
-
-
-.. note::
-   The ``pip install`` command should automatically install/upgrade the
-   following python packages if they were not previously installed
-   and upgraded to the latest version. To bypass the upgrade of these 
-   packages
-
-   .. code-block:: bash
-
-      pip install --upgrade --upgrade-strategy only-if-needed pythtb
-
-After the installation is complete, you can check that PythTB
-is installed correctly by typing in terminal
+To verify your installation:
 
 .. code-block:: bash
 
    python -c "import pythtb; print(pythtb.__version__)"
 
-If you need more assistance with the installation process, please 
-continue reading.
+If you encounter issues or missing dependencies, see :ref:`Troubleshooting <install-troubleshooting>`.
+
+Installing from Source
+----------------------
+
+Installing from source is useful if you want to use the latest development version or modify the code.
+
+1. Clone the repository:
+
+   .. code-block:: bash
+
+      git clone https://github.com/pythtb/pythtb.git
+      cd pythtb
+
+2. Install the package:
+
+   .. code-block:: bash
+
+      pip install .
+
+This installs PythTB and its dependencies into your current Python environment.
+
+
+Editable (Development) Installation
+-----------------------------------
+
+For contributors or developers who wish to modify the source code and see 
+changes take effect immediately, install in **editable mode**:
+
+1. Create a virtual environment using `conda` (recommended):
+
+   .. code-block:: bash
+
+      conda create -n pythtb-dev python=3.11
+      conda activate pythtb-dev
+
+2. Clone and install in editable mode:
+
+   .. code-block:: bash
+
+      git clone https://github.com/pythtb/pythtb.git
+      cd pythtb
+      pip install -e ".[optional]"
+
+3. Verify installation:
+
+   .. code-block:: python
+
+      import pythtb
+      print(pythtb.__version__)
+
+If you modify the source code, those changes will immediately take effect in your environment.  
+If you don't see updates reflected, restart the interpreter or Jupyter kernel.
+
+For more details, see the 
+`Developer Installation Wiki 
+<https://github.com/pythtb/pythtb/wiki/Installation-Instructions-for-Developers>`_.
+
+
+Older Versions
+--------------
+
+To install a specific version of PythTB:
+
+.. code-block:: bash
+
+   pip install pythtb==X.Y.Z
+
+To list installed versions:
+
+.. code-block:: bash
+
+   pip show pythtb
+
+Or from Python:
+
+.. code-block:: python
+
+   import pythtb
+   print(pythtb.__version__)
 
 
 .. _install-alternative:
@@ -105,37 +146,6 @@ Installing from source
 If you'd like to install PythTB from source, you can do so by cloning the
 repository from `GitHub <https://github.com/pythtb/pythtb>`_. This is useful if you want 
 to contribute to the project or if you want to use the latest development version. 
-
-First, make sure you have Python 3.10 or higher installed on your system.
-You can check your Python version by typing in terminal
- 
-.. code-block:: bash
-
-   python -V
-
-If you don't have Python 3.10 or higher, you can follow the instructions in
-:ref:`Installing or upgrading Python <install-python>` to install or upgrade.
-
-Next, clone the PythTB repository from GitHub by typing in terminal
-
-.. code-block:: bash
-
-   git clone https://github.com/pythtb/pythtb.git
-
-This will create a directory called `pythtb` in your current working directory.
-Next, navigate to the `pythtb` directory by typing
-
-.. code-block:: bash
-
-   cd pythtb
-
-Now, you can install PythTB by running the following command in terminal
-
-.. code-block:: bash
-
-   pip install .
-
-This will install PythTB and its dependencies. 
 
 If you want to install PythTB in editable mode 
 (so that changes you make to the source code are immediately
@@ -153,97 +163,74 @@ If you want to install PythTB with optional dependencies, you can run
 
 This will install PythTB with optional dependencies such as `ipython` and `plotly`. 
 
-Older versions of PythTB
-------------------------
-
-If for some reason you wish to install an older version of PythTB you
-can type the following into terminal (replace X.Y.Z with version number you
-wish to install)
-
-.. code-block:: bash
-
-   pip install pythtb==X.Y.Z
-
-To check which version of PythTB you have installed, type
-
-.. code-block:: bash
-
-   pip show pythtb
-
-or print the value of the version number from within a Python environment
-
-.. code-block:: python
-
-   import pythtb
-   print(pythtb.__version__)
 
 .. _install-python:
 
-Installing or upgrading Python
+Installing or Upgrading Python
 ------------------------------
-To use PythTB, you need Python 3.10 or higher. 
-If you don't have it installed, or your version is outdated, 
-follow the steps below
 
-macOS and Linux
-^^^^^^^^^^^^^^^^^^^^^
-The recommended way to install or upgrade Python is via your system's package manager. 
-For example, on Ubuntu or Debian-based systems, you can run
+If you don’t already have Python 3.11 or higher, follow one of the options below.
+
+**Anaconda / Miniconda (Recommended)**
+
+If you prefer to manage environments separately, install Python via Miniconda:
 
 .. code-block:: bash
 
+   conda create -n pythtb-env python=3.11
+
+`Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ provides 
+a lightweight version of Anaconda, ideal for managing clean environments 
+for scientific packages like PythTB.
+
+**macOS and Linux**
+
+Use your system's package manager:
+
+.. code-block:: bash
+
+   # Ubuntu / Debian
    sudo apt-get install python3
 
-For macOS, you can use Homebrew
-
-.. code-block:: bash
-
+   # macOS (via Homebrew)
    brew install python
 
-Alternatively, for any Unix-like system, you can download the latest Python installer
-from the official `Python Download Page <http://www.python.org/download/>`_.
+Alternatively, download the latest release from the
+`official Python website <https://www.python.org/downloads/>`_.
 
-Windows
-^^^^^^^^^^^^^^^
-On Windows, the recommended way to install or upgrade Python is to download the
-official installer from the `Python Download Page <http://www.python.org/download/>`_.
-Be sure to select the option to add Python to your PATH during the installation process.
+**Windows**
 
-Anaconda and Miniconda
-------------------------
-PythTB is currently not available on the Anaconda Cloud, but you can still install it using pip
-within an Anaconda environment. 
+Download and run the official installer from
+`python.org <https://www.python.org/downloads/>`_.  
+Make sure to check *“Add Python to PATH”* during installation.
 
-Anaconda is a popular distribution of Python that includes many scientific computing packages.
-It is recommended to use Anaconda if you are working with scientific computing or data science, 
-as it simplifies package management and deployment. You can install Anaconda from the
-`Anaconda Download Page <https://www.anaconda.com/products/distribution>`_.
+.. _install-troubleshooting:
 
-A minimal installation of Anaconda can be done using the
-`Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ installer.
-This will allow you to create isolated environments and manage packages easily without
-installing the full Anaconda distribution.
+Troubleshooting
+---------------
 
-To do this, first create a new environment with Python 3.10 or higher
+Common issues and fixes:
 
-.. code-block:: bash
+* **`ModuleNotFoundError` after installation:**  
+  Make sure you are installing inside the correct environment and have activated it.
 
-   conda create -n pythtb_env python=3.10
+  .. code-block:: bash
 
-Then activate the environment
+     conda activate pythtb-env
 
-.. code-block:: bash
+* **Conflicts between pip and conda:**  
+  Avoid installing global packages. Keep each environment isolated.
 
-   conda activate pythtb_env
+* **Editable install not updating:**  
+  Ensure you used `pip install -e .` and restart your interpreter.
 
-After activating the environment, you can install PythTB using pip as you would normally
+  .. code-block:: bash
 
-.. code-block:: bash
+     which python
+     conda list | grep pythtb
 
-   pip install pythtb --upgrade
-
-The previous steps in section `Installing from source <install-alternative>`_ will also work
-as expected within the activated conda environment.
+If problems persist, open an issue on the
+`GitHub repository <https://github.com/pythtb/pythtb/issues>`_.
 
 Version list
 ---------------

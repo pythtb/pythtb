@@ -8,10 +8,10 @@
 
 import sys
 import pythtb
-import logging
-import plotly.io as pio
-pio.renderers.default = 'sphinx_gallery'
-logging.getLogger("pythtb").setLevel(logging.WARNING)
+# import logging
+# import plotly.io as pio
+# pio.renderers.default = 'sphinx_gallery'
+# logging.getLogger("pythtb").setLevel(logging.WARNING)
 
 project = u'PythTB'
 copyright = '2025, PythTB team'
@@ -23,14 +23,20 @@ version = pythtb.__version__
 # pngmath_dvipng_args = ['-gamma 1.5', '-D 110']
 # pngmath_use_preview = True
 
-autosummary_generate = True
+autosummary_generate = True  
+autoclass_content = "both"           # class + __init__ docstring
+autodoc_member_order = "bysource"    # keep source order
+autodoc_typehints = "description"
+autodoc_show_inheritance = False
 autodoc_default_options = {
-    'members': True,
+    # 'members': False,
     'undoc-members': False,
     'private-members': False,
-    'no-show-inheritance': True,
+    'inherited-members': False,
+    # 'show-inheritance': False,
 }
-autodoc_typehints = "description"
+numpydoc_show_class_members = False
+numpydoc_class_members_toctree = False
 
 # link to numpy and python
 intersphinx_mapping = {
@@ -58,7 +64,7 @@ extensions = [
     "sphinx_copybutton",
     "sphinxcontrib.programoutput",
     "sphinx_design",
-    "sphinx_gallery"
+    # "sphinx_gallery"
     # "numpydoc"
 ]
 
@@ -95,6 +101,8 @@ thebe_config = {
 copybutton_only_copy_prompt_lines = False
 copybutton_remove_prompts = True
 
+add_module_names = False
+
 # intersphinx_mapping = {
 #     'python': ('https://docs.python.org/3', None),
 #     'numpy': ('https://numpy.org/doc/stable/', None)
@@ -126,7 +134,7 @@ html_js_files = [
 html_js_files += [
     ("plotly-2.34.0.min.js", {"defer": "defer"}),  # update filename to what you vendored
 ]
-html_extra_path = ['misc', 'simple_fig', 'examples_py']
+html_extra_path = ['misc']
 html_css_files = ["custom.css"]
 html_copy_source = True
 html_show_sourcelink = False
@@ -139,7 +147,7 @@ exclude_patterns = ['generated/*.md', 'examples_rst/*', 'examples_py/*']
 html_context = {
     "github_user": "pythtb",
     "github_repo": "pythtb",
-    "github_version": "main",
+    "github_version": "dev",
     "doc_path": "docs",
 }
 
@@ -196,7 +204,7 @@ html_theme_options = {
     # "use_thebe": True
 }
 
-# html_theme_options["use_thebe"] = True  # e/nables Thebe for notebook
+
 # html_js_files = [
     # "https://unpkg.com/thebe@latest/lib/index.js"
 # ] # for executing code
