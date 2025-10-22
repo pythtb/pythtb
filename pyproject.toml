@@ -7,7 +7,7 @@ name = "pythtb"
 dynamic = ["version"]
 description = "Solver for tight binding models in condensed matter physics and materials science."
 readme = "README.md"  
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 authors = [
   { name = "Trey Cole", email = "trey@treycole.me" },
   { name = "Sinisa Coh", email = "sinisacoh@gmail.com" },
@@ -21,8 +21,8 @@ classifiers = [
   "Operating System :: OS Independent"
 ]
 dependencies = [
-  "numpy",
-  "matplotlib"
+  "numpy>=2.0",
+  "matplotlib>=3.9"
 ]
 
 [project.optional-dependencies]
@@ -47,6 +47,13 @@ plotting = [
 ]
 speedup = [
   "tensorflow"
+]
+notebooks = [
+  "jupyter",
+  "jupyterlab",
+  "notebook",
+  "ipykernel",
+  "ipython>=8.17",
 ]
 
 [project.urls]
