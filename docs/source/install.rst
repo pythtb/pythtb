@@ -5,7 +5,8 @@
 Install
 =======
 
-PythTB >= v2.0.0 supports **Python >= 3.11**.  
+PythTB >= v2.0.0 supports **Python >= 3.12** 
+(see `SPEC-0 <https://scientific-python.org/specs/spec-0000/#support-window>`_).  
 Versions up to v1.8.0 are compatible with **Python 2.7–3.10**, 
 while v1.7.0 and below are limited to **Python 2.x**.  
 Although other versions may work, they are not officially supported.
@@ -16,7 +17,7 @@ To check your Python version, run:
 
    python -V
 
-If you do not have Python 3.11 or higher, 
+If you do not have Python 3.12 or higher, 
 see :ref:`Installing or upgrading Python <install-python>` below.
 If you are unfamiliar with Python or are not sure whether Python and the
 needed Python modules are installed on your system, see our
@@ -89,7 +90,7 @@ changes take effect immediately, install in **editable mode**:
 
    .. code-block:: bash
 
-      conda create -n pythtb-dev python=3.11
+      conda create -n pythtb-dev python=3.12
       conda activate pythtb-dev
 
 2. Clone and install in editable mode:
@@ -169,7 +170,7 @@ This will install PythTB with optional dependencies such as `ipython` and `plotl
 Installing or Upgrading Python
 ------------------------------
 
-If you don’t already have Python 3.11 or higher, follow one of the options below.
+If you don’t already have Python 3.12 or higher, follow one of the options below.
 
 **Anaconda / Miniconda (Recommended)**
 
@@ -177,7 +178,7 @@ If you prefer to manage environments separately, install Python via Miniconda:
 
 .. code-block:: bash
 
-   conda create -n pythtb-env python=3.11
+   conda create -n pythtb-env python=3.12
 
 `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ provides 
 a lightweight version of Anaconda, ideal for managing clean environments 

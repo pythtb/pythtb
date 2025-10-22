@@ -97,6 +97,8 @@ Feedback
 
 Please send comments or suggestions for improvement to `these email
 addresses <mailto: trey@treycole.me, dhv@physics.rutgers.edu, sinisacoh@gmail.com>`_.
+If you find bugs, please report them on the `GitHub Issues page
+<https://github.com/pythtb/PythTB/issues>`_. 
 
 .. toctree::
    :maxdepth: 1
