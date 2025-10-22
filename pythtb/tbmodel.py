@@ -1095,7 +1095,12 @@ class TBModel:
         return block
     
 
-    def velocity(self, k_pts, cartesian=False):
+    def velocity(
+            self, 
+            k_pts: np.ndarray, 
+            cartesian: bool = False,
+            flatten_spin_axis: bool = False
+            ) -> np.ndarray:
         r"""Generate the velocity operator in the orbital basis.
 
         The velocity operator is defined via the derivative of the Hamiltonian
@@ -1192,10 +1197,16 @@ class TBModel:
                         (slice(None), slice(None), j_indices, s_in, i_indices, s_out),
                         contrib.conj(),
                     )
-
+        
+        if flatten_spin_axis:
+            vel = vel.reshape(dim_k, k_arr.shape[0], norb * nspin, norb * nspin)
         return vel
     
-    def hamiltonian(self, k_pts=None, flatten_spin=False):
+    def hamiltonian(
+            self, 
+            k_pts: np.ndarray = None, 
+            flatten_spin_axis: bool = False
+            ) -> np.ndarray:
         r"""Generate the Bloch Hamiltonian for an array of k-points in reduced coordinates.
 
         The Hamiltonian is computed in tight-binding convention I, which includes phase factors
@@ -1215,7 +1226,7 @@ class TBModel:
             Array of k-points in reduced coordinates.
             If `None`, the Hamiltonian is computed at a single point (`dim_k = 0`),
             corresponding to a finite sample.
-        flatten_spin : bool, optional
+        flatten_spin_axis : bool, optional
             If True, the spin indices are flattened into the orbital indices.
             This results in a Hamiltonian at each k-point of shape ``(norb*nspin, norb*nspin)``.
             If False (default), the Hamiltonian has shape ``(norb, nspin, norb, nspin)``.
@@ -1257,7 +1268,7 @@ class TBModel:
                 i_idx,
                 j_idx,
                 site_energies,
-                flatten_spin=flatten_spin,
+                flatten_spin=flatten_spin_axis,
             )
 
         k_arr = self._normalize_kpoints(k_pts)
@@ -1268,7 +1279,7 @@ class TBModel:
             j_idx,
             R_vecs,
             site_energies,
-            flatten_spin=flatten_spin,
+            flatten_spin=flatten_spin_axis,
         )
 
     def _sol_ham(
@@ -1339,7 +1350,7 @@ class TBModel:
             self, 
             k_pts = None, 
             return_eigvecs: bool = False, 
-            keep_spin_ax: bool = True,
+            flatten_spin_ax: bool = True,
             tf_speedup: bool = False) -> tuple[np.ndarray, np.ndarray] | np.ndarray:
         r"""Diagonalize the Hamiltonian 
         
@@ -1366,7 +1377,7 @@ class TBModel:
         return_eigvecs : bool, optional
             If True, both eigenvalues and eigenvectors are returned.
             If False (default), only eigenvalues are returned.
-        keep_spin_ax : bool, optional
+        flatten_spin_axis : bool, optional
             If True (default), the spin axes are kept in the output eigenvectors.
             If False, the spin axes are flattened.
         tf_speedup : bool, optional
@@ -1428,7 +1439,7 @@ class TBModel:
         logger.debug("Diagonalizing Hamiltonian...")
         if return_eigvecs:
             eigvals, eigvecs = self._sol_ham(
-                Ham, return_eigvecs=return_eigvecs, keep_spin_ax=keep_spin_ax, tf_speedup=tf_speedup
+                Ham, return_eigvecs=return_eigvecs, keep_spin_ax=flatten_spin_ax, tf_speedup=tf_speedup
             )
             if self.dim_k != 0:
                 if eigvals.ndim != 2:
