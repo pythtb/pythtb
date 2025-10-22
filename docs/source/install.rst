@@ -32,12 +32,14 @@ PythTB requires the following Python packages to be installed:
 *  `matplotlib <https://matplotlib.org/stable/>`_
 
 Optionally, you may also want to install the following packages 
-to enhance your experience with PythTB:
+to enhance your experience with PythTB (install with `pip install .[group]`):
 
-*  `ipython <http://www.ipython.org>`_ - interactive shell.
-*  `jupyter <https://jupyter.org/>`_ - for running Jupyter notebooks.
-*  `plotly <https://plotly.com/python/>`_ - 3D visualizations and interactive plots.
-*  `tensorflow <https://www.tensorflow.org/>`_ - accelerated tensor computation.
+- `[plotting]`: plotly (interactive 3D plots)
+- `[speedup]`: tensorflow (GPU-assisted routines)
+- `[notebooks]`: ipython ≥ 8.17, ipykernel, notebook, jupyter, jupyterlab (Jupyter support)
+- `[docs]`: sphinx toolchain (build the documentation)
+- `[tests]`: pytest
+- `[dev]`: pytest, black, pre-commit
 
 Quick Installation
 ------------------
@@ -59,10 +61,15 @@ To verify your installation:
 
 If you encounter issues or missing dependencies, see :ref:`Troubleshooting <install-troubleshooting>`.
 
+
+.. _install-alternative:
+
 Installing from Source
 ----------------------
 
-Installing from source is useful if you want to use the latest development version or modify the code.
+If you'd like to install PythTB from source, you can do so by cloning the
+repository from `GitHub <https://github.com/pythtb/pythtb>`_. This is useful if you want 
+to contribute to the project or if you want to use the latest development version. 
 
 1. Clone the repository:
 
@@ -79,6 +86,12 @@ Installing from source is useful if you want to use the latest development versi
 
 This installs PythTB and its dependencies into your current Python environment.
 
+If you want to install PythTB with optional dependencies, you can run
+
+.. code-block:: bash
+
+   pip install -e .[group] # replace [group] with optional groups as needed
+
 
 Editable (Development) Installation
 -----------------------------------
@@ -93,13 +106,13 @@ changes take effect immediately, install in **editable mode**:
       conda create -n pythtb-dev python=3.12
       conda activate pythtb-dev
 
-2. Clone and install in editable mode:
+2. Clone and install in editable mode by using the `-e` flag:
 
    .. code-block:: bash
 
       git clone https://github.com/pythtb/pythtb.git
       cd pythtb
-      pip install -e ".[optional]"
+      pip install -e ".[group]"  # replace [group] with optional groups as needed
 
 3. Verify installation:
 
@@ -108,7 +121,7 @@ changes take effect immediately, install in **editable mode**:
       import pythtb
       print(pythtb.__version__)
 
-If you modify the source code, those changes will immediately take effect in your environment.  
+If you modify the source code, those changes will immediately take effect in your local environment.  
 If you don't see updates reflected, restart the interpreter or Jupyter kernel.
 
 For more details, see the 
@@ -137,32 +150,6 @@ Or from Python:
 
    import pythtb
    print(pythtb.__version__)
-
-
-.. _install-alternative:
-
-Installing from source
--------------------------
-
-If you'd like to install PythTB from source, you can do so by cloning the
-repository from `GitHub <https://github.com/pythtb/pythtb>`_. This is useful if you want 
-to contribute to the project or if you want to use the latest development version. 
-
-If you want to install PythTB in editable mode 
-(so that changes you make to the source code are immediately
-reflected in your installation), you can run
-
-.. code-block:: bash
-
-   pip install -e .
-
-If you want to install PythTB with optional dependencies, you can run
-
-.. code-block:: bash
-
-   pip install .[optional]
-
-This will install PythTB with optional dependencies such as `ipython` and `plotly`. 
 
 
 .. _install-python:
@@ -238,4 +225,4 @@ Version list
 If you would like to install a specific version of PythTB directly from the
 list of available versions, you can do so below.
 
-.. include:: ../local/release/release.rst
+.. include:: release.rst
