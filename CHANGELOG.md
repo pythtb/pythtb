@@ -11,23 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Version 2.0.0 represents a major refactoring of PythTB with significant architectural changes, new features, and breaking changes. The package has been restructured from a single `pythtb.py` file into a modular package with multiple modules, improving code organization, maintainability, and extensibility.
 
-### Added
+### Fixed
+- Fixed bug in `TBModel._shift_to_home()` where only the last orbital was shifted. This affected the `to_home` flag in `change_nonperiodic_vector()` and `make_supercell()`.
 
-#### Package Structure
-- **Modular architecture**: Restructured from single `pythtb.py` file to organized `pythtb/` package with separate modules:
-  - `tbmodel.py`: Tight-binding model class and methods
-  - `wfarray.py`: Wavefunction array class for storing and manipulating quantum states
-  - `w90.py`: Wannier90 interface
-  - `lattice.py`: New lattice handling class
-  - `mesh.py`: New mesh and axis classes for k-point grids
-  - `wannier.py`: New Wannier function construction and localization
-  - `utils.py`: Utility functions
-  - `plotting.py`: Visualization utilities
-  - `models/`: Predefined model examples
+### Added
 
 #### Documentation
 - Type hints added throughout the codebase for improved developer experience and IDE support
-- Modernized Sphinx-based documentation website, copying over the previous tutorials, and adding some new ones to cover new features.
 
 #### Testing
 - Comprehensive unit tests added using `pytest` to cover core functionality and ensure code reliability
@@ -70,31 +60,26 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 
 ##### New Methods:
 - `TBModel.__repr__`: Object representation now displays `rdim`, `kdim`, and `nspin`
-- `TBModel.__str__`: Allows printing a `TBModel` instance using `print(TBModel)`, which calls `TBModel.info()`
-- `TBModel.info()`: Information summary about the model (renamed from `display()`)
-  - Can print directly or return as string
+- `TBModel.__str__`: Allows printing a `TBModel` instance using `print(TBModel)`, which prints `TBModel.info()`
 - `TBModel.hamiltonian()`: Generates Hamiltonians for both single and multiple k-points
-- `TBModel.solve_ham()`: Unified method that subsumes `solve_one()` and `solve_all()` with vectorized diagonalization
 - `TBModel.velocity()`: Computes $dH/dk$ (velocity operator) in the orbital basis
 - `TBModel.berry_curv()`: Computes Berry curvature from $dH/dk$ elements using the Kubo formula
   - Accepts occupied band indices
   - Assumes a global gap defining occupied and unoccupied bands
-- `TBModel.chern()`: Returns Chern number for a given set of occupied bands using Berry curvature
+- `TBModel.chern()`: Returns Chern number for a given set of occupied bands using Berry curvature in Kubo formula
 - `TBModel.local_chern_marker()`: Bianco-Resta formula for real-space Chern marker
 - `TBModel.visualize3d()`: For 3D tight-binding models, displays an interactive 3D figure using `plotly`
-  - Shows orbitals, bonds, and model terms (onsite energies, hopping parameters)
-  - Supports rotation, zooming, and interactive highlighting
 - `TBModel.get_recip_lat()`: Returns reciprocal lattice vectors
 - `TBModel.set_nn_hoppings()`: Bulk setting of nearest-neighbor hoppings for faster model construction
-- `TBModel.make_finite()`: Constructs a finite-sized supercell with open boundary conditions
-  - Convenience function for chaining `cut_piece()` along different directions
+- `TBModel.make_finite()`: Convenience function for chaining `cut_piece()` along different directions
+- `TBModel.solve_ham()`: Unified method that subsumes `solve_one()` and `solve_all()` with vectorized diagonalization
+  - Added parameter `tf_speedup` for faster computations using TensorFlow if available
+  - Added parameter `flatten_spin_axis` to control spin axis flattening in output
 - **Read-only properties**: Core attributes (e.g., `dim_r`, `dim_k`, `nspin`, `spinful`, `per`, `norb`, `nstate`, `lat`, `orb`, `site_energies`, `hoppings`) are now accessible via properties, preventing unintended modification
 
 ##### Performance Improvements:
-- Vectorized implementations using NumPy for substantial speed improvements in:
-  - `hamiltonian()` and `velocity()` construction
-  - `solve_ham()` diagonalization
-  - `berry_curv()` computation
+- Vectorized implementations using NumPy for substantial speed improvements in linear algebra operations
+  - faster initialization, Hamiltonian construction and diagonalization
 
 ##### Enhanced Methods:
 - `TBModel.get_orb()`: New boolean flag `cartesian` to return orbital vectors in Cartesian coordinates (default `False`)
@@ -115,11 +100,26 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 
 ##### Performance Improvements:
 - Vectorized implementations using NumPy for substantial speed improvements in:
-  - `berry_flux()` computation
   - State manipulations and overlaps
-  - Berry phase calculations
+  - `berry_flux()` computation
+  - `berry_phase()` computation
 
 ### Changed
+
+#### Package Structure
+- **Modular architecture**: Restructured from single `pythtb.py` file to organized `pythtb/` package with separate modules:
+  - `tbmodel.py`: Tight-binding model class and methods
+  - `wfarray.py`: Wavefunction array class for storing and manipulating quantum states
+  - `w90.py`: Wannier90 interface
+  - `lattice.py`: New lattice handling class
+  - `mesh.py`: New mesh and axis classes for k-point grids
+  - `wannier.py`: New Wannier function construction and localization
+  - `utils.py`: Utility functions
+  - `plotting.py`: Visualization utilities
+  - `models/`: Predefined model examples
+
+#### Documentation
+- Modernized Sphinx-based documentation website, copying over the previous tutorials, and adding some new ones to cover new features.
 
 #### Build System
 - Migrated from `setup.py` to modern `pyproject.toml` configuration
@@ -142,7 +142,7 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
   - Users no longer need to specify these dimensions explicitly
 - **Breaking**: Replaced `nspin` parameter with `spinful` boolean flag
   - `spinful=True` indicates spinful (2-component spinors); `False` indicates spinless (1-component)
-  - Improves clarity
+  - Improves clarity: only two options instead of arbitrary integer
 - To initialize, the user must now provide:
   - `lattice`: a `Lattice` instance defining the lattice geometry and periodicity
   - `spinful`: boolean indicating whether the model is spinful
@@ -211,13 +211,18 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 
 #### `W90` Method Changes
 
-**`w90_bands_consistency()` renamed to `w90_bands()`**
+#### Initialization Changes
+- Initialization is now faster with improved file parsing and data handling
+
+#### `W90.model`
+- Constructing the `TBModel` from Wannier90 data is now faster with optimized data structures
+- In some cases this is orders of magnitude faster for large models, allowing for practical 
+  use of Wannier90 data with large numbers of orbitals and hoppings.
+
+**`w90_bands_consistency()` renamed to `bands_w90()`**
 - **Breaking**: Returned energy array shape changed from `(band, kpts)` to `(kpts, band)`
   - Now consistent with eigenvalue shape from `TBModel.solve_ham()`
   - Aligns with NumPy convention of putting k-points in first axis
-
-### Fixed
-- Fixed bug in `TBModel._shift_to_home()` where only the last orbital was shifted. This affected the `to_home` flag in `change_nonperiodic_vector()` and `make_supercell()`.
 
 ### Deprecated
 
@@ -238,13 +243,6 @@ The following methods are deprecated but still functional with backward compatib
   - `solve_ham()` automatically handles single k-points
 - `solve_all()`: Use `TBModel.solve_ham()` instead
   - `solve_ham()` provides vectorized, faster diagonalization
-- `display()`: Use `TBModel.info()` or `print(my_model)` instead
-  - New naming is more intuitive
-
-#### `TBModel` Parameters  
-- `reset` flag in `set_onsite()`: Use `set` instead
-  - Only `set` and `add` modes retained
-  - `reset` functionality merged into `set` for simplicity
 
 #### Backward Compatibility
 - Old class names (`tb_model`, `wf_array`, `w90`) remain available as aliases
