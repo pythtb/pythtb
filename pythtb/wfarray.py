@@ -558,7 +558,7 @@ class WFArray:
     
 
     def empty_like(self, nstates=None) -> "WFArray":
-        r"""Create a new :class:`WFArray` object with the same :class:`TBModel` and :class:`Mesh`.
+        r"""Create a new :class:`WFArray` object with the same :class:`Lattice` and :class:`Mesh`.
 
         Parameters
         ----------
@@ -568,7 +568,7 @@ class WFArray:
         Returns
         -------
         WFArray
-            A new :class:`WFArray` object with the same :class:`TBModel` and :class:`Mesh`.
+            A new :class:`WFArray` object with the same :class:`Lattice` and :class:`Mesh`.
         """
         # make a full copy of the WFArray
         wf_new = WFArray(self.lattice, self.mesh, nstates=nstates, nspin=self.nspin)
@@ -1652,7 +1652,7 @@ class WFArray:
               :meth:`berry_phase` will automatically handle this for you.
 
             - **Non-periodic axes**
-            
+
               Lambda axes or open directions. They take the same
               zero-filled code path as the previous case because no physical neighbour
               exists beyond the edge. Those terminal slices should likewise be ignored by
