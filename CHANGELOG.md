@@ -16,6 +16,9 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 
 ### Added
 
+#### conda-forge Package
+- Published `pythtb` package to [conda-forge](https://anaconda.org/conda-forge/pythtb) for easy installation via `conda install -c conda-forge pythtb`
+
 #### Documentation
 - Type hints added throughout the codebase for improved developer experience and IDE support
 
@@ -26,8 +29,7 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 
 - **`Lattice`**  
   Handles lattice geometry and reciprocal operations.  
-  - Encapsulates methods previously embedded in `TBModel`  
-  - Provides `k_path()`, `k_uniform_mesh()`, `make_supercell()`  
+  - Encapsulates lattice manipulation methods previously embedded in `TBModel`  
   - Used by `TBModel` and `WFArray`
 
 - **`Mesh`**  
@@ -38,11 +40,11 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 
 - **`Wannier`**  
   Framework for constructing and analyzing Wannier functions.  
-  - SVD projection onto trial orbitals  
+  - Projection onto trial orbitals  
   - Iterative maximal localization/disentanglement  
-  - Spread minimization, center computation, visualization
+  - Visualization of centers, decay profiles, and spreads
 
-#### Models
+#### `pythtb.models` Module
 - Added a folder of example models (`pythtb/models/`) that is importable using, e.g.,
   ```python
   from pythtb.models import haldane
@@ -58,47 +60,45 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 
 #### `TBModel`
 
-##### New Methods:
+##### New Methods
 - `TBModel.__repr__`: Object representation now displays `rdim`, `kdim`, and `nspin`
 - `TBModel.__str__`: Allows printing a `TBModel` instance using `print(TBModel)`, which prints `TBModel.info()`
-- `TBModel.hamiltonian()`: Generates Hamiltonians for both single and multiple k-points
+- `TBModel.hamiltonian()`: Generates Hamiltonians for finite and periodic systems
 - `TBModel.velocity()`: Computes $dH/dk$ (velocity operator) in the orbital basis
 - `TBModel.berry_curv()`: Computes Berry curvature from $dH/dk$ elements using the Kubo formula
-  - Accepts occupied band indices
-  - Assumes a global gap defining occupied and unoccupied bands
 - `TBModel.chern()`: Returns Chern number for a given set of occupied bands using Berry curvature in Kubo formula
 - `TBModel.local_chern_marker()`: Bianco-Resta formula for real-space Chern marker
 - `TBModel.visualize3d()`: For 3D tight-binding models, displays an interactive 3D figure using `plotly`
 - `TBModel.get_recip_lat()`: Returns reciprocal lattice vectors
 - `TBModel.set_nn_hoppings()`: Bulk setting of nearest-neighbor hoppings for faster model construction
 - `TBModel.make_finite()`: Convenience function for chaining `cut_piece()` along different directions
+
+##### Enhanced Methods
 - `TBModel.solve_ham()`: Unified method that subsumes `solve_one()` and `solve_all()` with vectorized diagonalization
   - Added parameter `tf_speedup` for faster computations using TensorFlow if available
   - Added parameter `flatten_spin_axis` to control spin axis flattening in output
-- **Read-only properties**: Core attributes (e.g., `dim_r`, `dim_k`, `nspin`, `spinful`, `per`, `norb`, `nstate`, `lat`, `orb`, `site_energies`, `hoppings`) are now accessible via properties, preventing unintended modification
+- `TBModel.get_orb()`
+  - Added boolean flag `cartesian` to return orbital vectors in Cartesian coordinates (default `False`)
 
-##### Performance Improvements:
-- Vectorized implementations using NumPy for substantial speed improvements in linear algebra operations
-  - faster initialization, Hamiltonian construction and diagonalization
-
-##### Enhanced Methods:
-- `TBModel.get_orb()`: New boolean flag `cartesian` to return orbital vectors in Cartesian coordinates (default `False`)
+##### Read-only properties
+- Core attributes (e.g., `dim_r`, `dim_k`, `nspin`, `spinful`, `per`, `norb`, `nstate`, `lat`, `orb`, `site_energies`, `hoppings`) are now accessible via properties, preventing unintended modification
 
 #### `WFArray`
 
-##### New Methods:
+##### New Methods
 - `WFArray.chern_num()`: Returns the Chern number for a given plane in the parameter mesh
 - `WFArray.wilson_loop()`: Computes the Wilson loop unitary matrix for a loop of states
 - `WFArray.get_links()`: Computes the unitary part of the overlap between states and their nearest neighbors in each mesh direction
 - `WFArray.solve_on_path()`: Populates a 1D `WFArray` with states diagonalized along a 1D k-path
 - `WFArray.get_projectors()`: Returns band projectors and optionally their complement
-- `WFArray.get_bloch_states()`: For states on a k-mesh, applies $e^{ik·r}$ phase factors and returns both cell-periodic $u_{nk}$ and Bloch states $\phi_{nk}$
+- `WFArray.get_bloch_states()`: For states on a k-mesh, applies $e^{ik·r}$ phase factors and returns both cell-periodic $u_{nk}$ and Bloch states $\psi_{nk}$
 - `WFArray.get_states()`: Returns `WFArray` states in NumPy array form
   - Optional flag to flatten spin axis for spinful states
 
-##### Read-only properties: Added properties for core attributes to prevent unintended modifications
+##### Read-only properties
+- Added properties for core attributes to prevent unintended modifications
 
-##### Performance Improvements:
+##### Performance Improvements
 - Vectorized implementations using NumPy for substantial speed improvements in:
   - State manipulations and overlaps
   - `berry_flux()` computation
@@ -107,7 +107,7 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 ### Changed
 
 #### Package Structure
-- **Modular architecture**: Restructured from single `pythtb.py` file to organized `pythtb/` package with separate modules:
+- **Modular architecture**: Restructured from single `pythtb.py` file to organized `pythtb/` package with separate purpose-specific modules:
   - `tbmodel.py`: Tight-binding model class and methods
   - `wfarray.py`: Wavefunction array class for storing and manipulating quantum states
   - `w90.py`: Wannier90 interface
@@ -115,6 +115,7 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
   - `mesh.py`: New mesh and axis classes for k-point grids
   - `wannier.py`: New Wannier function construction and localization
   - `utils.py`: Utility functions
+  - `hoptable.py`: Hopping table management
   - `plotting.py`: Visualization utilities
   - `models/`: Predefined model examples
 
@@ -122,19 +123,18 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 - Modernized Sphinx-based documentation website, copying over the previous tutorials, and adding some new ones to cover new features.
 
 #### Build System
-- Migrated from `setup.py` to modern `pyproject.toml` configuration
+- Migrated from `setup.py` to modern `pyproject.toml` configuration as per PEP 518
 - Updated packaging metadata and dependencies specification
-- Improved development tooling support
 
 #### Class and Method Naming
-- Renamed public classes following PEP 8 conventions:
+- Renamed public classes with CamelCase following PEP 8 conventions:
   - `tb_model` → `TBModel` (backward compatibility wrapper provided)
   - `wf_array` → `WFArray` 
   - `w90` → `W90`
 
-#### `TBModel` Class Changes
+#### `TBModel`
 
-**Initialization Changes** - `__init__()`
+##### Initialization Changes
 - **Breaking**: Replaced `lat`, `orb`, and `per` parameters with a single `Lattice` instance
   - Users must now create a `Lattice` object to define lattice geometry and periodicity
   - This decouples lattice handling from `TBModel`, allowing reuse of `Lattice` objects across multiple models
@@ -147,82 +147,87 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
   - `lattice`: a `Lattice` instance defining the lattice geometry and periodicity
   - `spinful`: boolean indicating whether the model is spinful
 
-**`solve_ham()` - Unified Diagonalization (replaces `solve_one()` and `solve_all()`)**
-- Merged `solve_one()` and `solve_all()` into single optimized method
-- Utilizes NumPy vectorization for significantly faster diagonalization
-- Automatically handles single k-point or multiple k-points
-- **Breaking**: Changed eigenvalue/eigenvector indexing for vectorized workflows:
-  - Eigenvalues: shape `(nk, nstate)` (matrix elements last for NumPy compatibility)
-  - Eigenvectors for spinless (`nspin=1`): shape `(nk, nstate, nstate)`
-  - Eigenvectors for spinful (`nspin=2`): shape `(nk, nstate, norb, 2)`
-  - For finite systems (no k-axis): `(nstate, ...)` with spin axes as before
-- Renamed parameter: `eigvectors` → `return_eigvecs` for clarity
+##### Method Changes
+- `solve_ham()` combines `solve_one()` (deprecated) and `solve_all()` (deprecated)
+  - Merged `solve_one()` and `solve_all()` into single optimized method
+  - Utilizes NumPy vectorization for significantly faster diagonalization
+  - Automatically handles single k-point or multiple k-points
+  - **Breaking**: Changed eigenvalue/eigenvector indexing for vectorized workflows:
+    - Eigenvalues: shape `(nk, nstate)` (matrix elements last for NumPy compatibility)
+    - Eigenvectors for spinless (`nspin=1`): shape `(nk, nstate, nstate)`
+    - Eigenvectors for spinful (`nspin=2`): shape `(nk, nstate, norb, 2)`
+    - For finite systems (no k-axis): `(nstate, ...)` with spin axes as before
+  - Renamed parameter: `eigvectors` → `return_eigvecs` for clarity
 
-**`visualize()` - Enhanced 2D Visualization**
-- Hopping vectors now depicted as curved arrows instead of two straight lines at an angle
-- Lattice vectors shown as arrows with unit cell outlined by dotted lines
-- Arrow transparency scales with hopping magnitude (shows relative strengths visually)
-- For spinful models, uses maximum element of 2×2 hopping matrix for scaling
+- `visualize()` - Enhanced 2D Visualization
+  - Hopping vectors now depicted as curved arrows instead of two straight lines at an angle
+  - Lattice vectors shown as arrows with unit cell outlined by dotted lines
+  - Arrow transparency scales with hopping magnitude (shows relative strengths visually)
+  - For spinful models, uses maximum element of 2×2 hopping matrix for scaling
 
-**`display()` (deprecated) → `info()`**
-- Renamed `display()` to `info()` to prevent confusion with visualization 
-- Now also callable via `print(TBModel)` using `__str__` method
-- Prints orbital vectors in both Cartesian and reduced coordinates
+- `display()` (deprecated) renamed to `info()`
+  - Renamed `display()` to `info()` to prevent confusion with visualization 
+  - Now also callable via `print(TBModel)` using `__str__` method
+  - Prints orbital vectors in both Cartesian and reduced coordinates
 
-**Methods moved to `Lattice` class** (still accessible via `TBModel` for compatibility):
-- `k_path()`: Generate k-point paths through Brillouin zone
-- `k_uniform_mesh()`: Create uniform k-space meshes
-- `make_supercell()`: Construct supercells of the model
+- `position_expectation()` - Parameter renaming
+  - Renamed parameter `evec` to `evecs` for clarity
 
-**`position_expectation()` - Parameter renaming**
-- Renamed parameter: `evec` → `evecs` for clarity
+- `position_matrix()` - Parameter renaming
+  - Renamed parameter `evec` to `evecs` for clarity
 
-**`position_matrix()` - Parameter renaming**
-- Renamed parameter: `evec` → `evecs` for clarity
+- `hwf_centers()` - Parameter renaming
+  - Renamed parameter `evec` to `evecs` for clarity
 
-**`hwf_centers()` - Parameter renaming**
-- Renamed parameter: `evec` → `evecs` for clarity
+##### Performance Improvements
+- Vectorized implementations using NumPy for substantial speed improvements in linear algebra operations
+  - Faster initialization, Hamiltonian construction and diagonalization
 
-#### `WFArray` Method Changes
 
-**`__init__()` - Initialization Changes**
+#### `WFArray`
+
+##### Initialization Changes
 - **Breaking**: Replaced `mesh_arr` parameter with a `Mesh` instance
   - Users must now create a `Mesh` object to define k/parameter grids
 - **Breaking**: Replaced `model` parameter with a `Lattice` instance
   - Users must now create a `Lattice` object to define lattice geometry
   - This decouples `WFArray` from `TBModel`, allowing storage of arbitrary states, even if they don't correspond to a specific tight-binding model. `TBModel` can still be used to populate the `WFArray` with its energy eigenstates via `solve_model()` or external diagonalization.
 - Renamed `nsta_arr` parameter to integer `nstates` for clarity
-- To initialize, the user must now provide:
+- To initialize `WFArray(lattice=my_lat, mesh=my_mesh, nstates=5, spinful=True)`
   - `lattice`: a `Lattice` instance defining the lattice geometry
   - `mesh`: a `Mesh` instance defining the k/parameter grid
   - `nstates`: integer number of states per mesh point
+  - `spinful`: boolean indicating whether the states are spinful
 
-**`berry_flux()` - Enhanced and Optimized**
-- **Breaking**: Flag renames for clarity:
-  - `occ` → `state_idx`: band indices need not be occupied 
-  - `dirs` → `plane`: only accepts 2-element tuples defining planes
-- **Breaking**: Removed `individual_phases` flag
-  - Previously returned integrated Berry flux as function of remaining parameters
-  - Now users must sum over appropriate axes if integration is desired, or call Chern number method
-- **Breaking**: Default behavior change when `plane` is unspecified (or `None`):
-  - Returns Berry flux with 2 additional axes for all plane combinations
-  - E.g., `berry_flux()[0,1]` is Berry flux in the (0,1) plane
-- Substantial speed improvements using NumPy vectorization
+##### Method Changes
 
-#### `W90` Method Changes
+- `berry_flux()` - Enhanced and Optimized
+  - **Breaking**: Flag renames for clarity:
+    - `occ` renamed to `state_idx`: band indices need not be occupied
+    - `dirs` renamed to `plane`: only accepts 2-element tuples defining planes
+  - **Breaking**: Removed `individual_phases` flag
+    - Previously returned integrated Berry flux as function of remaining parameters
+    - Now users must sum over appropriate axes if integration is desired, or call Chern number method
+  - **Breaking**: Default behavior change when `plane` is unspecified (or `None`):
+    - Returns Berry flux with 2 additional axes for all plane combinations
+    - E.g., `berry_flux()[0,1]` is Berry flux in the (0,1) plane
+  - Substantial speed improvements using NumPy vectorization
 
-#### Initialization Changes
+#### `W90` 
+
+##### Initialization Changes
 - Initialization is now faster with improved file parsing and data handling
 
-#### `W90.model`
-- Constructing the `TBModel` from Wannier90 data is now faster with optimized data structures
-- In some cases this is orders of magnitude faster for large models, allowing for practical 
-  use of Wannier90 data with large numbers of orbitals and hoppings.
+##### Method Changes
+- `model()`
+  - Constructing the `TBModel` from Wannier90 data is now faster with optimized data structures
+  - In some cases this is orders of magnitude faster for large models, allowing for practical 
+    use of Wannier90 data with large numbers of orbitals and hoppings.
 
-**`w90_bands_consistency()` renamed to `bands_w90()`**
-- **Breaking**: Returned energy array shape changed from `(band, kpts)` to `(kpts, band)`
-  - Now consistent with eigenvalue shape from `TBModel.solve_ham()`
-  - Aligns with NumPy convention of putting k-points in first axis
+- `w90_bands_consistency()` renamed to `bands_w90()`
+  - **Breaking**: Returned energy array shape changed from `(band, kpts)` to `(kpts, band)`
+    - Now consistent with eigenvalue shape from `TBModel.solve_ham()`
+    - Aligns with NumPy convention of putting k-points in first axis
 
 ### Deprecated
 
