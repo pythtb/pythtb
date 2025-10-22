@@ -47,4 +47,4 @@ Optional extras (install with `pip install .[group]`):
 
 For detailed installation instructions, editable/development setup, and troubleshooting, see:
 - [Full Installation Guide](https://pythtb.readthedocs.io/en/latest/install.html)
-- [Wiki](https://github.com/pythtb/pythtb/wiki/Editable-Conda-Install)
+- [Wiki](https://github.com/pythtb/pythtb/wiki/Installation-Instructions-for-Developers)
