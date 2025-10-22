@@ -6,27 +6,27 @@
 
  [![Conda Version](https://anaconda.org/conda-forge/pythtb/badges/version.svg)](https://anaconda.org/conda-forge/pythtb/) [![Conda Downloads](https://anaconda.org/conda-forge/pythtb/badges/downloads.svg)](https://anaconda.org/conda-forge/pythtb/) [![readthedocs status](https://app.readthedocs.org/projects/pythtb/badge/?version=dev)](https://pythtb.readthedocs.io/en/dev/) [![Run examples on Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/pythtb/pythtb/dev?urlpath=lab/tree/docs/source/examples/)
 
-
-`PythTB` is a software package providing a Python implementation of the tight-binding approximation. It can be used to construct and solve tight-binding models of the electronic structure of systems of arbitrary dimensionality (crystals, slabs, ribbons, clusters, etc.), and is rich with features for computing Berry phases and related properties. For more details, please see the documentation at or http://www.physics.rutgers.edu/pythtb/.
-
-If you have any questions about using or contributing to the code, please refer to the documentation at https://pythtb.readthedocs.io or post a question in the Discussions. For contributing to the code, see [CONTRIBUTING.md](CONTRIBUTING.md) and refer to the Wiki. 
+`PythTB` is a software package providing a Python implementation of the tight-binding approximation. It can be used to construct and solve tight-binding models of the electronic structure of systems of arbitrary dimensionality (crystals, slabs, ribbons, clusters, etc.), and is rich with features for computing Berry phases and related properties. For more details, please see the [documentation](https://pythtb.readthedocs.io/en/latest/).
 
 ## Installation
 
-`PythTB` is available from either Conda-Forge or PyPI. If you have the `conda` package manager, you can install `PythTB` from the Conda-Forge channel using
+PythTB can be installed from **Conda-Forge** or **PyPI**:
 
 ```bash
-conda install --channel=conda-forge pythtb
+# via Conda
+conda install -c conda-forge pythtb
+
+# or via pip
+pip install pythtb
 ```
 
-If you instead use `pip`, then you can install from PyPI using
+PythTB ≥ v2.0.0 requires Python ≥ 3.11 and the following dependencies:
+- numpy
+- matplotlib
 
-```bash
-pip install pythtb 
-```
+Optional dependencies:
+- ipython, jupyter, plotly, tensorflow
 
-For more detailed instructions, refer to the [documentation website](https://pythtb.readthedocs.io/en/latest/install.html).
-
-## Dependencies
-
-PythTB is compatible with Python 3.11 or later. While earlier versions may still work, we will not provide support for anything prior to this Python release.
+For detailed installation instructions, editable/development setup, and troubleshooting, see:
+- [Full Installation Guide](https://pythtb.readthedocs.io/en/latest/install.html)
+- [Wiki](https://github.com/pythtb/pythtb/wiki/Editable-Conda-Install)
