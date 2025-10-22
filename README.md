@@ -14,10 +14,10 @@
 
 ## Installation
 
-PythTB can be installed from **Conda-Forge** or **PyPI**:
+PythTB can be installed from **Conda-Forge** (PythTB ≥ 1.8.0) or **PyPI**:
 
 ```bash
-# via Conda
+# via Conda for pythtb >= v1.8.0
 conda install -c conda-forge pythtb
 
 # or via pip
@@ -32,7 +32,7 @@ cd pythtb
 pip install -e .
 ```
 
-PythTB ≥ v2.0.0 requires Python ≥ 3.11 and the core dependencies:
+PythTB ≥ 2.0.0 requires Python ≥ 3.11 and the core dependencies:
 - numpy ≥ 2.0
 - matplotlib ≥ 3.9
 
