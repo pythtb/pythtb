@@ -58,7 +58,7 @@ class W90:
 
     The final two files (*prefix*\_band.kpt and *prefix*\_band.dat)
     are optional. Please see documentation of function
-    :meth:`w90_bands` for more detail.
+    :meth:`bands_w90` for more detail.
 
     Parameters
     ----------
@@ -733,11 +733,11 @@ class W90:
     def w90_bands_consistency(self):
         """
         .. deprecated:: 2.0.0
-            Use .w90_bands() instead.
+            Use .bands_w90() instead.
         """
-        return self.w90_bands()
+        return self.bands_w90()
 
-    def w90_bands(
+    def bands_w90(
             self, 
             return_k_cart: bool = False,
             return_k_dist: bool = False, 
@@ -810,7 +810,7 @@ class W90:
         --------
         Get band structure from `Wannier90`
 
-        >>> w90_kpt, w90_evals, w90_k_dist, w90_k_nodes, w90_k_labels = silicon.w90_bands(
+        >>> w90_kpt, w90_evals, w90_k_dist, w90_k_nodes, w90_k_labels = silicon.bands_w90(
         ... return_k_dist=True, return_k_nodes=True)
 
         Get simplified model
@@ -854,7 +854,7 @@ class W90:
             results += (k_nodes, k_labels)
         return results
 
-    def qe_bands(self, return_k_cart=False, return_meta=False, return_kdist=False):
+    def bands_qe(self, return_k_cart=False, return_meta=False, return_kdist=False):
         """
         Read band structure from Quantum ESPRESSO output files.
 
