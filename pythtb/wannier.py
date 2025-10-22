@@ -291,7 +291,7 @@ class Wannier:
         return getattr(self, "_A", None)
 
 
-    def report(self, precision=8):
+    def info(self, precision=8):
         """Report of Wannier centers and spreads.
 
         Parameters

@@ -137,20 +137,20 @@ class TBModel:
         str
             String representation of the TBModel.
         """
-        return self.report(show=False)
+        return self.info(show=False)
 
     @deprecated(
-        "The 'display' method is deprecated and will be removed in a future release. Use 'print(model)' or 'model.report(show=True)' instead."
+        "The 'display' method is deprecated and will be removed in a future release. Use 'print(model)' or 'model.info(show=True)' instead."
     )
     def display(self):
         r"""
         .. deprecated:: 2.0.0
-            `display` has been deprecated, it is recommended to use `print(model)` or `model.report(show=True)` instead.
+            `display` has been deprecated, it is recommended to use `print(model)` or `model.info(show=True)` instead.
         """
-        return self.report(show=True)
+        return self.info(show=True)
 
-    def report(self, show: bool = True, short: bool = False):
-        r"""Print or return a report about the tight-binding model.
+    def info(self, show: bool = True, short: bool = False):
+        r"""Print or return information about the tight-binding model.
 
         .. versionadded:: 2.0.0
             The `short` parameter was added to control the verbosity of the report.
@@ -168,7 +168,7 @@ class TBModel:
         Returns
         -------
         str or None
-            Returns the report string if ``show`` is False, otherwise prints and returns None.
+            Returns the info string if ``show`` is False, otherwise prints and returns None.
 
         Notes
         -----

@@ -70,7 +70,9 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 
 ##### New Methods:
 - `TBModel.__repr__`: Object representation now displays `rdim`, `kdim`, and `nspin`
-- `TBModel.__str__`: Allows printing a `TBModel` instance using `print(TBModel)`, which calls `TBModel.report()`
+- `TBModel.__str__`: Allows printing a `TBModel` instance using `print(TBModel)`, which calls `TBModel.info()`
+- `TBModel.info()`: Information summary about the model (renamed from `display()`)
+  - Can print directly or return as string
 - `TBModel.hamiltonian()`: Generates Hamiltonians for both single and multiple k-points
 - `TBModel.solve_ham()`: Unified method that subsumes `solve_one()` and `solve_all()` with vectorized diagonalization
 - `TBModel.velocity()`: Computes $dH/dk$ (velocity operator) in the orbital basis
@@ -162,8 +164,8 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 - Arrow transparency scales with hopping magnitude (shows relative strengths visually)
 - For spinful models, uses maximum element of 2×2 hopping matrix for scaling
 
-**`display()` (deprecated) → `report()`**
-- Renamed `display` to `report()` to prevent confusion with visualization 
+**`display()` (deprecated) → `info()`**
+- Renamed `display()` to `info()` to prevent confusion with visualization 
 - Now also callable via `print(TBModel)` using `__str__` method
 - Prints orbital vectors in both Cartesian and reduced coordinates
 
@@ -222,7 +224,7 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 The following methods are deprecated but still functional with backward compatibility wrappers:
 
 #### `TBModel` Methods
-- `display()`: Use `TBModel.report()` or `print(my_model)` instead
+- `display()`: Use `TBModel.info()` or `print(my_model)` instead
   - New naming is more intuitive, less likely to be confused with visualization
 - `get_lat()`: Renamed to `get_lat_vecs()` for clarity
 - `get_orb()`: Renamed to `get_orb_vecs()` for clarity
@@ -236,7 +238,7 @@ The following methods are deprecated but still functional with backward compatib
   - `solve_ham()` automatically handles single k-points
 - `solve_all()`: Use `TBModel.solve_ham()` instead
   - `solve_ham()` provides vectorized, faster diagonalization
-- `display()`: Use `TBModel.report()` or `print(my_model)` instead
+- `display()`: Use `TBModel.info()` or `print(my_model)` instead
   - New naming is more intuitive
 
 #### `TBModel` Parameters  

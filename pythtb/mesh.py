@@ -530,8 +530,14 @@ class Mesh:
         return True
     
 
-    def summary(self) -> str:
-        """Human-friendly multi-line summary of this Mesh."""
+    def info(self, show: bool = True) -> str:
+        """Information summary about the mesh.
+        
+        Returns
+        -------
+        str
+            Information summary of the mesh.
+        """
         # Helpers
         def _fmt_tuple(t):
             return "(" + ", ".join(str(x) for x in t) + ")"
@@ -603,11 +609,15 @@ class Mesh:
         lines.append(f"Looped axes: {la_str}")
         lines.append(f"BZ-winding axes: {wa_str}")
         lines.append(f"Endpoint axes: {ca_str}")
-        return "\n".join(lines)
+
+        if show:
+            print("\n".join(lines))
+        else:
+            return "\n".join(lines)
 
     def __str__(self) -> str:
         # Pretty, multi-line view for print(mesh)
-        return self.summary()
+        return self.info(show=False)
 
     def _set_ax_info(self, tol: float = 1e-8) -> np.ndarray:
         r"""
