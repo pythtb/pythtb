@@ -13,20 +13,23 @@ properties. For more details, please see:
 
 ## Installation
 
-`PythTB` is available from either Conda-Forge or PyPI. If you have the `conda` package manager, you can install `PythTB` from the Conda-Forge channel using
+PythTB can be installed from **Conda-Forge** or **PyPI**:
 
 ```bash
-conda install --channel=conda-forge pythtb
+# via Conda
+conda install -c conda-forge pythtb
+
+# or via pip
+pip install pythtb
 ```
 
-If you instead use `pip`, then you can install from PyPI using
+PythTB ≥ v2.0.0 requires Python ≥ 3.11 and the following dependencies:
+- numpy
+- matplotlib
 
-```bash
-pip install pythtb 
-```
+Optional dependencies:
+- ipython, jupyter, plotly, tensorflow
 
-For more detailed instructions, see the [documentation website]( http://www.physics.rutgers.edu/pythtb/install.html).
-
-## Dependencies
-
-PythTB is compatible with Python >= 3.11. While earlier versions may work, we will not provide support for anything before this Python release.
+For detailed installation instructions, editable/development setup, and troubleshooting, see:
+- [Full Installation Guide](https://pythtb.readthedocs.io/en/latest/install.html)
+- [Wiki](https://github.com/pythtb/pythtb/wiki/Editable-Conda-Install)
