@@ -24,12 +24,26 @@ conda install -c conda-forge pythtb
 pip install pythtb
 ```
 
-PythTB ≥ v2.0.0 requires Python ≥ 3.11 and the following dependencies:
-- numpy
-- matplotlib
+Or install from source (editable) after cloning the repository:
 
-Optional dependencies:
-- ipython, jupyter, plotly, tensorflow
+```bash
+git clone https://github.com/pythtb/pythtb.git
+cd pythtb
+pip install -e .
+```
+
+PythTB ≥ v2.0.0 requires Python ≥ 3.11 and the core dependencies:
+- numpy ≥ 2.0
+- matplotlib ≥ 3.9
+
+Optional extras (install with `pip install .[group]`):
+
+- `[plotting]`: plotly (interactive 3D plots)
+- `[speedup]`: tensorflow (GPU-assisted routines)
+- `[notebooks]`: ipython ≥ 8.17, ipykernel, notebook, jupyter, jupyterlab (Jupyter support)
+- `[docs]`: sphinx toolchain (build the documentation)
+- `[tests]`: pytest
+- `[dev]`: pytest, black, pre-commit
 
 For detailed installation instructions, editable/development setup, and troubleshooting, see:
 - [Full Installation Guide](https://pythtb.readthedocs.io/en/latest/install.html)
