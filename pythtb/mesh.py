@@ -166,7 +166,7 @@ class Axis:
     
 
 class Mesh:
-    r"""Initialize a Mesh object storing and managing a mesh in :math:`(k, \lambda)`-space.
+    r"""Store and manage a mesh in :math:`(k, \lambda)`-space.
 
     .. versionadded:: 2.0.0
 
@@ -557,8 +557,6 @@ class Mesh:
             mesh_type = "path"
 
         # Shapes
-        shape_k = self.shape_k
-        shape_p = self.shape_lambda
         overall_shape = self.shape_full
             
         # Full grid (optional flag some versions have)
@@ -587,7 +585,6 @@ class Mesh:
         num_points = self.num_points
 
         # Names / indices
-        axis_names = getattr(self, "_axis_names", None) or getattr(self, "axis_names", None)
         k_axes = getattr(self, "k_axes", [])
         p_axes = getattr(self, "lambda_axes", [])
 
@@ -598,11 +595,8 @@ class Mesh:
         lines.append(f"Dimensionality: {self.dim_k} k-dim(s) + {self.dim_lambda} λ-dim(s)")
         lines.append(f"Number of mesh points: {num_points}")
         lines.append(f"Full shape: {_fmt_tuple(overall_shape)}")
-        # lines.append(f"k-shape: {_fmt_tuple(shape_k)}")
-        # lines.append(f"λ-shape: {_fmt_tuple(shape_p)}")
         lines.append(f"k-axes: {_fmt_list(k_axes)}")
         lines.append(f"λ-axes: {_fmt_list(p_axes)}")
-        # lines.append(f"Axis names: {_fmt_list(axis_names)}")
         # Optional full-grid flag
         if is_k_torus is not None and mesh_type != "path":
             lines.append(f"Is a torus in k-space (all k-axes wind BZ): {_yn(is_k_torus)}")
@@ -695,17 +689,18 @@ class Mesh:
 
         Notes
         ------
-        Winding the BZ implies the axis is also looped. This does not necessarily imply
-        the axis contains endpoints (first and last points equal), as the axis may wind
-        around the BZ without having equal endpoints.
+        - Winding the BZ implies the axis is also looped. This does not necessarily imply
+          the axis contains endpoints (first and last points equal), as the axis may wind
+          around the BZ without having equal endpoints.
 
-        If the mesh is built using :meth:`build_grid`, :meth:`build_custom`,
-        or :meth:`build_custom`, this will be set automatically
-        for k-axes that span the BZ (i.e., go from 0 to 1 in that k-component).
+        - If the mesh is built using :meth:`build_grid`
+          or :meth:`build_custom`, this will be set automatically
+          for k-axes that include the edge of BZ (i.e., include 1 for a given k-component)
+          This also implies that this axis is closed for that k-component.
 
-        This allows ``WFArray`` to decide whether phases apply at the edge
-        of the mesh (axis is closed) or just beyond the edge of the mesh (axis is not closed). 
-        This will apply when ``axis_idx`` is a k-axis and ``component_idx`` is a k-component.
+        - Setting an axis as winding the BZ allows ``WFArray`` to decide whether phases apply 
+          at the edge of the mesh (axis is closed) or just beyond the edge of the mesh (axis open). 
+          This will apply when ``axis_idx`` is a k-axis and ``component_idx`` is a k-component.
 
         See Also
         --------
@@ -714,7 +709,7 @@ class Mesh:
         Examples
         --------
         A situation where this may be useful is when creating a path
-        through k-space that winds around the BZ but does not have equal endpoints.
+        through k-space that winds around the BZ but does contain the endpoints.
         In this case, the user can manually mark the axis as winding the BZ for the
         relevant k-component.
         >>> from pythtb import Mesh
@@ -818,21 +813,20 @@ class Mesh:
         This means that the two ends of the axis correspond to the same Hamiltonian, and
         the eigenstates at the two ends should be considered identical with equal phase.
 
-        ... note::
-            Closing an axis will also mark it as looped for the given component.
-            k-axes are marked as closed automatically when the difference between
-            the first and last points is 0 or 1 (in reduced units).
-
         Parameters
         ----------
         axis_idx : int
-            The index of the axis to close. Must be a lambda axis.
+            The index of the axis to close.
         component_idx : int
-            The component of the vector to close. Must be a lambda component.
+            The component of the vector to close.
 
         Notes
         -----
-        ... warning::
+        - Closing an axis will also mark it as looped for the given component.
+          k-axes are marked as closed automatically when the difference between
+          the first and last points is 0 or 1 (in reduced units).
+
+        .. warning::
             It is up to the user to ensure that the Hamiltonian is indeed the same
             at the two ends of the axis. This function does not check this condition.
             If this is not the case, the results may be incorrect.
@@ -876,9 +870,9 @@ class Mesh:
         Parameters
         ----------
         axis_idx : int
-            The index of the axis to open. Must be a lambda axis.
+            The index of the axis to open.
         component_idx : int
-            The component of the vector to open. Must be a lambda component.
+            The component of the vector to open.
 
         Examples
         ---------

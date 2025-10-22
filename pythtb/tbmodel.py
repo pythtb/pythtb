@@ -424,11 +424,16 @@ class TBModel:
 
         .. versionadded:: 2.0.0
 
-        Each hopping is represented as a dictionary with keys:
-            - 'amplitude': hopping amplitude (complex or matrix)
-            - 'from_orbital': index of starting orbital
-            - 'to_orbital': index of ending orbital
-            - 'lattice_vector': (optional) lattice vector displacement
+        Returns
+        -------
+        list[dict]
+            A list of hopping dictionaries. Each dictionary contains the following
+            keys:
+
+            - ``"amplitude"``: hopping amplitude (complex or matrix)
+            - ``"from_orbital"``: index of starting orbital
+            - ``"to_orbital"``: index of ending orbital
+            - ``"lattice_vector"``: (optional) lattice vector displacement
         """
         amps, i_idx, j_idx, R_vecs = self._hoppings.components()
         formatted: list[dict] = []
@@ -816,6 +821,13 @@ class TBModel:
     def set_nn_hops(self, hop_amps: list, nn_shells: list[int], mode="set"):
         r"""Define nearest-neighbor hopping parameters up to a specified shell.
 
+        This function sets hopping amplitudes for all bonds in the specified
+        nearest-neighbor shells. The shells are defined based on the distance
+        from each orbital, with shell 1 being the nearest neighbors, shell 2
+        being the next-nearest neighbors, and so on.
+
+        .. versionadded:: 2.0.0
+
         Parameters
         ----------
         hop_amp : list or array-like
@@ -1086,10 +1098,13 @@ class TBModel:
     def velocity(self, k_pts, cartesian=False):
         r"""Generate the velocity operator in the orbital basis.
 
-        The velocity is related to the derivative of the block Hamiltonian along 
-        each reciprocal lattice direction 
-        :math:`\mathbf{v}_\mathbf{k} = \hbar \partial_\mathbf{k} H_\mathbf{k}` for 
-        an array of k-points. Here, we use units where :math:`\hbar = 1`.
+        The velocity operator is defined via the derivative of the Hamiltonian
+        with respect to k of each reciprocal lattice direction, i.e., 
+
+        .. math::
+            v_k^{\mu} = \hbar \frac{\partial H(k)}{\partial k_{\mu}}
+        
+        Here, we use units where :math:`\hbar = 1`.
 
         .. versionadded:: 2.0.0
 
@@ -1102,17 +1117,11 @@ class TBModel:
 
         Returns
         -------
-        vel : array of shape (dim_k, Nk, norb, norb)
+        vel : np.ndarray
             Velocity operators at each k-point. First axis indexes the cartesian direction if `cartesian` is True.
-            Otherwise, it indexes the reduced direction.
+            Otherwise, it indexes the reduced direction. Shape is `(dim_k, Nk, norb, norb)` for spinless models,
+            or `(dim_k, Nk, norb, nspin, norb, nspin)` for spinful models.
 
-        Notes
-        -----
-        The velocity operator is defined via the derivative of the Hamiltonian
-        with respect to k, i.e.,
-
-        .. math::
-            v_k^{\mu} = \hbar \frac{\partial H(k)}{\partial k_{\mu}}
         """
         dim_k = self.dim_k
 
@@ -1328,7 +1337,7 @@ class TBModel:
 
     def solve_ham(
             self, 
-            k_list = None, 
+            k_pts = None, 
             return_eigvecs: bool = False, 
             keep_spin_ax: bool = True,
             tf_speedup: bool = False) -> tuple[np.ndarray, np.ndarray] | np.ndarray:
@@ -1337,25 +1346,29 @@ class TBModel:
         Solve for eigenvalues and optionally eigenvectors of the tight-binding model
         at a list of one-dimensional k-vectors.
 
+        .. versionchanged:: 2.0.0
+            Merged :func:`solve_all` and :func:`solve_one` into :func:`solve_ham`.
+            This function will equivalently handle both a single k-point and
+            multiple k-points. 
+
+            Parameter `eig_vectors` renamed to `return_eigvecs`.
+            Parameter `k_list` renamed to `k_pts`.
+
         .. versionadded:: 2.0.0
-            Merged :func:`solve_all` and :func:`solve_one` into this function.
             Parameter `keep_spin_ax` and `tf_speedup` added.
 
         Parameters
         ----------
-        k_list : array_like, optional
+        k_pts : array_like, optional
             One-dimensional list or array of k-vectors, each given in reduced coordinates.
             Shape should be ``(Nk, dim_k)``, where ``dim_k`` is the number of periodic directions.
             Should not be specified for systems with zero-dimensional reciprocal space.
-
         return_eigvecs : bool, optional
             If True, both eigenvalues and eigenvectors are returned.
             If False (default), only eigenvalues are returned.
-
         keep_spin_ax : bool, optional
             If True (default), the spin axes are kept in the output eigenvectors.
             If False, the spin axes are flattened.
-
         tf_speedup : bool, optional
             If True, use TensorFlow to accelerate the diagonalization.
             This requires TensorFlow to be installed. Default is False.
@@ -1364,21 +1377,24 @@ class TBModel:
         -------
         eval : {(Nk, nstate), (nstate)} np.ndarray 
             Array of eigenvalues. Shape is:
+
             - (Nk, nstates) for periodic systems
             - (nstates,) for zero-dimensional (molecular) systems
 
         evec : {(Nk, nstate, nstate), (nstate, nstate), (Nk, nstate, norb, 2), (nstate, norb, 2)} np.ndarray, optional
-            Array of eigenvectors (if `return_eigvecs=True`). The ordering of bands matches that in `eval`.
+            Array of eigenvectors (if ``return_eigvecs=True``). The ordering of bands matches that in `eval`.
 
-            Eigenvectors :code:`evec[k, n, j]` correspond to the coefficient
-            :math:`C^{n \mathbf{k}}_j` in the expansion in orbital basis.
+            Each entry :code:`evec[k, n, j]` is the coefficient of orbital `j` in the Bloch eigenstate
+            :math:`C^{n \mathbf{k}}_j`.
 
             For spinless models:
+
             - Shape is ``(Nk, nstates, norb)`` in periodic systems
             - Shape is ``(nstates, norb)`` in zero-dimensional systems
             - If only one k-point is provided, the redundant k-axis is removed, resulting in shape ``(nstates, norb)``.
 
             For spinful models:
+
             - Shape is ``(Nk, nstates, norb, 2)`` for periodic systems
             - Shape is ``(nstates, norb, 2)`` for zero-dimensional systems
             - If only one k-point is provided, the redundant k-axis is removed, resulting in shape ``(nstates, norb, 2)``.
@@ -1407,7 +1423,7 @@ class TBModel:
         >>> eval, evec = tb.solve_ham([[0.0, 0.0], [0.0, 0.2]], return_eigvecs=True)
         """
         logger.debug("Initializing Hamiltonian...")
-        Ham = self.hamiltonian(k_list)
+        Ham = self.hamiltonian(k_pts)
 
         logger.debug("Diagonalizing Hamiltonian...")
         if return_eigvecs:
@@ -1533,8 +1549,8 @@ class TBModel:
 
         See Also
         ---------
-        :ref:`haldane-fin-nb` : For an example
-        :ref:`haldane-edge-nb` : For an example
+        :ref:`cubic-slab-hwf-nb` : For an example
+        :ref:`three-site-thouless-nb` : For an example
 
         Notes
         -----
@@ -1635,11 +1651,11 @@ class TBModel:
             ) -> "TBModel":
         r"""Returns a finite model.
 
-        .. versionadded:: 2.0.0
-
         This function constructs a finite tight-binding model by removing periodicity
         along specified directions. The resulting model has open boundary conditions
         along those directions, with the option to glue edges together.
+
+        .. versionadded:: 2.0.0
 
         Parameters
         ----------
@@ -1661,8 +1677,10 @@ class TBModel:
         See Also
         ---------
         `cut_piece` : Cut a lower-dimensional piece out of a higher-dimensional model.
-        :ref:`haldane-fin-nb` : For an example
+        :ref:`haldane-nb` : For an example
         :ref:`haldane-edge-nb` : For an example
+        :ref:`fkm-nb` : For an example
+        :ref:`local-chern-nb` : For an example
 
         Notes
         -----   

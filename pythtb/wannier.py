@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 __all__ = ["Wannier"]
 
 class Wannier:
-    r"""Class for constructing Wannier functions from Bloch energy eigenstates.
+    r"""Construct Wannier functions using the projection method.
 
     This class provides methods to build Wannier functions from Bloch eigenstates and to
     evaluate their quadratic spreads. It implements (i) **single-shot projection** via SVD
@@ -71,8 +71,6 @@ class Wannier:
            \sum_{\mathbf{k}} \operatorname{Im}\!\left[\ln M_{nn}^{(\mathbf{b})}(\mathbf{k})\right]
            \, \mathbf{b} ,
 
-      consistent with the implementation in ``_spread_recip`` (use of ``np.log`` of the
-      diagonal of ``M`` and a weighted contraction with the shell vectors ``k_shell``).
 
     References
     ----------
@@ -80,6 +78,7 @@ class Wannier:
        Wannier functions for composite energy bands. Phys. Rev. B 56, 12847 (1997).
     .. [souza-marzari-vanderbilt] Souza, I., Marzari, N., & Vanderbilt, D. Maximally localized
        Wannier functions for entangled energy bands. Phys. Rev. B 65, 035109 (2001).
+
     """
 
     def __init__(self, model: "TBModel", energy_eigstates: WFArray):
@@ -347,6 +346,19 @@ class Wannier:
 
 
     def get_centers(self, cartesian=False):
+        """Get the centers of the Wannier functions.
+
+        Parameters
+        ----------
+        cartesian : bool, optional
+            If True, return the centers in Cartesian coordinates.
+            If False, return the centers in fractional coordinates.
+
+        Returns
+        -------
+        np.ndarray
+            The centers of the Wannier functions.
+        """
         if cartesian:
             return self.centers
         else:
@@ -563,8 +575,8 @@ class Wannier:
 
         .. math::
 
-             \tilde{\psi}_{j\mathbf{k}}
-             \;=\; \sum_{n\in \mathcal{S}} U_{jn}(\mathbf{k}) \, \psi_{n\mathbf{k}} .
+             \tilde{\psi}_{n\mathbf{k}}
+             \;=\; \sum_{m\in \texttt{band_idxs}} U_{nm}(\mathbf{k}) \, \psi_{m\mathbf{k}} .
 
         This realizes the optimal alignment described in [marzari-vanderbilt]_ (Sec. II) and used
         in the disentanglement initialization of [souza-marzari-vanderbilt]_.
@@ -592,14 +604,8 @@ class Wannier:
         Notes
         -----
         This routine does **not** perform iterative minimization of
-        :math:`\widetilde{\Omega}`; it provides a high-quality initial guess via SVD
-        alignment. The discrete inverse FFT to real space and the spread decomposition
-        are handled by ``set_bloch_like_states`` and ``_spread_recip``, respectively.
-
-        References
-        ----------
-        .. [marzari-vanderbilt] Marzari, N., & Vanderbilt, D. Phys. Rev. B 56, 12847 (1997).
-        .. [souza-marzari-vanderbilt] Souza, I., Marzari, N., & Vanderbilt, D. Phys. Rev. B 65, 035109 (2001).
+        :math:`\Omega`; it provides a high-quality initial guess via SVD
+        alignment.
         """
         if tf_list is None:
             if self.trial_wfs is None:
@@ -656,10 +662,6 @@ class Wannier:
         -----
         The implementation currently uses a **single k-shell** (``n_shell=1``) and assumes a
         **uniform Monkhorst–Pack mesh**.
-
-        References
-        ----------
-        .. [marzari-vanderbilt] Marzari, N., & Vanderbilt, D. Phys. Rev. B 56, 12847 (1997).
         """
         M = self.tilde_states.Mmn
         w_b, k_shell, _ = self.energy_eigstates.get_shell_weights()
@@ -776,7 +778,7 @@ class Wannier:
         )
         return Omega_i
 
-    def get_omega_i_k(self):
+    def _get_omega_i_k(self):
         r"""Calculate the gauge-independent quadratic spread for the Wannier functions.
 
         This function computes the quadratic spread :math:`\Omega_I`
@@ -1420,12 +1422,6 @@ class Wannier:
 
         - After convergence, the ``.tilde_states`` attribute stores the 
           disentangled wavefunctions spanning the optimized subspace.
-
-        References
-        ----------
-        .. [souza-marzari-vanderbilt] Souza, I., Marzari, N., & Vanderbilt, D. 
-           Maximally localized Wannier functions for entangled energy bands. 
-           Phys. Rev. B 65, 035109 (2001).
         """
         # if we haven't done single-shot projection yet (set tilde states)
         if not hasattr(self.tilde_states, "_u_nk"):
@@ -1516,13 +1512,7 @@ class Wannier:
           where :math:`\epsilon = \alpha/4 \sum_{\mathbf{b}}w_b` is the step size (given ``alpha``).
 
         - Iteration proceeds until the gradient norm falls below ``grad_min`` and the change in spread is smaller 
-            than ``tol``, or the maximum number of iterations is reached.
-
-        References
-        ----------
-        .. [marzari-vanderbilt] Marzari, N., & Vanderbilt, D. 
-           Maximally localized generalized Wannier functions for composite energy bands. 
-           Phys. Rev. B 56, 12847 (1997).
+          than ``tol``, or the maximum number of iterations is reached.
         """
 
         U = self._max_loc_unitary(
@@ -1557,7 +1547,7 @@ class Wannier:
 
         2. Applies a second projection using ``twfs_2`` if provided, or the original trial wavefunctions otherwise,
            to refine the states within the optimal subspace. This step ensures that the states are well-aligned
-           with the desired chemical character before localization. It uses the :meth:`single_shot_project` method 
+           with the desired chemical character before localization. It uses the :meth:`single_shot_projection` method 
            for this projection.
 
         3. Calls :meth:`max_localize` to find the unitary transformation that minimizes the gauge-dependent spread,
@@ -1575,14 +1565,15 @@ class Wannier:
             - ``(Emin, Emax)``: Energy range in eV.  
             - ``{"bands": [i1, i2, ...]}``: Explicit band indices.  
             - ``{"energy": (Emin, Emax)}``: Energy window.
+
             Defaults to ``"all"``.
-        inner_window : str | tuple | list | dict | None, optional
+        inner_window : str | tuple | list | dict, optional
             Defines the "frozen window," i.e. states that must be exactly
             included in the subspace. This ensures that, for example, the
             occupied manifold is preserved while disentangling higher states.
             Options follow the same conventions as ``outer_window``. If
             ``None``, no states are frozen. Defaults to ``None``.
-        twfs_2 : np.ndarray | None, optional
+        twf_list_second : list[list[tuple]], optional
             A second set of trial wavefunctions for the projection step after
             disentanglement. If ``None``, the original trial wavefunctions are
             used. Defaults to ``None``.
@@ -1621,15 +1612,6 @@ class Wannier:
           states via projection, and finally minimizes the gauge-dependent spread.
         - The resulting Wannier functions are stored in the ``.tilde_states``
           attribute after the procedure completes.
-        
-        References
-        ----------
-        .. [souza-marzari-vanderbilt] Souza, I., Marzari, N., & Vanderbilt, D. 
-           Maximally localized Wannier functions for entangled energy bands. 
-           Phys. Rev. B 65, 035109 (2001).
-        .. [marzari-vanderbilt] Marzari, N., & Vanderbilt, D. 
-           Maximally localized generalized Wannier functions for composite energy bands. 
-           Phys. Rev. B 56, 12847 (1997).
         """
 
         ### Subspace selection ###
