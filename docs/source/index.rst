@@ -46,7 +46,7 @@ Core functionality
       :link: usage
       :link-type: doc
 
-      Plot bands, DOS, lattices, and TB graphs with ``pythtb.plotting`` and export data for downstream workflows.
+      Plot bands, DOS, lattices, and TB graphs with built-in plotting helpers.
 
    .. grid-item-card:: :material-outlined:`all_inclusive` Topology & quantum geometry
       :link: generated/pythtb.WFArray
@@ -150,7 +150,7 @@ plot of the resulting band structure. Here you can find :doc:`more examples <exa
        <figcaption>Graphene band structure</figcaption>
      </figure>
    </div>
-   
+
 
 Funding
 -------

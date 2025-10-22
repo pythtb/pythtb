@@ -35,27 +35,27 @@ def deprecated(message: str, category=FutureWarning):
 
 
 class WFArray:
-    r"""
-    Wavefunction container living on a :class:`Mesh`.
+    r"""Wavefunction container defined on a sampling mesh.
 
     A :class:`WFArray` stores states on a discrete mesh of k-points
-    and/or adiabatic parameters :math:`\lambda`. After the states are set, 
-    the :class:`WFArray` can be queried for Berry
-    connections, curvature, Chern numbers, or fed to :class:`Wannier` for
-    projection-based gauges.
+    and/or adiabatic parameters :math:`\lambda`. Once populated, 
+    it can be queried for Berry connections, Berry curvature, 
+    Chern numbers, and other derived quantities, or passed to :class:`Wannier` 
+    when constructing Wannier functions or obtaining smooth gauges from
+    the projection method.
 
-    The ``mesh`` may be a typical full k-space grid, but also 
-    may contain only parameter axes, or a single k-path embedded in a higher-dimensional
-    Brillouin zone. In all cases, :class:`WFArray` tracks the mesh layout, 
-    the stored states, and the phase conventions so downstream utilities can consume 
-    the data consistently. 
+    The underlying :class:`Mesh` may represent a full Monkhorst–Pack grid,
+    a reduced-dimensional path, or even a mesh that contains only
+    parameter axes. In every case, :class:`WFArray` tracks the mesh layout,
+    the stored states, and the necessary phase conventions so downstream
+    utilities can consume the data consistently.
 
-    The stored wavefunctions may be energy eigenstates, in which case a call to :meth:`solve` 
-    fills the array with the energy eigenstates of the Hamiltonian 
-    from the :class:`TBModel` defined by ``model``. Alternatively, the states may be
-    defined using different gauges or phase conventions. In this case, 
-    the states can also be set manually using the :meth:`set_states` method or ``[ ]`` operator. 
-    
+    The stored wavefunctions may be the Hamiltonian eigenstates returned
+    by :meth:`solve_model`. Alternatively, you can inject states in an arbitrary
+    gauge by calling :meth:`set_states` (or by assigning through the
+    ``[...]`` operator) before applying the higher-level Berry/Wannier
+    routines.
+
     Parameters
     ----------
     lattice : :class:`Lattice`
