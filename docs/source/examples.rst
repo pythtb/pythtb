@@ -40,7 +40,6 @@ Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
    :caption: Building the TBModel
 
    examples/0dim
-   examples/finite_ssh
    examples/checkerboard
    examples/graphene
    examples/haldane
@@ -52,6 +51,7 @@ Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
    :maxdepth: 1
    :caption: Topology and quantum geometry
 
+   examples/finite_ssh
    examples/three_site_thouless
    examples/graphene_cone
    examples/haldane_bp
@@ -75,6 +75,5 @@ Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
    :caption: Visualization
 
    examples/visualize
-   examples/graphene_bands
    examples/haldane_edge
    examples/visualize_3d

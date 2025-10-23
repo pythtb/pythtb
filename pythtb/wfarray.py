@@ -2450,7 +2450,7 @@ class WFArray:
             berry_flux = np.zeros(shape, dtype=float)
 
         # U_forward: Unitary part of overlaps <u_{nk} | u_{n, k+delta k_mu}>
-        U_forward = self.links(state_idx=state_idx, dirs=dirs)
+        U_forward = self.links(state_idx=state_idx, axis_idxs=dirs)
 
         # Compute Berry flux for each pair of states
         for mu in range(plane_idxs):
@@ -2861,12 +2861,12 @@ class WFArray:
             pos_exp = np.zeros((*self.shape_mesh, self.nstates), dtype=float)
             # loop over all mesh points
             for idx in np.ndindex(*self.shape_mesh):
-                pos_exp_mat = self.position_matrix(idx, state_idx, pos_dir).diagonal()
+                pos_exp_mat = self.position_matrix(mesh_idx=idx, state_idx=state_idx, pos_dir=pos_dir).diagonal()
                 pos_exp[idx] = np.array(np.real(pos_exp_mat), dtype=float)
 
             return pos_exp
         else:
-            pos_exp_mat = self.position_matrix(mesh_idx, state_idx, pos_dir).diagonal()
+            pos_exp_mat = self.position_matrix(mesh_idx=mesh_idx, state_idx=state_idx, pos_dir=pos_dir).diagonal()
             return np.array(np.real(pos_exp_mat), dtype=float)
 
     def position_hwf(
