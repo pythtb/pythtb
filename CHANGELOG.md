@@ -66,7 +66,7 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 - `TBModel.hamiltonian()`: Generates Hamiltonians for finite and periodic systems
 - `TBModel.velocity()`: Computes $dH/dk$ (velocity operator) in the orbital basis
 - `TBModel.berry_curv()`: Computes Berry curvature from $dH/dk$ elements using the Kubo formula
-- `TBModel.chern()`: Returns Chern number for a given set of occupied bands using Berry curvature in Kubo formula
+- `TBModel._chern_number()`: Returns Chern number for a given set of occupied bands using Berry curvature in Kubo formula
 - `TBModel.local_chern_marker()`: Bianco-Resta formula for real-space Chern marker
 - `TBModel.visualize3d()`: For 3D tight-binding models, displays an interactive 3D figure using `plotly`
 - `TBModel.get_recip_lat()`: Returns reciprocal lattice vectors
@@ -86,7 +86,7 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 #### `WFArray`
 
 ##### New Methods
-- `WFArray.chern_num()`: Returns the Chern number for a given plane in the parameter mesh
+- `WFArray.chern_number()`: Returns the Chern number for a given plane in the parameter mesh
 - `WFArray.wilson_loop()`: Computes the Wilson loop unitary matrix for a loop of states
 - `WFArray.get_links()`: Computes the unitary part of the overlap between states and their nearest neighbors in each mesh direction
 - `WFArray.solve_on_path()`: Populates a 1D `WFArray` with states diagonalized along a 1D k-path
