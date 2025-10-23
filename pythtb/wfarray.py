@@ -1726,11 +1726,17 @@ class WFArray:
         Returns
         -------
         U_forward (np.ndarray):
-            Array of shape ``(dim, nk1, nk2, ..., nl1, nl2, ..., n_states, n_states)``
-            where ``dim`` is the number of dimensions of the mesh corresponding to :math:`\mu`,
-            ``(nk1, nk2, ..., nl1, nl2, ...)`` are the sizes of the mesh in each dimension,
-            and the last two axes are the matrix elements of the unitary link matrices,
-            where ``n_states`` is the number of states in the `WFArray` object.
+            Array of shape ``(dim, *shape_k, *shape_l, n_states, n_states)``
+            where 
+            
+            - ``dim`` is the number of dimensions of the mesh corresponding to :math:`\mu`
+              in the equations above. If `dirs` is provided, ``dim=len(dirs)``; and
+              the indexing of the first axis corresponds to the order of directions
+              in `dirs`.
+            - ``shape_k`` is the tuple of sizes of the mesh along each k-dimension, similarly
+            - ``shape_l`` is the tuple of sizes of the mesh along each lambda-dimension,
+            - The last two axes are the matrix elements of the unitary link matrices,
+              where ``n_states`` is the number of states in the `WFArray` object.
 
         Notes
         -----
@@ -2345,12 +2351,17 @@ class WFArray:
         # Compute Berry flux for each pair of states
         for mu in range(plane_idxs):
             for nu in range(mu + 1, plane_idxs):
+                # NOTE: The order of U_forward follows the order in dirs, so we index accordingly
+                # e.g., if dirs = [p, q], then mu=0 -> p, mu=1 -> q
                 U_mu = U_forward[mu]
                 U_nu = U_forward[nu]
 
                 # Shift the links along the mu and nu directions
-                U_nu_shift_mu = np.roll(U_nu, -1, axis=mu)
-                U_mu_shift_nu = np.roll(U_mu, -1, axis=nu)
+                # NOTE: We index dirs to get the correct ordering
+                axis_mu = dirs[mu]
+                axis_nu = dirs[nu]
+                U_nu_shift_mu = np.roll(U_nu, -1, axis=axis_mu)
+                U_mu_shift_nu = np.roll(U_mu, -1, axis=axis_nu)
 
                 # Wilson loops: W = U_{mu}(k_0) U_{nu}(k_0+delta_mu) U^{-1}_{mu}(k_0+delta_mu+delta_nu) U^{-1}_{nu}(k_0)
                 U_wilson = (
@@ -2360,7 +2371,7 @@ class WFArray:
                     @ U_nu.conj().swapaxes(-1, -2)
                 )
 
-                for ax in range(ndims):
+                for ax in dirs:
                     if self.mesh.is_axis_closed(ax) or (not self.mesh.is_axis_looped(ax) and not self.mesh.is_axis_bz_winding(ax)):
                         logger.debug(f"Axis {ax} is closed or non-periodic. "
                                     f"Removing last point in the flux array to avoid overcounting.")
