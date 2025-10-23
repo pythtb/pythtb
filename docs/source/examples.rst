@@ -25,15 +25,18 @@ Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
       :align: center
       :width: 180px
       :alt: Launch Binder
+   
+.. note::
+
+   See *New to v2.0* for examples demonstrating the new core classes for PythTB and how to switch over from earlier versions.
 
 .. toctree::
    :maxdepth: 1
-   :caption: New to v2.0.0
+   :caption: New to v2.0
 
    examples/tb_model_v2
    examples/lattice
    examples/mesh
-   examples/nn_shells
 
 .. toctree::
    :maxdepth: 1
@@ -46,6 +49,7 @@ Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
    examples/buckled_layer
    examples/trestle
    examples/supercell
+   examples/nn_shells
 
 .. toctree::
    :maxdepth: 1
