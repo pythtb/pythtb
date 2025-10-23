@@ -259,6 +259,8 @@ The following methods are deprecated but still functional with backward compatib
 #### TBModel Methods
 - `TBModel.reduce_dim()`: This would fix a particular k component. However, `TBModel` is not intended to handle such constraints directly. This should be handeled externally or by using a cutom `Mesh`. 
 - Flag `to_home_supress_warning` in `change_nonperiodic_vector()` and `make_supercell()`: previously deprecated in v1.8.0, now fully removed. Default behavior is to only shift orbitals along periodic directions, with a warning sent to the logger if an orbital is outside the home unit cell in a non-periodic direction.
+- Method `ignore_position_operator_offdiagonal()`: functionality replaced by `TBModel.assume_position_operator_diagonal` attribute setter.
+  Unused in the rest of the codebase.
 
 #### Python Version Support
 - **Breaking**: Dropped support for Python <3.10 

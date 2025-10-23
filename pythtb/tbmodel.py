@@ -2108,15 +2108,6 @@ class TBModel:
     @copydoc(Lattice.k_path)
     def k_path(self, kpts, nk:int, report:bool=True):
         return self._lattice.k_path(kpts, nk, report)   
-    
-    def ignore_position_operator_offdiagonal(self):
-        """Set flag to ignore off-diagonal elements of the position operator.
-
-        Call to this function enables one to approximately compute
-        Berry-like objects from tight-binding models that were
-        obtained from Wannier90.
-        """
-        self._assume_position_operator_diagonal = True
 
     def position_matrix(self, evecs: np.ndarray, dir: int):
         r"""Position operator matrix elements
