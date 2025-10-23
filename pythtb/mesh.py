@@ -217,19 +217,19 @@ class Mesh:
         along its axis, the k-components are held fixed. Paths through a mixed parameter and k-space are not 
         currently supported.
 
-     Examples
+    Examples
     --------
     We can create a full grid by specifying the shape of the grid.
 
     >>> mesh = Mesh(dim_k=2, dim_lambda=0, axis_types=['k', 'k'])
-    >>> mesh.build_full_grid(shape=(10, 10), gamma_centered=True)
+    >>> mesh.build_grid(shape=(10, 10), gamma_centered=True)
     >>> mesh.grid.shape
     (10, 10, 2)
 
     Or suppose we have a 3D k-space model with an additional lambda dimension.
 
     >>> mesh = Mesh(dim_k=3, dim_lambda=1, axis_types=['k', 'k', 'k', 'l'])
-    >>> mesh.build_full_grid(shape=(10, 10, 10, 100), gamma_centered=True)
+    >>> mesh.build_grid(shape=(10, 10, 10, 100), gamma_centered=True)
     >>> mesh.grid.shape
     (10, 10, 10, 100, 4)
 
@@ -240,6 +240,13 @@ class Mesh:
     array([-0.5, -0.5, -0.5,  0. ])
     >>> mesh.grid[-1, -1, -1, -1, -1]
     array([ 0.49,  0.49,  0.49,  1. ])
+
+    Suppose instead we have a custom path through k-space that is not a regular grid. 
+    We would then need to initialize the ``Mesh`` with a single 'k' axis type.
+
+    >>> path_points = np.random.rand(100, 2)  # 100 point path in 2D k-space
+    >>> mesh = Mesh(dim_k=2, dim_lambda=0, axis_types=['k'])
+    >>> mesh.build_custom(path_points)
     """
     def __init__(
         self,  
@@ -1094,14 +1101,14 @@ class Mesh:
         We can create a full grid by specifying the shape of the grid.
 
         >>> mesh = Mesh(dim_k=2, dim_lambda=0, axis_types=['k', 'k'])
-        >>> mesh.build_full_grid(shape=(10, 10), gamma_centered=True)
+        >>> mesh.build_grid(shape=(10, 10), gamma_centered=True)
         >>> mesh.grid.shape
         (10, 10, 2)
 
         Or suppose we have a 3D k-space model with an additional lambda dimension.
 
         >>> mesh = Mesh(dim_k=3, dim_lambda=1, axis_types=['k', 'k', 'k', 'l'])
-        >>> mesh.build_full_grid(shape=(10, 10, 10, 100), gamma_centered=True)
+        >>> mesh.build_grid(shape=(10, 10, 10, 100), gamma_centered=True)
         >>> mesh.grid.shape
         (10, 10, 10, 100, 4)
 
@@ -1385,7 +1392,7 @@ class Mesh:
             Stop value for the mesh grid. May also be a list of stop values for each dimension. 
             A single value is broadcasted to all dimensions. Defaults to 1.0.
         endpoint: bool, list[bool], optional
-            If True, includes ``stop`` values in the mesh. May also be a list of ``bool``s
+            If True, includes ``stop`` values in the mesh. May also be a list of booleans
             for each dimension. A single value is broadcasted to all dimensions. Defaults to False.
         flat: bool, optional
             If True, returns flattened array of points (e.g. of shape ``(n1*n2*n3 , 3)``).

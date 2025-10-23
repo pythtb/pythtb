@@ -65,9 +65,11 @@ Attributes
    pythtb.TBModel.cell_volume
    pythtb.TBModel.dim_k
    pythtb.TBModel.dim_r
+   pythtb.TBModel.from_w90
    pythtb.TBModel.hoppings
    pythtb.TBModel.lat_vecs
    pythtb.TBModel.lattice
+   pythtb.TBModel.nhops
    pythtb.TBModel.norb
    pythtb.TBModel.nspin
    pythtb.TBModel.nstate
