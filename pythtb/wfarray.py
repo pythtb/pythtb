@@ -412,11 +412,11 @@ class WFArray:
         ):
         """Sets the wavefunctions in the *WFArray* object.
 
-        .. versionadded:: 2.0.0
-
         This function is used to update the wavefunctions stored in the object.
         It is typically called internally after diagonalization. However, 
         it can also be called externally to manually set the wavefunctions.
+
+        .. versionadded:: 2.0.0
 
         Parameters
         ----------
@@ -910,14 +910,15 @@ class WFArray:
     def projectors(self, state_idx=None, return_Q=False):
         r"""Returns the band projectors associated with the states in the WFArray.
 
-        .. versionadded:: 2.0.0
-
         The band projectors are defined as the outer product of the wavefunctions:
 
         .. math::
 
             P_{n\mathbf{k}} = \lvert u_{n\mathbf{k}}(\mathbf{r})\rangle \langle u_{n\mathbf{k}}(\mathbf{r}) \rvert, \quad Q_{n\mathbf{k}} = \mathbb{I} - P_{n\mathbf{k}}
 
+            
+        .. versionadded:: 2.0.0
+        
         Parameters
         ----------
         return_Q : bool, optional
@@ -957,8 +958,6 @@ class WFArray:
             ):
         r"""Diagonalizes the :class:`TBModel` over the :class:`Mesh` points.
 
-        .. versionadded:: 2.0.0
-
         Populates the state array with the eigenstates and eigenenergies of the Hamiltonian generated
         by the :class:`TBModel` on the points set in `Mesh`. 
 
@@ -969,6 +968,9 @@ class WFArray:
         Additionally, if some of the parameters are left variable, these names of the parameters in the ``model_func``
         must also match the names of the :math:`\lambda` axes defined in the :class:`Mesh`. This will generate the 
         Hamiltonian at the values of the parameters specified by the mesh. See examples for more details.
+
+        .. versionadded:: 2.0.0
+            Replaces :meth:`solve_on_one_point` and :meth:`solve_on_grid`.
 
         Parameters
         ----------
@@ -1125,7 +1127,7 @@ class WFArray:
     def solve_on_grid(self, start_k=None):
         r"""
         .. deprecated:: 2.0.0
-            `solve_on_grid` has been deprecated. Use :meth:`solve` instead.
+            :meth:`solve_on_grid` has been deprecated. Use :meth:`solve_model` instead.
         """
         return
     
@@ -1133,7 +1135,7 @@ class WFArray:
     def solve_on_one_point(self, kpt, mesh_indices):
         r"""
         .. deprecated:: 2.0.0
-            `solve_on_one_point` has been deprecated. Use :meth:`solve` instead.
+            :meth:`solve_on_one_point` has been deprecated. Use :meth:`solve_model` instead.
         """
         return
     
@@ -1687,8 +1689,6 @@ class WFArray:
     def get_links(self, state_idx=None, dirs=None, strip_boundary=False):
         r"""Compute the overlap links (unitary matrices) for the wavefunctions.
 
-        .. versionadded:: 2.0.0
-
         The overlap links along a given direction are defined as the unitary part of the overlap
         between the wavefunctions and their neighbors in the forward direction along each
         mesh directions. Specifically, the overlap matrices are computed as
@@ -1707,6 +1707,8 @@ class WFArray:
         .. math::
 
             U^{\mu}(\mathbf{k}) = V^{\mu} (W^{\mu})^\dagger
+
+        .. versionadded:: 2.0.0
 
         .. warning:: 
             The neighbor at the boundary is defined with periodic boundary conditions by default.
@@ -1814,8 +1816,6 @@ class WFArray:
     @staticmethod
     def wilson_loop(wfs_loop, evals=False):
         r"""Wilson loop unitary matrix
-
-        .. versionadded:: 2.0.0
         
         Computes the Wilson loop unitary matrix and its eigenvalues for multiband Berry phases.
         The Wilson loop is a geometric quantity that characterizes the topology of the
@@ -1829,6 +1829,8 @@ class WFArray:
         where :math:`U_{n}` is the unitary part of the overlap matrix between neighboring wavefunctions
         in the loop, and the index :math:`n` labels the position in the loop 
         (see :func:`get_links` for more details).
+
+        .. versionadded:: 2.0.0
 
         Parameters
         ----------
@@ -1971,8 +1973,6 @@ class WFArray:
             ):
         r"""Berry phase along a given array direction.
 
-        .. versionadded:: 2.0.0
-
         Computes the Berry phase along a given array direction
         and for a given set of states. These are typically the
         occupied Bloch states, but can also include unoccupied
@@ -1992,7 +1992,9 @@ class WFArray:
         Berry phases is returned. The Berry phase for the first string
         (with lowest index) is always constrained to be between :math:`-\pi` and
         :math:`\pi`. The range of the remaining phases depends on the value of
-        the input parameter `contin`.
+        the input parameter ``contin``.
+
+        .. versionadded:: 2.0.0
 
         Parameters
         ----------
@@ -2176,9 +2178,6 @@ class WFArray:
             ):
         r"""Berry flux tensor.
 
-        .. versionremoved:: 2.0.0
-            The `individual_phases` parameter has been removed.
-
         The Berry flux tensor quantifies the geometric phase acquired by
         Bloch states as they are adiabatically transported around a closed
         loop in parameter space (e.g., in momentum space or along adiabatic
@@ -2199,6 +2198,9 @@ class WFArray:
         it will compute flux over all 2-dimensional slices of a 
         higher-dimensional *WFArray*.
 
+        .. versionremoved:: 2.0.0
+            The `individual_phases` parameter has been removed.
+
         Parameters
         ----------
         plane : array_like of shape (2,), optional
@@ -2206,16 +2208,28 @@ class WFArray:
             WFArray mesh which the Berry flux is computed over. By default,
             all directions are considered, and the full Berry flux tensor is
             returned.
+
+            .. versionchanged:: 2.0.0
+                Renamed from ``dirs``.
+
         state_idx : array_like, optional
             Optional array of indices of states to be included
             in the subsequent calculations, typically the indices of
             bands considered occupied. If not specified, or None, all bands are
             included.
+
+            .. versionchanged:: 2.0.0
+                Renamed from ``occ``. The band indices are not required to be
+                occupied bands only. The default behavior is to include all bands,
+                and the ``"all"`` option has been removed.
+
         non_abelian : bool, optional
             If *True* then the non-Abelian Berry flux tensor is computed.
             If *False* then the Berry flux is computed using the abelian formula,
             which corresponds to the band-traced non-Abelian Berry curvature.
             Default value is *False*.
+
+            .. versionadded:: 2.0.0
 
         Returns
         -------
@@ -2414,8 +2428,6 @@ class WFArray:
         ):
         r"""Berry curvature tensor.
 
-        .. versionadded:: 2.0.0
-
         The difference between this function and :func:`berry_flux` is that this function computes a dimensionful
         Berry curvature tensor, while :func:`berry_flux` is dimensionless. Effectively, this function divides by
         the area of the plaquette. The area is set by the mesh spacing along each direction.
@@ -2428,6 +2440,8 @@ class WFArray:
             \Omega_{\mu\nu}(\mathbf{k}) \approx \frac{\mathcal{F}_{\mu\nu}(\mathbf{k})}{A_{\mu\nu}},
 
         where :math:`A_{\mu\nu}` is the area (in Cartesian units) of the plaquette in parameter space. 
+
+        .. versionadded:: 2.0.0
 
         Parameters
         ----------
@@ -2500,8 +2514,6 @@ class WFArray:
     def chern_number(self, plane=(0, 1), state_idx=None):
         r"""Computes the Chern number in the specified plane.
 
-        .. versionadded:: 2.0.0
-
         The Chern number is computed as the integral of the Berry flux
         over the specified plane, divided by :math:`2 \pi`.
 
@@ -2509,6 +2521,8 @@ class WFArray:
             C = \frac{1}{2\pi} \sum_{\mathbf{k}_{\mu}, \mathbf{k}_{\nu}} F_{\mu\nu}(\mathbf{k}).
 
         The plane :math:`(\mu, \nu)` is specified by `plane`, a tuple of two indices.
+
+        .. versionadded:: 2.0.0
 
         Parameters
         ----------
