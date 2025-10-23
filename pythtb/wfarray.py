@@ -197,9 +197,10 @@ class WFArray:
                 raise TypeError(f"Index should be an integer or a tuple of length {self.naxes}.")
 
         if self.naxes == 1:
-            index = index[0]
-            if not _is_int(index):
-                raise TypeError("Index should be an integer!")
+            if isinstance(index, (tuple, list, np.ndarray)):
+                index = index[0]
+            elif not _is_int(index):
+                raise TypeError("Indices should be integers.")
             
             idxs = (int(index),)
         else:
