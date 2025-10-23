@@ -2540,7 +2540,7 @@ class WFArray:
 
         >>> wfs = WFArray(model, [10, 11, 12])
         >>> wfs.solve_on_grid()
-        >>> chern = wfs.chern_num(plane=(0, 1), state_idx=np.arange(n_occ))
+        >>> chern = wfs.chern_number(plane=(0, 1), state_idx=np.arange(n_occ))
         >>> print(chern.shape)
         (12,)  # shape of the Chern number array
         """
