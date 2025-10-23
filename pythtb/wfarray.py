@@ -117,7 +117,7 @@ class WFArray:
     >>> mesh.build_grid(shape=(20, 20), gamma_centered=True)
     >>> wfa = WFArray(tb_model, mesh)
     >>> wfa.solve()
-    >>> curv = wfa.berry_curv(non_abelian=False)
+    >>> curv = wfa.berry_curvature(non_abelian=False)
 
     Store a 1D parameter sweep (no k-axes)::
 
@@ -2168,7 +2168,12 @@ class WFArray:
         return out
         
 
-    def berry_flux(self, state_idx=None, plane=None, non_abelian=False):
+    def berry_flux(
+            self, 
+            plane=None, 
+            state_idx=None, 
+            non_abelian=False
+            ):
         r"""Berry flux tensor.
 
         .. versionremoved:: 2.0.0
@@ -2196,18 +2201,16 @@ class WFArray:
 
         Parameters
         ----------
+        plane : array_like of shape (2,), optional
+            Array or tuple of two indices defining the axes in the
+            WFArray mesh which the Berry flux is computed over. By default,
+            all directions are considered, and the full Berry flux tensor is
+            returned.
         state_idx : array_like, optional
             Optional array of indices of states to be included
             in the subsequent calculations, typically the indices of
             bands considered occupied. If not specified, or None, all bands are
             included.
-
-        plane : array_like, optional
-            Array or tuple of two indices defining the axes in the
-            WFArray mesh which the Berry flux is computed over. By default,
-            all directions are considered, and the full Berry flux tensor is
-            returned.
-
         non_abelian : bool, optional
             If *True* then the non-Abelian Berry flux tensor is computed.
             If *False* then the Berry flux is computed using the abelian formula,
@@ -2402,7 +2405,7 @@ class WFArray:
 
         return berry_flux
     
-    def berry_curv(
+    def berry_curvature(
         self,
         plane = None,
         state_idx = None,
