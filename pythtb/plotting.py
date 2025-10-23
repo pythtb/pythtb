@@ -1242,15 +1242,8 @@ def plot_bands(
 
         if cbar:
             cbar = fig.colorbar(scat, ticks=[1, 0], pad=0.01)
-            # cbar.set_ticks([])
-            # cbar.ax.set_yticklabels([r'$B$', r'$A$'], size=12)
-            cbar.ax.set_yticklabels(
-                [
-                    r"$ |\langle \psi_{nk} | \phi_B \rangle |^2$",
-                    r"$|\langle \psi_{nk} | \phi_A \rangle |^2$",
-                ],
-                size=12,
-            )
+            cbar.ax.set_yticklabels([1, 0], size=12)
+            cbar.ax.set_title( r"$ \sum_i |\langle \psi_{nk} | \phi_i \rangle |^2$")
 
     elif proj_spin:
         if evals is None or evecs is None:
