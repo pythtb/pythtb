@@ -1293,7 +1293,7 @@ class TBModel:
         )
 
     def _sol_ham(
-        self, ham, return_eigvecs=False, keep_spin_ax=True, tf_speedup=False, use_32_bit=False,
+        self, ham, return_eigvecs=False, flatten_spin_axis=False, tf_speedup=False, use_32_bit=False,
         memory_info=False):
         """Solves Hamiltonian and returns eigenvectors, eigenvalues"""
         # NOTE: this function is separate so that it can be jit-compiled if needed
@@ -1352,7 +1352,7 @@ class TBModel:
             # transpose matrix eig since otherwise it is confusing
             # now eig[i,:] is eigenvector for eval[i]-th eigenvalue
             evec = evec.swapaxes(-1, -2)
-            if keep_spin_ax:
+            if not flatten_spin_axis and self.nspin == 2:
                 evec = evec.reshape(*shape_evecs)
             return eval, evec
 
@@ -1376,7 +1376,7 @@ class TBModel:
             Parameter `k_list` renamed to `k_pts`.
 
         .. versionadded:: 2.0.0
-            Parameter `keep_spin_ax` and `tf_speedup` added.
+            Parameter `flatten_spin` and `tf_speedup` added.
 
         Parameters
         ----------
@@ -1388,8 +1388,9 @@ class TBModel:
             If True, both eigenvalues and eigenvectors are returned.
             If False (default), only eigenvalues are returned.
         flatten_spin_axis : bool, optional
-            If True (default), the spin axes are kept in the output eigenvectors.
-            If False, the spin axes are flattened.
+            If True (default), the spin axes are flattened into the orbital axes.
+            If False, the spin axes are kept separate. This affects the
+            shape of the returned eigenvectors for spinful models.
         tf_speedup : bool, optional
             If True, use TensorFlow to accelerate the diagonalization.
             This requires TensorFlow to be installed. Default is False.
@@ -1419,7 +1420,7 @@ class TBModel:
             - Shape is ``(Nk, nstates, norb, 2)`` for periodic systems
             - Shape is ``(nstates, norb, 2)`` for zero-dimensional systems
             - If only one k-point is provided, the redundant k-axis is removed, resulting in shape ``(nstates, norb, 2)``.
-            - If `keep_spin_ax=False` and the model is spinful, the spin axes are flattened into the orbital axes,
+            - If `flatten_spin_axis=True` and the model is spinful, the spin axes are flattened into the orbital axes,
               resulting in shapes ``(Nk, nstates, norb*2)`` or ``(nstates, norb*2)``.
             
         Notes
@@ -1449,7 +1450,7 @@ class TBModel:
         logger.debug("Diagonalizing Hamiltonian...")
         if return_eigvecs:
             eigvals, eigvecs = self._sol_ham(
-                Ham, return_eigvecs=return_eigvecs, keep_spin_ax=flatten_spin_axis, tf_speedup=tf_speedup
+                Ham, return_eigvecs=return_eigvecs, flatten_spin_axis=flatten_spin_axis, tf_speedup=tf_speedup
             )
             if self.dim_k != 0:
                 if eigvals.ndim != 2:
@@ -1478,7 +1479,7 @@ class TBModel:
             Use .solve_ham() instead.
         """
         return self.solve_ham(
-            k_list=k_list, return_eigvecs=eig_vectors, keep_spin_ax=True
+            k_list=k_list, return_eigvecs=eig_vectors, flatten_spin_axis=False
         )
 
     @deprecated("use .solve_ham() instead (since v2.0).", category=FutureWarning)
@@ -1488,7 +1489,7 @@ class TBModel:
             Use .solve_ham() instead.
         """
         return self.solve_ham(
-            k_list=k_list, return_eigvecs=eig_vectors, keep_spin_ax=True
+            k_list=k_list, return_eigvecs=eig_vectors, flatten_spin_axis=False
         )
     
     def compute_bands(self, k_nodes, nk=10):
@@ -2489,7 +2490,7 @@ class TBModel:
 
         if evals is None or evecs is None:
             evals, evecs = self.solve_ham(
-                k_pts, return_eigvecs=True, keep_spin_ax=False
+                k_pts, return_eigvecs=True, flatten_spin_axis=False
             )
 
         n_eigs = evecs.shape[-2]
