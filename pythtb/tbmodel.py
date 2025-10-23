@@ -2642,7 +2642,6 @@ class TBModel:
 
         Uocc = evecs[:, occ_idxs]  # (N, k_occ)
         P = Uocc @ Uocc.conj().T  # (N,N) dense projector
-        Q = np.eye(N, dtype=complex) - P  # (N,N) dense complementary projector
 
         # Position operators (dense diagonals)
         X = np.diag(x.astype(complex))
