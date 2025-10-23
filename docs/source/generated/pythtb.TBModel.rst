@@ -28,7 +28,6 @@ Methods
    pythtb.TBModel.get_orb
    pythtb.TBModel.get_orb_vecs
    pythtb.TBModel.hamiltonian
-   pythtb.TBModel.ignore_position_operator_offdiagonal
    pythtb.TBModel.info
    pythtb.TBModel.k_path
    pythtb.TBModel.k_uniform_mesh
