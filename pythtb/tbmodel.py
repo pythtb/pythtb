@@ -2560,11 +2560,16 @@ class TBModel:
                 raise ValueError("plane must be a tuple of length 2.")
             return b_curv[plane]
 
-    def chern(self, occ_idxs=None, dirs=(0, 1), nk=200):
+    def chern_number(
+            self, 
+            occ_idxs=None, 
+            plane=(0, 1), 
+            nk=200
+            ):
         r"""Computes Chern number for occupied manifold.
 
         The Chern number is computed by integrating the Berry curvature
-        over a 2d surface in reciprocal space defined by `dirs` parameter.
+        over a 2d surface in reciprocal space defined by `plane` parameter.
         The Chern number is given by
 
         .. math::
@@ -2578,25 +2583,27 @@ class TBModel:
         occ_idxs : array-like, optional
             Occupied band indices. If none are provided, 
             the lower half bands are considered occupied.
-
-        dirs : tuple
+        plane : tuple, optional
             Indices for reciprocal space directions defining
-            2d surface to integrate Berry flux.
+            2D surface to integrate Berry flux.
+        nk : int, optional
+            Number of k-points along each direction in the 2D surface
+            for performing the integration. Default is 200.
 
         Returns
         -------
-        chern : float
+        chern_num : float
             Chern number for the occupied manifold.
 
         Notes
         -----
         This function only works for models with at least 2 k-space
         dimensions (``dim_k >= 2``). The Chern number is only defined
-        for 2d surfaces in k-space, so `dirs` must be a tuple of
+        for 2D surfaces in k-space, so `plane` must be a tuple of
         length 2. The Chern number is guaranteed to be an integer
         (within numerical accuracy) if the occupied manifold is
         separated by an energy gap from the unoccupied manifold over
-        the entire 2d surface in k-space.
+        the entire 2D surface in k-space.
         """
 
         nks = (nk,) * self.dim_k
@@ -2607,9 +2614,9 @@ class TBModel:
 
         Nk = Omega.shape[2]
         dk_sq = 1 / Nk
-        Chern = np.sum(Omega[dirs]) * dk_sq / (2 * np.pi)
+        chern_num = np.sum(Omega[plane]) * dk_sq / (2 * np.pi)
 
-        return Chern.real
+        return chern_num.real
 
     def local_chern_marker(self, occ_idxs=None):
         r"""Bianco–Resta local Chern marker.
