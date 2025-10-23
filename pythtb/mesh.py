@@ -1360,15 +1360,17 @@ class Mesh:
         *n_points: int
             Number of points along each dimension.
         start: float, list[float], optional
-            Start value for the mesh grid. May also be a list of start values for each dimension. Defaults to 0.0.
+            Start value for the mesh grid. May also be a list of start values for each dimension. A
+            single value is broadcasted to all dimensions. Defaults to 0.0.
         stop: float, list[float], optional
-            Stop value for the mesh grid. May also be a list of stop values for each dimension. Defaults to 1.0.
+            Stop value for the mesh grid. May also be a list of stop values for each dimension. 
+            A single value is broadcasted to all dimensions. Defaults to 1.0.
         endpoint: bool, list[bool], optional
-            If True, includes 1 (edge of BZ in reduced coordinates) in the mesh. May also be a list of endpoint values 
-            for each dimension. Defaults to False.
+            If True, includes ``stop`` values in the mesh. May also be a list of ``bool``s
+            for each dimension. A single value is broadcasted to all dimensions. Defaults to False.
         flat: bool, optional
-            If True, returns flattened array of k-points (e.g. of shape ``(n1*n2*n3 , 3)``).
-            If False, returns reshaped array with axes along each k-space dimension
+            If True, returns flattened array of points (e.g. of shape ``(n1*n2*n3 , 3)``).
+            If False, returns reshaped array with axes along each dimension
             (e.g. of shape ``(n1, n2, n3, 3)``). Defaults to True.
 
         Notes
