@@ -2421,7 +2421,8 @@ class TBModel:
         The Berry curvature is computed from the derivatives of the Bloch Hamiltonian
         :math:`\partial_\mu H_k`, where :math:`\mu` is the direction in k-space.
         
-        Specifically, for :math:`(m,n) \in \text{occ}`,
+        Specifically, for :math:`(m,n) \in \text{occ}`, the non-Abelian Berry curvature tensor
+        is given by (when ``non_abelian=True``):
 
         .. math::
 
@@ -2435,6 +2436,17 @@ class TBModel:
             }{
                 (E_{nk} - E_{lk})(E_{mk} - E_{lk})
             }
+
+        The Abelian Berry curvature (when ``non_abelian=False``) is obtained by taking the trace
+        over occupied bands:
+
+        .. math::
+
+            \Omega_{\mu \nu}(k) = \sum_{m \in \text{occ}} \Omega_{\mu \nu;\ mm}(k)
+
+        By specifying the `plane` parameter, we choose a particular :math:`(\mu, \nu)` pair 
+        of the Berry curvature tensor to return.
+    
 
         Parameters
         ----------
@@ -2455,9 +2467,10 @@ class TBModel:
         cartesian : bool, optional
             If True, computes the velocity operator in Cartesian coordinates.
             Default is False (reduced coordinates).
-        abelian : bool, optional
-            If True, returns the trace of the Berry curvature tensor (abelian case).
-            If False, returns the full tensor.
+        non_abelian : bool, optional
+            If True, returns the full Berry curvature tensor (non-abelian case).
+            If False, returns the band-trace of the Berry curvature tensor (abelian case).
+            Default is False.
 
         Returns
         -------
@@ -2465,7 +2478,7 @@ class TBModel:
             Berry curvature tensor. If ``plane`` is None, shape is (dim_k, dim_k, Nk, n_orb, n_orb).
             If ``plane`` is a tuple, shape is (Nk, n_orb, n_orb) and the returned tensor is restricted 
             to the specified directions.
-            If ``abelian`` is True, returns the band-trace of the Berry curvature tensor and the last
+            If ``non_abelian=False``, returns the band-trace of the Berry curvature tensor and the last
             two dimensions are not present.
 
         Notes
@@ -2476,7 +2489,7 @@ class TBModel:
         - The Berry curvature is computed using the Kubo formula, which
           requires knowledge of the velocity operator :math:`\partial_\mu H_k`. This operator
           is computed using the gradient of the Hamiltonian provided by :func:`velocity`.
-
+          
         """
 
         if self.dim_k < 2:
