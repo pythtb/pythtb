@@ -287,62 +287,62 @@ class Mesh:
     # ---- Axis properties ----
     @property
     def axes(self) -> list[Axis]:
-        """List of Axis objects defining the mesh axes."""
+        """List of ``Axis`` objects defining the mesh axes."""
         return self._axes
     
     @property
     def k_axes(self) -> list[Axis]:
-        """Tuple of k-axes."""
+        """List of ``Axis`` objects of k-type."""
         return [ax for ax in self.axes if ax.type == 'k']
 
     @property
     def lambda_axes(self) -> list[Axis]:
-        """Tuple of lambda-axes."""
+        """List of ``Axis`` objects of lambda-type."""
         return [ax for ax in self.axes if ax.type == 'l']
     
     @property
     def k_axis_indices(self) -> list[int]:
-        """List of indices of k-axes."""
+        """List of indices of the k-axes."""
         return [i for i, ax in enumerate(self.axes) if ax.type == 'k']
     
     @property
     def lambda_axis_indices(self) -> list[int]:
-        """List of indices of lambda-axes."""
+        """List of indices of the lambda-axes."""
         return [i for i, ax in enumerate(self.axes) if ax.type == 'l']
 
     @property
-    def axis_names(self):
-        """Tuple of axis names."""
+    def axis_names(self) -> list[str]:
+        """List of axis names."""
         axis_names = [ax.name for ax in self.axes]
         return axis_names
 
     @property
-    def axis_types(self) -> tuple[str]:
-        """Tuple of axis types."""
+    def axis_types(self) -> list[str]:
+        """List of axis types."""
         axis_types = [ax.type for ax in self.axes]
         return axis_types
 
     @property
-    def axis_sizes(self) -> list[int]:
+    def axis_sizes(self) -> tuple[int]:
         """Tuple of axis sizes."""
         return tuple([ax.size for ax in self.axes])
-
-    @property
-    def shape_k(self) -> tuple[int]:
-        """Mesh shape defining the layout of k-axis points."""
-        shape_k = tuple([ax.size for ax in self.axes if ax.type == 'k'])
-        return shape_k
-
-    @property
-    def shape_lambda(self) -> tuple[int]:
-        """Mesh shape defining the layout of parameter-axis points."""
-        shape_lambda = tuple([ax.size for ax in self._axes if ax.type == 'l'])
-        return shape_lambda
     
     @property
     def num_points(self) -> int:
         """Number of mesh points."""
         return int(np.prod(self.axis_sizes))
+
+    @property
+    def shape_k(self) -> tuple[int]:
+        """Size of each k-axis."""
+        shape_k = tuple([ax.size for ax in self.axes if ax.type == 'k'])
+        return shape_k
+
+    @property
+    def shape_lambda(self) -> tuple[int]:
+        """Size of each lambda-axis."""
+        shape_lambda = tuple([ax.size for ax in self._axes if ax.type == 'l'])
+        return shape_lambda
 
     @property
     def shape_full(self) -> tuple[int]:
@@ -356,7 +356,7 @@ class Mesh:
 
     @property
     def shape_flat(self) -> tuple[int]:
-        """Shape of flattened mesh points (N_points, dim_total)."""
+        """Shape of flattened mesh points ``(N_points, dim_total)``."""
         return (self.num_points, self.dim_total)
 
     @property
@@ -366,12 +366,12 @@ class Mesh:
 
     @property
     def num_lambda_axes(self) -> int:
-        """Number of parameter-axes."""
+        """Number of lambda-axes."""
         return len(self.lambda_axes)
     
     @property
     def num_axes(self) -> int:
-        """Number of axes (k + lambda)."""
+        """Total number of axes."""
         return self.num_k_axes + self.num_lambda_axes
     
     @property
@@ -385,7 +385,7 @@ class Mesh:
     # ---- Vector component properties ----
     @property
     def dim_lambda(self) -> int:
-        """Dimension of parameter space."""
+        """Dimension of lambda-space."""
         return self._dim_lambda
 
     @property
@@ -395,12 +395,12 @@ class Mesh:
 
     @property
     def dim_total(self) -> int:
-        """Dimension of the full mesh space (k + lambda)."""
+        """Dimension of the full mesh space (:meth:`dim_k` + :meth:`dim_lambda`)."""
         return self.dim_k + self.dim_lambda
 
     @property
     def component_types(self) -> tuple[str]:
-        """Tuple of length dim_total labeling vector components as 'k' or 'l'."""
+        """Tuple of length :meth:`dim_total` labeling vector components as 'k' or 'l'."""
         return self._component_types
     
     @property
