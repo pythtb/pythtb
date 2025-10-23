@@ -2497,7 +2497,7 @@ class WFArray:
             return Berry_curv
         
 
-    def chern_num(self, plane=(0, 1), state_idx=None):
+    def chern_number(self, plane=(0, 1), state_idx=None):
         r"""Computes the Chern number in the specified plane.
 
         .. versionadded:: 2.0.0
