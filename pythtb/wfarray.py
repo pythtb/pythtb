@@ -192,27 +192,28 @@ class WFArray:
 
     def _check_index(self, index):
         # Normalize to a tuple of ints
+        if isinstance(index, (tuple, list, np.ndarray)):
+            if len(index) != self.naxes:
+                raise TypeError(f"Index should be an integer or a tuple of length {self.naxes}.")
+
         if self.naxes == 1:
-            if isinstance(index, (tuple, list, np.ndarray)):
-                if len(index) != 1:
-                    raise TypeError("Index should be an integer or a tuple of length 1!")
-                index = index[0]
+            index = index[0]
             if not _is_int(index):
                 raise TypeError("Index should be an integer!")
+            
             idxs = (int(index),)
         else:
             if not isinstance(index, (tuple, list, np.ndarray)):
-               raise TypeError("Index should be a tuple, list, or ndarray!")
-            if len(index) != self.naxes:
-                raise TypeError("Wrong dimensionality of index!")
+               raise TypeError("Index should be a tuple, list, or ndarray.")
             if not all(_is_int(k) for k in index):
-                raise TypeError("Index should be array-like of integers!")
+                raise TypeError("Index should be array-like of integers.")
+            
             idxs = tuple(int(k) for k in index)
 
         for i, k in enumerate(idxs):
             lo, hi = -self.shape_mesh[i], self.shape_mesh[i]
             if k < lo or k >= hi:
-                raise IndexError("Index outside the range!")
+                raise IndexError("Index outside the range of the WFArray.")
 
     @property
     def model(self):
