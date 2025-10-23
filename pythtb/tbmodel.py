@@ -2642,18 +2642,15 @@ class TBModel:
 
         Uocc = evecs[:, occ_idxs]  # (N, k_occ)
         P = Uocc @ Uocc.conj().T  # (N,N) dense projector
+        Q = np.eye(N, dtype=complex) - P  # (N,N) dense complementary projector
 
         # Position operators (dense diagonals)
         X = np.diag(x.astype(complex))
         Y = np.diag(y.astype(complex))
 
         # Commutators (explicit dense)
-        XP = X @ P
-        PX = P @ X
-        YP = Y @ P
-        PY = P @ Y
-        CX = XP - PX
-        CY = YP - PY
+        CX = X @ P - P @ X
+        CY = Y @ P - P @ Y
 
         # A = P [X,P] [Y,P]
         A = P @ (CX @ CY)
@@ -2661,6 +2658,7 @@ class TBModel:
         # Local marker from diagonal of A
         C_local = 4 * np.pi * np.diag(np.imag(A)) / uc_vol
         return C_local
+    
     
 
     ##### Plotting functions #####
