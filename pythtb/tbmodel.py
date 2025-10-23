@@ -1129,6 +1129,11 @@ class TBModel:
             Array of k-points in reduced coordinates.
         cartesian : bool, optional
             If True, use Cartesian coordinates for the velocity operator.
+            If False (default), use reduced coordinates.
+        flatten_spin_axis : bool, optional
+            If True, the spin indices are flattened into the orbital indices.
+            This results in a velocity operator at each k-point of shape ``(norb*nspin, norb*nspin)``.
+            If False (default), the velocity operator has shape ``(norb, nspin, norb, nspin)``.
 
         Returns
         -------
@@ -2489,7 +2494,7 @@ class TBModel:
         - The Berry curvature is computed using the Kubo formula, which
           requires knowledge of the velocity operator :math:`\partial_\mu H_k`. This operator
           is computed using the gradient of the Hamiltonian provided by :func:`velocity`.
-          
+
         """
 
         if self.dim_k < 2:
