@@ -8,7 +8,13 @@ import numpy as np
 
 @dataclass(slots=True)
 class HoppingTable:
-    """Array-backed storage with fast mutation/query helpers for hoppings."""
+    """Array-backed storage with fast mutation/query helpers for hoppings.
+
+    The table stores one row per hopping and keeps several parallel numpy arrays
+    (amplitudes, orbital indices, lattice vectors).  A small dictionary maps the
+    tuple ``(i, j, R)`` back to the row index so lookups stay ``O(1)`` even when
+    thousands of hoppings are present.
+    """
 
     dim_r: int
     spinful: bool
@@ -22,15 +28,19 @@ class HoppingTable:
     )
 
     def __post_init__(self):
+        # Start with empty arrays so subsequent append/extend operations can
+        # assume the storage is already initialised.
         self.clear()
 
     # ------------------------------------------------------------------
     # core protocol
     # ------------------------------------------------------------------
     def __len__(self) -> int:
+        # Number of stored hoppings equals the length of any column.
         return self.from_idx.shape[0]
 
     def __iter__(self):
+        # Yield each hopping as (amplitude, i, j, R) for convenient unpacking.
         for idx in range(len(self)):
             yield (
                 self.amplitudes[idx],
@@ -43,6 +53,7 @@ class HoppingTable:
     # helpers
     # ------------------------------------------------------------------
     def clear(self) -> None:
+        """Reset the table to an empty state."""
         if self.spinful:
             self.amplitudes = np.empty((0, 2, 2), dtype=complex)
         else:
@@ -54,12 +65,14 @@ class HoppingTable:
         self._flatten_cache.clear()
 
     def components(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Return the raw storage arrays (amplitudes, from/to indices, lattice vectors)."""
         return self.amplitudes, self.from_idx, self.to_idx, self.lattice_vecs
 
     # ------------------------------------------------------------------
     # mutation
     # ------------------------------------------------------------------
     def append(self, amplitude: np.ndarray, i: int, j: int, R: Sequence[int]) -> int:
+        """Add a single hopping to the table and return its row index."""
         amp = self._coerce_amplitude(amplitude)
         R_arr = np.asarray(R, dtype=int).reshape(self.dim_r)
 
@@ -84,7 +97,7 @@ class HoppingTable:
         )
 
         idx = len(self) - 1
-        # store mapping (i, j, R) -> index for O(1) lookup later
+        # Store mapping (i, j, R) -> index for O(1) lookup later.
         self._index[self._make_key(i, j, R_arr)] = idx
         self._flatten_cache.clear()
         return idx
@@ -96,6 +109,7 @@ class HoppingTable:
         j_idx: Sequence[int],
         lattice_vecs: Sequence[Sequence[int]],
     ) -> None:
+        """Batch insert several hoppings in the same order."""
         if not amplitudes:
             return
 
@@ -142,6 +156,7 @@ class HoppingTable:
         self._flatten_cache.clear()
 
     def update(self, idx: int, *, amplitude=None, R=None) -> None:
+        """Update the amplitude and/or lattice vector of an existing hopping."""
         old_key = self._make_key(self.from_idx[idx], self.to_idx[idx], self.lattice_vecs[idx])
         if amplitude is not None:
             amp = self._coerce_amplitude(amplitude)
@@ -158,6 +173,7 @@ class HoppingTable:
         self._flatten_cache.clear()
 
     def accumulate(self, idx: int, delta: np.ndarray) -> None:
+        """Increment the hopping amplitude at ``idx`` by ``delta`` (in-place)."""
         if self.spinful:
             self.amplitudes[idx] += np.asarray(delta, dtype=complex)
         else:
@@ -165,6 +181,7 @@ class HoppingTable:
         self._flatten_cache.clear()
 
     def remove_orbitals(self, indices: Sequence[int]) -> None:
+        """Remove every hopping that touches any orbital in ``indices``."""
         unique = sorted(set(int(i) for i in indices))
         if not unique or len(self) == 0:
             return
@@ -183,6 +200,7 @@ class HoppingTable:
         self._flatten_cache.clear()
 
     def shift_orbital(self, orb_idx: int, disp_vec: Sequence[int]) -> None:
+        """Apply the lattice displacement ``disp_vec`` to all hoppings touching ``orb_idx``."""
         if len(self) == 0:
             return
         disp = np.asarray(disp_vec, dtype=int).reshape(self.dim_r)
@@ -258,12 +276,14 @@ class HoppingTable:
     # lookups
     # ------------------------------------------------------------------
     def find(self, i: int, j: int, R: Sequence[int]) -> int | None:
+        """Return the row index for hopping (i, j, R) or ``None`` if no such entry exists."""
         return self._index.get(self._make_key(i, j, R))
 
     # ------------------------------------------------------------------
     # cached utilities
     # ------------------------------------------------------------------
     def flatten_cache(self, norb: int) -> dict[str, np.ndarray]:
+        """Return (and cache) index arrays useful for block-building Hamiltonians."""
         key = (norb, len(self))
         cache = self._flatten_cache.get(key)
         if cache is not None:
@@ -310,6 +330,7 @@ class HoppingTable:
     # internal helpers
     # ------------------------------------------------------------------
     def _coerce_amplitude(self, amp):
+        """Normalise input amplitude to the expected ndarray shape."""
         if self.spinful:
             arr = np.asarray(amp, dtype=complex)
             if arr.shape != (2, 2):
@@ -318,16 +339,19 @@ class HoppingTable:
         return np.asarray(amp, dtype=complex).reshape(())
 
     def _make_key(self, i: int, j: int, R: Sequence[int]) -> tuple[int, int, tuple[int, ...]]:
+        """Keys use ints exclusively so they can index dictionaries reliably."""
         R_arr = np.asarray(R, dtype=int).reshape(self.dim_r)
         return (int(i), int(j), tuple(int(x) for x in R_arr))
 
     def _apply_mask(self, mask: np.ndarray) -> None:
+        """Filter every column of the storage with ``mask``."""
         self.amplitudes = self.amplitudes[mask]
         self.from_idx = self.from_idx[mask]
         self.to_idx = self.to_idx[mask]
         self.lattice_vecs = self.lattice_vecs[mask]
 
     def _rebuild_index(self) -> None:
+        """Reconstruct the lookup dictionary after bulk edits."""
         self._index.clear()
         for idx in range(len(self)):
             key = self._make_key(self.from_idx[idx], self.to_idx[idx], self.lattice_vecs[idx])
