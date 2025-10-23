@@ -20,12 +20,11 @@ Methods
    pythtb.WFArray.choose_states
    pythtb.WFArray.empty_like
    pythtb.WFArray.get_k_shell
-   pythtb.WFArray.get_links
-   pythtb.WFArray.get_overlap_mat
-   pythtb.WFArray.get_proj_ham
    pythtb.WFArray.get_shell_weights
    pythtb.WFArray.impose_loop
    pythtb.WFArray.impose_pbc
+   pythtb.WFArray.links
+   pythtb.WFArray.overlap_matrix
    pythtb.WFArray.position_expectation
    pythtb.WFArray.position_hwf
    pythtb.WFArray.position_matrix
