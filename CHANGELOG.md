@@ -87,13 +87,25 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 
 ##### New Methods
 - `WFArray.chern_number()`: Returns the Chern number for a given plane in the parameter mesh
-- `WFArray.wilson_loop()`: Computes the Wilson loop unitary matrix for a loop of states
+- `WFArray.berry_loop()`: Static method that computes the total Berry phase and optionally the Wilson loop eigenvalues for a loop of states
+- `WFArray.wilson_loop()`: Static method that computes the Wilson loop unitary matrix for a loop of states
 - `WFArray.get_links()`: Computes the unitary part of the overlap between states and their nearest neighbors in each mesh direction
-- `WFArray.solve_on_path()`: Populates a 1D `WFArray` with states diagonalized along a 1D k-path
-- `WFArray.get_projectors()`: Returns band projectors and optionally their complement
+- `WFArray.berry_curvature()`: Computes dimensionful Berry curvature by divinding Berry flux by mesh cell area/volume
+- `WFArray.solve_model()`: Populates `WFArray` with energy eigenstates from a given `TBModel` or set of 
+parameterized `TBModel`s
+- `WFArray.projectors()`: Returns band projectors and optionally their complement
 - `WFArray.get_bloch_states()`: For states on a k-mesh, applies $e^{ik·r}$ phase factors and returns both cell-periodic $u_{nk}$ and Bloch states $\psi_{nk}$
-- `WFArray.get_states()`: Returns `WFArray` states in NumPy array form
+- `WFArray.states()`: Returns `WFArray` cell-periodic and Bloch states in NumPy array form
   - Optional flag to flatten spin axis for spinful states
+- `WFArray.get_k_shell()`: Generates vectors connecting Gamma point to nearest neighboring k-points in the mesh. The vectors are expressed in inverse units of lattice vectors.
+- `WFArray.get_shell_weights()`: For a given shell index, returns the finite-difference weights of k-points in that shell connecting to Gamma point.
+- `WFArray.roll_states_with_pbc()`: Rolls states along a given mesh axis with periodic boundary conditions, useful for computing overlaps with neighboring k-points.
+- `WFArray.overlap_matrix()`: Computes overlap matrix of the states in the `WFArray` with their nearest neighbors in the `Mesh`. Considers the k-space metric when computing neighbors for k-axes.
+- `WFArray.links()`: Returns the unitary part of the overlap matrices between states and their nearest neighbors in each mesh direction.
+
+##### Enhanced Methods
+- `WFArray.berry_flux()`: Enhanced and Optimized
+  - Added parameter `non_abelian` to compute non-Abelian Berry flux for a manifold of states
 
 ##### Read-only properties
 - Added properties for core attributes to prevent unintended modifications
@@ -200,8 +212,14 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
   - `spinful`: boolean indicating whether the states are spinful
 
 ##### Method Changes
+- `berry_phase()`
+  - **Breaking**: Flag renames for clarity:
+    - `dir` renamed to `axis_idx`: to avoid conflict with Python built-in `dir()` 
+    - `occ` renamed to `state_idx`: band indices need not be occupied. `"All"` option replaced with `None`.
+    - `berry_evals` renamed to `wilson_evals` for consistency with `wilson_loop()`
+  - Substantial speed improvements using NumPy vectorization
 
-- `berry_flux()` - Enhanced and Optimized
+- `berry_flux()`
   - **Breaking**: Flag renames for clarity:
     - `occ` renamed to `state_idx`: band indices need not be occupied
     - `dirs` renamed to `plane`: only accepts 2-element tuples defining planes
@@ -212,6 +230,24 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
     - Returns Berry flux with 2 additional axes for all plane combinations
     - E.g., `berry_flux()[0,1]` is Berry flux in the (0,1) plane
   - Substantial speed improvements using NumPy vectorization
+
+- `position_matrix()`
+  - **Breaking**: Renamed parameter `dir` to `pos_dir` to avoid conflict with built-in Python function `dir()`
+  - **Breaking**: Renamed parameter `occ` to `state_idx` to emphasize that states need not be occupied. Default `None` includes all states. The option to specify `"all"` has been removed.
+
+- `position_expectation()`
+  - **Breaking**: Renamed parameter `dir` to `pos_dir` to avoid conflict with built-in Python function `dir()`
+  - **Breaking**: Renamed parameter `occ` to `state_idx` to emphasize that states need not be occupied. Default `None` includes all states. The option to specify `"all"` has been removed.
+
+- `position_hwf()`
+  - **Breaking**: Renamed parameter `dir` to `pos_dir` to avoid conflict with built-in Python function `dir()`
+  - **Breaking**: Renamed parameter `occ` to `state_idx` to emphasize that states need not be occupied. Default `None` includes all states. The option to specify `"all"` has been removed.
+
+- `choose_states()`
+  - **Breaking**: Renamed parameter `subset` to `state_idxs` for clarity and consistency.
+
+- `empty_like()`
+  - **Breaking**: Renamed parameter `nsta_arr` to `nstates` for clarity and consistency.
 
 #### `W90` 
 
@@ -248,6 +284,10 @@ The following methods are deprecated but still functional with backward compatib
   - `solve_ham()` automatically handles single k-points
 - `solve_all()`: Use `TBModel.solve_ham()` instead
   - `solve_ham()` provides vectorized, faster diagonalization
+
+#### `WFArray` Methods
+- `impose_pbc()`: Periodic boundary conditions are handled automatically by `Mesh`
+- `impose_loop()`: Periodic boundary conditions are handled automatically by `Mesh`
 
 #### Backward Compatibility
 - Old class names (`tb_model`, `wf_array`, `w90`) remain available as aliases
