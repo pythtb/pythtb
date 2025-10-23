@@ -195,7 +195,7 @@ class TBModel:
             amps, i_idx, j_idx, R_vecs = self._hoppings.components()
 
             output.append("Hoppings:")
-            for hop_idx in range(len(self._hoppings)):
+            for hop_idx in range(self.nhops):
                 hop_from = int(i_idx[hop_idx])
                 hop_to = int(j_idx[hop_idx])
                 R_vec = R_vecs[hop_idx]
@@ -214,10 +214,10 @@ class TBModel:
                 output.append(out_str)
 
             output.append("Hopping distances:")
-            if len(self._hoppings):
+            if self.nhops != 0:
                 orb_cart = self.get_orb_vecs(cartesian=True)
                 lat_vecs = self.lat_vecs
-                for hop_idx in range(len(self._hoppings)):
+                for hop_idx in range(self.nhops):
                     hop_from = int(i_idx[hop_idx])
                     hop_to = int(j_idx[hop_idx])
                     R_vec = R_vecs[hop_idx]
@@ -430,7 +430,7 @@ class TBModel:
         """
         amps, i_idx, j_idx, R_vecs = self._hoppings.components()
         formatted: list[dict] = []
-        for hop_idx in range(len(self._hoppings)):
+        for hop_idx in range(self.nhops):
             amp = amps[hop_idx]
             if self._nspin == 2:
                 amplitude = np.asarray(amp).copy()
@@ -446,6 +446,23 @@ class TBModel:
                 entry["lattice_vector"] = R_vec.tolist()
             formatted.append(entry)
         return formatted
+    
+    @property
+    def nhops(self) -> int:
+        """The number of hoppings defined in the model.
+
+        .. versionadded:: 2.0.0
+        """
+        return len(self._hoppings)
+    
+    @property
+    def from_w90(self) -> bool:
+        """
+        Whether the model was constructed from a Wannier90 object.
+
+        .. versionadded:: 2.0.0
+        """
+        return self._from_w90
 
     @property
     def assume_position_operator_diagonal(self) -> bool:
@@ -703,25 +720,25 @@ class TBModel:
             raise ValueError(f"k_pts must have shape (Nk, {dim_k}).")
         return k_arr
 
-    def _hamiltonian_finite(self, amps, i_idx, j_idx, site_energies, *, flatten_spin: bool):
+    def _hamiltonian_finite(self, hop_amps, i_idx, j_idx, site_energies, *, flatten_spin: bool):
         norb = self.norb
 
         if not self.spinful:
-            amps = amps.astype(complex)
+            hop_amps = hop_amps.astype(complex)
             ham = np.zeros((norb, norb), dtype=complex)
-            if amps.size:
-                np.add.at(ham, (i_idx, j_idx), amps)
-                np.add.at(ham, (j_idx, i_idx), amps.conj())
+            if hop_amps.size:
+                np.add.at(ham, (i_idx, j_idx), hop_amps)
+                np.add.at(ham, (j_idx, i_idx), hop_amps.conj())
             np.fill_diagonal(ham, site_energies)
             return ham
 
         # spinful
         nspin = self.nspin
-        amps = np.asarray(amps, dtype=complex)
+        hop_amps = np.asarray(hop_amps, dtype=complex)
         ham = np.zeros((norb, nspin, norb, nspin), dtype=complex)
-        if amps.size:
-            for hop_idx in range(amps.shape[0]):
-                block = amps[hop_idx]
+        if hop_amps.size:
+            for hop_idx in range(hop_amps.shape[0]):
+                block = hop_amps[hop_idx]
                 ham[i_idx[hop_idx], :, j_idx[hop_idx], :] += block
                 ham[j_idx[hop_idx], :, i_idx[hop_idx], :] += block.conj().T
         for orb in range(norb):
@@ -733,7 +750,7 @@ class TBModel:
     def _hamiltonian_periodic(
         self,
         k_vecs: np.ndarray,
-        amps,
+        hop_amps,
         i_idx,
         j_idx,
         R_vecs,
@@ -746,7 +763,7 @@ class TBModel:
         orb_red = np.asarray(self.orb_vecs)
 
         n_kpts = k_vecs.shape[0]
-        n_hops = amps.shape[0]
+        n_hops = hop_amps.shape[0]
 
         i_idx = i_idx.astype(int)
         j_idx = j_idx.astype(int)
@@ -764,7 +781,7 @@ class TBModel:
             phases = None
 
         if not self.spinful:
-            amps = amps.astype(complex)
+            hop_amps = hop_amps.astype(complex)
             ham = np.zeros((n_kpts, norb, norb), dtype=complex)
             if n_hops:
                 cache = self._get_flattened_indices()
@@ -774,7 +791,7 @@ class TBModel:
                 cols_transposed = cache["cols_transposed"]
 
                 ham_flat = ham.reshape(n_kpts, -1)
-                contrib = phases[:, order] * amps[order]
+                contrib = phases[:, order] * hop_amps[order]
                 sums = np.add.reduceat(contrib, starts, axis=1)
                 ham_flat[:, uniq] += sums
                 ham_flat[:, cols_transposed] += sums.conj()
@@ -785,10 +802,10 @@ class TBModel:
 
         # spinful
         nspin = self.nspin
-        amps = np.asarray(amps, dtype=complex)
+        hop_amps = np.asarray(hop_amps, dtype=complex)
         ham = np.zeros((n_kpts, norb, nspin, norb, nspin), dtype=complex)
         if n_hops:
-            weighted = phases[..., None, None] * amps[None, :, :, :]
+            weighted = phases[..., None, None] * hop_amps[None, :, :, :]
             for s_out in range(nspin):
                 for s_in in range(nspin):
                     contrib = weighted[..., s_out, s_in]
@@ -1251,13 +1268,13 @@ class TBModel:
 
         """
         site_energies = np.asarray(self._site_energies)
-        amps, i_idx, j_idx, R_vecs = self._hoppings.components()
+        hop_amps, i_idx, j_idx, R_vecs = self._hoppings.components()
 
         if self.dim_k == 0:
             if k_pts is not None:
                 raise ValueError("k_pts should not be specified for finite (dim_k=0) models.")
             return self._hamiltonian_finite(
-                amps,
+                hop_amps,
                 i_idx,
                 j_idx,
                 site_energies,
@@ -1267,7 +1284,7 @@ class TBModel:
         k_arr = self._normalize_kpoints(k_pts)
         return self._hamiltonian_periodic(
             k_arr,
-            amps,
+            hop_amps,
             i_idx,
             j_idx,
             R_vecs,
