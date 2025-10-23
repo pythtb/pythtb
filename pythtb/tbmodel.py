@@ -2618,7 +2618,12 @@ class TBModel:
 
         return chern_num.real
 
-    def local_chern_marker(self, occ_idxs=None):
+    def local_chern_marker(
+            self, 
+            occ_idxs=None,
+            return_bulk_avg: bool = False,
+            trim_cells: int = 4
+            ):
         r"""Bianco–Resta local Chern marker.
 
         The local Chern marker is a per-site quantity that captures the
@@ -2633,56 +2638,124 @@ class TBModel:
         is normalized by the unit cell volume, so that its spatial average
         gives the Chern number of the occupied manifold.
 
+        Parameters
+        ----------
+        occ_idxs : array-like, optional
+            Indices of the occupied bands. If none are provided, 
+            the lower half bands are considered occupied.
+        return_bulk_avg : bool, optional
+            If True, also returns the bulk-averaged Chern number
+            computed from the local Chern marker. Default is False.
+        trim_cells : int, optional
+            Number of unit cells to trim from each edge when computing
+            the bulk-averaged Chern number. Default is 4.
+
         Returns
         -------
-        C_local : np.ndarray of shape (N,)
+        C_local : np.ndarray of shape (norb,)
             Per-site local Chern marker.
+        C_bulk_avg : float, optional
+            Bulk-averaged Chern number computed from local Chern marker.
+            Returned only if `return_bulk_avg` is True.
         """
         if self.dim_k != 0:
             raise ValueError("Local Chern marker is only defined for real-space models (dim_k=0).")
+        if self.dim_r != 2:
+            raise ValueError("Local Chern marker is only defined for 2D models (dim_r=2).")
         
         H = self.hamiltonian()
-        coords = self.get_orb_vecs(cartesian=True)
-        uc_vol = self.lattice.cell_volume
-
         N = H.shape[0]
-
-        # coords: x, y (Cartesian)
-        if isinstance(coords, tuple) and len(coords) == 2:
-            x = np.asarray(coords[0], float).reshape(N)
-            y = np.asarray(coords[1], float).reshape(N)
-        else:
-            coords = np.asarray(coords, float)
-            if coords.ndim != 2 or coords.shape != (N, 2):
-                raise ValueError("coords must be (N,2) or a tuple (x,y) of length N.")
-            x, y = coords[:, 0], coords[:, 1]
+        r_cart = self.get_orb_vecs(cartesian=True) # (N, 2)
+        if r_cart.ndim != 2 or r_cart.shape[1] != 2 or r_cart.shape[0] != N:
+            raise ValueError("Could not get orbital coordinates in Cartesian basis.")
+        x = r_cart[:, 0]
+        y = r_cart[:, 1]
 
         # Dense eigensolve and projector
-        evals, evecs = np.linalg.eigh(H)  # returns sorted ascending
+        _, evecs = np.linalg.eigh(H)  # returns sorted ascending
         if occ_idxs is None:
             # Default to half filling (robust for particle-hole symmetric models like Haldane).
             occ_idxs = np.arange(N // 2)
+        else:
+            occ_idxs = np.asarray(occ_idxs, int)
 
         Uocc = evecs[:, occ_idxs]  # (N, k_occ)
         P = Uocc @ Uocc.conj().T  # (N,N) dense projector
 
-        # Position operators (dense diagonals)
-        X = np.diag(x.astype(complex))
-        Y = np.diag(y.astype(complex))
+        DX = x[:, None] - x[None, :]
+        DY = y[:, None] - y[None, :]
+        CX = DX * P
+        CY = DY * P
 
-        # Commutators (explicit dense)
-        CX = X @ P - P @ X
-        CY = Y @ P - P @ Y
-
-        # A = P [X,P] [Y,P]
+        # A = P [X,P][Y,P]
         A = P @ (CX @ CY)
 
-        # Local marker from diagonal of A
-        C_local = 4 * np.pi * np.diag(np.imag(A)) / uc_vol
-        return C_local
-    
-    
+        # # Position operators (dense diagonals)
+        # X = np.diag(x.astype(complex))
+        # Y = np.diag(y.astype(complex))
 
+        # # Commutators (explicit dense)
+        # CX = X @ P - P @ X
+        # CY = Y @ P - P @ Y
+
+        # # A = P [X,P] [Y,P]
+        # A = P @ (CX @ CY)
+
+        # Local marker from diagonal of A
+        A_cell = self.cell_volume
+        C_local = (4 * np.pi / A_cell) * np.imag(np.diag(A))
+
+        if not return_bulk_avg:
+            return C_local
+
+        Lx = self.lattice.nsuper[0]
+        Ly = self.lattice.nsuper[1]
+
+        # number of orbitals per Bravais cell (handles spin implicitly via N)
+        if N % (Lx * Ly) != 0:
+            raise ValueError(f"N={N} not divisible by Lx*Ly={Lx*Ly}; "
+                            "cannot aggregate per-cell markers.")
+        norb_cell = self.norb // (Lx * Ly)
+
+        # Per-cell marker by summing orbitals belonging to the same cell
+        # (use fractional positions to infer integer cell index robustly)
+        r_frac = self.get_orb_vecs(cartesian=False) # (N, 2)
+
+        # Per-cell fractional centers (average over orbitals of each cell)
+        # We don't assume any orbitals ordering; we infer cell indices by rounding.
+        # Compute approximate cell indices using fractional coords:
+        # Step 1: reshape a best-guess to estimate the internal offset
+        # If ordering is arbitrary, estimate offset from all orbitals:
+        offset = np.mod(r_frac, 1.0).mean(axis=0)
+        ij_float = r_frac - offset  # ~ integers (ix, iy) per orbital
+        ij = np.rint(ij_float).astype(int)
+        ix = np.mod(ij[:, 0], Lx)
+        iy = np.mod(ij[:, 1], Ly)
+        lin = ix + Lx * iy  # linear cell index in C-order (ix fastest)
+
+        # Aggregate per-cell local marker
+        marker_cell = np.zeros(Lx * Ly, dtype=C_local.dtype)
+        np.add.at(marker_cell, lin, C_local)
+
+        # Normalize trim argument
+        if isinstance(trim_cells, int):
+            tx = ty = int(trim_cells)
+        else:
+            tx, ty = map(int, trim_cells)
+        tx = max(0, tx)
+        ty = max(0, ty)
+        if 2 * tx >= Lx or 2 * ty >= Ly:
+            raise ValueError(f"trim_cells={trim_cells} too large for grid {(Lx, Ly)}")
+
+        # Build mask over interior cells (C-order indexing)
+        IX, IY = np.meshgrid(np.arange(Lx), np.arange(Ly), indexing="xy")
+        mask = (IX.ravel() >= tx) & (IX.ravel() < Lx - tx) & \
+            (IY.ravel() >= ty) & (IY.ravel() < Ly - ty)
+
+        C_bulk_avg = marker_cell[mask].mean()
+
+        return C_local, C_bulk_avg
+    
     ##### Plotting functions #####
     # These plotting functions are wrappers to the functions in plotting.py
     def visualize(
