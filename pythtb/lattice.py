@@ -82,6 +82,7 @@ class Lattice():
 
         self._set_lat_vecs(lat_vecs)
         self._set_orb_vecs(orb_vecs)
+        self._nsuper = [1 for _ in range(self.dim_r)]  # default supercell sizes
 
     def __eq__(self, value):
         if not isinstance(value, Lattice):
@@ -202,6 +203,11 @@ class Lattice():
                 self._recip_vol = np.sqrt(np.linalg.det(self._recip_lat @ self._recip_lat.T))
 
     # Read-only properties inferred from mutable attributes
+    @property
+    def nsuper(self) -> list[int]:
+        """List of supercell sizes along each real-space lattice vector."""
+        return self._nsuper.copy()
+    
     @property
     def dim_r(self) -> int:
         """The dimensionality of real space."""
@@ -470,6 +476,8 @@ class Lattice():
         fin_orb = np.array(fin_orb)
 
         fin_lat = Lattice(self.lat_vecs, fin_orb, periodic_dirs=new_per)
+        fin_lat._nsuper = copy.deepcopy(self.nsuper)
+        fin_lat._nsuper[periodic_dir] = num_cells
         return fin_lat
     
     def add_orb(self, orb_pos):
@@ -731,6 +739,7 @@ class Lattice():
         geom = self._prepare_supercell_geometry(sc_red_lat)
         self.lat_vecs = geom["lat_vecs"]
         self.orb_vecs = geom["orb_vecs"]
+        self._nsuper = list(np.diag(geom["sc_red_lat"]))
 
         if to_home:
             self._shift_orb_to_home(to_home_warning=to_home_warning)
