@@ -811,7 +811,7 @@ class Mesh:
             ax.add_loop_component(component_idx)
 
     def unloop_axis(self, axis_idx: int, component_idx: int):
-        r"""Declare an axis winds a specified component of the mesh vector.
+        r"""Declare an axis as not looping a specified component of the mesh vector.
 
         Calling this function will mark an axis as winding a given component of the vector 
         in :math:`(\mathbf{k}, \lambda)`-space. This means that
