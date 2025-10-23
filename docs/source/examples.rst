@@ -30,7 +30,7 @@ Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
    :maxdepth: 1
    :caption: New to v2.0.0
 
-   examples/v2_tutorial
+   examples/tb_model_v2
    examples/lattice
    examples/mesh
    examples/nn_shells

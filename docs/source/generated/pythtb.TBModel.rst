@@ -15,7 +15,7 @@ Methods
    pythtb.TBModel.add_orb
    pythtb.TBModel.berry_curvature
    pythtb.TBModel.change_nonperiodic_vector
-   pythtb.TBModel.chern
+   pythtb.TBModel.chern_number
    pythtb.TBModel.clear_hoppings
    pythtb.TBModel.clear_onsite
    pythtb.TBModel.compute_bands

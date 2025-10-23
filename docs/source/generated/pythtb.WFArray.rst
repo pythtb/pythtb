@@ -12,11 +12,11 @@ Methods
    :nosignatures:
    :toctree: pythtb/WFArray/
 
-   pythtb.WFArray.berry_curv
+   pythtb.WFArray.berry_curvature
    pythtb.WFArray.berry_flux
    pythtb.WFArray.berry_loop
    pythtb.WFArray.berry_phase
-   pythtb.WFArray.chern_num
+   pythtb.WFArray.chern_number
    pythtb.WFArray.choose_states
    pythtb.WFArray.empty_like
    pythtb.WFArray.get_k_shell

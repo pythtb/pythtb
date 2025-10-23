@@ -44,6 +44,7 @@ Attributes
    pythtb.Lattice.dim_r
    pythtb.Lattice.lat_vecs
    pythtb.Lattice.norb
+   pythtb.Lattice.nsuper
    pythtb.Lattice.orb_vecs
    pythtb.Lattice.periodic_dirs
    pythtb.Lattice.recip_lat_vecs
