@@ -2409,10 +2409,10 @@ class TBModel:
     def berry_curvature(
         self,
         k_pts,
-        evals=None,
-        evecs=None,
-        occ_idxs=None,
-        dirs="all",
+        evals: np.ndarray = None,
+        evecs: np.ndarray = None,
+        occ_idxs = None,
+        plane = None,
         cartesian: bool = False,
         non_abelian: bool = False,
     ):
@@ -2447,9 +2447,11 @@ class TBModel:
             Eigenvectors of the Hamiltonian. If not provided, they will be computed.
         occ_idxs : 1D array, optional
             Indices of the occupied bands. Defaults to the first half of the states.
-        dirs : str or tuple of int, optional
-            Directions in k-space for which to compute the curvature.
-            If "all", computes all components. If a tuple, restricts to specified indices.
+        plane : tuple of int, optional
+            Tuple of two integers specifying the plane in k-space for which to compute 
+            the curvature. If None (default), 
+            computes all components of the Berry curvature tensor. This 
+            will affect the shape of the returned array.
         cartesian : bool, optional
             If True, computes the velocity operator in Cartesian coordinates.
             Default is False (reduced coordinates).
@@ -2460,19 +2462,20 @@ class TBModel:
         Returns
         -------
         b_curv : np.ndarray
-            Berry curvature tensor. If ``dirs`` is "all", shape is (dim_k, dim_k, Nk, n_orb, n_orb).
-            If ``dirs`` is a tuple, shape is (Nk, n_orb, n_orb) and the returned tensor is restricted 
+            Berry curvature tensor. If ``plane`` is None, shape is (dim_k, dim_k, Nk, n_orb, n_orb).
+            If ``plane`` is a tuple, shape is (Nk, n_orb, n_orb) and the returned tensor is restricted 
             to the specified directions.
             If ``abelian`` is True, returns the band-trace of the Berry curvature tensor and the last
             two dimensions are not present.
 
         Notes
         -----
-        This quantity is an anti-symmetric under :math:`\mu \leftrightarrow \nu`. 
-        The Berry curvature is only defined for models with at least 2 k-space dimensions
-        (``dim_k >= 2``). The Berry curvature is computed using the Kubo formula, which
+        - This quantity is an anti-symmetric under :math:`\mu \leftrightarrow \nu`. 
+        - The Berry curvature is only defined for models with at least 2 k-space dimensions
+        (``dim_k >= 2``). 
+        - The Berry curvature is computed using the Kubo formula, which
         requires knowledge of the velocity operator :math:`\partial_\mu H_k`. This operator
-        is computed using the gradient of the Hamiltonian provided by :func:`grad_ham`.
+        is computed using the gradient of the Hamiltonian provided by :func:`velocity`.
         """
 
         if self.dim_k < 2:
@@ -2550,10 +2553,12 @@ class TBModel:
 
         if not non_abelian:
             b_curv = np.trace(b_curv, axis1=-1, axis2=-2)
-        if dirs == "all":
+        if plane is None:
             return b_curv
         else:
-            return b_curv[dirs]
+            if not (isinstance(plane, tuple) and len(plane) == 2):
+                raise ValueError("plane must be a tuple of length 2.")
+            return b_curv[plane]
 
     def chern(self, occ_idxs=None, dirs=(0, 1), nk=200):
         r"""Computes Chern number for occupied manifold.
