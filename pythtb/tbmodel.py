@@ -2472,10 +2472,11 @@ class TBModel:
         -----
         - This quantity is an anti-symmetric under :math:`\mu \leftrightarrow \nu`. 
         - The Berry curvature is only defined for models with at least 2 k-space dimensions
-        (``dim_k >= 2``). 
+          (``dim_k >= 2``). 
         - The Berry curvature is computed using the Kubo formula, which
-        requires knowledge of the velocity operator :math:`\partial_\mu H_k`. This operator
-        is computed using the gradient of the Hamiltonian provided by :func:`velocity`.
+          requires knowledge of the velocity operator :math:`\partial_\mu H_k`. This operator
+          is computed using the gradient of the Hamiltonian provided by :func:`velocity`.
+
         """
 
         if self.dim_k < 2:
@@ -2689,17 +2690,6 @@ class TBModel:
 
         # A = P [X,P][Y,P]
         A = P @ (CX @ CY)
-
-        # # Position operators (dense diagonals)
-        # X = np.diag(x.astype(complex))
-        # Y = np.diag(y.astype(complex))
-
-        # # Commutators (explicit dense)
-        # CX = X @ P - P @ X
-        # CY = Y @ P - P @ Y
-
-        # # A = P [X,P] [Y,P]
-        # A = P @ (CX @ CY)
 
         # Local marker from diagonal of A
         A_cell = self.cell_volume
