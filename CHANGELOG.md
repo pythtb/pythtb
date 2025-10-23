@@ -263,7 +263,7 @@ The following methods are deprecated but still functional with backward compatib
   Unused in the rest of the codebase.
 
 #### Python Version Support
-- **Breaking**: Dropped support for Python <3.10 
+- **Breaking**: Dropped support for Python <3.12 
   - Following [SPEC-0](https://scientific-python.org/specs/spec-0000/) (Scientific Python Ecosystem Coordination)
   - Allows use of modern Python features (structural pattern matching, improved type hints, etc.)
 
