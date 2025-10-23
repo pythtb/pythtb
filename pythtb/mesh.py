@@ -177,11 +177,11 @@ class Mesh:
     or a mixed mesh with axes in both spaces. The mesh can also be a grid or a path. 
 
     A grid mesh has an axis for each dimension of the mesh, while a path mesh has a single axis
-    that traces a path through the combined :math:`(k, \lambda)`-space. For example, a 2D k-space grid has two k-axes,
-    while a 1D path mesh would have a single axis that moves through k-space. A mesh has axes that represent 
-    the dimensions of the mesh, and the last axis represents the vector components in :math:`(k, \lambda)`-space. 
-    A grid is defined such that each mesh dimension (axis) corresponds to one vector component, while a path has a 
-    single axis that may vary multiple vector components simultaneously.
+    that traces a path through the combined :math:`(k, \lambda)`-space. For example, in 2D k-space,
+    a grid will have 2 axes that sample the kx and ky directions independently, while a path mesh
+    would have a single axis that samples along some direction in the combined space, varying one
+    or more k-components.
+    The last axis of the array represents the vector components in :math:`(k, \lambda)`-space.
 
     Parameters
     ----------
@@ -216,6 +216,30 @@ class Mesh:
         The parameter space is assumed to be orthogonal to the k-space. This means that when varying the parameter
         along its axis, the k-components are held fixed. Paths through a mixed parameter and k-space are not 
         currently supported.
+
+     Examples
+    --------
+    We can create a full grid by specifying the shape of the grid.
+
+    >>> mesh = Mesh(dim_k=2, dim_lambda=0, axis_types=['k', 'k'])
+    >>> mesh.build_full_grid(shape=(10, 10), gamma_centered=True)
+    >>> mesh.grid.shape
+    (10, 10, 2)
+
+    Or suppose we have a 3D k-space model with an additional lambda dimension.
+
+    >>> mesh = Mesh(dim_k=3, dim_lambda=1, axis_types=['k', 'k', 'k', 'l'])
+    >>> mesh.build_full_grid(shape=(10, 10, 10, 100), gamma_centered=True)
+    >>> mesh.grid.shape
+    (10, 10, 10, 100, 4)
+
+    Since we have a gamma-centered grid, the k-axes go from [-0.5, 0.5) non-inclusive.
+    The endpoints for the lambda axis are included by default.
+
+    >>> mesh.grid[0, 0, 0, 0, 0]
+    array([-0.5, -0.5, -0.5,  0. ])
+    >>> mesh.grid[-1, -1, -1, -1, -1]
+    array([ 0.49,  0.49,  0.49,  1. ])
     """
     def __init__(
         self,  
@@ -498,12 +522,7 @@ class Mesh:
         r"""Does the mesh wind around the BZ in all k-directions?
 
         A torus mesh has an axis for each k-dimension and winds around the BZ 
-        in each k-direction. This means the mesh is
-
-        .. math::
-            T^d = S^1 \times S^1 \times ... \times S^1
-
-        where :math:`d` is the dimension of k-space.
+        in each k-direction. 
         
         Notes
         -----
@@ -712,6 +731,7 @@ class Mesh:
         through k-space that winds around the BZ but does contain the endpoints.
         In this case, the user can manually mark the axis as winding the BZ for the
         relevant k-component.
+
         >>> from pythtb import Mesh
         >>> mesh = Mesh(dim_k=2, axis_types=['k'])
         >>> points = np.linspace([0,0], [1, 1], 10, endpoint=False)  # path from (0,0) to (1, 1)
@@ -831,7 +851,6 @@ class Mesh:
             at the two ends of the axis. This function does not check this condition.
             If this is not the case, the results may be incorrect.
           
-
         Examples
         ---------
         Say we have a model with a single k-axis and a single parameteric variable. 
