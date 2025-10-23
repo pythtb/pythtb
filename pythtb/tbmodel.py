@@ -3,7 +3,12 @@ import logging
 import warnings
 import numpy as np
 from .plotting import plot_bands, plot_tb_model, plot_tb_model_3d
-from .utils import _offdiag_approximation_warning_and_stop, is_Hermitian, deprecated, copydoc
+from .utils import (
+    _offdiag_approximation_warning_and_stop, 
+    is_Hermitian, deprecated, 
+    copydoc, 
+    get_tensorflow
+    )
 from .lattice import Lattice
 from .hoptable import HoppingTable
 
@@ -19,27 +24,15 @@ SIGMAX = np.array([[0, 1], [1, 0]], dtype=complex)
 SIGMAY = np.array([[0, -1j], [1j, 0]], dtype=complex)
 SIGMAZ = np.array([[1, 0], [0, -1]], dtype=complex)
 
-try:
-    from tensorflow import convert_to_tensor
-    from tensorflow.linalg import eigvalsh as tf_eigvalsh, eigh as tf_eigh
-    from tensorflow import complex64 as tf_complex64, complex128 as tf_complex128
-except ImportError:  # TensorFlow not installed – keep optional
-    tf_eigvalsh = tf_eigh = tf_complex64 = tf_complex128 = None
-
 def _tensorflow_solve(ham, *, return_eigvecs: bool, use_32_bit: bool):
-    if convert_to_tensor is None:
-        raise ImportError(
-            "TensorFlow support requires `pip install pythtb[speedup]` "
-            "or a manual tensorflow install."
-        )
-
-    dtype = tf_complex64 if use_32_bit else tf_complex128
-    tensor = convert_to_tensor(ham, dtype=dtype)
+    tf = get_tensorflow()
+    dtype = tf["complex64"] if use_32_bit else tf["complex128"]
+    tensor = tf["convert_to_tensor"](ham, dtype=dtype)
 
     if return_eigvecs:
-        evals, evecs = tf_eigh(tensor)
+        evals, evecs = tf["eigh"](tensor)
         return evals.numpy(), evecs.numpy()
-    evals = tf_eigvalsh(tensor)
+    evals = tf["eigvalsh"](tensor)
     return evals.numpy()
 
 class TBModel:

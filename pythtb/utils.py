@@ -15,6 +15,31 @@ __all__ = [
     "get_periodic_H",
 ]
 
+_TF_CACHE = None  # module-level cache so we import once
+
+def get_tensorflow():
+    """Return the TensorFlow routines we need, importing lazily on demand."""
+    global _TF_CACHE
+    if _TF_CACHE is not None:
+        return _TF_CACHE
+
+    try:
+        import tensorflow as tf
+    except ImportError as exc:
+        raise ImportError(
+            "TensorFlow support requires `pip install pythtb[speedup]` "
+            "or a manual tensorflow install."
+        ) from exc
+
+    _TF_CACHE = {
+        "convert_to_tensor": tf.convert_to_tensor,
+        "eigvalsh": tf.linalg.eigvalsh,
+        "eigh": tf.linalg.eigh,
+        "complex64": tf.complex64,
+        "complex128": tf.complex128,
+    }
+    return _TF_CACHE
+
 # deprecation decorator
 def deprecated(message: str, category=FutureWarning):
     """
