@@ -1217,12 +1217,14 @@ def plot_bands(
         if evals is None or evecs is None:
             # diagonalize model on path
             evals, evecs = model.solve_ham(k_vec, return_eigvecs=True)
+
         n_eigs = evals.shape[-1]
         wt = abs(evecs) ** 2
 
         if model._nspin == 1:
             col = np.sum([wt[..., i] for i in proj_orb_idx], axis=0)
         elif model._nspin == 2:
+            wt = wt.reshape(wt.shape[0], wt.shape[1], model.nstate // 2, 2)
             col = np.sum([wt[..., i, :] for i in proj_orb_idx], axis=(0, -1))
 
         for n in range(n_eigs):
