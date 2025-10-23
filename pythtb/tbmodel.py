@@ -38,17 +38,14 @@ def _tensorflow_solve(ham, *, return_eigvecs: bool, use_32_bit: bool):
 class TBModel:
     r"""Tight-binding model constructor.
 
-    This class's primary purpose is to build, store,
-    and diagonalize tight-binding Hamiltonians.
+    This class serves as the central object for defining and analyzing tight-binding Hamiltonians.
+    Beyond Hamiltonian construction and diagonalization, it offers tools for computing key topological 
+    and quantum-geometric observables, including the Berry curvature, Chern number, and the Bianco–Resta 
+    local Chern marker.
 
-    .. versionchanged:: 2.0.0
-        The class was refactored to use a separate ``Lattice`` object for lattice
-        and orbital information. The ``TBModel`` class now relies on
-        the ``Lattice`` object to provide this information. 
-        The parameters for ``tb_model`` are now used in the
-        constructor of the `Lattice` class, such as ``lat``, ``orb``, ``per``, 
-        while ``dim_k`` and ``dim_r`` are inferred from ```lat`` and ``per``.
-        The ``nspin`` parameter was renamed to ``spinful`` for clarity.
+    .. versionremoved:: 2.0.0
+        Parameters ``dim_r`` and ``dim_k`` are removed. The dimensionality of real and reciprocal space
+        is inferred from the `Lattice` object.
 
     Parameters
     ----------
@@ -57,10 +54,19 @@ class TBModel:
         lattice vectors, orbital positions, and periodic directions. The
         `Lattice` object should be created separately and passed to `TBModel`.
 
+        .. versionchanged:: 2.0.0
+            Replaces parameters ``lat``, ``orb``, and ``per``.
+
     spinful : bool, optional
         If True, the model is spinful and each orbital is assumed to
         have two spin components. If False, the model is spinless.
         Default value of this parameter is False.
+
+        .. versionchanged:: 2.0.0
+            Renamed from ``nspin`` to ``spinful``.
+            Changed from integer-valued to boolean. Only True and False
+            are supported. The number of spin components is only allowed 
+            to be 1 (spinless) or 2 (spinful).
 
     Examples
     --------
@@ -89,7 +95,7 @@ class TBModel:
 
         # By default, assume model did not come from w90 object and that
         # position operator is diagonal
-        self._assume_position_operator_diagonal = True
+        self.assume_position_operator_diagonal = True
         self._from_w90 = False
 
         # Initialize onsite energies to zero
@@ -133,30 +139,33 @@ class TBModel:
         return self.info(show=False)
 
     @deprecated(
-        "The 'display' method is deprecated and will be removed in a future release. Use 'print(model)' or 'model.info(show=True)' instead."
+        "The 'display()' method is deprecated and will be removed in a future release. " \
+        "Use 'print(model)' or 'model.info(show=True)' instead."
     )
     def display(self):
         r"""
         .. deprecated:: 2.0.0
-            `display` has been deprecated, it is recommended to use `print(model)` or `model.info(show=True)` instead.
+            ``display()`` has been deprecated, it is recommended to use 
+            ``print(model)`` or ``model.info(show=True)`` instead.
         """
         return self.info(show=True)
 
     def info(self, show: bool = True, short: bool = False):
         r"""Print or return information about the tight-binding model.
 
-        .. versionadded:: 2.0.0
-            The `short` parameter was added to control the verbosity of the report.
-            The `show` parameter was added to control whether to print the report or return it as a string.
-
         Parameters
         ----------
         show : bool, optional
             If True, prints the report to stdout. If False, returns the report as a string.
             Default is True.
+
+            .. versionadded:: 2.0.0
+
         short : bool, optional
             If True, prints only a lattice summary. If False, prints hopping and onsite details as well.
             Default is False.
+
+            .. versionadded:: 2.0.0
 
         Returns
         -------
@@ -405,9 +414,9 @@ class TBModel:
     def site_energies(self) -> np.ndarray:
         """On-site energies for each orbital. 
 
-        .. versionadded:: 2.0.0
-
         Shape is ``(norb,)`` for spinless models, ``(norb, 2, 2)`` for spinful models.
+
+        .. versionadded:: 2.0.0
         """
         return self._site_energies.copy()
 
@@ -540,14 +549,13 @@ class TBModel:
         .. versionchanged:: 2.0.0
             The name was changed from `get_orb` to `get_orb_vecs`.
 
-        .. versionadded:: 2.0.0
-            Support for Cartesian coordinates with the `cartesian` parameter.
-
         Parameters
         ----------
         cartesian : bool, optional
             If True, returns orbital positions in Cartesian coordinates.
             If False, returns reduced coordinates (default).
+
+            .. versionadded:: 2.0.0
 
         Returns
         -------
@@ -1138,7 +1146,7 @@ class TBModel:
         Returns
         -------
         vel : np.ndarray
-            Velocity operators at each k-point. First axis indexes the cartesian direction if `cartesian` is True.
+            Velocity operators at each k-point. First axis indexes the cartesian direction if ``cartesian=True``.
             Otherwise, it indexes the reduced direction. Shape is `(dim_k, Nk, norb, norb)` for spinless models,
             or `(dim_k, Nk, norb, nspin, norb, nspin)` for spinful models.
 
@@ -1251,11 +1259,12 @@ class TBModel:
         ham : np.ndarray 
             Array of Bloch-Hamiltonian matrices defined on the specified k-points. The Hamiltonian is Hermitian by construction.
 
-            - If ``dim_k`` > 0: shape is ``(n_kpts, norb, norb)`` for spinless models, or ``(n_kpts, norb, nspin, norb, nspin)`` 
-              for spinful models, unless `flatten_spin` is True, in which case the shape is ``(n_kpts, norb*nspin, norb*nspin)``.
+            - If ``dim_k > 0``: shape is ``(n_kpts, norb, norb)`` for spinless models, or ``(n_kpts, norb, nspin, norb, nspin)`` 
+              for spinful models, unless ``flatten_spin_axis=True``, in which case the shape 
+              is ``(n_kpts, norb*nspin, norb*nspin)``.
 
-            - If ``dim_k`` = 0: shape is ``(norb, norb)`` for spinless or ``(norb, nspin, norb, nspin)`` for spinful models,
-              unless `flatten_spin` is True, in which case the shape is ``(norb*nspin, norb*nspin)``.
+            - If ``dim_k=0``: shape is ``(norb, norb)`` for spinless or ``(norb, nspin, norb, nspin)`` for spinful models,
+              unless ``flatten_spin_axis=True``, in which case the shape is ``(norb*nspin, norb*nspin)``.
 
         Notes
         -----
@@ -1372,16 +1381,10 @@ class TBModel:
         Solve for eigenvalues and optionally eigenvectors of the tight-binding model
         at a list of one-dimensional k-vectors.
 
-        .. versionchanged:: 2.0.0
+        .. versionadded:: 2.0.0
             Merged :func:`solve_all` and :func:`solve_one` into :func:`solve_ham`.
             This function will equivalently handle both a single k-point and
             multiple k-points. 
-
-            Parameter `eig_vectors` renamed to `return_eigvecs`.
-            Parameter `k_list` renamed to `k_pts`.
-
-        .. versionadded:: 2.0.0
-            Parameter `flatten_spin` and `tf_speedup` added.
 
         Parameters
         ----------
@@ -1389,44 +1392,51 @@ class TBModel:
             One-dimensional list or array of k-vectors, each given in reduced coordinates.
             Shape should be ``(Nk, dim_k)``, where ``dim_k`` is the number of periodic directions.
             Should not be specified for systems with zero-dimensional reciprocal space.
+
+            .. versionchanged:: 2.0.0
+                Renamed from ``k_list``.
+
         return_eigvecs : bool, optional
             If True, both eigenvalues and eigenvectors are returned.
             If False (default), only eigenvalues are returned.
+
+            .. versionchanged:: 2.0.0
+                Renamed from ``eig_vectors``.
+
         flatten_spin_axis : bool, optional
             If True (default), the spin axes are flattened into the orbital axes.
             If False, the spin axes are kept separate. This affects the
             shape of the returned eigenvectors for spinful models.
+
+            .. versionadded:: 2.0.0
+
         tf_speedup : bool, optional
             If True, use TensorFlow to accelerate the diagonalization.
             This requires TensorFlow to be installed. Default is False.
 
+            .. versionadded:: 2.0.0
+
         Returns
         -------
-        eval : {(Nk, nstate), (nstate)} np.ndarray 
+        eval : np.ndarray 
             Array of eigenvalues. Shape is:
 
-            - (Nk, nstates) for periodic systems
-            - (nstates,) for zero-dimensional (molecular) systems
+            - ``(Nk, nstates)`` for periodic systems
+            - ``(nstates,)`` for zero-dimensional (molecular) systems
 
-        evec : {(Nk, nstate, nstate), (nstate, nstate), (Nk, nstate, norb, 2), (nstate, norb, 2)} np.ndarray, optional
-            Array of eigenvectors (if ``return_eigvecs=True``). The ordering of bands matches that in `eval`.
+        evec : np.ndarray, optional
+            Array of eigenvectors (if ``return_eigvecs=True``). The ordering of bands matches that in ``eval``.
 
-            Each entry :code:`evec[k, n, j]` is the coefficient of orbital `j` in the Bloch eigenstate
-            :math:`C^{n \mathbf{k}}_j`.
+            For spinless models the shape is:
 
-            For spinless models:
+            - ``(Nk, nstates, norb)``: periodic systems
+            - ``(nstates, norb)``: zero-dimensional systems
+            - ``(nstates, norb)``: If only one k-point is provided, the redundant k-axis is removed.
 
-            - Shape is ``(Nk, nstates, norb)`` in periodic systems
-            - Shape is ``(nstates, norb)`` in zero-dimensional systems
-            - If only one k-point is provided, the redundant k-axis is removed, resulting in shape ``(nstates, norb)``.
+            For spinful models the shape is (``nstates = norb * 2``):
 
-            For spinful models:
-
-            - Shape is ``(Nk, nstates, norb, 2)`` for periodic systems
-            - Shape is ``(nstates, norb, 2)`` for zero-dimensional systems
-            - If only one k-point is provided, the redundant k-axis is removed, resulting in shape ``(nstates, norb, 2)``.
-            - If `flatten_spin_axis=True` and the model is spinful, the spin axes are flattened into the orbital axes,
-              resulting in shapes ``(Nk, nstates, norb*2)`` or ``(nstates, norb*2)``.
+            - ``(..., nstates, norb, 2)``: If ``flatten_spin_axis=False``, an additional spin axis of size 2 is appended at the end.
+            - ``(..., nstates, nstates)``: If ``flatten_spin_axis=True``, the spin axes are flattened into the orbital axes.
             
         Notes
         -----
@@ -1549,9 +1559,6 @@ class TBModel:
     #TODO: Decide whether to return fin_model or modify in place
     def cut_piece(self, num_cells, periodic_dir, glue_edges=False) -> "TBModel":
         r"""Cut a (d-1)-dimensional piece out of a d-dimensional tight-binding model.
-
-        .. versionchanged:: 2.0.0
-            Changed parameter names for clarity: `num` -> `num_cells`, `fin_dir` -> `periodic_dir`.
         
         Constructs a (d-1)-dimensional tight-binding model out of a
         d-dimensional one by repeating the unit cell a given number of
@@ -1562,8 +1569,14 @@ class TBModel:
         num_cells : int
             How many times to repeat the unit cell.
 
+            .. versionchanged:: 2.0.0
+                Renamed from ``num`` for clarity.
+
         periodic_dir : int
             Index of the periodic lattice vector along which to make the system finite.
+
+            .. versionchanged:: 2.0.0
+                Renamed from ``fin_dir`` for clarity.
 
         glue_edges : bool, optional
             If True, allow hoppings from one edge to the other of a cut model.
@@ -1632,9 +1645,11 @@ class TBModel:
         fin_model.set_onsite(onsite, mode="set")
 
         # remember if came from w90
-        fin_model._assume_position_operator_diagonal = (
-            self._assume_position_operator_diagonal
+        fin_model.assume_position_operator_diagonal = (
+            self.assume_position_operator_diagonal
         )
+        fin_model._from_w90 = self._from_w90
+
         amps, from_idx, to_idx, R_vecs = self._hoppings.components()
         for c in range(num_cells):
             for amp, ind_i, ind_j, ind_R in zip(amps, from_idx, to_idx, R_vecs, strict=True):
@@ -1780,20 +1795,22 @@ class TBModel:
         to_home: bool = True, 
         ):
         """Change non-periodic lattice vector 
-
-        .. versionchanged:: 2.0.0
-            Parameter `to_home_supress_warning` has been removed.
-            Parameter `np_dir` renamed to `fin_dir` for clarity.
-
+            
         Changes one of the non-periodic "lattice vectors". Non-periodic lattice vectors 
         are those that are not listed as periodic with the `periodic_dirs` parameter. 
         The orbital vectors are modified accordingly so that the actual (Cartesian) coordinates of 
         orbitals remain unchanged.
 
+        .. versionremoved:: 2.0.0
+            Parameter `to_home_supress_warning` has been removed.
+
         Parameters
         ----------
         fin_dir : int
             Index of non-periodic lattice vector to change.
+
+            .. versionchanged:: 2.0.0
+                Renamed from ``np_dir`` for clarity and consistency.
 
         new_latt_vec : array_like, optional
             The new non-periodic lattice vector. If None (default), the new
@@ -1804,6 +1821,9 @@ class TBModel:
             If ``True`` (default), shift all orbitals to the home cell along
             periodic directions. Default behavior is to shift orbitals
             to the home cell.
+
+            .. versionchanged:: 2.0.0
+                This parameter was previously not working as intended and is now fixed.
 
         See Also
         --------
@@ -1843,9 +1863,6 @@ class TBModel:
     ) -> "TBModel":
         """Make model on a super-cell.
 
-        .. versionchanged:: 2.0.0
-            Parameter `to_home_supress_warning` has been removed.
-
         Constructs a :class:`pythtb.TBModel` representing a super-cell 
         of the current object. This function can be used together with :func:`cut_piece`
         in order to create slabs with arbitrary surfaces.
@@ -1854,6 +1871,9 @@ class TBModel:
         unit cell has been created. That way all orbitals will have
         reduced coordinates between 0 and 1. If you wish to avoid this
         behavior, you need to set, *to_home* argument to *False*.
+
+        .. versionremoved:: 2.0.0
+            Parameter `to_home_supress_warning` has been removed.
 
         Parameters
         ----------
@@ -1912,7 +1932,7 @@ class TBModel:
 
         lat = Lattice(geom["lat_vecs"], geom["orb_vecs"], self.periodic_dirs)
         sc_tb = TBModel(lat, spinful=self.spinful)
-        sc_tb._assume_position_operator_diagonal = self._assume_position_operator_diagonal
+        sc_tb.assume_position_operator_diagonal = self.assume_position_operator_diagonal
 
         for offset in range(num_sc):
             base = offset * self.norb
@@ -2115,10 +2135,6 @@ class TBModel:
         Here :math:`r^{\alpha}` is the position operator along direction
         :math:`\alpha` that is selected by `dir`.
 
-        .. versionchanged:: 2.0.0
-            Parameter `evec` renamed to `evecs` to clarify that multiple
-            eigenvectors can be passed at once.
-
         Parameters
         ----------
         evecs : np.ndarray
@@ -2126,6 +2142,10 @@ class TBModel:
             elements of the position operator.  The shape of this array
             is ``evecs[band, orbital]`` if ``spinful=False`` and
             ``evecs[band, orbital, spin]`` if ``spinful=True``.
+
+            .. versionchanged:: 2.0.0
+                Parameter ``evec`` renamed to ``evecs`` to clarify that multiple
+                eigenvectors can be passed at once.
 
         dir : int
             Direction along which we are computing the center.
@@ -2168,7 +2188,7 @@ class TBModel:
             raise ValueError("Direction out of range!")
 
         # check if model came from w90
-        if not self._assume_position_operator_diagonal:
+        if not self.assume_position_operator_diagonal:
             _offdiag_approximation_warning_and_stop()
 
         # check shape of evec
@@ -2213,10 +2233,6 @@ class TBModel:
         average position of n-th Bloch state ``evec[n]`` along
         direction `dir`. 
 
-        .. versionchanged:: 2.0.0
-            Parameter `evec` renamed to `evecs` to clarify that multiple
-            eigenvectors can be passed at once.
-
         Parameters
         ----------
         evecs : np.ndarray
@@ -2224,6 +2240,10 @@ class TBModel:
             elements of the position operator. The shape of this array
             is ``evecs[band, orbital]`` if ``spinful=True`` and
             ``evecs[band, orbital, spin]`` if ``spinful=False``.
+
+            .. versionchanged:: 2.0.0
+                Parameter ```evec`` renamed to ``evecs`` to clarify that multiple
+                eigenvectors can be passed at once.
 
         dir : int
             Direction along which we are computing matrix
@@ -2263,7 +2283,7 @@ class TBModel:
         """
 
         # check if model came from w90
-        if not self._assume_position_operator_diagonal:
+        if not self.assume_position_operator_diagonal:
             _offdiag_approximation_warning_and_stop()
 
         pos_exp = self.position_matrix(evecs, dir).diagonal()
@@ -2288,10 +2308,6 @@ class TBModel:
         ``dir``. The eigenvalues are average positions of these
         localized states.
 
-        .. versionchanged:: 2.0.0
-            Parameter `evec` renamed to `evecs` to clarify that multiple
-            eigenvectors can be passed at once.
-
         Parameters
         ----------
         evecs : np.ndarray
@@ -2299,6 +2315,11 @@ class TBModel:
             elements of the position operator. The shape of this array
             is ``evecs[band, orbital]`` if ``spinful=True`` and
             ``evecs[band, orbital, spin]`` if ``spinful=False``.
+
+            .. versionchanged:: 2.0.0
+                Parameter ``evec`` renamed to ``evecs`` to clarify that multiple
+                eigenvectors can be passed at once.
+
         dir : int
             Direction along which we are computing matrix
             elements. This integer must not be one of the periodic
@@ -2371,7 +2392,7 @@ class TBModel:
         >>> hwfc, hwf = my_model.position_hwf(evecs[2, :5], 0, hwf_evec=True, basis="orbital")
         """
         # check if model came from w90
-        if not self._assume_position_operator_diagonal:
+        if not self.assume_position_operator_diagonal:
             _offdiag_approximation_warning_and_stop()
 
         # get position matrix
@@ -2451,7 +2472,8 @@ class TBModel:
 
         By specifying the `plane` parameter, we choose a particular :math:`(\mu, \nu)` pair 
         of the Berry curvature tensor to return.
-    
+
+        .. versionadded:: 2.0.0
 
         Parameters
         ----------
@@ -2597,6 +2619,8 @@ class TBModel:
         where :math:`\Omega(k)` is the trace of the Berry curvature
         tensor over the occupied bands.
 
+        .. versionadded:: 2.0.0
+
         Parameters
         ----------
         occ_idxs : array-like, optional
@@ -2656,6 +2680,8 @@ class TBModel:
         operators, and :math:`i` is the orbital index. The local Chern marker
         is normalized by the unit cell volume, so that its spatial average
         gives the Chern number of the occupied manifold.
+
+        .. versionadded:: 2.0.0
 
         Parameters
         ----------
@@ -2794,6 +2820,9 @@ class TBModel:
         is "red-blue" or "wheel", all other elements of the picture are
         drawn in gray or black.
 
+        .. versionchanged:: 2.0.0
+            Visualization appearance has been updated.
+
         Parameters
         ----------
         proj_plane : tuple or list of two integers
@@ -2801,16 +2830,17 @@ class TBModel:
             if ``proj_plane=(0,1)`` then x-y projection of the model is
             drawn. This only should be specified if `dim_r` > 2.
 
+            .. versionchanged:: 2.0.0
+                Replaced previous parameters ``dir_first`` and ``dir_second``.
+
         eig_dr : Optional parameter specifying eigenstate to
           plot. If specified, this should be one-dimensional array of
           complex numbers specifying wavefunction at each orbital in
           the tight-binding basis. If not specified, eigenstate is not
           drawn.
-
         draw_hoppings : Optional parameter specifying whether to
           draw all allowed hopping terms in the tight-binding
           model. Default value is True.
-
         ph_color : {"black", "red-blue", "wheel"}, optional
             Determines the way the eigenvector phase factors are 
             translated into color. Default value is "black".
@@ -2880,6 +2910,8 @@ class TBModel:
         hopping lines, and (optionally) an eigenstate overlay with marker sizes
         proportional to amplitude and colors reflecting the phase.
 
+        .. versionadded:: 2.0.0
+
         Parameters
         ----------
         eig_dr : 
@@ -2927,6 +2959,8 @@ class TBModel:
         This function allows for customization of the plot, including projection of orbitals,
         spin projection, figure and axis objects, title, scatter size, line width,
         line color, line style, colormap, and whether to show a color bar.
+
+        .. versionadded:: 2.0.0
 
         Parameters
         ----------
