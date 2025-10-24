@@ -19,6 +19,7 @@ Methods
    pythtb.Lattice.get_lat_vecs
    pythtb.Lattice.get_orb_vecs
    pythtb.Lattice.get_recip_lat_vecs
+   pythtb.Lattice.info
    pythtb.Lattice.k_path
    pythtb.Lattice.k_shell_weights
    pythtb.Lattice.k_uniform_mesh
@@ -26,7 +27,6 @@ Methods
    pythtb.Lattice.nn_bonds
    pythtb.Lattice.nn_k_shell
    pythtb.Lattice.remove_orb
-   pythtb.Lattice.report
    pythtb.Lattice.visualize
    pythtb.Lattice.visualize_3d
    
