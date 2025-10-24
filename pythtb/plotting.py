@@ -1462,7 +1462,7 @@ def plot_centers(
 
     # Draw lines sectioning out home supercell
     if section_home_cell:
-        lat_vecs = wan.model.lat_vecs
+        lat_vecs = wan.lattice.lat_vecs
 
         c1 = np.array([0,0])
         c2 = c1 + lat_vecs[0]
@@ -1504,7 +1504,7 @@ def plot_centers(
             ax.scatter(
                 x, y, zorder=1, label=label, 
                 s=np.exp(11*wan.spread[i])*center_scale, 
-                marker='*', c=center_color)
+                marker=center_marker, c=center_color)
         else:
             center = centers[i]
             if i==0:
@@ -1516,7 +1516,7 @@ def plot_centers(
                 c=center_color,
                 alpha=0.5,
                 s=np.exp(11*wan.spread[i])*center_scale, 
-                label=label, marker='*')
+                label=label, marker=center_marker)
 
     if legend:
         ax.legend(loc='upper right')
