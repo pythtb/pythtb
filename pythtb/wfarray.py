@@ -1866,7 +1866,7 @@ class WFArray:
         return U_forward
 
     @staticmethod
-    def wilson_loop(wfs_loop, wilson_evals: bool=False):
+    def _wilson_loop(wfs_loop, wilson_evals: bool=False):
         r"""Wilson loop unitary matrix
         
         Computes the Wilson loop unitary matrix and its eigenvalues for multiband Berry phases.
@@ -1955,14 +1955,13 @@ class WFArray:
             return U_wilson
 
     @staticmethod
-    def berry_loop(wfs_path, wilson_evals: bool = False):
+    def berry_loop(wfs_path, berry_evals: bool = False):
         r"""Berry phase along a one-dimensional path of wavefunctions.
 
         The Berry phase along a one-dimensional path of wavefunctions
-        is computed using the Wilson loop unitary matrix obtained
-        from :meth:`wilson_loop`.
+        is computed using the Wilson loop unitary matrix.
 
-        When ``wilson_evals=False``, the Berry phase is computed as the logarithm
+        When ``berry_evals=False``, the Berry phase is computed as the logarithm
         of the determinant of the product of the overlap matrices between
         neighboring wavefunctions in the path. In otherwords, the Berry phase is
         given by the formula:
@@ -1974,7 +1973,7 @@ class WFArray:
         where :math:`U` is the Wilson loop unitary matrix obtained from
         :meth:`wilson_loop`. 
 
-        When ``wilson_evals=True``, the function returns an array of
+        When ``berry_evals=True``, the function returns an array of
         the individual phases (multiband Berry phases) for each band. 
         They are computed as
 
@@ -1992,7 +1991,7 @@ class WFArray:
         ----------
         wfs_loop : np.ndarray
             Wavefunctions in the path, with shape ``(path_idx, band, orbital, spin)``. 
-        wilson_evals : bool, optional
+        berry_evals : bool, optional
             Default is `False`. If `True`, will return the argument of the eigenvalues
             of the Wilson loop unitary matrix instead of the total Berry phase.
             If False, will return the total Berry phase for the loop.
@@ -2001,14 +2000,14 @@ class WFArray:
         -------
         berry_phase : float
             The total Berry phase for the loop.
-        wilson_evals : np.ndarray, optional
-            If wilson_evals is True, returns an array of multiband Berry phases
+        berry_evals : np.ndarray, optional
+            If berry_evals is True, returns an array of multiband Berry phases
             associated with each band.
 
         See Also
         --------
-        :meth:`berry_phase`
         :meth:`links`
+        :meth:`berry_phase`
         :meth:`wilson_loop`
         :ref:`formalism` : Section 4.5
 
@@ -2030,20 +2029,153 @@ class WFArray:
                 "wfs_path must be a 3D or 4D array with shape (path_idx, band, orbital(, spin))"
             )
         
-        if wilson_evals:
-            U_wilson, evals = WFArray.wilson_loop(wfs_path, wilson_evals=wilson_evals)
+        if berry_evals:
+            U_wilson, evals = WFArray._wilson_loop(wfs_path, wilson_evals=berry_evals)
             berry_phase = -np.angle(np.linalg.det(U_wilson))
             return berry_phase, evals
         else:
-            U_wilson = WFArray.wilson_loop(wfs_path, wilson_evals=wilson_evals)
+            U_wilson = WFArray._wilson_loop(wfs_path, wilson_evals=berry_evals)
             berry_phase = -np.angle(np.linalg.det(U_wilson))
             return berry_phase
+
+    def wilson_loop(
+            self,
+            axis_idx: int, 
+            state_idx=None, 
+            wilson_evals: bool = False
+            ):
+        r"""Wilson loop unitary matrix along a given mesh axis.
         
+        Computes the Wilson loop unitary matrix and its eigenvalues for multiband Berry phases.
+        The Wilson loop is a geometric quantity that characterizes the topology of the
+        band structure. It is defined as the product of the overlap matrices between
+        neighboring wavefunctions in the loop. Specifically, it is given by
+
+        .. math::
+
+            U_{\text{Wilson}} = \prod_{n} U_{n}
+
+        where :math:`U_{n}` is the unitary part of the overlap matrix between neighboring 
+        wavefunctions in the loop, and the index :math:`n` labels the position in the loop 
+        (see :meth:`links` for more details).
+
+        When ``wilson_evals=True``, the function computes the eigenvalues of the Wilson loop
+        unitary matrix. The eigenvalues are complex numbers of the form
+
+        .. math::
+            \lambda_n = e^{i \phi_n}
+        
+        where :math:`\phi_n` are the multiband Berry phases associated with each band.
+        The multiband Berry phases are obtained by taking the negative argument of the eigenvalues:
+
+        .. math::
+            \phi_n = -\text{Im} \ln \lambda_n
+
+        .. versionadded:: 2.0.0
+
+        Parameters
+        ----------
+        axis_idx : int
+            Index of ``Mesh`` axis along which Wilson loop is computed. 
+        state_idx : int, array-like, optional
+            Optional band index or array of band indices to be included
+            in the subsequent calculations. If unspecified, all bands are 
+            included.
+        wilson_evals : bool, optional
+            If True, then will compute eigenvalues of the Wilson loop unitary and
+            return the negative phases.
+            Otherwise just return the Wilson loop unitary matrix. Default is False.
+
+        Returns
+        -------
+        U_wilson : np.ndarray
+            Wilson loop unitary matrix of shape ``(band, band)``.
+        eval_pha : np.ndarray, optional
+            Multiband Berry phases associated with each band.
+            Returned only if ``wilson_evals=True``, otherwise not returned.
+
+        See Also
+        --------
+        :meth:`berry_loop`
+        :meth:`links`
+
+        Notes
+        ------
+        Multiband Berry phases always returns numbers between :math:`-\pi` and :math:`\pi`.
+        """
+        # print(axis_idx)
+        
+        if not isinstance(axis_idx, int) or axis_idx < 0 or axis_idx >= self.naxes:
+            raise ValueError(f"axis_idx must be an integer in [0, {self.naxes-1}]")
+
+        # States (optionally restricted to a subspace)
+        u = self.states(state_idx=state_idx, flatten_spin_axis=True)
+        u_expanded = self.states(state_idx=state_idx, flatten_spin_axis=False)
+
+        u_loop = u  # init wf loop
+
+        for ax, comp in self.mesh._get_loop_ax_comp():
+            # If axis is periodic and open, we need to append
+            # the first state to the end
+            if ax == axis_idx and not self.mesh.is_axis_closed(ax, comp):
+                # If component is along k and wraps bz, apply phase
+                if self.mesh.is_axis_bz_winding(ax, comp):
+                    logger.debug("Applying phase to state at beginning to end of open periodic axis.")
+                    phase, _, _ = self._get_pbc_phases(ax, comp)
+                    u_first = np.take(u_expanded, 0, axis=axis_idx)
+                    u_last = u_first * phase
+                # No phase is applied
+                else:
+                    u_last = np.take(u_expanded, 0, axis=axis_idx)
+
+                # flatten spin
+                if self.nspin == 2:
+                    u_last = u_last.reshape(*u_last.shape[:-2], -1)
+
+                logger.debug("Appending state at beginning to end of open periodic axis.")
+                u_loop = np.concatenate([u_loop, np.expand_dims(u_last, axis=axis_idx)], axis=axis_idx)
+
+        # Bring loop axis first for easy slicing over transverse axes
+        u_loop = np.moveaxis(u_loop, axis_idx, 0)
+        tail_shape = u_loop.shape[1:-2] # Shape of the tail (transverse) axes
+        n_sub = u_loop.shape[-2] # Number of subbands
+
+        if wilson_evals:
+            evals = np.empty((*tail_shape, n_sub), dtype=float)
+
+        unitar = np.empty((*tail_shape, n_sub, n_sub), dtype=complex)
+
+        # Iterate over transverse indices without flattening
+        it = np.ndindex(*tail_shape) if tail_shape else [()]
+        for idx in it:
+            # Take all points along loop axis, and the given transverse indices
+            # plus all states and orbitals (and spin)
+            slicer = (slice(None),) + idx + (slice(None), slice(None))
+            wf_line = u_loop[slicer]  # shape: (n_mu or n_mu+1, n_sub, norb*spin)
+
+            if wilson_evals:
+                # val are the individual phases of Wilson loop eigenvalues
+                U, eval = self._wilson_loop(wf_line, wilson_evals=wilson_evals)
+                evals[idx] = eval
+            else:
+                U = self._wilson_loop(wf_line, wilson_evals=wilson_evals)
+
+            # val is the total Berry phase for the loop
+            unitar[idx] = U
+
+        unitar = np.array(unitar)
+
+        if wilson_evals:
+            evals = np.array(evals)
+            return unitar, evals
+
+        return unitar
+
     def berry_phase(
             self,
             axis_idx: int, 
             state_idx=None, 
-            wilson_evals: bool = False,
+            berry_evals: bool = False,
             contin: bool = True
             ):
         r"""Berry phase along a given array direction.
@@ -2058,7 +2190,7 @@ class WFArray:
         phases of the eigenvalues of the global unitary rotation
         matrix (corresponding to "maximally localized Wannier
         centers" or "Wilson loop eigenvalues") can be requested
-        by setting the parameter ``wilson_evals=True``.
+        by setting the parameter ``berry_evals=True``.
 
         Parameters
         ----------
@@ -2090,20 +2222,17 @@ class WFArray:
             If False, the Berry phase for every string is constrained to be
             between :math:`-\pi` and :math:`\pi`. The default value is True.
 
-        wilson_evals : bool, optional
+        berry_evals : bool, optional
             If True then will compute and return the phases of the eigenvalues of the
             product of overlap matrices. (These numbers correspond also
             to hybrid Wannier function centers.) These phases are either
             forced to be between :math:`-\pi` and :math:`\pi` (if ``contin=False``) or
             they are made to be continuous (if ``contin=True``).
 
-            .. versionchanged:: 2.0.0
-                Renamed from ``berry_evals`` to ``wilson_evals`` for clarity and consistency.
-
         Returns
         -------
         phase :
-            If ``wilson_evals=False`` (default value) then
+            If ``berry_evals=False`` (default value) then
             returns the Berry phase for each string. For a
             one-dimensional WFArray this is just one number. For a
             higher-dimensional `WFArray` *pha* contains one phase for
@@ -2114,7 +2243,7 @@ class WFArray:
             array with indices ``[i,k]``, since Berry phase is computed
             along second direction.
 
-            If ``wilson_evals = True`` then for
+            If ``berry_evals = True`` then for
             each string returns phases of all eigenvalues of the
             product of overlap matrices. In the convention used for
             previous example, `phase` in this case would have indices
@@ -2195,7 +2324,7 @@ class WFArray:
         tail_shape = u_loop.shape[1:-2] # Shape of the tail (transverse) axes
         n_sub = u_loop.shape[-2] # Number of subbands
 
-        if wilson_evals:
+        if berry_evals:
             out = np.empty((*tail_shape, n_sub), dtype=float)
         else:
             out = np.empty(tail_shape, dtype=float)
@@ -2208,12 +2337,12 @@ class WFArray:
             slicer = (slice(None),) + idx + (slice(None), slice(None))
             wf_line = u_loop[slicer]  # shape: (n_mu or n_mu+1, n_sub, norb*spin)
 
-            if wilson_evals:
-                # val are the individual phases of Wilson loop eigenvalues
-                _, val = self.berry_loop(wf_line, wilson_evals=wilson_evals)
+            if berry_evals:
+                # val are the individual phases of Berry loop eigenvalues
+                _, val = self.berry_loop(wf_line, berry_evals=berry_evals)
             else:
                 # val is the total Berry phase for the loop
-                val = self.berry_loop(wf_line, wilson_evals=wilson_evals)
+                val = self.berry_loop(wf_line, berry_evals=berry_evals)
 
             out[idx] = val
 
@@ -2226,7 +2355,7 @@ class WFArray:
                 # ret = np.unwrap(ret, axis=0)
                 pass
 
-            elif wilson_evals:
+            elif berry_evals:
                 # 2D case
                 if out.ndim == 2:
                     out = _array_phases_cont(out, out[0])
