@@ -29,7 +29,7 @@ class Wannier:
     Parameters
     ----------
     bloch_states : WFArray
-        The Bloch wavefunctions corresponding to be Wannierized.
+        The Bloch wavefunctions to be Wannierized.
         They must be computed on a toroidal k-mesh without endpoints 
         (open k-axes).
 
