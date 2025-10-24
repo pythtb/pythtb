@@ -6,25 +6,30 @@ the necessary modules are installed on your system, see our
 :doc:`python introduction <../resources>` 
 and :doc:`installation instructions <../install>`.
 
-You can download each example script below individually by clicking on
-the 'Source code' link under each example.
-
 Note that there is also a useful `collection of PythTB sample programs
 <https://minisites.cambridgecore.org/berryphases/ptb_samples.html>`_ that
 were developed in connection with David Vanderbilt's book `Berry Phases in
 Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
 (Cambridge University Press, 2018).
 
+You can download both the jupyter notebook and Python scripts for each example 
+individually by clicking on the download buttons at the top of the page.
+
+You can also run the interactive Jupyter notebooks directly in **Binder** by clicking the button below:
+
 .. admonition:: 🚀 Launch Interactive Examples
    :class: note sd-shadow-sm sd-rounded-2
 
-   Click below to run the interactive Jupyter notebooks directly in **Binder**.
+   Click to run the interactive Jupyter notebooks directly in **Binder**.
 
    .. figure:: https://mybinder.org/badge_logo.svg
       :target: https://mybinder.org/v2/gh/pythtb/pythtb/dev?urlpath=lab/tree/docs/source/examples/
       :align: center
       :width: 180px
       :alt: Launch Binder
+
+There is also a "Run in Binder" button at the top of each example that takes you directly to that example 
+in Binder.
    
 .. note::
 
