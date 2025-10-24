@@ -34,9 +34,15 @@ Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
    :maxdepth: 1
    :caption: New to v2.0
 
-   examples/tb_model_v2
    examples/lattice
    examples/mesh
+   examples/tb_model_v2
+   examples/wfarray_v2
+   examples/haldane_wannier
+   examples/nn_shells
+   examples/local_chern
+   examples/reduced_wannier
+   examples/visualize_3d
 
 .. toctree::
    :maxdepth: 1
@@ -49,7 +55,6 @@ Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
    examples/buckled_layer
    examples/trestle
    examples/supercell
-   examples/nn_shells
 
 .. toctree::
    :maxdepth: 1
@@ -64,15 +69,12 @@ Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
    examples/fkm_model
    examples/boron_nitride
    examples/slab_hwf
-   examples/local_chern
 
 .. toctree::
    :maxdepth: 1
-   :caption: Wannier functions and Wannier90 integration
+   :caption: Wannier90 integration
 
    examples/w90
-   examples/haldane_wannier
-   examples/reduced_wannier
 
 .. toctree::
    :maxdepth: 1
@@ -80,4 +82,3 @@ Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
 
    examples/visualize
    examples/haldane_edge
-   examples/visualize_3d
