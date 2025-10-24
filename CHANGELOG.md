@@ -216,7 +216,6 @@ parameterized `TBModel`s
   - **Breaking**: Flag renames for clarity:
     - `dir` renamed to `axis_idx`: to avoid conflict with Python built-in `dir()` 
     - `occ` renamed to `state_idx`: band indices need not be occupied. `"All"` option replaced with `None`.
-    - `berry_evals` renamed to `wilson_evals` for consistency with `wilson_loop()`
   - Substantial speed improvements using NumPy vectorization
 
 - `berry_flux()`
