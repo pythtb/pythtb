@@ -347,7 +347,7 @@ class WFArray:
 
     @property
     def spinful(self) -> bool:
-        """Whether the model includes spin degrees of freedom."""
+        """Whether the :class:`WFArray` includes spin degrees of freedom."""
         return self._spinful
 
     @property
