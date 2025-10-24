@@ -16,8 +16,10 @@ Running the Examples
 --------------------
 You can download both the jupyter notebook and Python scripts for each example 
 individually by clicking on the download buttons at the top of the page.
+There is also a "Run in Binder" button at the top of each example that takes 
+you directly to that example in Binder where you can run it interactively.
 
-You can also run the interactive Jupyter notebooks directly in **Binder** by clicking the button below:
+You can open the entire set of examples in Binder by clicking the button below:
 
 .. admonition:: 🚀 Launch Interactive Examples
    :class: note sd-shadow-sm sd-rounded-2
@@ -30,8 +32,7 @@ You can also run the interactive Jupyter notebooks directly in **Binder** by cli
       :width: 180px
       :alt: Launch Binder
 
-There is also a "Run in Binder" button at the top of each example that takes you directly to that example 
-in Binder.
+
    
 .. note::
 
