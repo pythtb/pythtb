@@ -12,6 +12,8 @@ were developed in connection with David Vanderbilt's book `Berry Phases in
 Electronic Structure Theory <https://www.cambridge.org/9781107157651>`_
 (Cambridge University Press, 2018).
 
+Running the Examples
+--------------------
 You can download both the jupyter notebook and Python scripts for each example 
 individually by clicking on the download buttons at the top of the page.
 
