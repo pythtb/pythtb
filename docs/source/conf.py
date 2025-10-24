@@ -168,7 +168,6 @@ html_theme_options = {
         "image_light": "_static/pythtb_logo2_dark.svg",
         "image_dark": "_static/pythtb_logo2_dark.svg",
     },
-    "github_url": "https://github.com/pythtb/pythtb",
     "collapse_navigation": False,
 #     "navigation_depth": 4,
     "article_header_end": ["nb-download"],
