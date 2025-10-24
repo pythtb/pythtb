@@ -241,7 +241,7 @@ class Lattice():
         return self._cell_vol
     
     def __str__(self) -> str:
-        return self.report(show=False)
+        return self.info(show=False)
     
     def _report_list(self) -> list:
         output = []
@@ -292,7 +292,7 @@ class Lattice():
     
         return output
 
-    def report(self, show: bool = True) -> str:
+    def info(self, show: bool = True) -> str:
         """Generate a report of the lattice properties.
 
         Parameters
