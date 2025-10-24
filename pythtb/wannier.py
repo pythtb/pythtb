@@ -28,15 +28,14 @@ class Wannier:
 
     Parameters
     ----------
-    model : TBModel
-        The tight-binding model associated with these Wannier functions.
-    energy_eigstates : WFArray
-        The Bloch wavefunctions corresponding to the energy eigenstates.
-        They must be computed on a toroidal k-mesh without endpoints.
+    bloch_states : WFArray
+        The Bloch wavefunctions corresponding to be Wannierized.
+        They must be computed on a toroidal k-mesh without endpoints 
+        (open k-axes).
 
     Notes
     -----
-    - The k-mesh must be a torus (no endpoints included); see checks in ``__init__``.
+    - The k-mesh must be a torus (no endpoints included).
     - ``tilde_states`` must be set before calling routines that compute Wannier functions
       or spreads.
     - **Wannier construction**: We form Wannier functions by discrete inverse Fourier transform
@@ -81,9 +80,8 @@ class Wannier:
 
     """
 
-    def __init__(self, model: "TBModel", energy_eigstates: WFArray):
-        self._model: "TBModel" = model
-        self._energy_eigstates: WFArray = energy_eigstates
+    def __init__(self, bloch_states: WFArray):
+        self._wfa: WFArray = bloch_states
 
         if not self.mesh.is_k_torus:
             raise ValueError(
@@ -104,30 +102,24 @@ class Wannier:
             -1, len(self.nks)
         )  # (product, dims)
 
-
-    @property
-    def model(self) -> "TBModel":
-        """TBModel object associated with the Wannier functions."""
-        return self._model
-
     @property
     def mesh(self) -> Mesh:
         """Mesh object associated with the Wannier functions."""
-        return self.energy_eigstates.mesh
+        return self.bloch_states.mesh
     
     @property
     def lattice(self):
         """Lattice object associated with the Wannier functions."""
-        return self.model.lattice
+        return self._wfa.lattice
 
     @property
-    def energy_eigstates(self) -> WFArray:
-        """WFArray object associated with the energy eigenstates."""
-        return self._energy_eigstates
+    def bloch_states(self) -> WFArray:
+        """WFArray object associated with the Bloch states."""
+        return self._wfa
 
     @property
     def tilde_states(self) -> WFArray:
-        r"""WFArray object associated with the Bloch-like states.
+        r"""WFArray corresponding to the Bloch-like (tilde) states.
 
         These are the Bloch-like states that are Fourier transformed to 
         form the Wannier functions. They are related to the original energy
@@ -140,7 +132,7 @@ class Wannier:
         if not hasattr(self, "_tilde_states"):
             raise ValueError(
                 "Bloch-like states have not been set. " \
-                "Use `set_bloch_like_states` or `single_shot_projection`.")
+                "Use `set_tilde_states` or `single_shot_projection`.")
         return getattr(self, "_tilde_states", None)
 
     @property
@@ -362,7 +354,7 @@ class Wannier:
         if cartesian:
             return self.centers
         else:
-            return self.centers @ np.linalg.inv(self._model.lat_vecs)
+            return self.centers @ np.linalg.inv(self.lattice.lat_vecs)
         
     def _get_trial_wfs(self, twf_list=None):
         if twf_list is None:
@@ -370,8 +362,8 @@ class Wannier:
         
         # number of trial functions to define
         num_tf = len(twf_list)
-        if self.model.spinful:
-            tfs = np.zeros([num_tf, self.model.norb, self.model.nspin], dtype=complex)
+        if self.bloch_states.spinful:
+            tfs = np.zeros([num_tf, self.lattice.norb, self.wfa.nspin], dtype=complex)
             for j, tf in enumerate(twf_list):
                 assert isinstance(
                     tf, (list, np.ndarray)
@@ -381,7 +373,7 @@ class Wannier:
                 tfs[j] /= np.linalg.norm(tfs[j])
         else:
             # initialize array containing tfs = "trial functions"
-            tfs = np.zeros([num_tf, self.model.norb], dtype=complex)
+            tfs = np.zeros([num_tf, self.lattice.norb], dtype=complex)
             for j, tf in enumerate(twf_list):
                 assert isinstance(
                     tf, (list, np.ndarray)
@@ -406,7 +398,7 @@ class Wannier:
 
         Example
         -------
-        For a model with 4 orbitals and no spin, the following defines two trial wavefunctions:
+        For a system with 4 orbitals and no spin, the following defines two trial wavefunctions:
 
         >>> twf_list = [[(0, 1.0), (2, 1.0)], [(1, 1.0), (3, -1.0)]]
         >>> wan.set_trial_wfs(twf_list)
@@ -419,7 +411,7 @@ class Wannier:
         self._tilde_states: WFArray = WFArray(self.lattice, self.mesh, nstates=self.num_twfs)
 
 
-    def set_bloch_like_states(self, states, is_cell_periodic=True, is_spin_axis_flat=False):
+    def set_tilde_states(self, states, is_cell_periodic=True, is_spin_axis_flat=False):
         r"""Set the Bloch-like states for the Wannier functions.
 
         These states are Fourier transformed to form the Wannier functions. 
@@ -453,7 +445,7 @@ class Wannier:
         - If ``cell_periodic`` is True, the states are treated as cell-periodic parts of
           Bloch functions :math:`u_{n\mathbf{k}}`, otherwise as full Bloch functions
           :math:`\psi_{n\mathbf{k}}`.
-        - If ``spin_flattened`` is False and the model has spin, the states are reshaped
+        - If ``spin_flattened`` is False and the wavefunctions have spin, the states are reshaped
           to flatten the spin dimension into the orbital dimension.
         - The Wannier functions, spreads, and centers are computed upon setting the
           Bloch-like states.
@@ -461,13 +453,13 @@ class Wannier:
         if not isinstance(states, np.ndarray):
             raise ValueError("Bloch-like states must be a numpy array.")
 
-        if states.ndim != self.mesh.num_k_axes + 2 + (self.model.nspin-1):
+        if states.ndim != self.mesh.num_k_axes + 2 + (self.bloch_states.nspin-1):
             raise ValueError(
                 f"Bloch-like states must have shape (nk1, ..., nstates, n_orbs[, n_spins]), "
                 f"but got {states.shape}."
             )
 
-        if self.model.spinful and not is_spin_axis_flat:
+        if self.bloch_states.spinful and not is_spin_axis_flat:
             states = states.reshape((*states.shape[:-2], -1))
 
         logger.info("Setting Bloch-like states...")
@@ -520,7 +512,7 @@ class Wannier:
         
         if psi_nk is None:
             # get Bloch psi_nk energy eigenstates
-            _, psi_nk = self.energy_eigstates.states(flatten_spin_axis=True, return_psi=True)
+            _, psi_nk = self.bloch_states.states(flatten_spin_axis=True, return_psi=True)
 
         # only keep band_idxs
         psi_nk = np.take(psi_nk, band_idxs, axis=-2)
@@ -539,7 +531,7 @@ class Wannier:
         A_k = self._compute_Amn(psi_nk, twfs, state_idx)
         V_k, _, Wh_k = np.linalg.svd(A_k, full_matrices=False)
 
-        if self.model.spinful:
+        if self.bloch_states.spinful:
             # flatten spin dimensions
             psi_nk = psi_nk.reshape((*psi_nk.shape[:-2], -1))
 
@@ -623,19 +615,19 @@ class Wannier:
             psi_til_til = self._single_shot_project(
                 self.tilde_states.psi_nk, twfs, state_idx=band_idxs
             )
-            self.set_bloch_like_states(psi_til_til, is_cell_periodic=False, is_spin_axis_flat=True)
+            self.set_tilde_states(psi_til_til, is_cell_periodic=False, is_spin_axis_flat=True)
 
         else:
             # projecting onto Bloch energy eigenstates
             if band_idxs is None:  # assume we are Wannierizing occupied bands
-                n_occ = int(self.energy_eigstates.nstates / 2)  # assuming half filled
+                n_occ = int(self.bloch_states.nstates / 2)  # assuming half filled
                 band_idxs = list(range(0, n_occ))
 
             # shape: (*nks, states, orbs*n_spin])
             psi_tilde = self._single_shot_project(
-                self.energy_eigstates.psi_nk, twfs, state_idx=band_idxs
+                self.bloch_states.psi_nk, twfs, state_idx=band_idxs
             )
-            self.set_bloch_like_states(psi_tilde, is_cell_periodic=False, is_spin_axis_flat=True)
+            self.set_tilde_states(psi_tilde, is_cell_periodic=False, is_spin_axis_flat=True)
 
 
     def _spread_recip(self, decomp=False):
@@ -664,7 +656,7 @@ class Wannier:
         **uniform Monkhorst–Pack mesh**.
         """
         M = self.tilde_states.Mmn
-        w_b, k_shell, _ = self.energy_eigstates.get_shell_weights()
+        w_b, k_shell, _ = self.bloch_states.get_shell_weights()
         w_b, k_shell = w_b[0], k_shell[0]  # Assume only one shell for now
 
         n_states = self.tilde_states.nstates
@@ -817,13 +809,13 @@ class Wannier:
         # useful constants
         nks = self.nks 
         Nk = np.prod(nks)
-        n_orb = self.energy_eigstates.norb
-        n_states = self.energy_eigstates.nstates
+        n_orb = self.bloch_states.norb
+        n_states = self.bloch_states.nstates
         n_occ = int(n_states/2)
 
         # eigenenergies and eigenstates for inner/outer window
-        energies = self.energy_eigstates.energies
-        u_nk = self.energy_eigstates.states(flatten_spin_axis=True)
+        energies = self.bloch_states.energies
+        u_nk = self.bloch_states.states(flatten_spin_axis=True)
 
         # number of states in target manifold 
         if n_wfs is None:
@@ -960,7 +952,7 @@ class Wannier:
 
 
         # Assumes only one shell for now
-        w_b, _, _ = self.energy_eigstates.get_shell_weights(n_shell=1)
+        w_b, _, _ = self.bloch_states.get_shell_weights(n_shell=1)
         w_b = w_b[0]  # Assume only one shell for now
         
         # Projector of initial tilde subspace at each k-point
@@ -1028,7 +1020,7 @@ class Wannier:
                 states_min = np.array(min_states_sliced)
 
             # update projectors
-            min_wfa = WFArray(self.lattice, self.mesh, nstates=states_min.shape[-2], spinful=self._model.spinful)
+            min_wfa = WFArray(self.lattice, self.mesh, nstates=states_min.shape[-2], spinful=self.bloch_states.spinful)
             min_wfa.set_states(states_min, is_cell_periodic=True, is_spin_axis_flat=True)
             P_new = min_wfa._P
             P_nbr_new = min_wfa._P_nbr
@@ -1115,18 +1107,16 @@ class Wannier:
             The states spanning the optimized subspace that minimizes the gauge-independent spread.
         """
         nks = self.nks
-        # k_axes = self.energy_eigstates.mesh.k_axes
         Nk = np.prod(nks)
-        n_orb = self.model.norb
+        n_orb = self.lattice.norb
         n_occ = int(n_orb / 2)
 
         # Assumes only one shell for now
-        w_b, _, _ = self.energy_eigstates.get_shell_weights(n_shell=1)
+        w_b, _, _ = self.bloch_states.get_shell_weights(n_shell=1)
         w_b = w_b[0]  # Assume only one shell for now
 
         # initial subspace
-        energy_eigstates = self.energy_eigstates
-        u_nk = energy_eigstates.states(flatten_spin_axis=True)
+        u_nk = self.bloch_states.states(flatten_spin_axis=True)
         # u_wfs_til = init_states.states(flatten_spin_axis=True)
 
         if n_wfs is None:
@@ -1157,7 +1147,7 @@ class Wannier:
             eigvecs = np.swapaxes(eigvecs, -1, -2)
 
             init_evecs = eigvecs[..., -(n_wfs - N_inner) :, :]
-            init_states = WFArray(self.lattice, self.mesh, nstates=init_evecs.shape[-2], spinful=self._model.spinful)
+            init_states = WFArray(self.lattice, self.mesh, nstates=init_evecs.shape[-2], spinful=self.bloch_states.spinful)
             init_states.set_states(init_evecs, is_cell_periodic=False, is_spin_axis_flat=True)
 
             comp_bands = list(np.setdiff1d(disentang_bands, frozen_bands))
@@ -1201,7 +1191,7 @@ class Wannier:
             else:
                 states_min = comp_min
 
-            min_wfa = WFArray(self.lattice, self.mesh, nstates=states_min.shape[-2], spinful=self._model.spinful)
+            min_wfa = WFArray(self.lattice, self.mesh, nstates=states_min.shape[-2], spinful=self.bloch_states.spinful)
             min_wfa.set_states(states_min, is_cell_periodic=True, is_spin_axis_flat=True)
             P_new = min_wfa._P
             P_nbr_new = min_wfa._P_nbr
@@ -1265,7 +1255,7 @@ class Wannier:
             the gauge-dependent spread.
         """
         M = self.tilde_states.Mmn
-        w_b, k_shell, idx_shell = self.energy_eigstates.get_shell_weights()
+        w_b, k_shell, idx_shell = self.bloch_states.get_shell_weights()
         # Assumes only one shell for now
         w_b, k_shell, idx_shell = w_b[0], k_shell[0], idx_shell[0]
         k_axes = tuple(self.mesh.k_axis_indices)
@@ -1428,13 +1418,13 @@ class Wannier:
             # check if we have trial wavefunctions
             if not hasattr(self, "_trial_wfs"):
                 # we use energy eigenstates tilde states
-                self.set_bloch_like_states(self.energy_eigstates.states(flatten_spin_axis=True), is_cell_periodic=True)
+                self.set_tilde_states(self.bloch_states.states(flatten_spin_axis=True), is_cell_periodic=True)
             else:
                 # we initialize tilde states with previous trial wavefunctions
-                n_occ = int(self.energy_eigstates.nstates / 2)  # assuming half filled
+                n_occ = int(self.bloch_states.nstates / 2)  # assuming half filled
                 band_idxs = list(range(0, n_occ))  # project onto occ manifold
 
-                self._single_shot_project(self.energy_eigstates.psi_nk, self._twfs, state_idx=band_idxs)
+                self._single_shot_project(self.bloch_states.psi_nk, self._twfs, state_idx=band_idxs)
 
         # Minimizing Omega_I via disentanglement
         util_min = self._optimal_subspace(
@@ -1448,7 +1438,7 @@ class Wannier:
             tf_speedup=tf_speedup,
         )
 
-        self.set_bloch_like_states(util_min, is_cell_periodic=True, is_spin_axis_flat=True)
+        self.set_tilde_states(util_min, is_cell_periodic=True, is_spin_axis_flat=True)
 
     def max_localize(
             self, 
@@ -1522,7 +1512,7 @@ class Wannier:
         u_tilde_wfs = self.tilde_states.states(flatten_spin_axis=True)
         util_max_loc = np.einsum("...ji, ...jm -> ...im", U, u_tilde_wfs)
 
-        self.set_bloch_like_states(util_max_loc, is_cell_periodic=True, is_spin_axis_flat=True)
+        self.set_tilde_states(util_max_loc, is_cell_periodic=True, is_spin_axis_flat=True)
 
     def min_spread(
         self,
@@ -1642,7 +1632,7 @@ class Wannier:
                 state_idx=list(range(self.tilde_states.nstates)),
             )
 
-        self.set_bloch_like_states(psi_til_til, is_cell_periodic=False, is_spin_axis_flat=True)
+        self.set_tilde_states(psi_til_til, is_cell_periodic=False, is_spin_axis_flat=True)
 
         ### Finding optimal gauge with maxloc ###
         self.max_localize(
@@ -1679,9 +1669,9 @@ class Wannier:
         if wan_idxs is not None:
             u_tilde = np.take_along_axis(u_tilde, wan_idxs, axis=-2)
 
-        H_k = self.energy_eigstates.hamiltonian
-        if self.model.spinful:
-            new_shape = H_k.shape[:-4] + (self.model.nspin * self.model.norb, self.model.nspin * self.model.norb)
+        H_k = self.bloch_states.hamiltonian
+        if self.bloch_states.spinful:
+            new_shape = H_k.shape[:-4] + (self.bloch_states.nspin * self.bloch_states.norb, self.bloch_states.nspin * self.bloch_states.norb)
             H_k = H_k.reshape(*new_shape)
 
         H_rot_k = u_tilde.conj() @ H_k @ np.swapaxes(u_tilde, -1, -2)
@@ -1721,7 +1711,7 @@ class Wannier:
                 evecs_R[idx] += eigvecs[*k_idx] * phase / Nk
 
         # interpolate to arbitrary k
-        k_path, _, _ = self.model.k_path(k_nodes, nk=n_interp, report=False)
+        k_path, _, _ = self.lattice.k_path(k_nodes, nk=n_interp, report=False)
 
         # H_k_interp = np.zeros((k_path.shape[0], H_R.shape[-1], H_R.shape[-1]), dtype=complex)
         # u_k_interp = np.zeros((k_path.shape[0], u_R.shape[-2], u_R.shape[-1]), dtype=complex)
@@ -1764,7 +1754,7 @@ class Wannier:
             sub-dictionaries with keys 'xs' and 'ys' for x-coordinates and y-coordinates,
             respectively.
         """
-        lat_vecs = self.model.lat_vecs
+        lat_vecs = self.lattice.lat_vecs
         centers = self.centers
 
         # Initialize arrays to store positions and weights
@@ -1815,8 +1805,8 @@ class Wannier:
         """
         w0 = self.WFs 
         center = self.centers[wan_idx]
-        orbs = self.model.orb_vecs
-        lat_vecs = self.model.lat_vecs
+        orbs = self.lattice.orb_vecs
+        lat_vecs = self.lattice.lat_vecs
 
         # Initialize arrays to store positions and weights
         positions = {
@@ -1882,6 +1872,47 @@ class Wannier:
             fig=None, 
             ax=None
         ):
+        """Plot the Wannier function centers in the supercell.
+
+        Parameters
+        ----------
+        center_scale : float
+            Scale factor for the size of the center markers. Scales with the spread 
+            of the Wannier functions, this is a multiplicative factor.
+        section_home_cell : bool
+            If True, delineate the home cell in the plot.
+        color_home_cell : bool
+            If True, color the home cell orbitals differently from other cells.
+        translate_centers : bool
+            If True, translate the home cell Wannier centers to neighboring cells.
+        show : bool
+            If True, display the plot immediately.
+        legend : bool
+            If True, include a legend in the plot.
+        pmx : int
+            Plus-minus range in x-direction for plotting supercell.
+        pmy : int
+            Plus-minus range in y-direction for plotting supercell.
+        center_color : str
+            Color for the Wannier center markers.
+        center_marker : str
+            Marker style for the Wannier center markers.
+        lat_home_color : str
+            Color for the home cell lattice sites.
+        lat_color : str
+            Color for the other lattice sites.
+        fig : matplotlib.figure.Figure | None
+            Matplotlib figure object to plot on. If None, a new figure is created.
+        ax : matplotlib.axes.Axes | None
+            Matplotlib axes object to plot on. If None, new axes are created.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object containing the plot.
+        ax : matplotlib.axes.Axes
+            The axes object containing the plot.
+        """
         return plot_centers(
             self, center_scale=center_scale,
             section_home_cell=section_home_cell, color_home_cell=color_home_cell,
@@ -1899,7 +1930,26 @@ class Wannier:
         ax=None, 
         show=False
         ):
+        """Plot the Wannier function density as a function of distance from center.
 
+        Parameters
+        ----------
+        wan_idx : int
+            Index of the Wannier function to plot.
+        fig : matplotlib.figure.Figure | None
+            Matplotlib figure object to plot on. If None, a new figure is created.
+        ax : matplotlib.axes.Axes | None
+            Matplotlib axes object to plot on. If None, new axes are created.
+        show : bool
+            If True, display the plot immediately.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object containing the plot.
+        ax : matplotlib.axes.Axes
+            The axes object containing the plot.
+        """
         return plot_decay(self, wan_idx=wan_idx, fig=fig, ax=ax, show=show)
 
     @copydoc(plot_density)
@@ -1915,6 +1965,38 @@ class Wannier:
         ax=None, 
         cbar=True
         ):
+        """Plot the Wannier function density on the lattice in 2D.
+
+        Parameters
+        ----------
+        wan_idx : int
+            Index of the Wannier function to plot.
+        mark_home_cell : bool
+            If True, mark the home cell in the plot.
+        mark_center : bool
+            If True, mark the center of the Wannier function in the plot.
+        show_lattice : bool
+            If True, show the lattice sites in the plot.
+        dens_size : float
+            Size of the density markers in the plot.
+        lat_size : float
+            Size of the lattice site markers in the plot.
+        show : bool
+            If True, display the plot immediately.
+        fig : matplotlib.figure.Figure | None
+            Matplotlib figure object to plot on. If None, a new figure is created.
+        ax : matplotlib.axes.Axes | None
+            Matplotlib axes object to plot on. If None, new axes are created.
+        cbar : bool
+            If True, include a colorbar in the plot.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object containing the plot.
+        ax : matplotlib.axes.Axes
+            The axes object containing the plot.
+        """
 
         return plot_density(
             self, wan_idx=wan_idx,
