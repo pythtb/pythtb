@@ -32,7 +32,7 @@ cd pythtb
 pip install -e .
 ```
 
-PythTB ≥ 2.0.0 requires Python ≥ 3.11 and the core dependencies:
+PythTB ≥ 2.0.0 requires Python ≥ 3.12 and the core dependencies:
 - numpy ≥ 2.0
 - matplotlib ≥ 3.9
 
