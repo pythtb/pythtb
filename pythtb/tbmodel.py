@@ -2505,14 +2505,11 @@ class TBModel:
                 """
             )
 
-        v_k = self.velocity(k_pts, cartesian=cartesian)  # (Nk, dim_k, n_orb, n_orb)
-        # flatten spin axis if present
-        new_shape = (v_k.shape[:2]) + (self.nstate, self.nstate)
-        v_k = v_k.reshape(*new_shape)
-
+        v_k = self.velocity(k_pts, cartesian=cartesian, flatten_spin_axis=True)  # (Nk, dim_k, nstate, nstate)
+       
         if evals is None or evecs is None:
             evals, evecs = self.solve_ham(
-                k_pts, return_eigvecs=True, flatten_spin_axis=False
+                k_pts, return_eigvecs=True, flatten_spin_axis=True
             )
 
         n_eigs = evecs.shape[-2]
@@ -2527,7 +2524,7 @@ class TBModel:
         cond_idxs = np.setdiff1d(np.arange(n_eigs), occ_idxs)
 
         # All pairs of energy differences
-        delta_E = evals[..., np.newaxis, :] - evals[..., :, np.newaxis]  # shape (Nk, n_states, n_states)
+        delta_E = evals[..., np.newaxis, :] - evals[..., :, np.newaxis]  # shape (Nk, nstate, nstate)
         # Energy differences between occupied and conduction bands
         delta_occ_cond = delta_E[:, occ_idxs][:, :, cond_idxs]
         if np.any(np.isclose(delta_occ_cond, 0.0)):
@@ -2537,11 +2534,11 @@ class TBModel:
         ### Project vk into energy eigenbasis ####
 
         # newaxis for Cartesian direction
-        evecs_conj = evecs.conj()[np.newaxis, :, :, :]
+        evecs_conj = evecs.conj()[np.newaxis, ...]
         # transpose for matmul
-        evecs_T = evecs.transpose(0, 2, 1)[np.newaxis, :, :, :]
+        evecs_T = evecs.swapaxes(-2, -1)[np.newaxis, ...]
         vk_evecT = np.matmul(v_k, evecs_T)  # intermediate array
-        v_k_rot = np.matmul(evecs_conj, vk_evecT)  # (dim_k, n_kpts, n_orb, n_orb)
+        v_k_rot = np.matmul(evecs_conj, vk_evecT)  # (dim_k, n_kpts, n_states, n_states)
 
         # Extract relevant submatrices
         v_occ_cond = v_k_rot[..., occ_idxs, :][..., :, cond_idxs]  # shape (dim_k, Nk, n_occ, n_con)
@@ -2549,7 +2546,7 @@ class TBModel:
 
         # premultiply by energy denominators
         v_occ_cond *= inv_delta_occ_cond
-        v_cond_occ *= inv_delta_occ_cond.swapaxes(-1, -2)
+        v_cond_occ *= inv_delta_occ_cond
 
         Q = np.matmul(v_occ_cond[:, None], v_cond_occ[None, :])
 
@@ -2641,8 +2638,7 @@ class TBModel:
                 \langle u_{mk} | \partial_{\mu} H_k | u_{lk} \rangle
                 \langle u_{lk} | \partial_{\nu} H_k | u_{nk} \rangle
                 -
-                \langle u_{mk} | \partial_{\nu} H_k| u_{lk} \rangle
-                \langle u_{lk} | \partial_{\mu} H_k | u_{nk} \rangle
+                \mu \leftrightarrow \nu
             }{
                 (E_{nk} - E_{lk})(E_{mk} - E_{lk})
             }
@@ -2655,9 +2651,15 @@ class TBModel:
         """
         Q = self.quantum_geometric_tensor(
             k_pts, occ_idxs=occ_idxs, evals=evals, evecs=evecs,
-            cartesian=cartesian, non_abelian=non_abelian, plane=plane
-        )
-        return -2 * Q.imag 
+            cartesian=cartesian, non_abelian=non_abelian
+        ) 
+        # Berry curvature is the anti-symmetric part of the quantum geometric tensor
+        Omega = -2 * Q.imag 
+        if plane is not None:
+            # Restrict to specified plane
+            mu, nu = plane
+            Omega = Omega[mu, nu]
+        return Omega
 
     def quantum_metric(
         self,
@@ -2737,13 +2739,12 @@ class TBModel:
 
           .. math::
 
-            g_{\mu \nu;\ mn}(k) =  \sum_{l \notin \text{occ}}
+            g_{\mu \nu;\ mn}(k) =  \frac{1}{2} \sum_{l \notin \text{occ}}
             \frac{
                 \langle u_{mk} | \partial_{\mu} H_k | u_{lk} \rangle
                 \langle u_{lk} | \partial_{\nu} H_k | u_{nk} \rangle
                 +
-                \langle u_{mk} | \partial_{\nu} H_k| u_{lk} \rangle
-                \langle u_{lk} | \partial_{\mu} H_k | u_{nk} \rangle
+                \mu \leftrightarrow \nu
             }{
                 (E_{nk} - E_{lk})(E_{mk} - E_{lk})
             }
@@ -2757,9 +2758,13 @@ class TBModel:
         """
         Q = self.quantum_geometric_tensor(
             k_pts, occ_idxs=occ_idxs, evals=evals, evecs=evecs,
-            cartesian=cartesian, non_abelian=non_abelian, plane=plane
+            cartesian=cartesian, non_abelian=non_abelian
         )
-        g = Q.real
+        # Quantum metric is the symmetric part of the quantum geometric tensor
+        g = Q.real #(1/2) * (Q + Q.swapaxes(0, 1))
+        if plane is not None:
+            mu, nu = plane
+            g = g[mu, nu]
         return g
 
     def chern_number(
