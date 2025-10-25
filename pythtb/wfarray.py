@@ -2059,17 +2059,13 @@ class WFArray:
         wavefunctions in the loop, and the index :math:`n` labels the position in the loop 
         (see :meth:`links` for more details).
 
-        When ``wilson_evals=True``, the function computes the eigenvalues of the Wilson loop
-        unitary matrix. The eigenvalues are complex numbers of the form
+        When ``wilson_evals=True``, the function computes and returns the eigenvalues of the 
+        Wilson loop unitary matrix. The eigenvalues are complex numbers of the form
 
         .. math::
             \lambda_n = e^{i \phi_n}
         
         where :math:`\phi_n` are the multiband Berry phases associated with each band.
-        The multiband Berry phases are obtained by taking the negative argument of the eigenvalues:
-
-        .. math::
-            \phi_n = -\text{Im} \ln \lambda_n
 
         .. versionadded:: 2.0.0
 
@@ -2187,10 +2183,17 @@ class WFArray:
         
         By default, the function returns the Berry phase traced
         over the specified set of bands, but optionally the individual
-        phases of the eigenvalues of the global unitary rotation
-        matrix (corresponding to "maximally localized Wannier
+        phases of the eigenvalues of the :meth:`wilson_loop` unitary 
+        rotation matrix (ecorresponding to "maximally localized Wannier
         centers" or "Wilson loop eigenvalues") can be requested
-        by setting the parameter ``berry_evals=True``.
+        by setting the parameter ``berry_evals=True``. Explicitly, these 
+        take the form
+
+        .. math::
+            \phi_n = -\text{Im} \ln \lambda_n
+
+        where :math:`\lambda_n` are the eigenvalues of the Wilson loop unitary matrix
+        obtained from :meth:`wilson_loop` when ``wilson_evals=True``.
 
         Parameters
         ----------
