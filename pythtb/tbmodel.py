@@ -2423,6 +2423,146 @@ class TBModel:
                     "Basis must be either 'wavefunction', 'bloch', or 'orbital'"
                 )
 
+    def quantum_geometric_tensor(
+        self,
+        k_pts,
+        evals: np.ndarray = None,
+        evecs: np.ndarray = None,
+        occ_idxs = None,
+        plane = None,
+        cartesian: bool = False,
+        non_abelian: bool = False
+    ):
+        r"""Quantum geometric tensor at a list of k-points via Kubo formula.
+
+        The quantum geometric tensor is computed from the derivatives of the 
+        Bloch Hamiltonian :math:`\partial_\mu H_k`, where :math:`\mu` is the 
+        direction in k-space, and is given by (when ``non_abelian=True``):
+
+        .. math::
+
+            Q_{\mu \nu;\ mn}(k) = \sum_{l \notin \text{occ}}
+            \frac{
+                \langle u_{mk} | \partial_{\mu} H_k | u_{lk} \rangle
+                \langle u_{lk} | \partial_{\nu} H_k | u_{nk} \rangle
+            }{
+                (E_{nk} - E_{lk})(E_{mk} - E_{lk})
+            }
+
+        The Abelian quantum geometric tensor (when ``non_abelian=False``) 
+        is obtained by taking the trace
+        over occupied bands:
+
+        .. math::
+
+            Q_{\mu \nu}(k) = \sum_{m \in \text{occ}} Q_{\mu \nu;\ mm}(k)
+
+        By specifying the `plane` parameter, we choose a particular :math:`(\mu, \nu)` pair
+        of the quantum geometric tensor to return.
+
+        .. versionadded:: 2.0.0
+
+        Parameters
+        ----------
+        k_pts : (Nk, dim_k) array-like
+            Array of k-points with shape (Nk, dim_k), where Nk is the number of points
+            and dim_k is the dimensionality of the k-space.
+        evals : (Nk, n_states) array, optional
+            Eigenvalues of the Hamiltonian at the k-points. If not provided, they will be computed.
+        evecs : (Nk, n_states, n_orb) array, optional
+            Eigenvectors of the Hamiltonian. If not provided, they will be computed.
+        occ_idxs : 1D array, optional
+            Indices of the occupied bands. Defaults to the first half of the states.
+        plane : tuple of int, optional
+            Tuple of two integers specifying the plane in k-space for which to compute 
+            the curvature. If None (default), 
+            computes all components of the Berry curvature tensor. This 
+            will affect the shape of the returned array.
+        cartesian : bool, optional
+            If True, computes the velocity operator in Cartesian coordinates.
+            Default is False (reduced coordinates).
+        non_abelian : bool, optional
+            If True, returns the full Berry curvature tensor (non-abelian case).
+            If False, returns the band-trace of the Berry curvature tensor (abelian case).
+            Default is False.
+
+        Returns
+        -------
+        Q : array
+            Quantum geometric tensor at the specified k-points.
+            If ``plane`` is None, shape is ``(dim_k, dim_k, Nk, n_orb, n_orb)``.
+            If ``plane`` is a tuple, shape is ``(Nk, n_orb, n_orb)`` and the returned 
+            tensor is restricted to the specified directions. If ``non_abelian=False``,
+            returns the band-trace of the quantum geometric tensor and the last 
+            two axes are not present.
+        """
+
+        if self.dim_k < 2:
+            raise Exception(
+                """
+                Berry curvature in this context is only computed for k-space dimensions. 
+                Must have dim_k >= 2.
+                """
+            )
+
+        v_k = self.velocity(k_pts, cartesian=cartesian)  # (Nk, dim_k, n_orb, n_orb)
+        # flatten spin axis if present
+        new_shape = (v_k.shape[:2]) + (self.nstate, self.nstate)
+        v_k = v_k.reshape(*new_shape)
+
+        if evals is None or evecs is None:
+            evals, evecs = self.solve_ham(
+                k_pts, return_eigvecs=True, flatten_spin_axis=False
+            )
+
+        n_eigs = evecs.shape[-2]
+
+        # Identify occupied bands
+        if occ_idxs is None:
+            occ_idxs = np.arange(n_eigs // 2)
+        else:
+            occ_idxs = np.array(occ_idxs)
+
+        # Identify conduction bands as remainder of band indices (assumes gapped)
+        cond_idxs = np.setdiff1d(np.arange(n_eigs), occ_idxs)
+
+        # All pairs of energy differences
+        delta_E = evals[..., np.newaxis, :] - evals[..., :, np.newaxis]  # shape (Nk, n_states, n_states)
+        # Energy differences between occupied and conduction bands
+        delta_occ_cond = delta_E[:, occ_idxs][:, :, cond_idxs]
+        if np.any(np.isclose(delta_occ_cond, 0.0)):
+            raise ZeroDivisionError("Degenerate occupied/conduction bands encountered.")
+        inv_delta_occ_cond = np.divide(1.0, delta_occ_cond)
+
+        ### Project vk into energy eigenbasis ####
+
+        # newaxis for Cartesian direction
+        evecs_conj = evecs.conj()[np.newaxis, :, :, :]
+        # transpose for matmul
+        evecs_T = evecs.transpose(0, 2, 1)[np.newaxis, :, :, :]
+        vk_evecT = np.matmul(v_k, evecs_T)  # intermediate array
+        v_k_rot = np.matmul(evecs_conj, vk_evecT)  # (dim_k, n_kpts, n_orb, n_orb)
+
+        # Extract relevant submatrices
+        v_occ_cond = v_k_rot[..., occ_idxs, :][..., :, cond_idxs]  # shape (dim_k, Nk, n_occ, n_con)
+        v_cond_occ = v_k_rot[..., cond_idxs, :][..., :, occ_idxs]  # shape (dim_k, Nk, n_con, n_occ)
+
+        # premultiply by energy denominators
+        v_occ_cond *= inv_delta_occ_cond
+        v_cond_occ *= inv_delta_occ_cond.swapaxes(-1, -2)
+
+        Q = np.matmul(v_occ_cond[:, None], v_cond_occ[None, :])
+
+        if not non_abelian:
+            Q = np.trace(Q, axis1=-1, axis2=-2)
+        if plane is None:
+            return Q
+        else:
+            if not (isinstance(plane, tuple) and len(plane) == 2):
+                raise ValueError("plane must be a tuple of length 2.")
+            return Q[plane]
+
+
     def berry_curvature(
         self,
         k_pts,
@@ -2435,33 +2575,23 @@ class TBModel:
     ):
         r"""Compute the Berry curvature at a list of k-points via Kubo formula.
 
-        The Berry curvature is computed from the derivatives of the Bloch Hamiltonian
-        :math:`\partial_\mu H_k`, where :math:`\mu` is the direction in k-space.
-        
-        Specifically, for :math:`(m,n) \in \text{occ}`, the non-Abelian Berry curvature tensor
-        is given by (when ``non_abelian=True``):
+        The Berry curvature is computed as
 
-        .. math::
+        .. math:: 
 
-            \Omega_{\mu \nu;\ mn}(k) =  i\sum_{l \notin \text{occ}}
-            \frac{
-                \langle u_{mk} | \partial_{\mu} H_k | u_{lk} \rangle
-                \langle u_{lk} | \partial_{\nu} H_k | u_{nk} \rangle
-                -
-                \langle u_{mk} | \partial_{\nu} H_k| u_{lk} \rangle
-                \langle u_{lk} | \partial_{\mu} H_k | u_{nk} \rangle
-            }{
-                (E_{nk} - E_{lk})(E_{mk} - E_{lk})
-            }
+           \Omega_{\mu \nu; \ mn}(k) = -2 \mathrm{Im} \, Q_{\mu \nu; \ mn}(k),
 
-        The Abelian Berry curvature (when ``non_abelian=False``) is obtained by taking the trace
-        over occupied bands:
+        where :math:`Q_{\mu \nu}(k)` is the quantum geometric tensor computed
+        using the Kubo formula in :meth:`quantum_geometric_tensor`.
+
+        The Abelian Berry curvature (when ``non_abelian=False``) is obtained by 
+        taking the trace over occupied bands:
 
         .. math::
 
             \Omega_{\mu \nu}(k) = \sum_{m \in \text{occ}} \Omega_{\mu \nu;\ mm}(k)
 
-        By specifying the `plane` parameter, we choose a particular :math:`(\mu, \nu)` pair 
+        By specifying the ``plane`` parameter, we choose a particular :math:`(\mu, \nu)` pair 
         of the Berry curvature tensor to return.
 
         .. versionadded:: 2.0.0
@@ -2501,96 +2631,136 @@ class TBModel:
 
         Notes
         -----
+        - Specifically, for :math:`(m,n) \in \text{occ}`, the non-Abelian Berry curvature tensor
+          is given by (when ``non_abelian=True``):
+
+          .. math::
+
+            \Omega_{\mu \nu;\ mn}(k) =  i\sum_{l \notin \text{occ}}
+            \frac{
+                \langle u_{mk} | \partial_{\mu} H_k | u_{lk} \rangle
+                \langle u_{lk} | \partial_{\nu} H_k | u_{nk} \rangle
+                -
+                \langle u_{mk} | \partial_{\nu} H_k| u_{lk} \rangle
+                \langle u_{lk} | \partial_{\mu} H_k | u_{nk} \rangle
+            }{
+                (E_{nk} - E_{lk})(E_{mk} - E_{lk})
+            }
         - This quantity is an anti-symmetric under :math:`\mu \leftrightarrow \nu`. 
         - The Berry curvature is only defined for models with at least 2 k-space dimensions
           (``dim_k >= 2``). 
         - The Berry curvature is computed using the Kubo formula, which
           requires knowledge of the velocity operator :math:`\partial_\mu H_k`. This operator
           is computed using the gradient of the Hamiltonian provided by :func:`velocity`.
-
         """
-
-        if self.dim_k < 2:
-            raise Exception(
-                """
-                Berry curvature in this context is only computed for k-space dimensions. 
-                Must have dim_k >= 2.
-                """
-            )
-
-        v_k = self.velocity(k_pts, cartesian=cartesian)  # (Nk, dim_k, n_orb, n_orb)
-        # flatten spin axis if present
-        new_shape = (v_k.shape[:2]) + (self.nstate, self.nstate)
-        v_k = v_k.reshape(*new_shape)
-
-        if evals is None or evecs is None:
-            evals, evecs = self.solve_ham(
-                k_pts, return_eigvecs=True, flatten_spin_axis=False
-            )
-
-        n_eigs = evecs.shape[-2]
-
-        # Identify occupied bands
-        if occ_idxs is None:
-            occ_idxs = np.arange(n_eigs // 2)
-        else:
-            occ_idxs = np.array(occ_idxs)
-
-        # Identify conduction bands as remainder of band indices (assumes gapped)
-        cond_idxs = np.setdiff1d(np.arange(n_eigs), occ_idxs)
-
-        # All pairs of energy differences
-        delta_E = (
-            evals[..., np.newaxis, :] - evals[..., :, np.newaxis]
-        )  # shape (Nk, n_states, n_states)
-        # Divide by energy differences, diagonals are ignored
-        with np.errstate(
-            divide="ignore", invalid="ignore"
-        ):  # Suppress divide by zero warnings
-            inv_delta_E = np.where(delta_E != 0, 1 / delta_E, 0)
-
-        # newaxis for Cartesian direction broadcasting
-        evecs_conj = evecs.conj()[np.newaxis, :, :, :]
-        # transpose
-        evecs_T = evecs.transpose(0, 2, 1)[np.newaxis, :, :, :]
-        # project vk into energy eignvector basis
-        vk_evecT = np.matmul(v_k, evecs_T)  # intermediate array
-        v_k_rot = np.matmul(evecs_conj, vk_evecT)  # (dim_k, n_kpts, n_orb, n_orb)
-
-        # Extract relevant submatrices
-        # top right
-        v_occ_cond = v_k_rot[..., occ_idxs, :][
-            ..., :, cond_idxs
-        ]  # shape (dim_k, Nk, n_occ, n_con)
-        # bottom left
-        v_cond_occ = v_k_rot[..., cond_idxs, :][
-            ..., :, occ_idxs
-        ]  # shape (dim_k, Nk, n_con, n_occ)
-        # top right (bottom left uneeded in Kubo formula)
-        delta_E_occ_cond = inv_delta_E[:, occ_idxs, :][
-            :, :, cond_idxs
-        ]  # shape (Nk, n_con, n_occ)
-
-        # premultiply by energy denominators
-        v_occ_cond = v_occ_cond * delta_E_occ_cond
-        v_cond_occ = v_cond_occ * delta_E_occ_cond.swapaxes(-1, -2)
-
-        # Berry curvature shape: (dim_k, dim_k, n_kpts, n_orb, n_orb)
-        # Where m is conduction indices, and n,l are occupied indices
-        # <unk|v_mu|umk> <umk|v_nu|ulk> - <unk|v_nu|umk> <umk|v_mu|ulk> / (Enk - Emk)(Elk - Emk)
-        b_curv = 1j * (
-            np.matmul(v_occ_cond[:, None], v_cond_occ[None, :])
-            - np.matmul(v_occ_cond[None, :], v_cond_occ[:, None])
+        Q = self.quantum_geometric_tensor(
+            k_pts, occ_idxs=occ_idxs, evals=evals, evecs=evecs,
+            cartesian=cartesian, non_abelian=non_abelian, plane=plane
         )
+        return -2 * Q.imag 
 
-        if not non_abelian:
-            b_curv = np.trace(b_curv, axis1=-1, axis2=-2)
-        if plane is None:
-            return b_curv
-        else:
-            if not (isinstance(plane, tuple) and len(plane) == 2):
-                raise ValueError("plane must be a tuple of length 2.")
-            return b_curv[plane]
+    def quantum_metric(
+        self,
+        k_pts,
+        evals: np.ndarray = None,
+        evecs: np.ndarray = None,
+        occ_idxs = None,
+        plane = None,
+        cartesian: bool = False,
+        non_abelian: bool = False,
+    ):
+        r"""Quantum metric at a list of k-points via Kubo formula.
+
+        The quantum metric is computed as
+
+        .. math::
+
+           g_{\mu \nu; \ mn}(k) = \mathrm{Re} \, Q_{\mu \nu; \ mn}(k),
+
+        where :math:`Q_{\mu \nu}(k)` is the quantum geometric tensor computed
+        using the Kubo formula in :meth:`quantum_geometric_tensor`.
+
+        The Abelian quantum metric (when ``non_abelian=False``) is obtained by 
+        taking the trace over occupied bands:
+
+        .. math::
+
+            g_{\mu \nu}(k) = \sum_{m \in \text{occ}} g_{\mu \nu;\ mm}(k)
+
+        By specifying the ``plane`` parameter, we choose a particular :math:`(\mu, \nu)` pair 
+        of the quantum metric tensor to return.
+
+        .. versionadded:: 2.0.0
+
+
+        Parameters
+        ----------
+        k_pts : (Nk, dim_k) array-like
+            Array of k-points with shape (Nk, dim_k), where Nk is the number of points
+            and dim_k is the dimensionality of the k-space.
+        evals : (Nk, n_states) array, optional
+            Eigenvalues of the Hamiltonian at the k-points. If not provided, they will be computed.
+        evecs : (Nk, n_states, n_orb) array, optional
+            Eigenvectors of the Hamiltonian. If not provided, they will be computed.
+        occ_idxs : 1D array, optional
+            Indices of the occupied bands. Defaults to the first half of the states.
+        plane : tuple of int, optional
+            Tuple of two integers specifying the plane in k-space for which to compute 
+            the curvature. If None (default), 
+            computes all components of the Berry curvature tensor. This 
+            will affect the shape of the returned array.
+        cartesian : bool, optional
+            If True, computes the velocity operator in Cartesian coordinates.
+            Default is False (reduced coordinates).
+        non_abelian : bool, optional
+            If True, returns the full Berry curvature tensor (non-abelian case).
+            If False, returns the band-trace of the Berry curvature tensor (abelian case).
+            Default is False.
+
+        Returns
+        -------
+        g : np.ndarray
+            Quantum metric tensor at the specified k-points. If ``plane`` is None,
+            returns the full quantum metric tensor. If ``plane`` is specified,
+            returns the quantum metric component for that plane. If ``non_abelian=False``,
+            returns the band-trace of the quantum metric tensor (abelian case).
+
+        See Also
+        --------
+        quantum_geometric_tensor
+        berry_curvature
+
+        Notes
+        -----
+        - Specifically, for :math:`(m,n) \in \text{occ}`, the non-Abelian quantum metric tensor
+          is given by (when ``non_abelian=True``):
+
+          .. math::
+
+            g_{\mu \nu;\ mn}(k) =  \sum_{l \notin \text{occ}}
+            \frac{
+                \langle u_{mk} | \partial_{\mu} H_k | u_{lk} \rangle
+                \langle u_{lk} | \partial_{\nu} H_k | u_{nk} \rangle
+                +
+                \langle u_{mk} | \partial_{\nu} H_k| u_{lk} \rangle
+                \langle u_{lk} | \partial_{\mu} H_k | u_{nk} \rangle
+            }{
+                (E_{nk} - E_{lk})(E_{mk} - E_{lk})
+            }
+
+        - This quantity is symmetric under :math:`\mu \leftrightarrow \nu`.
+        - The quantum metric is only defined for models with at least 2 k-space dimensions
+          (``dim_k >= 2``).
+        - The quantum metric is computed using the Kubo formula, which
+          requires knowledge of the velocity operator :math:`\partial_\mu H_k`. This operator
+          is computed using the gradient of the Hamiltonian provided by :func:`velocity`.
+        """
+        Q = self.quantum_geometric_tensor(
+            k_pts, occ_idxs=occ_idxs, evals=evals, evecs=evecs,
+            cartesian=cartesian, non_abelian=non_abelian, plane=plane
+        )
+        g = Q.real
+        return g
 
     def chern_number(
             self, 
