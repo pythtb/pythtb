@@ -1918,7 +1918,7 @@ class WFArray:
 
         See Also
         --------
-        :meth:`berry_loop`
+        :meth:`_berry_loop`
         :meth:`links`
 
         Notes
@@ -1955,7 +1955,7 @@ class WFArray:
             return U_wilson
 
     @staticmethod
-    def berry_loop(wfs_path, berry_evals: bool = False):
+    def _berry_loop(wfs_path, berry_evals: bool = False):
         r"""Berry phase along a one-dimensional path of wavefunctions.
 
         The Berry phase along a one-dimensional path of wavefunctions
@@ -2096,7 +2096,7 @@ class WFArray:
 
         See Also
         --------
-        :meth:`berry_loop`
+        :meth:`berry_phase`
         :meth:`links`
 
         Notes
@@ -2255,7 +2255,7 @@ class WFArray:
         :ref:`haldane-bp-nb` : For an example
         :ref:`cone-nb` : For an example
         :ref:`three-site-thouless-nb` : For an example
-        :meth:`berry_loop` : For a function that computes Berry phase in a 1d loop.
+        :meth:`wilson_loop` : For a function that computes Wilson loops.
         :ref:`formalism` : Sec. 4.5 for the discretized formula used to compute Berry phase.
 
         Notes
@@ -2339,10 +2339,10 @@ class WFArray:
 
             if berry_evals:
                 # val are the individual phases of Berry loop eigenvalues
-                _, val = self.berry_loop(wf_line, berry_evals=berry_evals)
+                _, val = self._berry_loop(wf_line, berry_evals=berry_evals)
             else:
                 # val is the total Berry phase for the loop
-                val = self.berry_loop(wf_line, berry_evals=berry_evals)
+                val = self._berry_loop(wf_line, berry_evals=berry_evals)
 
             out[idx] = val
 
