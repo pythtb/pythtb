@@ -65,8 +65,10 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 - `TBModel.__str__`: Allows printing a `TBModel` instance using `print(TBModel)`, which prints `TBModel.info()`
 - `TBModel.hamiltonian()`: Generates Hamiltonians for finite and periodic systems
 - `TBModel.velocity()`: Computes $dH/dk$ (velocity operator) in the orbital basis
-- `TBModel.berry_curv()`: Computes Berry curvature from $dH/dk$ elements using the Kubo formula
-- `TBModel._chern_number()`: Returns Chern number for a given set of occupied bands using Berry curvature in Kubo formula
+- `TBModel.quantum_geometric_tensor()`: Computes quantum geometric tensor using Kubo formula
+- `TBModel.berry_curvature()`: Computes Berry curvature from $dH/dk$ elements using the Kubo formula
+- `TBModel.quantum_metric()`: Computes quantum metric tensor from $dH/dk$ elements using the Kubo formula
+- `TBModel.chern_number()`: Returns Chern number for a given set of occupied bands using Berry curvature in Kubo formula
 - `TBModel.local_chern_marker()`: Bianco-Resta formula for real-space Chern marker
 - `TBModel.visualize3d()`: For 3D tight-binding models, displays an interactive 3D figure using `plotly`
 - `TBModel.get_recip_lat()`: Returns reciprocal lattice vectors
@@ -87,21 +89,17 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 
 ##### New Methods
 - `WFArray.chern_number()`: Returns the Chern number for a given plane in the parameter mesh
-- `WFArray.berry_loop()`: Static method that computes the total Berry phase and optionally the Wilson loop eigenvalues for a loop of states
 - `WFArray.wilson_loop()`: Static method that computes the Wilson loop unitary matrix for a loop of states
-- `WFArray.get_links()`: Computes the unitary part of the overlap between states and their nearest neighbors in each mesh direction
+- `WFArray.links()`: Computes the unitary part of the overlap between states and their nearest neighbors in each mesh direction
 - `WFArray.berry_curvature()`: Computes dimensionful Berry curvature by divinding Berry flux by mesh cell area/volume
-- `WFArray.solve_model()`: Populates `WFArray` with energy eigenstates from a given `TBModel` or set of 
-parameterized `TBModel`s
-- `WFArray.projectors()`: Returns band projectors and optionally their complement
-- `WFArray.get_bloch_states()`: For states on a k-mesh, applies $e^{ik·r}$ phase factors and returns both cell-periodic $u_{nk}$ and Bloch states $\psi_{nk}$
-- `WFArray.states()`: Returns `WFArray` cell-periodic and Bloch states in NumPy array form
+- `WFArray.solve_model()`: Populates `WFArray` with energy eigenstates from a given `TBModel` or set of parameterized `TBModel`'s
+- `WFArray.projectors()`: Returns band projectors and optionally their complements as NumPy arrays
+- `WFArray.states()`: Returns `WFArray` states in cell-periodic ($u_{nk}$) and optionally Bloch ($\psi_{nk}$) form as NumPy arrays
   - Optional flag to flatten spin axis for spinful states
+- `WFArray.overlap_matrix()`: Computes overlap matrix of the states in the `WFArray` with their nearest neighbors in the `Mesh`. Optionally considers the k-space metric when computing neighbors for k-axes.
 - `WFArray.get_k_shell()`: Generates vectors connecting Gamma point to nearest neighboring k-points in the mesh. The vectors are expressed in inverse units of lattice vectors.
 - `WFArray.get_shell_weights()`: For a given shell index, returns the finite-difference weights of k-points in that shell connecting to Gamma point.
 - `WFArray.roll_states_with_pbc()`: Rolls states along a given mesh axis with periodic boundary conditions, useful for computing overlaps with neighboring k-points.
-- `WFArray.overlap_matrix()`: Computes overlap matrix of the states in the `WFArray` with their nearest neighbors in the `Mesh`. Considers the k-space metric when computing neighbors for k-axes.
-- `WFArray.links()`: Returns the unitary part of the overlap matrices between states and their nearest neighbors in each mesh direction.
 
 ##### Enhanced Methods
 - `WFArray.berry_flux()`: Enhanced and Optimized
