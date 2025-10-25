@@ -31,8 +31,6 @@ You can open the entire set of examples in Binder by clicking the button below:
       :align: center
       :width: 180px
       :alt: Launch Binder
-
-
    
 .. note::
 
@@ -47,9 +45,10 @@ You can open the entire set of examples in Binder by clicking the button below:
    examples/tb_model_v2
    examples/wfarray_v2
    examples/haldane_wannier
-   examples/nn_shells
-   examples/local_chern
    examples/reduced_wannier
+   examples/local_chern
+   examples/quantum_geom_tens
+   examples/nn_shells
    examples/visualize_3d
 
 .. toctree::

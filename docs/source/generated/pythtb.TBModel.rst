@@ -39,6 +39,8 @@ Methods
    pythtb.TBModel.position_expectation
    pythtb.TBModel.position_hwf
    pythtb.TBModel.position_matrix
+   pythtb.TBModel.quantum_geometric_tensor
+   pythtb.TBModel.quantum_metric
    pythtb.TBModel.reduce_dim
    pythtb.TBModel.remove_orb
    pythtb.TBModel.set_hop

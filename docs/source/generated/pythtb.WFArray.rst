@@ -14,7 +14,6 @@ Methods
 
    pythtb.WFArray.berry_curvature
    pythtb.WFArray.berry_flux
-   pythtb.WFArray.berry_loop
    pythtb.WFArray.berry_phase
    pythtb.WFArray.chern_number
    pythtb.WFArray.choose_states
