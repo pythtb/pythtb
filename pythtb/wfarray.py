@@ -1103,7 +1103,7 @@ class WFArray:
         ham = model.hamiltonian(
             k_pts=k_flat,
             params=params,
-            flatten_spin_axis=True
+            flatten_spin_axis=False
         )
 
         # Expected shapes now:
@@ -1114,28 +1114,32 @@ class WFArray:
         if self.dim_k > 0:
             ham = ham.reshape(*shape_k, *shape_lambda, self.nstates, self.nstates)
 
-        # 5) Hermiticity check
+        # flatten spin axes if present
+        if self.nspin == 2:
+            ham = ham.reshape(*ham.shape[:-4], self.nstates, self.nstates)
+
         if not np.allclose(ham, ham.swapaxes(-1, -2).conj()):
             raise ValueError("Hamiltonian matrix is not Hermitian.")
 
-        # 6) Diagonalize
         if use_tf:
             logger.info("Attempting to use tensorflow for eigenvalue calculation")
+
             from tensorflow import convert_to_tensor
             from tensorflow import complex64 as tfcomplex64
             from tensorflow.linalg import eigh as tfeigh
+
             H_tf = convert_to_tensor(ham, dtype=tfcomplex64)
             eval, evec = tfeigh(H_tf)
             eval = eval.numpy()
             evec = evec.numpy()
         else:
+            # diagonalize hamiltonian
             eval, evec = np.linalg.eigh(ham)
 
-        # 7) Put eigenvectors in the conventional shape: 
-        evec = evec.swapaxes(-1, -2)     # so evec[..., i, :] is the i-th eigenvector
-        print(evec.shape)
-        print(self.shape)
-        evec = evec.reshape(*self.shape) # self.shape should be (*mesh.shape, nstates, norb[, nspin])
+        # transpose matrix eig since otherwise it is confusing
+        # now eig[i,:] is eigenvector for eval[i]-th eigenvalue
+        evec = evec.swapaxes(-1, -2)
+        evec = evec.reshape(*self.shape)
 
         self.set_states(evec, is_cell_periodic=True, is_spin_axis_flat=False)
         self._energies = eval
@@ -1150,14 +1154,18 @@ class WFArray:
         # 9) Enforce PBCs along winding k-axes
         axes = self.mesh.axes
         for idx, ax in enumerate(axes):
-            # These contain endpoints (k_i = 1 in reduced units)
-            if ax.has_endpoint and ax.winds_bz:
+            if ax.has_endpoint and ax.is_loop:
                 endpt_comps = ax.endpoint_components
-                bz_wind_comps = ax.winds_bz_components
-                overlap = endpt_comps and bz_wind_comps
-                for comp in overlap:
-                    logger.debug(f"Imposing PBC in mesh direction {ax} for k-component {comp}")
-                    self._impose_pbc(idx, comp)
+                if ax.winds_bz:
+                    # These contain endpoints (k_i = 1 in reduced units)
+                    bz_wind_comps = ax.winds_bz_components
+                    overlap = endpt_comps and bz_wind_comps
+                    for comp in overlap:
+                        logger.debug(f"Imposing PBC in mesh direction {ax} for k-component {comp}")
+                        self._impose_pbc(idx, comp)
+                else:
+                    logger.debug(f"Imposing loop in mesh direction {ax}")
+                    self._impose_loop(idx)
 
         # Set the Hamiltonian attribute
         self._H = ham
