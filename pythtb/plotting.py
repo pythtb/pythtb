@@ -630,8 +630,8 @@ def plot_tb_model(
     hopping_coords = []
 
     # maximum magnitudes of hopping strengths
-    amps, hop_i, hop_j, hop_R = model._hoppings.components()
-    n_hops = len(model._hoppings)
+    amps, hop_i, hop_j, hop_R = model._hoptable.components()
+    n_hops = len(model._hoptable)
     if n_hops:
         if model._nspin == 2:
             mags = np.array([np.max(np.abs(amp)) for amp in amps], dtype=float)
@@ -944,8 +944,8 @@ def plot_tb_model_3d(
     # Draw hopping terms ---
     if draw_hoppings:
         hopping_traces = []
-        amps, hop_i, hop_j, hop_R = model._hoppings.components()
-        n_hops = len(model._hoppings)
+        amps, hop_i, hop_j, hop_R = model._hoptable.components()
+        n_hops = len(model._hoptable)
         if n_hops:
             if model._nspin == 2:
                 mags = np.array([np.max(np.abs(amp)) for amp in amps], dtype=float)

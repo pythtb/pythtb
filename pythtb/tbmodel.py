@@ -2,6 +2,8 @@ import copy
 import logging
 import warnings
 import numpy as np
+from itertools import product
+import inspect
 from .plotting import plot_bands, plot_tb_model, plot_tb_model_3d
 from .utils import (
     _offdiag_approximation_warning_and_stop, 
@@ -35,13 +37,30 @@ def _tensorflow_solve(ham, *, return_eigvecs: bool, use_32_bit: bool):
     evals = tf["eigvalsh"](tensor)
     return evals.numpy()
 
+def _iter_params_of_callable(f):
+        """Yield explicit parameter names (ignore *args/**kwargs)."""
+        sig = inspect.signature(f)
+        for name, p in sig.parameters.items():
+            if p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY):
+                yield name
+
+def _call_provider(prov, params):
+    """Call a provider with only the kwargs it actually declares (unless it has **kwargs)."""
+    if not callable(prov):
+        raise TypeError("Provider is not callable.")
+    sig = inspect.signature(prov)
+    if any(p.kind == p.VAR_KEYWORD for p in sig.parameters.values()):
+        return prov(**params)  # accepts anything
+    kwargs = {k: params[k] for k in _iter_params_of_callable(prov) if k in params}
+    return prov(**kwargs)
+
 class TBModel:
     r"""Tight-binding model constructor.
 
     This class serves as the central object for defining and analyzing tight-binding Hamiltonians.
     Beyond Hamiltonian construction and diagonalization, it offers tools for computing key topological 
-    and quantum-geometric observables, including the Berry curvature, Chern number, and the Bianco–Resta 
-    local Chern marker.
+    and quantum-geometric observables, including the quantum geometric tensor, Berry curvature, quantum metric,
+    Chern number, and the Bianco–Resta local Chern marker.
 
     .. versionremoved:: 2.0.0
         Parameters ``dim_r`` and ``dim_k`` are removed. The dimensionality of real and reciprocal space
@@ -113,7 +132,10 @@ class TBModel:
         self._site_energies_specified[:] = False
 
         # Initialize hoppings container
-        self._hoppings = HoppingTable(self.dim_r, self._nspin == 2)
+        self._hoptable = HoppingTable(self.dim_r, spinful=spinful)
+
+        self._onsite_param_terms = {}
+        self._hopping_param_terms = {}
 
     def __repr__(self):
         r"""Return a string representation of the ``TBModel`` object.
@@ -137,160 +159,6 @@ class TBModel:
             String representation of the TBModel.
         """
         return self.info(show=False)
-
-    @deprecated(
-        "The 'display()' method is deprecated and will be removed in a future release. " \
-        "Use 'print(model)' or 'model.info(show=True)' instead."
-    )
-    def display(self):
-        r"""
-        .. deprecated:: 2.0.0
-            ``display()`` has been deprecated, it is recommended to use 
-            ``print(model)`` or ``model.info(show=True)`` instead.
-        """
-        return self.info(show=True)
-
-    def info(self, show: bool = True, short: bool = False):
-        r"""Print or return information about the tight-binding model.
-
-        Parameters
-        ----------
-        show : bool, optional
-            If True, prints the report to stdout. If False, returns the report as a string.
-            Default is True.
-
-            .. versionadded:: 2.0.0
-
-        short : bool, optional
-            If True, prints only a lattice summary. If False, prints hopping and onsite details as well.
-            Default is False.
-
-            .. versionadded:: 2.0.0
-
-        Returns
-        -------
-        str or None
-            Returns the info string if ``show`` is False, otherwise prints and returns None.
-
-        Notes
-        -----
-        The report includes lattice vectors, orbital positions, site energies, hoppings, and hopping distances.
-        """
-        output = []
-        header = (
-            "----------------------------------------\n"
-            "       Tight-binding model report       \n"
-            "----------------------------------------"
-        )
-        output.append(header)
-        lat_report = self.lattice._report_list()
-        lat_report.pop(0)  # remove header
-        lat_report.insert(2, f"spinful                     = {self.spinful}")
-        lat_report.insert(4, f"number of spin components   = {self.nspin}")
-        lat_report.insert(5, f"number of electronic states = {self.nstate}")
-        output.extend(lat_report)
-
-        if not short:
-            # Print Site Energies
-            output.append("Site energies:")
-            for i, site in enumerate(self._site_energies):
-                if self._nspin == 1:
-                    energy_str = f"{site:^7.3f}"
-                elif self._nspin == 2:
-                    energy_str = str(site).replace("\n", " ")
-
-                output.append(f"  # {i} ===> {energy_str}")
-
-            amps, i_idx, j_idx, R_vecs = self._hoppings.components()
-
-            output.append("Hoppings:")
-            for hop_idx in range(self.nhops):
-                hop_from = int(i_idx[hop_idx])
-                hop_to = int(j_idx[hop_idx])
-                R_vec = R_vecs[hop_idx]
-
-                coords = ", ".join(f"{value:^5.1f}" for value in R_vec)
-                disp = f" + [{coords}]" if self.dim_k else ""
-                out_str = f"  < {hop_from:^1} | H | {hop_to:^1}{disp} >  ===> "
-
-                amp = amps[hop_idx]
-                if self.spinful:
-                    amp_str = str(np.asarray(amp).round(4)).replace("\n", " ")
-                else:
-                    amp_str = f"{complex(amp):^7.4f}"
-
-                out_str += amp_str
-                output.append(out_str)
-
-            output.append("Hopping distances:")
-            if self.nhops != 0:
-                orb_cart = self.get_orb_vecs(cartesian=True)
-                lat_vecs = self.lat_vecs
-                for hop_idx in range(self.nhops):
-                    hop_from = int(i_idx[hop_idx])
-                    hop_to = int(j_idx[hop_idx])
-                    R_vec = R_vecs[hop_idx]
-
-                    pos_i = orb_cart[hop_from]
-                    pos_j = orb_cart[hop_to] + R_vec @ lat_vecs
-
-                    coords = ", ".join(f"{value:5.1f}" for value in R_vec)
-                    disp = f" + [{coords}]" if self.dim_k else ""
-
-                    distance = np.linalg.norm(pos_j - pos_i)
-
-                    out_str = (
-                    f"  | pos({hop_from:>2}) - pos({hop_to:<2}){disp} | = {distance:7.3f}"
-                    )
-                    output.append(out_str)
-
-        if show:
-            print("\n".join(output))
-        else:
-            return "\n".join(output)
-
-    def _get_periodic_H(self, H_flat, k_vals):
-        r"""
-        Transform Hamiltonian to periodic gauge so that :math:`H(\mathbf{k}+\mathbf{G}) = H(\mathbf{k})`.
-
-        If ``nspin = 2``, ``H_flat`` should only be flat along `k` and _NOT_ spin.
-
-        Parameters
-        ----------
-        H_flat : np.ndarray
-            Hamiltonian flattened along the k-direction, shape (Nk, nstate, nstate[, nspin]).
-        k_vals : np.ndarray
-            Array of k-point values, shape (Nk, dim_k).
-
-        Returns
-        -------
-        np.ndarray
-            Hamiltonian in periodic gauge, shape (Nk, nstate, nstate[, nspin]).
-
-        Notes
-        -----
-        The transformation applies phase factors to ensure periodicity in reciprocal space.
-        """
-        if k_vals.ndim != 2:
-            raise ValueError(f"Invalid k_vals shape: {k_vals.shape}. Expected (Nk, dim_k).")
-        if k_vals.shape[1] != self.dim_k:
-            raise ValueError(f"Invalid k_vals shape: {k_vals.shape}. Expected (Nk, {self.dim_k}).")
-        
-        if self.dim_k == 0:
-            logger.warning(
-                "No periodic directions in k-space. Returning H_flat unchanged."
-            )
-            return H_flat
-        
-        
-        orb_vecs = self._orb_vecs  # reduced units
-        orb_vec_diff = orb_vecs[:, None, :] - orb_vecs[None, :, :]
-        orb_vec_diff = orb_vec_diff[..., self.per]
-        orb_phase = np.exp(
-            1j * 2 * np.pi * np.matmul(orb_vec_diff, k_vals.T)
-        ).transpose(2, 0, 1)
-        H_per_flat = H_flat * orb_phase
-        return H_per_flat
 
     # Property decorators for read-only access to model attributes
 
@@ -437,7 +305,7 @@ class TBModel:
             - ``"to_orbital"``: index of ending orbital
             - ``"lattice_vector"``: (optional) lattice vector displacement
         """
-        amps, i_idx, j_idx, R_vecs = self._hoppings.components()
+        amps, i_idx, j_idx, R_vecs = self._hoptable.components()
         formatted: list[dict] = []
         for hop_idx in range(self.nhops):
             amp = amps[hop_idx]
@@ -462,7 +330,7 @@ class TBModel:
 
         .. versionadded:: 2.0.0
         """
-        return len(self._hoppings)
+        return len(self._hoptable)
     
     @property
     def from_w90(self) -> bool:
@@ -485,6 +353,117 @@ class TBModel:
         if not isinstance(value, bool):
             raise ValueError("assume_position_operator_diagonal must be a boolean.")
         self._assume_position_operator_diagonal = value
+
+    @deprecated(
+        "The 'display()' method is deprecated and will be removed in a future release. " \
+        "Use 'print(model)' or 'model.info(show=True)' instead."
+    )
+    def display(self):
+        r"""
+        .. deprecated:: 2.0.0
+            ``display()`` has been deprecated, it is recommended to use 
+            ``print(model)`` or ``model.info(show=True)`` instead.
+        """
+        return self.info(show=True)
+
+    def info(self, show: bool = True, short: bool = False):
+        r"""Print or return information about the tight-binding model.
+
+        Parameters
+        ----------
+        show : bool, optional
+            If True, prints the report to stdout. If False, returns the report as a string.
+            Default is True.
+
+            .. versionadded:: 2.0.0
+
+        short : bool, optional
+            If True, prints only a lattice summary. If False, prints hopping and onsite details as well.
+            Default is False.
+
+            .. versionadded:: 2.0.0
+
+        Returns
+        -------
+        str or None
+            Returns the info string if ``show`` is False, otherwise prints and returns None.
+
+        Notes
+        -----
+        The report includes lattice vectors, orbital positions, site energies, hoppings, and hopping distances.
+        """
+        output = []
+        header = (
+            "----------------------------------------\n"
+            "       Tight-binding model report       \n"
+            "----------------------------------------"
+        )
+        output.append(header)
+        lat_report = self.lattice._report_list()
+        lat_report.pop(0)  # remove header
+        lat_report.insert(2, f"spinful                     = {self.spinful}")
+        lat_report.insert(4, f"number of spin components   = {self.nspin}")
+        lat_report.insert(5, f"number of electronic states = {self.nstate}")
+        output.extend(lat_report)
+
+        if not short:
+            # Print Site Energies
+            output.append("Site energies:")
+            for i, site in enumerate(self._site_energies):
+                if self._nspin == 1:
+                    energy_str = f"{site:^7.3f}"
+                elif self._nspin == 2:
+                    energy_str = str(site).replace("\n", " ")
+
+                output.append(f"  # {i} ===> {energy_str}")
+
+            amps, i_idx, j_idx, R_vecs = self._hoptable.components()
+
+            output.append("Hoppings:")
+            for hop_idx in range(self.nhops):
+                hop_from = int(i_idx[hop_idx])
+                hop_to = int(j_idx[hop_idx])
+                R_vec = R_vecs[hop_idx]
+
+                coords = ", ".join(f"{value:^5.1f}" for value in R_vec)
+                disp = f" + [{coords}]" if self.dim_k else ""
+                out_str = f"  < {hop_from:^1} | H | {hop_to:^1}{disp} >  ===> "
+
+                amp = amps[hop_idx]
+                if self.spinful:
+                    amp_str = str(np.asarray(amp).round(4)).replace("\n", " ")
+                else:
+                    amp_str = f"{complex(amp):^7.4f}"
+
+                out_str += amp_str
+                output.append(out_str)
+
+            output.append("Hopping distances:")
+            if self.nhops != 0:
+                orb_cart = self.get_orb_vecs(cartesian=True)
+                lat_vecs = self.lat_vecs
+                for hop_idx in range(self.nhops):
+                    hop_from = int(i_idx[hop_idx])
+                    hop_to = int(j_idx[hop_idx])
+                    R_vec = R_vecs[hop_idx]
+
+                    pos_i = orb_cart[hop_from]
+                    pos_j = orb_cart[hop_to] + R_vec @ lat_vecs
+
+                    coords = ", ".join(f"{value:5.1f}" for value in R_vec)
+                    disp = f" + [{coords}]" if self.dim_k else ""
+
+                    distance = np.linalg.norm(pos_j - pos_i)
+
+                    out_str = (
+                    f"  | pos({hop_from:>2}) - pos({hop_to:<2}){disp} | = {distance:7.3f}"
+                    )
+                    output.append(out_str)
+
+        if show:
+            print("\n".join(output))
+        else:
+            return "\n".join(output)
 
     def copy(self) -> "TBModel":
         """Return a deep copy of the TBModel object.
@@ -511,7 +490,7 @@ class TBModel:
         -----
         This is useful for resetting the model to a state without any hoppings.
         """
-        self._hoppings.clear()
+        self._hoptable.clear()
         logger.info("Cleared all hoppings.")
 
     def clear_onsite(self):
@@ -526,6 +505,17 @@ class TBModel:
         self._site_energies.fill(0)
         self._site_energies_specified.fill(False)
         logger.info("Cleared all on-site energies.")
+
+    def _clear_param_terms(self, *, onsite_idx=None, hop_key=None):
+        if onsite_idx is not None:
+            self._onsite_param_terms.pop(onsite_idx, None)
+        if hop_key is not None:
+            i, j, R = hop_key
+            cell = self._hopping_param_terms.get((i, j))
+            if cell and R in cell:
+                del cell[R]
+            if cell and not cell:
+                self._hopping_param_terms.pop((i, j))
 
     @deprecated("Use 'norb' property instead.")
     def get_num_orbitals(self):
@@ -655,13 +645,20 @@ class TBModel:
             )
             mode = "set"
 
-        def process(val):
+        def _process_single(val):
+            # Accept callables (e.g., lambdas) – defer checks to evaluation time
+            if callable(val):
+                return ("callable", val)
+
+            # Back-compat string path
+            if isinstance(val, str):
+                return ("expr", val)
+
+            # Numeric/array/matrix path – convert to canonical onsite block now
             block = self._val_to_block(val)
-            if not is_Hermitian(block):
-                raise ValueError(
-                    "Onsite terms should be real, or in case where it is a matrix, Hermitian."
-                )
-            return block
+            if self.nspin == 2 and not is_Hermitian(block):
+                raise ValueError("Onsite terms should be real, or Hermitian for spinful models.")
+            return ("block", block)
 
         # prechecks
         if ind_i is None:
@@ -675,166 +672,58 @@ class TBModel:
                 raise ValueError(
                     "List of onsite energies must include a value for every orbital."
                 )
-
-            processed = [process(val) for val in onsite_en]
+            
+            items = list(onsite_en)
             indices = np.arange(self.norb)
         else:
-            if ind_i < 0 or ind_i >= self.norb:
+            if not (0 <= ind_i < self.norb):
                 raise ValueError(
                     "Index ind_i is not within the range of number of orbitals."
                 )
-            processed = [process(onsite_en)]
+
+            items = [onsite_en]
             indices = [ind_i]
 
+        processed = [_process_single(v) for v in items]
+
         if mode == "set":
-            for idx, block in zip(indices, processed):
+            for idx, (kind, payload) in zip(indices, processed):
                 if self._site_energies_specified[idx]:
                     logger.warning(
                         f"Onsite energy for site {idx} was already set; resetting to the specified values."
                     )
-                self._site_energies[idx] = block
-                self._site_energies_specified[idx] = True
+
+                if kind == "block":
+                    self._site_energies[idx] = payload
+                    self._site_energies_specified[idx] = True
+                    # Clear any previous param providers
+                    self._onsite_param_terms[idx] = None
+                else:
+                    # callable/expr -> store for later evaluation
+                    self._site_energies[idx] = 0  # numeric placeholder, unused at build time
+                    self._site_energies_specified[idx] = False
+                    self._onsite_param_terms[idx] = payload  # payload is callable or str
 
         elif mode == "add":
-            for idx, block in zip(indices, processed):
-                self._site_energies[idx] += block
-                self._site_energies_specified[idx] = True
+            for idx, (kind, payload) in zip(indices, processed):
+                if kind == "block":
+                    self._site_energies[idx] += payload
+                    self._site_energies_specified[idx] = True
+                    # 'add' with a concrete block keeps any prior callable/expr ignored at build time
+                    self._onsite_param_terms[idx] = None
+                else:
+                    # Adding a callable/expr: we interpret as "replace provider" (cannot 'add' unevaluated safely).
+                    logger.warning(
+                        f"'add' with a callable/string provider on site {idx} replaces the previous provider."
+                    )
+                    self._site_energies[idx] = 0
+                    self._site_energies_specified[idx] = False
+                    self._onsite_param_terms[idx] = payload
         else:
             raise ValueError("Mode should be either 'set' or 'add'.")
-        
 
     def _get_flattened_indices(self):
-        return self._hoppings.flatten_cache(self.norb)
-
-    def _normalize_kpoints(self, k_pts, *, allow_none_for_finite: bool = False) -> np.ndarray | None:
-        """Validate and reshape user-provided k-points."""
-        dim_k = self.dim_k
-        if dim_k == 0:
-            if k_pts is None:
-                return None
-            if allow_none_for_finite:
-                return None
-            raise ValueError("k_pts should not be specified for finite (dim_k=0) models.")
-
-        if k_pts is None:
-            raise ValueError("Must supply k_pts for periodic systems (dim_k > 0).")
-
-        k_arr = np.asarray(k_pts, dtype=float)
-        if k_arr.ndim == 1:
-            if k_arr.shape[0] != dim_k:
-                raise ValueError(f"k_pts must have shape ({dim_k},) for a single point.")
-            k_arr = k_arr.reshape(1, dim_k)
-        if k_arr.ndim != 2 or k_arr.shape[1] != dim_k:
-            raise ValueError(f"k_pts must have shape (Nk, {dim_k}).")
-        return k_arr
-
-    def _hamiltonian_finite(self, hop_amps, i_idx, j_idx, site_energies, *, flatten_spin: bool):
-        norb = self.norb
-
-        if not self.spinful:
-            hop_amps = hop_amps.astype(complex)
-            ham = np.zeros((norb, norb), dtype=complex)
-            if hop_amps.size:
-                np.add.at(ham, (i_idx, j_idx), hop_amps)
-                np.add.at(ham, (j_idx, i_idx), hop_amps.conj())
-            np.fill_diagonal(ham, site_energies)
-            return ham
-
-        # spinful
-        nspin = self.nspin
-        hop_amps = np.asarray(hop_amps, dtype=complex)
-        ham = np.zeros((norb, nspin, norb, nspin), dtype=complex)
-        if hop_amps.size:
-            for hop_idx in range(hop_amps.shape[0]):
-                block = hop_amps[hop_idx]
-                ham[i_idx[hop_idx], :, j_idx[hop_idx], :] += block
-                ham[j_idx[hop_idx], :, i_idx[hop_idx], :] += block.conj().T
-        for orb in range(norb):
-            ham[orb, :, orb, :] += site_energies[orb]
-        if flatten_spin:
-            ham = ham.reshape(norb * nspin, norb * nspin)
-        return ham
-
-    def _hamiltonian_periodic(
-        self,
-        k_vecs: np.ndarray,
-        hop_amps,
-        i_idx,
-        j_idx,
-        R_vecs,
-        site_energies,
-        *,
-        flatten_spin: bool,
-    ):
-        norb = self.norb
-        per = np.asarray(self.per)
-        orb_red = np.asarray(self.orb_vecs)
-
-        n_kpts = k_vecs.shape[0]
-        n_hops = hop_amps.shape[0]
-
-        i_idx = i_idx.astype(int)
-        j_idx = j_idx.astype(int)
-        R_vecs = R_vecs.astype(float)
-
-        orb_i = orb_red[i_idx]
-        orb_j = orb_red[j_idx]
-        delta_r = R_vecs - orb_i + orb_j
-        delta_r_per = delta_r[:, per]
-
-        if n_hops:
-            k_dot_r = k_vecs @ delta_r_per.T
-            phases = np.exp(1j * 2 * np.pi * k_dot_r)
-        else:
-            phases = None
-
-        if not self.spinful:
-            hop_amps = hop_amps.astype(complex)
-            ham = np.zeros((n_kpts, norb, norb), dtype=complex)
-            if n_hops:
-                cache = self._get_flattened_indices()
-                order = cache["order"]
-                starts = cache["starts"]
-                uniq = cache["uniq"]
-                cols_transposed = cache["cols_transposed"]
-
-                ham_flat = ham.reshape(n_kpts, -1)
-                contrib = phases[:, order] * hop_amps[order]
-                sums = np.add.reduceat(contrib, starts, axis=1)
-                ham_flat[:, uniq] += sums
-                ham_flat[:, cols_transposed] += sums.conj()
-
-            diag = np.arange(norb)
-            ham[:, diag, diag] += site_energies
-            return ham
-
-        # spinful
-        nspin = self.nspin
-        hop_amps = np.asarray(hop_amps, dtype=complex)
-        ham = np.zeros((n_kpts, norb, nspin, norb, nspin), dtype=complex)
-        if n_hops:
-            weighted = phases[..., None, None] * hop_amps[None, :, :, :]
-            for s_out in range(nspin):
-                for s_in in range(nspin):
-                    contrib = weighted[..., s_out, s_in]
-                    np.add.at(
-                        ham[:, :, s_out, :, s_in],
-                        (slice(None), i_idx, j_idx),
-                        contrib,
-                    )
-                    np.add.at(
-                        ham[:, :, s_in, :, s_out],
-                        (slice(None), j_idx, i_idx),
-                        contrib.conj(),
-                    )
-        for orb in range(norb):
-            ham[:, orb, :, orb, :] += site_energies[orb]
-        if flatten_spin:
-            ham = ham.reshape(n_kpts, norb * nspin, norb * nspin)
-        return ham
-
-    
-    ############################################################################
+        return self._hoptable.flatten_cache(self.norb)
 
     def set_nn_hops(self, hop_amps: list, nn_shells: list[int], mode="set"):
         r"""Define nearest-neighbor hopping parameters up to a specified shell.
@@ -909,7 +798,7 @@ class TBModel:
         R_vecs = np.asarray(R_vecs, dtype=int).reshape(len(i_idx), self.dim_r)
 
         blocks = [self._val_to_block(val) for val in hop_amps]
-        self._hoppings.extend(
+        self._hoptable.extend(
             blocks,
             i_idx.tolist(),
             j_idx.tolist(),
@@ -1010,8 +899,6 @@ class TBModel:
         """
         #### Prechecks and formatting ####
         mode = mode.lower()
-
-        # deprecation warning
         if mode == "reset":
             logger.warning(
                 "The 'reset' mode is deprecated as of v2.0. Use 'set' instead to set the hopping term."
@@ -1019,7 +906,9 @@ class TBModel:
             )
             mode = "set"
 
-        ind_i, ind_j, R_vec = self._hoppings.normalize_entry(
+        table = self._hoptable
+
+        ind_i, ind_j, R_vec = table.normalize_entry(
             ind_i,
             ind_j,
             ind_R,
@@ -1029,25 +918,63 @@ class TBModel:
         )
 
         # Do not allow onsite hoppings to be specified here
-        if ind_i == ind_j:
-            if self.dim_k == 0 or bool(np.all(R_vec == 0)):
-                raise ValueError(
-                    "Do not use set_hop for onsite terms. Use set_onsite instead."
-                )
+        if ind_i == ind_j and (self.dim_k == 0 or bool(np.all(R_vec == 0))):
+            raise ValueError(
+                "Do not use set_hop for onsite terms. Use set_onsite instead."
+            )
 
-        hop_use = self._val_to_block(hop_amp)
-        table = self._hoppings
-
+        key = (ind_i, ind_j, tuple(R_vec.tolist()))
         existing_idx = table.find(ind_i, ind_j, R_vec)
-        if not allow_conjugate_pair:
-            conj_idx = table.find(ind_j, ind_i, -R_vec)
-            if conj_idx is not None and (existing_idx is None or conj_idx != existing_idx):
-                raise ValueError(
-                    f"Conjugate element already specified for i={ind_i}, j={ind_j}, R={R_vec.tolist()}. "
-                    "Either avoid double entry or set allow_conjugate_pair=True."
-                )
 
-        mode = mode.lower()
+        def _process_amp(val):
+            # Accept callables (e.g., lambdas) – defer evaluation to build time
+            if callable(val):
+                return ("callable", val)
+            # string  
+            if isinstance(val, str):
+                return ("expr", val)
+            # Numeric / array / matrix -> convert now
+            block = self._val_to_block(val)  # may be complex; no Hermitian requirement for offsite
+            return ("block", block)
+
+        kind, payload = _process_amp(hop_amp)
+        
+        if not allow_conjugate_pair:
+            conj_key = (ind_j, ind_i, tuple((-R_vec).tolist()))
+            conj_idx = table.find(ind_j, ind_i, -R_vec)
+            conj_in_providers = (conj_key in getattr(self, "_hopping_param_terms", {}))
+            if conj_idx is not None or conj_in_providers:
+                # If we're updating the exact same entry, allow it; otherwise error
+                if existing_idx is None and key != conj_key:
+                    raise ValueError(
+                        f"Conjugate element already specified for i={ind_i}, j={ind_j}, R={R_vec.tolist()}. "
+                        "Either avoid double entry or set allow_conjugate_pair=True."
+                    )
+                
+        # Ensure provider dict exists
+        if not hasattr(self, "_hopping_param_terms"):
+            self._hopping_param_terms = {}
+
+        if kind in ("callable", "expr"):
+            # Provider path (deferred evaluation). We don't mix additive numeric state with providers.
+            if mode == "add":
+                logger.warning(
+                    f"'add' with a callable/string hopping for key={key} replaces the previous provider."
+                )
+            # Replace any prior numeric or provider entry for this key
+            if existing_idx is not None:
+                table.remove(existing_idx)  # you need a small helper; or update amplitude to 0
+            self._hopping_param_terms[key] = payload  # callable or str
+            return
+
+        # Numeric/matrix path
+        hop_use = payload  # already canonicalized by _val_to_block
+
+        # If a provider existed at this key, numeric input overrides it
+        if key in self._hopping_param_terms:
+            logger.warning(f"Overriding existing param-dependent hopping at {key} with a numeric block.")
+            self._hopping_param_terms.pop(key, None)
+
         if mode == "set":
             if existing_idx is not None:
                 table.update(existing_idx, amplitude=hop_use, R=R_vec)
@@ -1055,7 +982,7 @@ class TBModel:
                 table.append(hop_use, ind_i, ind_j, R_vec)
         elif mode == "add":
             if existing_idx is not None:
-                table.accumulate(existing_idx, hop_use)
+                table.add(existing_idx, hop_use)
             else:
                 table.append(hop_use, ind_i, ind_j, R_vec)
         else:
@@ -1111,452 +1038,106 @@ class TBModel:
                 "For spinful models, value should be a scalar, length-4 iterable, or 2x2 array."
             )
         return block
-    
 
-    def velocity(
-            self, 
-            k_pts: np.ndarray, 
-            cartesian: bool = False,
-            flatten_spin_axis: bool = False
-            ) -> np.ndarray:
-        r"""Generate the velocity operator in the orbital basis.
-
-        The velocity operator is defined via the derivative of the Hamiltonian
-        with respect to k of each reciprocal lattice direction, i.e., 
-
-        .. math::
-            v_k^{\mu} = \hbar \frac{\partial H(k)}{\partial k_{\mu}}
+    def _set_param_vals(self, params):
+        param_labels = [lab for lab in self._onsite_param_terms.values()]
+        param_labels.extend(lab for lab in self._hopping_param_terms.values())
+        required = set(param_labels)
+        missing = required - params.keys()
+        if missing:
+            raise ValueError(f"Missing parameters: {missing}")
         
-        Here, we use units where :math:`\hbar = 1`.
+
+
+    ###### Lattice manipulation #########
+    
+    def add_orb(self, orb_pos):
+        """Adds a new orbital to the model with the specified coordinates.
+        
+        The orbital coordinate must be given in reduced
+        coordinates, i.e. in units of the real-space lattice vectors
+        of the model. The new orbital is added at the end of the list
+        of orbitals, and the orbital index is set to the next available
+        index.
 
         .. versionadded:: 2.0.0
 
         Parameters
         ----------
-        k_pts : array of shape (Nk, dim_k)
-            Array of k-points in reduced coordinates.
-        cartesian : bool, optional
-            If True, use Cartesian coordinates for the velocity operator.
-            If False (default), use reduced coordinates.
-        flatten_spin_axis : bool, optional
-            If True, the spin indices are flattened into the orbital indices.
-            This results in a velocity operator at each k-point of shape ``(norb*nspin, norb*nspin)``.
-            If False (default), the velocity operator has shape ``(norb, nspin, norb, nspin)``.
-
-        Returns
-        -------
-        vel : np.ndarray
-            Velocity operators at each k-point. First axis indexes the cartesian direction if ``cartesian=True``.
-            Otherwise, it indexes the reduced direction. Shape is `(dim_k, Nk, norb, norb)` for spinless models,
-            or `(dim_k, Nk, norb, nspin, norb, nspin)` for spinful models.
-
+        orb_pos : array_like, float
+            The reduced coordinates of the new orbital of length `dim_r`. If
+            ``orb_pos`` is a single float or int, it will be converted to a 1D array
+            (`dim_r` must be 1).
         """
-        dim_k = self.dim_k
 
-        k_arr = self._normalize_kpoints(k_pts)
+        # Append orbital position
+        self._lattice.add_orb(orb_pos)
 
-        norb = self.norb
-        per = np.asarray(self.per)
-        orb_red = np.asarray(self.orb_vecs)
-
-        table = self._hoppings
-        amps, i_indices, j_indices, R_vecs = table.components()
-        n_hops = i_indices.size
-
-        i_indices = i_indices.astype(int)
-        j_indices = j_indices.astype(int)
-        R_vecs = R_vecs.astype(float)
-
-        orb_i = orb_red[i_indices]
-        orb_j = orb_red[j_indices]
-
-        delta_r = R_vecs - orb_i + orb_j
-        delta_r_per = delta_r[:, per]
-
-        if n_hops:
-            k_dot_r = k_arr @ delta_r_per.T
-            phases = np.exp(1j * 2 * np.pi * k_dot_r)
-        else:
-            phases = np.zeros((k_arr.shape[0], 0), dtype=complex)
-        if cartesian:
-            lattice = self.get_lat_vecs()[self.per, :]
-            coeff = (1j * delta_r_per @ lattice).T[:, None, :]
-        else:
-            coeff = (1j * 2 * np.pi * delta_r_per).T[:, None, :]
-
-        deriv_phase = coeff * phases[None, ...] if n_hops else coeff[:, :, :0]
-
+        # Append default site energy and specified flag
         if not self.spinful:
-            amps_use = np.asarray(amps, dtype=complex)
-            vel = np.zeros((dim_k, k_arr.shape[0], norb, norb), dtype=complex)
-            if n_hops:
-                cache = self._get_flattened_indices()
-                order = cache["order"]
-                starts = cache["starts"]
-                uniq = cache["uniq"]
-                cols_transposed = cache["cols_transposed"]
+            self._site_energies = np.append(self._site_energies, 0.0)
+        else:
+            new_block = np.zeros((1, 2, 2), dtype=complex)
+            self._site_energies = np.vstack([self._site_energies, new_block])
+        self._site_energies_specified = np.append(self._site_energies_specified, False)
+        # No hoppings are added by default
 
-                vel_flat = vel.reshape(dim_k, k_arr.shape[0], -1)
-                contrib_sorted = deriv_phase[:, :, order] * amps_use[order]
-                sums = np.add.reduceat(contrib_sorted, starts, axis=2)
-                vel_flat[..., uniq] += sums
-                vel_flat[..., cols_transposed] += sums.conj()
-            return vel
-        
-        nspin = self.nspin
-        vel = np.zeros((dim_k, k_arr.shape[0], norb, nspin, norb, nspin), dtype=complex)
-        if n_hops:
-            weighted = deriv_phase[..., None, None] * amps[None, None, :, :, :]
-            for s_out in range(nspin):
-                for s_in in range(nspin):
-                    contrib = weighted[..., s_out, s_in]
-                    np.add.at(
-                        vel,
-                        (slice(None), slice(None), i_indices, s_out, j_indices, s_in),
-                        contrib,
-                    )
-                    np.add.at(
-                        vel,
-                        (slice(None), slice(None), j_indices, s_in, i_indices, s_out),
-                        contrib.conj(),
-                    )
-        
-        if flatten_spin_axis:
-            vel = vel.reshape(dim_k, k_arr.shape[0], norb * nspin, norb * nspin)
-        return vel
-    
-    def hamiltonian(
-            self, 
-            k_pts: np.ndarray = None, 
-            flatten_spin_axis: bool = False
-            ) -> np.ndarray:
-        r"""Generate the Bloch Hamiltonian for an array of k-points in reduced coordinates.
-
-        The Hamiltonian is computed in tight-binding convention I, which includes phase factors
-        associated with orbital positions in the hopping terms:
-
-        .. math::
-
-            H_{ij}(k) = \sum_{\mathbf{R}} t_{ij}(\mathbf{R}) \exp[i \mathbf{k} \cdot (\mathbf{r}_i - \mathbf{r}_j + \mathbf{R})]
-
-        where :math:`t_{ij}(R)` is the hopping amplitude from orbital j to i through lattice vector :math:`\mathbf{R}`.
-
-        .. versionadded:: 2.0.0
+    def remove_orb(self, to_remove):
+        r"""Removes specified orbitals from the model.
 
         Parameters
         ----------
-        k_pts : (Nk, dim_k) array, optional
-            Array of k-points in reduced coordinates.
-            If `None`, the Hamiltonian is computed at a single point (`dim_k = 0`),
-            corresponding to a finite sample.
-        flatten_spin_axis : bool, optional
-            If True, the spin indices are flattened into the orbital indices.
-            This results in a Hamiltonian at each k-point of shape ``(norb*nspin, norb*nspin)``.
-            If False (default), the Hamiltonian has shape ``(norb, nspin, norb, nspin)``.
-
-        Returns
-        -------
-        ham : np.ndarray 
-            Array of Bloch-Hamiltonian matrices defined on the specified k-points. The Hamiltonian is Hermitian by construction.
-
-            - If ``dim_k > 0``: shape is ``(n_kpts, norb, norb)`` for spinless models, or ``(n_kpts, norb, nspin, norb, nspin)`` 
-              for spinful models, unless ``flatten_spin_axis=True``, in which case the shape 
-              is ``(n_kpts, norb*nspin, norb*nspin)``.
-
-            - If ``dim_k=0``: shape is ``(norb, norb)`` for spinless or ``(norb, nspin, norb, nspin)`` for spinful models,
-              unless ``flatten_spin_axis=True``, in which case the shape is ``(norb*nspin, norb*nspin)``.
+        to_remove : array-like or int
+            List of orbital indices to be removed, or index of single orbital to be removed
 
         Notes
         -----
-        In convention I, the Hamiltonian satisfies:
-
-        .. math::
-
-            H(k) \neq H(k + G), \quad \text{but instead} \quad H(k) = U H(k + G) U^{\dagger}
-
-        where :math:`G` is a reciprocal lattice vector and :math:`U` is a unitary transformation
-        relating the two.
-
-        Finite difference estimates of :math:`\partial_{k_\mu} H(k)` may not be accurate at
-        boundaries due to the gauge discontinuity inherent in convention I.        
-
-        """
-        site_energies = np.asarray(self._site_energies)
-        hop_amps, i_idx, j_idx, R_vecs = self._hoppings.components()
-
-        if self.dim_k == 0:
-            if k_pts is not None:
-                raise ValueError("k_pts should not be specified for finite (dim_k=0) models.")
-            return self._hamiltonian_finite(
-                hop_amps,
-                i_idx,
-                j_idx,
-                site_energies,
-                flatten_spin=flatten_spin_axis,
-            )
-
-        k_arr = self._normalize_kpoints(k_pts)
-        return self._hamiltonian_periodic(
-            k_arr,
-            hop_amps,
-            i_idx,
-            j_idx,
-            R_vecs,
-            site_energies,
-            flatten_spin=flatten_spin_axis,
-        )
-
-    def _sol_ham(
-        self, ham, return_eigvecs=False, flatten_spin_axis=False, tf_speedup=False, use_32_bit=False,
-        memory_info=False):
-        """Solves Hamiltonian and returns eigenvectors, eigenvalues"""
-        # NOTE: this function is separate so that it can be jit-compiled if needed
-
-        # shape(ham): (Nk, n_orb, n_orb), (Nk, n_orb, n_spin, n_orb, n_spin)
-        # or in finite cases (n_orb, n_orb), (n_orb, n_spin, n_orb, n_spin)
-        # flatten spin axes
-        if ham.ndim == 2 * self.nspin + 1:
-            # have k points
-            new_shape = (ham.shape[0],) + (self.nstate, self.nstate)
-            if self.nspin == 1:
-                shape_evecs = (ham.shape[0],) + (self.norb, self.norb)
-            elif self.nspin == 2:
-                shape_evecs = (ham.shape[0],) + (
-                    self.nstate,
-                    self.norb,
-                    self.nspin,
-                )
-        elif ham.ndim == 2 * self.nspin:
-            # must be a finite sample, no k-points
-            new_shape = (self.nstate, self.nstate)
-            if self.nspin == 1:
-                shape_evecs = (self.norb, self.norb)
-            elif self.nspin == 2:
-                shape_evecs = (self.nstate, self.norb, self.nspin)
-        else:
-            raise ValueError("Hamiltonian has wrong shape.")
-
-        ham_use = ham.reshape(*new_shape)
-
-        if not np.allclose(ham_use, ham_use.swapaxes(-1, -2).conj()):
-            raise ValueError("Hamiltonian matrix is not Hermitian.")
-        
-        if tf_speedup:
-            result = _tensorflow_solve(
-                ham_use, return_eigvecs=return_eigvecs, use_32_bit=use_32_bit
-                )
-            if return_eigvecs:
-                # return later
-                eval, evec = result
-            else:
-                return result
-            
-        else:
-            if use_32_bit:
-                ham_use = ham_use.astype(np.complex64)
-            else:
-                ham_use = ham_use.astype(np.complex128)
-            if return_eigvecs:
-                # return later
-                eval, evec = np.linalg.eigh(ham_use)
-            else:
-                return np.linalg.eigvalsh(ham_use)
-            
-        if return_eigvecs:
-            # transpose matrix eig since otherwise it is confusing
-            # now eig[i,:] is eigenvector for eval[i]-th eigenvalue
-            evec = evec.swapaxes(-1, -2)
-            if not flatten_spin_axis and self.nspin == 2:
-                evec = evec.reshape(*shape_evecs)
-            return eval, evec
-
-    def solve_ham(
-            self, 
-            k_pts = None, 
-            return_eigvecs: bool = False, 
-            flatten_spin_axis: bool = True,
-            tf_speedup: bool = False) -> tuple[np.ndarray, np.ndarray] | np.ndarray:
-        r"""Diagonalize the Hamiltonian 
-        
-        Solve for eigenvalues and optionally eigenvectors of the tight-binding model
-        at a list of one-dimensional k-vectors.
-
-        .. versionadded:: 2.0.0
-            Merged :func:`solve_all` and :func:`solve_one` into :func:`solve_ham`.
-            This function will equivalently handle both a single k-point and
-            multiple k-points. 
-
-        Parameters
-        ----------
-        k_pts : array_like, optional
-            One-dimensional list or array of k-vectors, each given in reduced coordinates.
-            Shape should be ``(Nk, dim_k)``, where ``dim_k`` is the number of periodic directions.
-            Should not be specified for systems with zero-dimensional reciprocal space.
-
-            .. versionchanged:: 2.0.0
-                Renamed from ``k_list``.
-
-        return_eigvecs : bool, optional
-            If True, both eigenvalues and eigenvectors are returned.
-            If False (default), only eigenvalues are returned.
-
-            .. versionchanged:: 2.0.0
-                Renamed from ``eig_vectors``.
-
-        flatten_spin_axis : bool, optional
-            If True (default), the spin axes are flattened into the orbital axes.
-            If False, the spin axes are kept separate. This affects the
-            shape of the returned eigenvectors for spinful models.
-
-            .. versionadded:: 2.0.0
-
-        tf_speedup : bool, optional
-            If True, use TensorFlow to accelerate the diagonalization.
-            This requires TensorFlow to be installed. Default is False.
-
-            .. versionadded:: 2.0.0
-
-        Returns
-        -------
-        eval : np.ndarray 
-            Array of eigenvalues. Shape is:
-
-            - ``(Nk, nstates)`` for periodic systems
-            - ``(nstates,)`` for zero-dimensional (molecular) systems
-
-        evec : np.ndarray, optional
-            Array of eigenvectors (if ``return_eigvecs=True``). The ordering of bands matches that in ``eval``.
-
-            For spinless models the shape is:
-
-            - ``(Nk, nstates, norb)``: periodic systems
-            - ``(nstates, norb)``: zero-dimensional systems
-            - ``(nstates, norb)``: If only one k-point is provided, the redundant k-axis is removed.
-
-            For spinful models the shape is (``nstates = norb * 2``):
-
-            - ``(..., nstates, norb, 2)``: If ``flatten_spin_axis=False``, an additional spin axis of size 2 is appended at the end.
-            - ``(..., nstates, nstates)``: If ``flatten_spin_axis=True``, the spin axes are flattened into the orbital axes.
-            
-        Notes
-        -----
-        This function uses the convention described in section 3.1 of the
-        :download:`pythtb notes on tight-binding formalism </misc/pythtb-formalism.pdf>`.
-        The returned wavefunctions correspond to the cell-periodic part
-        :math:`u_{n \mathbf{k}}(\mathbf{r})` and not the full Bloch function
-        :math:`\Psi_{n \mathbf{k}}(\mathbf{r})`.
-
-        In many cases, using the :class:`pythtb.wf_array.WFArray` class offers a more
-        elegant interface for handling eigenstates on a regular k-mesh.
-
+        Removing orbitals will reindex the orbitals with indices higher
+        than those that are removed. For example, if model has 6 orbitals
+        and you remove the 2nd orbital, then the orbitals 3-6 will be
+        reindexed to 2-5 (Python counting). Indices of first two orbitals (0 and 1) 
+        are unaffected.
+         
         Examples
         --------
-        Solve for eigenvalues at several k-points:
+        If original_model has say 10 orbitals then returned small_model will 
+        have only 8 orbitals.
 
-        >>> eval = tb.solve_ham([[0.0, 0.0], [0.0, 0.2], [0.0, 0.5]])
+        >>> small_model = original_model.remove_orb([2,5])
 
-        Solve for eigenvalues and eigenvectors:
-
-        >>> eval, evec = tb.solve_ham([[0.0, 0.0], [0.0, 0.2]], return_eigvecs=True)
         """
-        logger.debug("Initializing Hamiltonian...")
-        Ham = self.hamiltonian(k_pts)
-
-        logger.debug("Diagonalizing Hamiltonian...")
-        if return_eigvecs:
-            eigvals, eigvecs = self._sol_ham(
-                Ham, return_eigvecs=return_eigvecs, flatten_spin_axis=flatten_spin_axis, tf_speedup=tf_speedup
-            )
-            if self.dim_k != 0:
-                if eigvals.ndim != 2:
-                    raise ValueError("Wrong shape of eigvals")
-                # if only one k_point, remove that redundant axis (reproduces solve_one)
-                if eigvals.shape[0] == 1:
-                    eigvals = eigvals[0]
-                    eigvecs = eigvecs[0]
-
-            return eigvals, eigvecs
+        if isinstance(to_remove, int):
+            indices = [to_remove]
+        elif isinstance(to_remove, (list, np.ndarray)):
+            indices = list(to_remove)
         else:
-            eigvals = self._sol_ham(Ham, return_eigvecs=return_eigvecs)
+            raise TypeError("to_remove must be an integer or a list of integers.")
 
-            if self.dim_k != 0:
-                if eigvals.ndim != 2:
-                    raise ValueError("Wrong shape of eigvals")
-                # if only one k_point, remove that redundant axis (reproduces solve_one)
-                if eigvals.shape[0] == 1:
-                    eigvals = eigvals[0]
-            return eigvals
+        for index in indices:
+            if not isinstance(index, int):
+                raise TypeError("All indices in to_remove must be integers.")
+            if index < 0 or index >= self.norb:
+                raise ValueError("Index out of bounds.")
+            
+        # check that all indices are unique
+        if len(indices) != len(set(indices)):
+            raise ValueError("All indices in to_remove must be unique.")
 
-    @deprecated("use .solve_ham() instead (since v2.0).", category=FutureWarning)
-    def solve_one(self, k_list=None, eig_vectors=False):
-        """
-        .. deprecated:: 2.0.0
-            Use .solve_ham() instead.
-        """
-        return self.solve_ham(
-            k_list=k_list, return_eigvecs=eig_vectors, flatten_spin_axis=False
-        )
+        # put the orbitals to be removed in descending order
+        orb_index = sorted(indices, reverse=True)
 
-    @deprecated("use .solve_ham() instead (since v2.0).", category=FutureWarning)
-    def solve_all(self, k_list=None, eig_vectors=False):
-        """
-        .. deprecated:: 2.0.0
-            Use .solve_ham() instead.
-        """
-        return self.solve_ham(
-            k_list=k_list, return_eigvecs=eig_vectors, flatten_spin_axis=False
-        )
-    
-    def compute_bands(self, k_nodes, nk=10):
-        r"""Compute band structure along a specified k-point path.
+        self._lattice.remove_orb(orb_index)
 
-        The band structure is computed by diagonalizing the Hamiltonian at
-        a series of k-points along the specified path in reciprocal space.
+        # remove indices one by one
+        for _, orb_ind in enumerate(orb_index):
+            self._site_energies = np.delete(self._site_energies, orb_ind, 0)
+            self._site_energies_specified = np.delete(
+                self._site_energies_specified, orb_ind
+            )
 
-        .. versionadded:: 2.0.0
+        self._hoptable.remove_orbitals(orb_index)
 
-        Parameters
-        ----------
-        k_nodes : list of array_like
-            List of k-points defining the path in reduced coordinates.
-            Each k-point should be an array-like of length `dim_k`.
-            The path is constructed by linearly interpolating between
-            consecutive k-points in the list.
-
-        n_kperseg : int, optional
-            Number of k-points to interpolate between each pair of consecutive
-            k-points in `k_path`. Default is 10.
-
-        flatten_spin : bool, optional
-            If True, the spin indices are flattened into the orbital indices.
-            This results in a Hamiltonian at each k-point of shape ``(norb*nspin, norb*nspin)``.
-            If False (default), the Hamiltonian has shape ``(norb, nspin, norb, nspin)``.
-
-        Returns
-        -------
-        k_vecs : np.ndarray of shape (N, dim_k)
-            Array of interpolated k-points along the path.
-
-        evals : np.ndarray of shape (N, nbnd)
-            Array of eigenvalues at each k-point along the path.
-
-        Notes
-        -----
-        This function uses linear interpolation to generate intermediate k-points
-        between those specified in `k_nodes`. The total number of k-points returned
-        is ``nk``.
-
-        Examples
-        --------
-        Compute band structure along a path from Gamma to X to M in a 2D square lattice:
-
-        >>> k_nodes = [[0.0, 0.0], [0.5, 0.0], [0.5, 0.5]]
-        >>> k_vecs, evals = tb.compute_bands(k_nodes, n_kperseg=20)
-        """
-        k_vec, _, _ = self.k_path(k_nodes, nk, report=False)
-        return k_vec, self.solve_ham(k_vec, return_eigvecs=False)
-
-    #TODO: Decide whether to return fin_model or modify in place
+    # TODO: Decide whether to return fin_model or modify in place
     def cut_piece(self, num_cells, periodic_dir, glue_edges=False) -> "TBModel":
         r"""Cut a (d-1)-dimensional piece out of a d-dimensional tight-binding model.
         
@@ -1650,7 +1231,7 @@ class TBModel:
         )
         fin_model._from_w90 = self._from_w90
 
-        amps, from_idx, to_idx, R_vecs = self._hoppings.components()
+        amps, from_idx, to_idx, R_vecs = self._hoptable.components()
         for c in range(num_cells):
             for amp, ind_i, ind_j, ind_R in zip(amps, from_idx, to_idx, R_vecs, strict=True):
                 hop_amp = amp.copy() if self._nspin == 2 else complex(amp)
@@ -1944,7 +1525,7 @@ class TBModel:
         red_transform = geom["red_transform"]
         eps = 1e-8
 
-        amps, ind_is, ind_js, R_vecs = self._hoppings.components()
+        amps, ind_is, ind_js, R_vecs = self._hoptable.components()
 
         for offset, cur_sc_vec in enumerate(sc_vec):
             base = offset * self.norb
@@ -2013,93 +1594,7 @@ class TBModel:
                     )
 
             if self.dim_k != 0 and np.any(disp_vec):
-                self._hoppings.shift_orbital(i, disp_vec)
-
-    def add_orb(self, orb_pos):
-        """Adds a new orbital to the model with the specified coordinates.
-        
-        The orbital coordinate must be given in reduced
-        coordinates, i.e. in units of the real-space lattice vectors
-        of the model. The new orbital is added at the end of the list
-        of orbitals, and the orbital index is set to the next available
-        index.
-
-        .. versionadded:: 2.0.0
-
-        Parameters
-        ----------
-        orb_pos : array_like, float
-            The reduced coordinates of the new orbital of length `dim_r`. If
-            ``orb_pos`` is a single float or int, it will be converted to a 1D array
-            (`dim_r` must be 1).
-        """
-
-        # Append orbital position
-        self._lattice.add_orb(orb_pos)
-
-        # Append default site energy and specified flag
-        if not self.spinful:
-            self._site_energies = np.append(self._site_energies, 0.0)
-        else:
-            new_block = np.zeros((1, 2, 2), dtype=complex)
-            self._site_energies = np.vstack([self._site_energies, new_block])
-        self._site_energies_specified = np.append(self._site_energies_specified, False)
-        # No hoppings are added by default
-
-    def remove_orb(self, to_remove):
-        r"""Removes specified orbitals from the model.
-
-        Parameters
-        ----------
-        to_remove : array-like or int
-            List of orbital indices to be removed, or index of single orbital to be removed
-
-        Notes
-        -----
-        Removing orbitals will reindex the orbitals with indices higher
-        than those that are removed. For example, if model has 6 orbitals
-        and you remove the 2nd orbital, then the orbitals 3-6 will be
-        reindexed to 2-5 (Python counting). Indices of first two orbitals (0 and 1) 
-        are unaffected.
-         
-        Examples
-        --------
-        If original_model has say 10 orbitals then returned small_model will 
-        have only 8 orbitals.
-
-        >>> small_model = original_model.remove_orb([2,5])
-
-        """
-        if isinstance(to_remove, int):
-            indices = [to_remove]
-        elif isinstance(to_remove, (list, np.ndarray)):
-            indices = list(to_remove)
-        else:
-            raise TypeError("to_remove must be an integer or a list of integers.")
-
-        for index in indices:
-            if not isinstance(index, int):
-                raise TypeError("All indices in to_remove must be integers.")
-            if index < 0 or index >= self.norb:
-                raise ValueError("Index out of bounds.")
-            
-        # check that all indices are unique
-        if len(indices) != len(set(indices)):
-            raise ValueError("All indices in to_remove must be unique.")
-
-        # put the orbitals to be removed in descending order
-        orb_index = sorted(indices, reverse=True)
-
-        self._lattice.remove_orb(orb_index)
-
-        # remove indices one by one
-        for _, orb_ind in enumerate(orb_index):
-            self._site_energies = np.delete(self._site_energies, orb_ind, 0)
-            self._site_energies_specified = np.delete(
-                self._site_energies_specified, orb_ind
-            )
-
-        self._hoppings.remove_orbitals(orb_index)
+                self._hoptable.shift_orbital(i, disp_vec)
 
     @copydoc(Lattice.k_uniform_mesh)
     def k_uniform_mesh(self, mesh_size):
@@ -2108,320 +1603,839 @@ class TBModel:
     @copydoc(Lattice.k_path)
     def k_path(self, kpts, nk:int, report:bool=True):
         return self._lattice.k_path(kpts, nk, report)   
+    
+    ############### Observables ####################
+    
+    def _normalize_kpoints(self, k_pts, *, allow_none_for_finite: bool = False) -> np.ndarray | None:
+        """Validate and reshape user-provided k-points."""
+        dim_k = self.dim_k
+        if dim_k == 0:
+            if k_pts is None:
+                return None
+            if allow_none_for_finite:
+                return None
+            raise ValueError("k_pts should not be specified for finite (dim_k=0) models.")
 
-    def position_matrix(self, evecs: np.ndarray, dir: int):
-        r"""Position operator matrix elements
+        if k_pts is None:
+            raise ValueError("Must supply k_pts for periodic systems (dim_k > 0).")
 
-        Returns matrix elements of the position operator along
-        direction `dir` for eigenvectors `evecs` at a single k-point.
-        Position operator is defined in reduced coordinates.
+        k_arr = np.asarray(k_pts, dtype=float)
+        if k_arr.ndim == 1:
+            if k_arr.shape[0] != dim_k:
+                raise ValueError(f"k_pts must have shape ({dim_k},) for a single point.")
+            k_arr = k_arr.reshape(1, dim_k)
+        if k_arr.ndim != 2 or k_arr.shape[1] != dim_k:
+            raise ValueError(f"k_pts must have shape (Nk, {dim_k}).")
+        return k_arr
+    
+    def _periodic_H(self, H_flat, k_vals):
+        r"""
+        Transform Hamiltonian to periodic gauge so that :math:`H(\mathbf{k}+\mathbf{G}) = H(\mathbf{k})`.
 
-        The returned object :math:`X` is
+        If ``nspin = 2``, ``H_flat`` should only be flat along `k` and _NOT_ spin.
+
+        Parameters
+        ----------
+        H_flat : np.ndarray
+            Hamiltonian flattened along the k-direction, shape (Nk, nstate, nstate[, nspin]).
+        k_vals : np.ndarray
+            Array of k-point values, shape (Nk, dim_k).
+
+        Returns
+        -------
+        np.ndarray
+            Hamiltonian in periodic gauge, shape (Nk, nstate, nstate[, nspin]).
+
+        Notes
+        -----
+        The transformation applies phase factors to ensure periodicity in reciprocal space.
+        """
+        if k_vals.ndim != 2:
+            raise ValueError(f"Invalid k_vals shape: {k_vals.shape}. Expected (Nk, dim_k).")
+        if k_vals.shape[1] != self.dim_k:
+            raise ValueError(f"Invalid k_vals shape: {k_vals.shape}. Expected (Nk, {self.dim_k}).")
+        
+        if self.dim_k == 0:
+            logger.warning(
+                "No periodic directions in k-space. Returning H_flat unchanged."
+            )
+            return H_flat
+        
+        
+        orb_vecs = self._orb_vecs  # reduced units
+        orb_vec_diff = orb_vecs[:, None, :] - orb_vecs[None, :, :]
+        orb_vec_diff = orb_vec_diff[..., self.per]
+        orb_phase = np.exp(
+            1j * 2 * np.pi * np.matmul(orb_vec_diff, k_vals.T)
+        ).transpose(2, 0, 1)
+        H_per_flat = H_flat * orb_phase
+        return H_per_flat
+
+    def _hamiltonian_finite(self, hop_amps, i_idx, j_idx, site_energies, *, flatten_spin: bool):
+        norb = self.norb
+
+        if not self.spinful:
+            hop_amps = hop_amps.astype(complex)
+            ham = np.zeros((norb, norb), dtype=complex)
+            if hop_amps.size:
+                np.add.at(ham, (i_idx, j_idx), hop_amps)
+                np.add.at(ham, (j_idx, i_idx), hop_amps.conj())
+            np.fill_diagonal(ham, site_energies)
+            return ham
+
+        # spinful
+        nspin = self.nspin
+        hop_amps = np.asarray(hop_amps, dtype=complex)
+        ham = np.zeros((norb, nspin, norb, nspin), dtype=complex)
+        if hop_amps.size:
+            for hop_idx in range(hop_amps.shape[0]):
+                block = hop_amps[hop_idx]
+                ham[i_idx[hop_idx], :, j_idx[hop_idx], :] += block
+                ham[j_idx[hop_idx], :, i_idx[hop_idx], :] += block.conj().T
+        for orb in range(norb):
+            ham[orb, :, orb, :] += site_energies[orb]
+        if flatten_spin:
+            ham = ham.reshape(norb * nspin, norb * nspin)
+        return ham
+
+    def _hamiltonian_periodic(
+        self,
+        k_vecs: np.ndarray,
+        hop_amps,
+        i_idx,
+        j_idx,
+        R_vecs,
+        site_energies,
+        *,
+        flatten_spin: bool,
+    ):
+        norb = self.norb
+        per = np.asarray(self.per)
+        orb_red = np.asarray(self.orb_vecs)
+
+        n_kpts = k_vecs.shape[0]
+        n_hops = hop_amps.shape[0]
+
+        i_idx = i_idx.astype(int)
+        j_idx = j_idx.astype(int)
+        R_vecs = R_vecs.astype(float)
+
+        orb_i = orb_red[i_idx]
+        orb_j = orb_red[j_idx]
+        delta_r = R_vecs - orb_i + orb_j
+        delta_r_per = delta_r[:, per]
+
+        if n_hops:
+            k_dot_r = k_vecs @ delta_r_per.T
+            phases = np.exp(1j * 2 * np.pi * k_dot_r)
+        else:
+            phases = None
+
+        if not self.spinful:
+            hop_amps = hop_amps.astype(complex)
+            ham = np.zeros((n_kpts, norb, norb), dtype=complex)
+            if n_hops:
+                cache = self._get_flattened_indices()
+                order = cache["order"]
+                starts = cache["starts"]
+                uniq = cache["uniq"]
+                cols_transposed = cache["cols_transposed"]
+
+                ham_flat = ham.reshape(n_kpts, -1)
+                contrib = phases[:, order] * hop_amps[order]
+                sums = np.add.reduceat(contrib, starts, axis=1)
+                ham_flat[:, uniq] += sums
+                ham_flat[:, cols_transposed] += sums.conj()
+
+            diag = np.arange(norb)
+            ham[:, diag, diag] += site_energies
+            return ham
+
+        # spinful
+        nspin = self.nspin
+        hop_amps = np.asarray(hop_amps, dtype=complex)
+        ham = np.zeros((n_kpts, norb, nspin, norb, nspin), dtype=complex)
+        if n_hops:
+            weighted = phases[..., None, None] * hop_amps[None, :, :, :]
+            for s_out in range(nspin):
+                for s_in in range(nspin):
+                    contrib = weighted[..., s_out, s_in]
+                    np.add.at(
+                        ham[:, :, s_out, :, s_in],
+                        (slice(None), i_idx, j_idx),
+                        contrib,
+                    )
+                    np.add.at(
+                        ham[:, :, s_in, :, s_out],
+                        (slice(None), j_idx, i_idx),
+                        contrib.conj(),
+                    )
+        for orb in range(norb):
+            ham[:, orb, :, orb, :] += site_energies[orb]
+        if flatten_spin:
+            ham = ham.reshape(n_kpts, norb * nspin, norb * nspin)
+        return ham
+    
+    def _hamiltonian(
+            self, 
+            k_pts: np.ndarray = None, 
+            flatten_spin_axis: bool = False,
+            site_override=None,
+            hop_override=None
+            ) -> np.ndarray:
+        r"""Generate the Bloch Hamiltonian for an array of k-points in reduced coordinates.
+
+        The Hamiltonian is computed in tight-binding convention I, which includes phase factors
+        associated with orbital positions in the hopping terms:
 
         .. math::
 
-          X_{m n {\bf k}}^{\alpha} = \langle u_{m {\bf k}} \vert
-          r^{\alpha} \vert u_{n {\bf k}} \rangle
+            H_{ij}(k) = \sum_{\mathbf{R}} t_{ij}(\mathbf{R}) \exp[i \mathbf{k} \cdot (\mathbf{r}_i - \mathbf{r}_j + \mathbf{R})]
 
-        Here :math:`r^{\alpha}` is the position operator along direction
-        :math:`\alpha` that is selected by `dir`.
+        where :math:`t_{ij}(R)` is the hopping amplitude from orbital j to i through lattice vector :math:`\mathbf{R}`.
+
+        .. versionadded:: 2.0.0
 
         Parameters
         ----------
-        evecs : np.ndarray
-            Eigenvectors for which we are computing matrix
-            elements of the position operator.  The shape of this array
-            is ``evecs[band, orbital]`` if ``spinful=False`` and
-            ``evecs[band, orbital, spin]`` if ``spinful=True``.
-
-            .. versionchanged:: 2.0.0
-                Parameter ``evec`` renamed to ``evecs`` to clarify that multiple
-                eigenvectors can be passed at once.
-
-        dir : int
-            Direction along which we are computing the center.
-            This integer must not be one of the periodic directions
-            since position operator matrix element in that case is not
-            well defined.
+        k_pts : (Nk, dim_k) array, optional
+            Array of k-points in reduced coordinates.
+            If `None`, the Hamiltonian is computed at a single point (`dim_k = 0`),
+            corresponding to a finite sample.
+        flatten_spin_axis : bool, optional
+            If True, the spin indices are flattened into the orbital indices.
+            This results in a Hamiltonian at each k-point of shape ``(norb*nspin, norb*nspin)``.
+            If False (default), the Hamiltonian has shape ``(norb, nspin, norb, nspin)``.
 
         Returns
         -------
-        pos_mat : np.ndarray
-            Position operator matrix :math:`X_{m n}` as defined above. 
-            This is a square matrix with size determined by number of bands
-            given in `evec` input array.  First index of `pos_mat` corresponds to
-            bra vector (:math:`m`) and second index to ket (:math:`n`).
+        ham : np.ndarray 
+            Array of Bloch-Hamiltonian matrices defined on the specified k-points. The Hamiltonian is Hermitian by construction.
 
-        See Also
-        --------
-        :ref:`haldane-hwf-nb` : For an example.
+            - If ``dim_k > 0``: shape is ``(n_kpts, norb, norb)`` for spinless models, or ``(n_kpts, norb, nspin, norb, nspin)`` 
+              for spinful models, unless ``flatten_spin_axis=True``, in which case the shape 
+              is ``(n_kpts, norb*nspin, norb*nspin)``.
 
-        Examples
-        --------
-        Diagonalizes Hamiltonian at some k-points
+            - If ``dim_k=0``: shape is ``(norb, norb)`` for spinless or ``(norb, nspin, norb, nspin)`` for spinful models,
+              unless ``flatten_spin_axis=True``, in which case the shape is ``(norb*nspin, norb*nspin)``.
 
-        >>> (evals, evecs) = my_model.solve_ham(k_vec, return_eigvecs=True)
+        Notes
+        -----
+        In convention I, the Hamiltonian satisfies:
 
-        Computes position operator matrix elements for 3-rd kpoint
-        and bottom five bands along first coordinate
+        .. math::
 
-        >>> pos_mat = my_model.position_matrix(evecs[2, :5], 0)
+            H(k) \neq H(k + G), \quad \text{but instead} \quad H(k) = U H(k + G) U^{\dagger}
+
+        where :math:`G` is a reciprocal lattice vector and :math:`U` is a unitary transformation
+        relating the two.
+
+        Finite difference estimates of :math:`\partial_{k_\mu} H(k)` may not be accurate at
+        boundaries due to the gauge discontinuity inherent in convention I.        
 
         """
+        site_energies = (
+            np.asarray(site_override, dtype=complex)
+            if site_override is not None
+            else np.asarray(self._site_energies, dtype=complex)
+        )
+        hop_amps, i_idx, j_idx, R_vecs = self._hoptable.components()
+        hop_amps = (
+            np.asarray(hop_override, dtype=complex)
+            if hop_override is not None
+            else np.asarray(hop_amps, dtype=complex)
+        )
 
-        # make sure specified direction is not periodic!
-        if dir in self.per:
-            raise ValueError(
-                "Can not compute position matrix elements along periodic direction!"
+        if self.dim_k == 0:
+            if k_pts is not None:
+                raise ValueError("k_pts should not be specified for finite (dim_k=0) models.")
+            return self._hamiltonian_finite(
+                hop_amps,
+                i_idx,
+                j_idx,
+                site_energies,
+                flatten_spin=flatten_spin_axis,
             )
-        # make sure direction is not out of range
-        if dir < 0 or dir >= self.dim_r:
-            raise ValueError("Direction out of range!")
 
-        # check if model came from w90
-        if not self.assume_position_operator_diagonal:
-            _offdiag_approximation_warning_and_stop()
+        k_arr = self._normalize_kpoints(k_pts)
+        return self._hamiltonian_periodic(
+            k_arr,
+            hop_amps,
+            i_idx,
+            j_idx,
+            R_vecs,
+            site_energies,
+            flatten_spin=flatten_spin_axis,
+        )
 
-        # check shape of evec
-        if not isinstance(evecs, np.ndarray):
-            raise TypeError("evec must be a numpy array.")
-        # check number of dimensions of evec
-        if not self.spinful:
-            if evecs.ndim != 2:
-                raise ValueError(
-                    "evec must be a 2D array with shape (band, orbital) for spinless models."
-                )
-        elif self.spinful:
-            if evecs.ndim != 3:
-                raise ValueError(
-                    "evec must be a 3D array with shape (band, orbital, spin) for spinful models."
-                )
-
-        # get coordinates of orbitals along the specified direction
-        pos_tmp = self.orb_vecs[:, dir]
-        # reshape arrays in the case of spinful calculation
-        if self.spinful:
-            # tile along spin direction if needed
-            pos_use = np.tile(pos_tmp, (2, 1)).transpose().flatten()
-            evec_use = evecs.reshape(evecs.shape[0], -1) # flatten spin index
-        else:
-            pos_use = pos_tmp
-            evec_use = evecs
-
-        # <u_i | r | u_j> = sum_orb r_orb u_i*(orb) u_j(orb)
-        pos_mat = np.einsum("im,m,jm->ij", evec_use.conj(), pos_use, evec_use)
-
-        # make sure matrix is Hermitian
-        if not np.allclose(pos_mat, pos_mat.T.conj()):
-            raise ValueError("Position matrix is not Hermitian.")
-
-        return pos_mat
-
-    def position_expectation(self, evecs: np.ndarray, dir: int):
-        r"""Returns diagonal matrix elements of the position operator.
-        
-        These elements :math:`X_{n n}` can be interpreted as an
-        average position of n-th Bloch state ``evec[n]`` along
-        direction `dir`. 
-
-        Parameters
-        ----------
-        evecs : np.ndarray
-            Eigenvectors for which we are computing matrix
-            elements of the position operator. The shape of this array
-            is ``evecs[band, orbital]`` if ``spinful=True`` and
-            ``evecs[band, orbital, spin]`` if ``spinful=False``.
-
-            .. versionchanged:: 2.0.0
-                Parameter ```evec`` renamed to ``evecs`` to clarify that multiple
-                eigenvectors can be passed at once.
-
-        dir : int
-            Direction along which we are computing matrix
-            elements. This integer must not be one of the periodic
-            directions since position operator matrix element in that
-            case is not well defined.
-
-        Returns
-        -------
-        pos_exp : np.ndarray
-            Diagonal elements of the position operator matrix :math:`X`.
-            Length of this vector is determined by number of bands given in *evec* input
-            array.
-        
-        See Also
-        --------
-        :ref:`haldane-hwf-nb` : For an example.
-        position_matrix : For definition of matrix :math:`X`.
-
-        Notes
-        -----
-        Generally speaking these centers are _not_
-        hybrid Wannier function centers (which are instead
-        returned by :func:`TBModel.position_hwf`).
-
-        Examples
-        --------
-        Diagonalizes Hamiltonian at some k-points
-          
-        >>> (evals, evecs) = my_model.solve_ham(k_vec, return_eigvecs=True)
-        
-        Computes average position for 3-rd kpoint
-        and bottom five bands along first coordinate
-        
-        >>> pos_exp = my_model.position_expectation(evecs[2, :5], 0)
-
-        """
-
-        # check if model came from w90
-        if not self.assume_position_operator_diagonal:
-            _offdiag_approximation_warning_and_stop()
-
-        pos_exp = self.position_matrix(evecs, dir).diagonal()
-        return np.array(np.real(pos_exp), dtype=float)
-
-    def position_hwf(
+    def hamiltonian(
             self, 
-            evecs: np.ndarray, 
-            dir: int, 
-            hwf_evec=False, 
-            basis="orbital"
+            k_pts=None, 
+            params: dict | None = None, 
+            flatten_spin_axis=False
             ):
-        r"""Eigenvalues and eigenvectors of the position operator
+        r"""Generate the Bloch Hamiltonian for an array of k-points in reduced coordinates.
 
-        Returns eigenvalues and optionally eigenvectors of the
-        position operator matrix :math:`X` in basis of the orbitals
-        or, optionally, of the input wave functions (typically Bloch
-        functions). The returned eigenvectors can be interpreted as
-        linear combinations of the input states ``evec`` that have
-        minimal extent (or spread :math:`\Omega` in the sense of
-        maximally localized Wannier functions) along direction
-        ``dir``. The eigenvalues are average positions of these
-        localized states.
+        The Hamiltonian is computed in tight-binding convention I, which includes phase factors
+        associated with orbital positions in the hopping terms:
+
+        .. math::
+
+            H_{ij}(k) = \sum_{\mathbf{R}} t_{ij}(\mathbf{R}) \exp[i \mathbf{k} \cdot (\mathbf{r}_i - \mathbf{r}_j + \mathbf{R})]
+
+        where :math:`t_{ij}(R)` is the hopping amplitude from orbital j to i through lattice vector :math:`\mathbf{R}`.
+
+        .. versionadded:: 2.0.0
 
         Parameters
         ----------
-        evecs : np.ndarray
-            Eigenvectors for which we are computing matrix
-            elements of the position operator. The shape of this array
-            is ``evecs[band, orbital]`` if ``spinful=True`` and
-            ``evecs[band, orbital, spin]`` if ``spinful=False``.
+        k_pts : (Nk, dim_k) array, optional
+            Array of k-points in reduced coordinates.
+            If `None`, the Hamiltonian is computed at a single point (`dim_k = 0`),
+            corresponding to a finite sample.
 
-            .. versionchanged:: 2.0.0
-                Parameter ``evec`` renamed to ``evecs`` to clarify that multiple
-                eigenvectors can be passed at once.
+        params : dict or None
+            Mapping from parameter name -> value(s). Each value can be a scalar
+            (int/float) or a 1D array of values. If any arrays are present,
+            the Hamiltonian is evaluated on the full Cartesian product and
+            stacked along leading parameter axes (in the order of keys).
 
-        dir : int
-            Direction along which we are computing matrix
-            elements. This integer must not be one of the periodic
-            directions since position operator matrix element in that
-            case is not well defined.
-        hwf_evec : bool, optional
-            Default is ``False``. If set to ``True`` this function will
-            return not only eigenvalues but also eigenvectors of :math:`X`. 
-        basis : {"orbital", "wavefunction", "bloch"}, optional
-            Default is "orbital". If ``basis="wavefunction"`` or ``basis="bloch"``, the hybrid
-            Wannier function `hwf` is returned in the basis of the input
-            wave functions. That is, the elements of ``hwf[i, j]`` give the amplitudes
-            of the i-th hybrid Wannier function on the j-th input state.
-            If ``basis="orbital"``, the elements of ``hwf[i, orb]`` (or ``hwf[i, orb, spin]``
-            if ``spinful=True``) give the amplitudes of the i-th hybrid Wannier function on
-            the specified basis function. 
+        flatten_spin_axis : bool, optional
+            If True, the spin indices are flattened into the orbital indices.
+            This results in a Hamiltonian at each k-point of shape ``(norb*nspin, norb*nspin)``.
+            If False (default), the Hamiltonian has shape ``(norb, nspin, norb, nspin)``.
 
         Returns
         -------
-        hwfc : np.ndarray
-            Eigenvalues of the position operator matrix :math:`X`
-            (also called hybrid Wannier function centers).
-            Length of this vector equals number of bands given in ``evecs``
-            input array. Hybrid Wannier function centers are ordered in ascending order.
-            Note that in general `n`-th hwfc does not correspond to `n`-th
-            state in ``evecs``.
-        hwf : np.ndarray
-            Eigenvectors of the position operator matrix :math:`X`.
-            (also called hybrid Wannier functions).  These are returned only if
-            parameter ``hwf_evec = True``.
+        ham : np.ndarray 
+            Array of Bloch-Hamiltonian matrices defined on the specified k-points. The Hamiltonian is Hermitian by construction.
 
-            The shape of this array is ``[h,x]`` or ``[h,x,s]`` depending on value of
-            ``basis`` and ``spinful``.
+            - If ``dim_k > 0``: shape is ``(n_kpts, norb, norb)`` for spinless models, or ``(n_kpts, norb, nspin, norb, nspin)`` 
+              for spinful models, unless ``flatten_spin_axis=True``, in which case the shape 
+              is ``(n_kpts, norb*nspin, norb*nspin)``.
 
-            - If ``basis`` is "bloch" then ``x`` refers to indices of
-              Bloch states.
-            - If ``basis`` is "orbital" then ``x`` (or ``x`` and ``s``)
-              correspond to orbital index (or orbital and spin index if ``spinful=True``).
+            - If ``dim_k=0``: shape is ``(norb, norb)`` for spinless or ``(norb, nspin, norb, nspin)`` for spinful models,
+              unless ``flatten_spin_axis=True``, in which case the shape is ``(norb*nspin, norb*nspin)``.
 
-        See Also
-        --------
-        :ref:`haldane-hwf-nb` : For an example.
-        position_matrix : For the definition of the matrix :math:`X`.
-        position_expectation : For the position expectation value.
+            For spinless:
+                shape == (*param_shape, Nk, norb, norb)
+            For spinful:
+                shape == (*param_shape, Nk, norb, 2, norb, 2)
 
         Notes
         -----
-        Note that these eigenvectors are not maximally localized
-        Wannier functions in the usual sense because they are
-        localized only along one direction. They are also not the
-        average positions of the Bloch states ``evecs``, which are
-        instead computed by :func:`position_expectation`.
+        In convention I, the Hamiltonian satisfies:
 
-        See Fig. 3 in [1]_ for a discussion of the hybrid Wannier function centers in the
-        context of a Chern insulator.
+        .. math::
 
-        References
-        ----------
-        .. [1]  S. Coh, D. Vanderbilt, Phys. Rev. Lett. 102, 107603 (2009).
+            H(k) \neq H(k + G), \quad \text{but instead} \quad H(k) = U H(k + G) U^{\dagger}
 
-        Examples
-        --------
-        Diagonalizes Hamiltonian at some k-points
+        where :math:`G` is a reciprocal lattice vector and :math:`U` is a unitary transformation
+        relating the two.
 
-        >>> evals, evecs = my_model.solve_ham(k_vec, return_eigvecs=True)
-
-        Computes hybrid Wannier centers (and functions) for 3-rd kpoint
-        and bottom five bands along first coordinate
-
-        >>> hwfc, hwf = my_model.position_hwf(evecs[2, :5], 0, hwf_evec=True, basis="orbital")
+        Finite difference estimates of :math:`\partial_{k_\mu} H(k)` may not be accurate at
+        boundaries due to the gauge discontinuity inherent in convention I.        
         """
-        # check if model came from w90
-        if not self.assume_position_operator_diagonal:
-            _offdiag_approximation_warning_and_stop()
 
-        # get position matrix
-        pos_mat = self.position_matrix(evecs=evecs, dir=dir)
+        # ---------- Collect required parameter names from providers ----------
+        required = set()
 
-        # diagonalize
-        if not hwf_evec:
-            hwfc = np.linalg.eigvalsh(pos_mat)
-            return hwfc
-        else:  # find eigenvalues and eigenvectors
-            (hwfc, hwf) = np.linalg.eigh(pos_mat)
+        # onsite providers: self._onsite_param_terms : dict[idx] -> callable | str | None
+        for term in getattr(self, "_onsite_param_terms", {}).values():
+            if callable(term):
+                required.update(_iter_params_of_callable(term))
+            elif isinstance(term, str):
+                required.add(term)
+
+        # hopping providers: self._hopping_param_terms : dict[(i,j,R)] -> callable | str
+        for term in getattr(self, "_hopping_param_terms", {}).values():
+            if callable(term):
+                required.update(_iter_params_of_callable(term))
+            elif isinstance(term, str):
+                required.add(term)
+
+        params = {} if params is None else dict(params)
+        missing = required.difference(params.keys())
+        if missing:
+            raise ValueError("Missing parameter value(s): " + ", ".join(sorted(missing)))
+
+        # ---------- Normalize k-points ----------
+        if self.dim_k == 0:
+            k_arr = None
+            Nk = 1
+        else:
+            if k_pts is None:
+                k_arr = self._normalize_kpoints(np.zeros((1, self.dim_k)))
+            else:
+                k_arr = self._normalize_kpoints(k_pts)
+            Nk = len(k_arr)
+
+        # ---------- Partition params into scalars vs sweeps (1D arrays/lists) ----------
+        sweep_names: list[str] = []
+        sweep_axes: list[list[object]] = []  # list of per-parameter lists of scalar values
+        scalars: dict[str, object] = {}
+
+        for name, raw in params.items():
+            # Treat 1D arrays / lists / tuples as sweep axes; everything else as scalar
+            if isinstance(raw, (list, tuple, np.ndarray)) and np.ndim(raw) == 1:
+                # keep raw values as-is so lambdas see original dtype (float/complex/etc.)
+                values = list(raw) if not isinstance(raw, np.ndarray) else [raw[i] for i in range(raw.shape[0])]
+                if len(values) == 0:
+                    raise ValueError(f"Parameter sweep '{name}' must provide at least one value.")
+                sweep_names.append(name)
+                sweep_axes.append(values)
+            else:
+                scalars[name] = raw
+
+          # ---------- Core evaluator for a single parameter assignment ----------
+        def evaluate(assignments: dict):
+            # ---- copy base hops and onsite (immutable per evaluation) ----
+            base_hop_amps, base_i_idx, base_j_idx, base_R_vecs = self._hoptable.components()
+
+            hop_amps = np.array(base_hop_amps, copy=True)      # copy!
+            i_idx    = np.array(base_i_idx,    copy=True)
+            j_idx    = np.array(base_j_idx,    copy=True)
+            R_vecs   = np.array(base_R_vecs,   copy=True)
+
+            site = np.asarray(self._site_energies, dtype=complex).copy()  # copy!
+
+            # ---- onsite providers ----
+            for idx, term in getattr(self, "_onsite_param_terms", {}).items():
+                if term is None: 
+                    continue
+                if callable(term):
+                    val   = _call_provider(term, assignments)
+                    block = self._val_to_block(val)
+                elif isinstance(term, str):
+                    block = self._eval_expr_to_block(term, **assignments)
+                else:
+                    raise TypeError("Unsupported onsite provider type.")
+                if self.nspin == 2 and not is_Hermitian(block):
+                    raise ValueError(f"Onsite callable for site {idx} returned non-Hermitian 2×2.")
+                site[idx] = np.asarray(block, dtype=complex)
+
+            # ---- collect param-dependent hops without mutating arrays in-place ----
+            dyn_blocks = []
+            dyn_i = []
+            dyn_j = []
+            dyn_R = []
+
+            for key, term in getattr(self, "_hopping_param_terms", {}).items():
+                if callable(term):
+                    val   = _call_provider(term, assignments)
+                    block = self._val_to_block(val)
+                elif isinstance(term, str):
+                    block = self._eval_expr_to_block(term, **assignments)
+                else:
+                    raise TypeError("Unsupported hopping provider type.")
+                dyn_blocks.append(np.asarray(block, dtype=complex)[None, ...])
+                dyn_i.append(key[0])
+                dyn_j.append(key[1])
+                dyn_R.append(list(key[2]) if len(key) > 2 else [0]*self.dim_k)
+
+            if dyn_blocks:
+                hop_amps = np.concatenate([hop_amps] + dyn_blocks, axis=0)
+                i_idx    = np.concatenate([i_idx,    np.asarray(dyn_i, dtype=i_idx.dtype)])
+                j_idx    = np.concatenate([j_idx,    np.asarray(dyn_j, dtype=j_idx.dtype)])
+                R_vecs   = np.concatenate([R_vecs,   np.asarray(dyn_R, dtype=R_vecs.dtype)], axis=0)
+
+            # ---- assemble H from immutable arrays ----
+            if self.dim_k == 0:
+                return self._hamiltonian_finite(hop_amps, i_idx, j_idx, site, flatten_spin=flatten_spin_axis)
+            return self._hamiltonian_periodic(
+                k_arr, hop_amps, i_idx, j_idx, R_vecs, site, flatten_spin=flatten_spin_axis
+            )
+
+
+        # ---------- No sweeps: just evaluate once ----------
+        if not sweep_axes:
+            return evaluate(scalars)
+
+        # --- λ sweeps: cartesian product, then reshape with λ at the END
+        axis_lengths = [len(ax) for ax in sweep_axes]
+        blocks, base_shape = [], None
+        for multi in product(*[range(n) for n in axis_lengths]):
+            assign = scalars.copy()
+            for a, name in enumerate(sweep_names):
+                assign[name] = sweep_axes[a][multi[a]]
+            H = evaluate(assign)                # shapes: (Nk, n,n) or (n,n) if dim_k=0
+            if base_shape is None:
+                base_shape = H.shape
+            blocks.append(H[np.newaxis, ...])   # prepend a λ-product axis
+
+        stacked = np.concatenate(blocks, axis=0)    # (*Nλ, *base_shape)
+        stacked = stacked.reshape(*axis_lengths, *base_shape)
+
+        if axis_lengths:
+            p = len(axis_lengths)
+            b = len(base_shape)          # typically (Nk, nstate, nstate)
+            perm = (p,) + tuple(range(p)) + tuple(range(p + 1, p + b))
+            stacked = np.transpose(stacked, perm)
+
+        return stacked
+    
+    def _sol_ham(
+        self, ham, return_eigvecs=False, flatten_spin_axis=False, tf_speedup=False, use_32_bit=False,
+        memory_info=False):
+        """Solves Hamiltonian and returns eigenvectors, eigenvalues"""
+        # NOTE: this function is separate so that it can be jit-compiled if needed
+
+        # shape(ham): (Nk, n_orb, n_orb), (Nk, n_orb, n_spin, n_orb, n_spin)
+        # or in finite cases (n_orb, n_orb), (n_orb, n_spin, n_orb, n_spin)
+        # flatten spin axes
+        if ham.ndim == 2 * self.nspin + 1:
+            # have k points
+            new_shape = (ham.shape[0],) + (self.nstate, self.nstate)
+            if self.nspin == 1:
+                shape_evecs = (ham.shape[0],) + (self.norb, self.norb)
+            elif self.nspin == 2:
+                shape_evecs = (ham.shape[0],) + (
+                    self.nstate,
+                    self.norb,
+                    self.nspin,
+                )
+        elif ham.ndim == 2 * self.nspin:
+            # must be a finite sample, no k-points
+            new_shape = (self.nstate, self.nstate)
+            if self.nspin == 1:
+                shape_evecs = (self.norb, self.norb)
+            elif self.nspin == 2:
+                shape_evecs = (self.nstate, self.norb, self.nspin)
+        else:
+            raise ValueError("Hamiltonian has wrong shape.")
+
+        ham_use = ham.reshape(*new_shape)
+
+        if not np.allclose(ham_use, ham_use.swapaxes(-1, -2).conj()):
+            raise ValueError("Hamiltonian matrix is not Hermitian.")
+        
+        if tf_speedup:
+            result = _tensorflow_solve(
+                ham_use, return_eigvecs=return_eigvecs, use_32_bit=use_32_bit
+                )
+            if return_eigvecs:
+                # return later
+                eval, evec = result
+            else:
+                return result
+            
+        else:
+            if use_32_bit:
+                ham_use = ham_use.astype(np.complex64)
+            else:
+                ham_use = ham_use.astype(np.complex128)
+            if return_eigvecs:
+                # return later
+                eval, evec = np.linalg.eigh(ham_use)
+            else:
+                return np.linalg.eigvalsh(ham_use)
+            
+        if return_eigvecs:
             # transpose matrix eig since otherwise it is confusing
             # now eig[i,:] is eigenvector for eval[i]-th eigenvalue
-            hwf = hwf.T
-            # convert to right basis
-            if basis.lower().strip() in ["wavefunction", "bloch"]:
-                return (hwfc, hwf)
-            elif basis.lower().strip() == "orbital":
-                if self._nspin == 1:
-                    ret_hwf = np.zeros((hwf.shape[0], self.norb), dtype=complex)
-                    # sum over bloch states to get hwf in orbital basis
-                    for i in range(ret_hwf.shape[0]):
-                        ret_hwf[i] = np.dot(hwf[i], evecs)
-                    hwf = ret_hwf
-                else:
-                    ret_hwf = np.zeros((hwf.shape[0], self.norb * 2), dtype=complex)
-                    # get rid of spin indices
-                    evec_use = evecs.reshape([hwf.shape[0], self.norb * 2])
-                    # sum over states
-                    for i in range(ret_hwf.shape[0]):
-                        ret_hwf[i] = np.dot(hwf[i], evec_use)
-                    # restore spin indices
-                    hwf = ret_hwf.reshape([hwf.shape[0], self.norb, 2])
-                return (hwfc, hwf)
-            else:
-                raise ValueError(
-                    "Basis must be either 'wavefunction', 'bloch', or 'orbital'"
-                )
+            evec = evec.swapaxes(-1, -2)
+            if not flatten_spin_axis and self.nspin == 2:
+                evec = evec.reshape(*shape_evecs)
+            return eval, evec
+
+    def solve_ham(
+            self, 
+            k_pts = None, 
+            params = None,
+            return_eigvecs: bool = False, 
+            flatten_spin_axis: bool = True,
+            tf_speedup: bool = False) -> tuple[np.ndarray, np.ndarray] | np.ndarray:
+        r"""Diagonalize the Hamiltonian 
+        
+        Solve for eigenvalues and optionally eigenvectors of the tight-binding model
+        at a list of one-dimensional k-vectors.
+
+        .. versionadded:: 2.0.0
+            Merged :func:`solve_all` and :func:`solve_one` into :func:`solve_ham`.
+            This function will equivalently handle both a single k-point and
+            multiple k-points. 
+
+        Parameters
+        ----------
+        k_pts : array_like, optional
+            One-dimensional list or array of k-vectors, each given in reduced coordinates.
+            Shape should be ``(Nk, dim_k)``, where ``dim_k`` is the number of periodic directions.
+            Should not be specified for systems with zero-dimensional reciprocal space.
+
+            .. versionchanged:: 2.0.0
+                Renamed from ``k_list``.
+
+        return_eigvecs : bool, optional
+            If True, both eigenvalues and eigenvectors are returned.
+            If False (default), only eigenvalues are returned.
+
+            .. versionchanged:: 2.0.0
+                Renamed from ``eig_vectors``.
+
+        flatten_spin_axis : bool, optional
+            If True (default), the spin axes are flattened into the orbital axes.
+            If False, the spin axes are kept separate. This affects the
+            shape of the returned eigenvectors for spinful models.
+
+            .. versionadded:: 2.0.0
+
+        tf_speedup : bool, optional
+            If True, use TensorFlow to accelerate the diagonalization.
+            This requires TensorFlow to be installed. Default is False.
+
+            .. versionadded:: 2.0.0
+
+        Returns
+        -------
+        eval : np.ndarray 
+            Array of eigenvalues. Shape is:
+
+            - ``(Nk, nstates)`` for periodic systems
+            - ``(nstates,)`` for zero-dimensional (molecular) systems
+
+        evec : np.ndarray, optional
+            Array of eigenvectors (if ``return_eigvecs=True``). The ordering of bands matches that in ``eval``.
+
+            For spinless models the shape is:
+
+            - ``(Nk, nstates, norb)``: periodic systems
+            - ``(nstates, norb)``: zero-dimensional systems
+            - ``(nstates, norb)``: If only one k-point is provided, the redundant k-axis is removed.
+
+            For spinful models the shape is (``nstates = norb * 2``):
+
+            - ``(..., nstates, norb, 2)``: If ``flatten_spin_axis=False``, an additional spin axis of size 2 is appended at the end.
+            - ``(..., nstates, nstates)``: If ``flatten_spin_axis=True``, the spin axes are flattened into the orbital axes.
+            
+        Notes
+        -----
+        This function uses the convention described in section 3.1 of the
+        :download:`pythtb notes on tight-binding formalism </misc/pythtb-formalism.pdf>`.
+        The returned wavefunctions correspond to the cell-periodic part
+        :math:`u_{n \mathbf{k}}(\mathbf{r})` and not the full Bloch function
+        :math:`\Psi_{n \mathbf{k}}(\mathbf{r})`.
+
+        In many cases, using the :class:`pythtb.wf_array.WFArray` class offers a more
+        elegant interface for handling eigenstates on a regular k-mesh.
+
+        Examples
+        --------
+        Solve for eigenvalues at several k-points:
+
+        >>> eval = tb.solve_ham([[0.0, 0.0], [0.0, 0.2], [0.0, 0.5]])
+
+        Solve for eigenvalues and eigenvectors:
+
+        >>> eval, evec = tb.solve_ham([[0.0, 0.0], [0.0, 0.2]], return_eigvecs=True)
+        """
+        logger.debug("Initializing Hamiltonian...")
+        Ham = self.hamiltonian(k_pts, params=params)
+
+        logger.debug("Diagonalizing Hamiltonian...")
+        if return_eigvecs:
+            eigvals, eigvecs = self._sol_ham(
+                Ham, return_eigvecs=return_eigvecs, flatten_spin_axis=flatten_spin_axis, tf_speedup=tf_speedup
+            )
+            if self.dim_k != 0:
+                if eigvals.ndim != 2:
+                    raise ValueError("Wrong shape of eigvals")
+                # if only one k_point, remove that redundant axis (reproduces solve_one)
+                if eigvals.shape[0] == 1:
+                    eigvals = eigvals[0]
+                    eigvecs = eigvecs[0]
+
+            return eigvals, eigvecs
+        else:
+            eigvals = self._sol_ham(Ham, return_eigvecs=return_eigvecs)
+
+            if self.dim_k != 0:
+                if eigvals.ndim != 2:
+                    raise ValueError("Wrong shape of eigvals")
+                # if only one k_point, remove that redundant axis (reproduces solve_one)
+                if eigvals.shape[0] == 1:
+                    eigvals = eigvals[0]
+            return eigvals
+
+    @deprecated("use .solve_ham() instead (since v2.0).", category=FutureWarning)
+    def solve_one(self, k_list=None, eig_vectors=False):
+        """
+        .. deprecated:: 2.0.0
+            Use .solve_ham() instead.
+        """
+        return self.solve_ham(
+            k_list=k_list, return_eigvecs=eig_vectors, flatten_spin_axis=False
+        )
+
+    @deprecated("use .solve_ham() instead (since v2.0).", category=FutureWarning)
+    def solve_all(self, k_list=None, eig_vectors=False):
+        """
+        .. deprecated:: 2.0.0
+            Use .solve_ham() instead.
+        """
+        return self.solve_ham(
+            k_list=k_list, return_eigvecs=eig_vectors, flatten_spin_axis=False
+        )
+    
+    def compute_bands(self, k_nodes, nk=10):
+        r"""Compute band structure along a specified k-point path.
+
+        The band structure is computed by diagonalizing the Hamiltonian at
+        a series of k-points along the specified path in reciprocal space.
+
+        .. versionadded:: 2.0.0
+
+        Parameters
+        ----------
+        k_nodes : list of array_like
+            List of k-points defining the path in reduced coordinates.
+            Each k-point should be an array-like of length `dim_k`.
+            The path is constructed by linearly interpolating between
+            consecutive k-points in the list.
+
+        n_kperseg : int, optional
+            Number of k-points to interpolate between each pair of consecutive
+            k-points in `k_path`. Default is 10.
+
+        flatten_spin : bool, optional
+            If True, the spin indices are flattened into the orbital indices.
+            This results in a Hamiltonian at each k-point of shape ``(norb*nspin, norb*nspin)``.
+            If False (default), the Hamiltonian has shape ``(norb, nspin, norb, nspin)``.
+
+        Returns
+        -------
+        k_vecs : np.ndarray of shape (N, dim_k)
+            Array of interpolated k-points along the path.
+
+        evals : np.ndarray of shape (N, nbnd)
+            Array of eigenvalues at each k-point along the path.
+
+        Notes
+        -----
+        This function uses linear interpolation to generate intermediate k-points
+        between those specified in `k_nodes`. The total number of k-points returned
+        is ``nk``.
+
+        Examples
+        --------
+        Compute band structure along a path from Gamma to X to M in a 2D square lattice:
+
+        >>> k_nodes = [[0.0, 0.0], [0.5, 0.0], [0.5, 0.5]]
+        >>> k_vecs, evals = tb.compute_bands(k_nodes, n_kperseg=20)
+        """
+        k_vec, _, _ = self.k_path(k_nodes, nk, report=False)
+        return k_vec, self.solve_ham(k_vec, return_eigvecs=False)
+    
+    def velocity(
+            self, 
+            k_pts: np.ndarray, 
+            cartesian: bool = False,
+            flatten_spin_axis: bool = False
+            ) -> np.ndarray:
+        r"""Generate the velocity operator in the orbital basis.
+
+        The velocity operator is defined via the derivative of the Hamiltonian
+        with respect to k of each reciprocal lattice direction, i.e., 
+
+        .. math::
+            v_k^{\mu} = \hbar \frac{\partial H(k)}{\partial k_{\mu}}
+        
+        Here, we use units where :math:`\hbar = 1`.
+
+        .. versionadded:: 2.0.0
+
+        Parameters
+        ----------
+        k_pts : array of shape (Nk, dim_k)
+            Array of k-points in reduced coordinates.
+        cartesian : bool, optional
+            If True, use Cartesian coordinates for the velocity operator.
+            If False (default), use reduced coordinates.
+        flatten_spin_axis : bool, optional
+            If True, the spin indices are flattened into the orbital indices.
+            This results in a velocity operator at each k-point of shape ``(norb*nspin, norb*nspin)``.
+            If False (default), the velocity operator has shape ``(norb, nspin, norb, nspin)``.
+
+        Returns
+        -------
+        vel : np.ndarray
+            Velocity operators at each k-point. First axis indexes the cartesian direction if ``cartesian=True``.
+            Otherwise, it indexes the reduced direction. Shape is `(dim_k, Nk, norb, norb)` for spinless models,
+            or `(dim_k, Nk, norb, nspin, norb, nspin)` for spinful models.
+
+        """
+        dim_k = self.dim_k
+
+        k_arr = self._normalize_kpoints(k_pts)
+
+        norb = self.norb
+        per = np.asarray(self.per)
+        orb_red = np.asarray(self.orb_vecs)
+
+        table = self._hoptable
+        amps, i_indices, j_indices, R_vecs = table.components()
+        n_hops = i_indices.size
+
+        i_indices = i_indices.astype(int)
+        j_indices = j_indices.astype(int)
+        R_vecs = R_vecs.astype(float)
+
+        orb_i = orb_red[i_indices]
+        orb_j = orb_red[j_indices]
+
+        delta_r = R_vecs - orb_i + orb_j
+        delta_r_per = delta_r[:, per]
+
+        if n_hops:
+            k_dot_r = k_arr @ delta_r_per.T
+            phases = np.exp(1j * 2 * np.pi * k_dot_r)
+        else:
+            phases = np.zeros((k_arr.shape[0], 0), dtype=complex)
+        if cartesian:
+            lattice = self.get_lat_vecs()[self.per, :]
+            coeff = (1j * delta_r_per @ lattice).T[:, None, :]
+        else:
+            coeff = (1j * 2 * np.pi * delta_r_per).T[:, None, :]
+
+        deriv_phase = coeff * phases[None, ...] if n_hops else coeff[:, :, :0]
+
+        if not self.spinful:
+            amps_use = np.asarray(amps, dtype=complex)
+            vel = np.zeros((dim_k, k_arr.shape[0], norb, norb), dtype=complex)
+            if n_hops:
+                cache = self._get_flattened_indices()
+                order = cache["order"]
+                starts = cache["starts"]
+                uniq = cache["uniq"]
+                cols_transposed = cache["cols_transposed"]
+
+                vel_flat = vel.reshape(dim_k, k_arr.shape[0], -1)
+                contrib_sorted = deriv_phase[:, :, order] * amps_use[order]
+                sums = np.add.reduceat(contrib_sorted, starts, axis=2)
+                vel_flat[..., uniq] += sums
+                vel_flat[..., cols_transposed] += sums.conj()
+            return vel
+        
+        nspin = self.nspin
+        vel = np.zeros((dim_k, k_arr.shape[0], norb, nspin, norb, nspin), dtype=complex)
+        if n_hops:
+            weighted = deriv_phase[..., None, None] * amps[None, None, :, :, :]
+            for s_out in range(nspin):
+                for s_in in range(nspin):
+                    contrib = weighted[..., s_out, s_in]
+                    np.add.at(
+                        vel,
+                        (slice(None), slice(None), i_indices, s_out, j_indices, s_in),
+                        contrib,
+                    )
+                    np.add.at(
+                        vel,
+                        (slice(None), slice(None), j_indices, s_in, i_indices, s_out),
+                        contrib.conj(),
+                    )
+        
+        if flatten_spin_axis:
+            vel = vel.reshape(dim_k, k_arr.shape[0], norb * nspin, norb * nspin)
+        return vel
 
     def quantum_geometric_tensor(
         self,
@@ -2955,6 +2969,320 @@ class TBModel:
         C_bulk_avg = marker_cell[mask].mean()
 
         return C_local, C_bulk_avg
+    
+    def position_matrix(self, evecs: np.ndarray, dir: int):
+        r"""Position operator matrix elements
+
+        Returns matrix elements of the position operator along
+        direction `dir` for eigenvectors `evecs` at a single k-point.
+        Position operator is defined in reduced coordinates.
+
+        The returned object :math:`X` is
+
+        .. math::
+
+          X_{m n {\bf k}}^{\alpha} = \langle u_{m {\bf k}} \vert
+          r^{\alpha} \vert u_{n {\bf k}} \rangle
+
+        Here :math:`r^{\alpha}` is the position operator along direction
+        :math:`\alpha` that is selected by `dir`.
+
+        Parameters
+        ----------
+        evecs : np.ndarray
+            Eigenvectors for which we are computing matrix
+            elements of the position operator.  The shape of this array
+            is ``evecs[band, orbital]`` if ``spinful=False`` and
+            ``evecs[band, orbital, spin]`` if ``spinful=True``.
+
+            .. versionchanged:: 2.0.0
+                Parameter ``evec`` renamed to ``evecs`` to clarify that multiple
+                eigenvectors can be passed at once.
+
+        dir : int
+            Direction along which we are computing the center.
+            This integer must not be one of the periodic directions
+            since position operator matrix element in that case is not
+            well defined.
+
+        Returns
+        -------
+        pos_mat : np.ndarray
+            Position operator matrix :math:`X_{m n}` as defined above. 
+            This is a square matrix with size determined by number of bands
+            given in `evec` input array.  First index of `pos_mat` corresponds to
+            bra vector (:math:`m`) and second index to ket (:math:`n`).
+
+        See Also
+        --------
+        :ref:`haldane-hwf-nb` : For an example.
+
+        Examples
+        --------
+        Diagonalizes Hamiltonian at some k-points
+
+        >>> (evals, evecs) = my_model.solve_ham(k_vec, return_eigvecs=True)
+
+        Computes position operator matrix elements for 3-rd kpoint
+        and bottom five bands along first coordinate
+
+        >>> pos_mat = my_model.position_matrix(evecs[2, :5], 0)
+
+        """
+
+        # make sure specified direction is not periodic!
+        if dir in self.per:
+            raise ValueError(
+                "Can not compute position matrix elements along periodic direction!"
+            )
+        # make sure direction is not out of range
+        if dir < 0 or dir >= self.dim_r:
+            raise ValueError("Direction out of range!")
+
+        # check if model came from w90
+        if not self.assume_position_operator_diagonal:
+            _offdiag_approximation_warning_and_stop()
+
+        # check shape of evec
+        if not isinstance(evecs, np.ndarray):
+            raise TypeError("evec must be a numpy array.")
+        # check number of dimensions of evec
+        if not self.spinful:
+            if evecs.ndim != 2:
+                raise ValueError(
+                    "evec must be a 2D array with shape (band, orbital) for spinless models."
+                )
+        elif self.spinful:
+            if evecs.ndim != 3:
+                raise ValueError(
+                    "evec must be a 3D array with shape (band, orbital, spin) for spinful models."
+                )
+
+        # get coordinates of orbitals along the specified direction
+        pos_tmp = self.orb_vecs[:, dir]
+        # reshape arrays in the case of spinful calculation
+        if self.spinful:
+            # tile along spin direction if needed
+            pos_use = np.tile(pos_tmp, (2, 1)).transpose().flatten()
+            evec_use = evecs.reshape(evecs.shape[0], -1) # flatten spin index
+        else:
+            pos_use = pos_tmp
+            evec_use = evecs
+
+        # <u_i | r | u_j> = sum_orb r_orb u_i*(orb) u_j(orb)
+        pos_mat = np.einsum("im,m,jm->ij", evec_use.conj(), pos_use, evec_use)
+
+        # make sure matrix is Hermitian
+        if not np.allclose(pos_mat, pos_mat.T.conj()):
+            raise ValueError("Position matrix is not Hermitian.")
+
+        return pos_mat
+
+    def position_expectation(self, evecs: np.ndarray, dir: int):
+        r"""Returns diagonal matrix elements of the position operator.
+        
+        These elements :math:`X_{n n}` can be interpreted as an
+        average position of n-th Bloch state ``evec[n]`` along
+        direction `dir`. 
+
+        Parameters
+        ----------
+        evecs : np.ndarray
+            Eigenvectors for which we are computing matrix
+            elements of the position operator. The shape of this array
+            is ``evecs[band, orbital]`` if ``spinful=True`` and
+            ``evecs[band, orbital, spin]`` if ``spinful=False``.
+
+            .. versionchanged:: 2.0.0
+                Parameter ```evec`` renamed to ``evecs`` to clarify that multiple
+                eigenvectors can be passed at once.
+
+        dir : int
+            Direction along which we are computing matrix
+            elements. This integer must not be one of the periodic
+            directions since position operator matrix element in that
+            case is not well defined.
+
+        Returns
+        -------
+        pos_exp : np.ndarray
+            Diagonal elements of the position operator matrix :math:`X`.
+            Length of this vector is determined by number of bands given in *evec* input
+            array.
+        
+        See Also
+        --------
+        :ref:`haldane-hwf-nb` : For an example.
+        position_matrix : For definition of matrix :math:`X`.
+
+        Notes
+        -----
+        Generally speaking these centers are _not_
+        hybrid Wannier function centers (which are instead
+        returned by :func:`TBModel.position_hwf`).
+
+        Examples
+        --------
+        Diagonalizes Hamiltonian at some k-points
+          
+        >>> (evals, evecs) = my_model.solve_ham(k_vec, return_eigvecs=True)
+        
+        Computes average position for 3-rd kpoint
+        and bottom five bands along first coordinate
+        
+        >>> pos_exp = my_model.position_expectation(evecs[2, :5], 0)
+
+        """
+
+        # check if model came from w90
+        if not self.assume_position_operator_diagonal:
+            _offdiag_approximation_warning_and_stop()
+
+        pos_exp = self.position_matrix(evecs, dir).diagonal()
+        return np.array(np.real(pos_exp), dtype=float)
+
+    def position_hwf(
+            self, 
+            evecs: np.ndarray, 
+            dir: int, 
+            hwf_evec=False, 
+            basis="orbital"
+            ):
+        r"""Eigenvalues and eigenvectors of the position operator
+
+        Returns eigenvalues and optionally eigenvectors of the
+        position operator matrix :math:`X` in basis of the orbitals
+        or, optionally, of the input wave functions (typically Bloch
+        functions). The returned eigenvectors can be interpreted as
+        linear combinations of the input states ``evec`` that have
+        minimal extent (or spread :math:`\Omega` in the sense of
+        maximally localized Wannier functions) along direction
+        ``dir``. The eigenvalues are average positions of these
+        localized states.
+
+        Parameters
+        ----------
+        evecs : np.ndarray
+            Eigenvectors for which we are computing matrix
+            elements of the position operator. The shape of this array
+            is ``evecs[band, orbital]`` if ``spinful=True`` and
+            ``evecs[band, orbital, spin]`` if ``spinful=False``.
+
+            .. versionchanged:: 2.0.0
+                Parameter ``evec`` renamed to ``evecs`` to clarify that multiple
+                eigenvectors can be passed at once.
+
+        dir : int
+            Direction along which we are computing matrix
+            elements. This integer must not be one of the periodic
+            directions since position operator matrix element in that
+            case is not well defined.
+        hwf_evec : bool, optional
+            Default is ``False``. If set to ``True`` this function will
+            return not only eigenvalues but also eigenvectors of :math:`X`. 
+        basis : {"orbital", "wavefunction", "bloch"}, optional
+            Default is "orbital". If ``basis="wavefunction"`` or ``basis="bloch"``, the hybrid
+            Wannier function `hwf` is returned in the basis of the input
+            wave functions. That is, the elements of ``hwf[i, j]`` give the amplitudes
+            of the i-th hybrid Wannier function on the j-th input state.
+            If ``basis="orbital"``, the elements of ``hwf[i, orb]`` (or ``hwf[i, orb, spin]``
+            if ``spinful=True``) give the amplitudes of the i-th hybrid Wannier function on
+            the specified basis function. 
+
+        Returns
+        -------
+        hwfc : np.ndarray
+            Eigenvalues of the position operator matrix :math:`X`
+            (also called hybrid Wannier function centers).
+            Length of this vector equals number of bands given in ``evecs``
+            input array. Hybrid Wannier function centers are ordered in ascending order.
+            Note that in general `n`-th hwfc does not correspond to `n`-th
+            state in ``evecs``.
+        hwf : np.ndarray
+            Eigenvectors of the position operator matrix :math:`X`.
+            (also called hybrid Wannier functions).  These are returned only if
+            parameter ``hwf_evec = True``.
+
+            The shape of this array is ``[h,x]`` or ``[h,x,s]`` depending on value of
+            ``basis`` and ``spinful``.
+
+            - If ``basis`` is "bloch" then ``x`` refers to indices of
+              Bloch states.
+            - If ``basis`` is "orbital" then ``x`` (or ``x`` and ``s``)
+              correspond to orbital index (or orbital and spin index if ``spinful=True``).
+
+        See Also
+        --------
+        :ref:`haldane-hwf-nb` : For an example.
+        position_matrix : For the definition of the matrix :math:`X`.
+        position_expectation : For the position expectation value.
+
+        Notes
+        -----
+        Note that these eigenvectors are not maximally localized
+        Wannier functions in the usual sense because they are
+        localized only along one direction. They are also not the
+        average positions of the Bloch states ``evecs``, which are
+        instead computed by :func:`position_expectation`.
+
+        See Fig. 3 in [1]_ for a discussion of the hybrid Wannier function centers in the
+        context of a Chern insulator.
+
+        References
+        ----------
+        .. [1]  S. Coh, D. Vanderbilt, Phys. Rev. Lett. 102, 107603 (2009).
+
+        Examples
+        --------
+        Diagonalizes Hamiltonian at some k-points
+
+        >>> evals, evecs = my_model.solve_ham(k_vec, return_eigvecs=True)
+
+        Computes hybrid Wannier centers (and functions) for 3-rd kpoint
+        and bottom five bands along first coordinate
+
+        >>> hwfc, hwf = my_model.position_hwf(evecs[2, :5], 0, hwf_evec=True, basis="orbital")
+        """
+        # check if model came from w90
+        if not self.assume_position_operator_diagonal:
+            _offdiag_approximation_warning_and_stop()
+
+        # get position matrix
+        pos_mat = self.position_matrix(evecs=evecs, dir=dir)
+
+        # diagonalize
+        if not hwf_evec:
+            hwfc = np.linalg.eigvalsh(pos_mat)
+            return hwfc
+        else:  # find eigenvalues and eigenvectors
+            (hwfc, hwf) = np.linalg.eigh(pos_mat)
+            # transpose matrix eig since otherwise it is confusing
+            # now eig[i,:] is eigenvector for eval[i]-th eigenvalue
+            hwf = hwf.T
+            # convert to right basis
+            if basis.lower().strip() in ["wavefunction", "bloch"]:
+                return (hwfc, hwf)
+            elif basis.lower().strip() == "orbital":
+                if self._nspin == 1:
+                    ret_hwf = np.zeros((hwf.shape[0], self.norb), dtype=complex)
+                    # sum over bloch states to get hwf in orbital basis
+                    for i in range(ret_hwf.shape[0]):
+                        ret_hwf[i] = np.dot(hwf[i], evecs)
+                    hwf = ret_hwf
+                else:
+                    ret_hwf = np.zeros((hwf.shape[0], self.norb * 2), dtype=complex)
+                    # get rid of spin indices
+                    evec_use = evecs.reshape([hwf.shape[0], self.norb * 2])
+                    # sum over states
+                    for i in range(ret_hwf.shape[0]):
+                        ret_hwf[i] = np.dot(hwf[i], evec_use)
+                    # restore spin indices
+                    hwf = ret_hwf.reshape([hwf.shape[0], self.norb, 2])
+                return (hwfc, hwf)
+            else:
+                raise ValueError(
+                    "Basis must be either 'wavefunction', 'bloch', or 'orbital'"
+                )
     
     ##### Plotting functions #####
     # These plotting functions are wrappers to the functions in plotting.py

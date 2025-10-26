@@ -965,8 +965,6 @@ class WFArray:
     def solve_model(
             self, 
             model: TBModel = None,
-            model_func: callable = None, 
-            fixed_params: dict = None, 
             use_tf: bool = False
             ):
         r"""Diagonalizes the :class:`TBModel` over the :class:`Mesh` points.
@@ -1082,48 +1080,77 @@ class WFArray:
         >>> wfa.wfs.shape
         (20, 20, 5, 2, 2)
         """
-        ham = self._get_ham_from_model(model=model, model_func=model_func, fixed_params=fixed_params)
+        # 1) Gather λ-parameter names & values from the mesh
+        mesh_param_names = [ax.name for ax in self.mesh.lambda_axes]
+        mesh_param_vals = [
+            self.mesh.get_axis_range(i, j)
+            for i, j in zip(self.mesh.lambda_axis_indices, self.mesh.lambda_component_indices)
+        ]
+        params = {name: val for name, val in zip(mesh_param_names, mesh_param_vals)}
+        shape_lambda = self.nlams  # tuple of λ axis lengths
 
-        # flatten spin axes if present
-        if self.nspin == 2:
-            ham = ham.reshape(*ham.shape[:-4], self.nstates, self.nstates)
+        # 2) Prepare k-points (flatten only the k-grid; λ stays leading)
+        shape_k = self.mesh.shape_k                    # e.g. (Nk1, Nk2, ...)
+        if self.dim_k > 0:
+            n_kpts = int(np.prod(self.nks))
+            k_flat = self.k_points.reshape(n_kpts, -1) # (Nk, dim_k)
+        else:
+            n_kpts = 1
+            k_flat = None
 
+        # 3) Build Hamiltonian with λ first, then k, then matrix axes
+        # NOTE: pass params as a keyword and flatten spin if you want a (nstates, nstates) block.
+        ham = model.hamiltonian(
+            k_pts=k_flat,
+            params=params,
+            flatten_spin_axis=True
+        )
+
+        # Expected shapes now:
+        #  - dim_k > 0: ham.shape == (n_kpts, *shape_lambda, nstates, nstates)
+        #  - dim_k = 0: ham.shape == (*shape_lambda, nstates, nstates)
+
+        # 4) Reshape the k axis back to the mesh k-grid
+        if self.dim_k > 0:
+            ham = ham.reshape(*shape_k, *shape_lambda, self.nstates, self.nstates)
+
+        # 5) Hermiticity check
         if not np.allclose(ham, ham.swapaxes(-1, -2).conj()):
             raise ValueError("Hamiltonian matrix is not Hermitian.")
 
+        # 6) Diagonalize
         if use_tf:
             logger.info("Attempting to use tensorflow for eigenvalue calculation")
-
             from tensorflow import convert_to_tensor
             from tensorflow import complex64 as tfcomplex64
             from tensorflow.linalg import eigh as tfeigh
-
             H_tf = convert_to_tensor(ham, dtype=tfcomplex64)
             eval, evec = tfeigh(H_tf)
             eval = eval.numpy()
             evec = evec.numpy()
         else:
-            # diagonalize hamiltonian
             eval, evec = np.linalg.eigh(ham)
 
-        # transpose matrix eig since otherwise it is confusing
-        # now eig[i,:] is eigenvector for eval[i]-th eigenvalue
-        evec = evec.swapaxes(-1, -2)
-        evec = evec.reshape(*self.shape)
+        # 7) Put eigenvectors in the conventional shape: 
+        evec = evec.swapaxes(-1, -2)     # so evec[..., i, :] is the i-th eigenvector
+        print(evec.shape)
+        print(self.shape)
+        evec = evec.reshape(*self.shape) # self.shape should be (*mesh.shape, nstates, norb[, nspin])
 
         self.set_states(evec, is_cell_periodic=True, is_spin_axis_flat=False)
         self._energies = eval
 
+        # 8) Smallest direct gap across all bands (if ≥ 2 bands)
         if self.nstates > 1:
             gaps = eval[..., 1:] - eval[..., :-1]
             self.gaps = gaps.min(axis=tuple(range(self.naxes)))
         else:
             self.gaps = None
-
-        # These contain endpoints (k_i = 1 in reduced units)
-        # This means we need to impose periodic boundary conditions explicitly
+            
+        # 9) Enforce PBCs along winding k-axes
         axes = self.mesh.axes
         for idx, ax in enumerate(axes):
+            # These contain endpoints (k_i = 1 in reduced units)
             if ax.has_endpoint and ax.winds_bz:
                 endpt_comps = ax.endpoint_components
                 bz_wind_comps = ax.winds_bz_components

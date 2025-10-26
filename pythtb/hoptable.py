@@ -172,6 +172,17 @@ class HoppingTable:
             self._index[new_key] = idx
         self._flatten_cache.clear()
 
+    def remove(self, idx: int) -> None:
+        """Remove the hopping at index ``idx``."""
+        if idx < 0 or idx >= len(self):
+            raise IndexError("Index out of range.")
+        self.amplitudes = np.delete(self.amplitudes, idx, axis=0)
+        self.from_idx = np.delete(self.from_idx, idx)
+        self.to_idx = np.delete(self.to_idx, idx)
+        self.lattice_vecs = np.delete(self.lattice_vecs, idx, axis=0)
+        self._rebuild_index()
+        self._flatten_cache.clear()
+
     def accumulate(self, idx: int, delta: np.ndarray) -> None:
         """Increment the hopping amplitude at ``idx`` by ``delta`` (in-place)."""
         if self.spinful:
