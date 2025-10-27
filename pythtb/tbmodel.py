@@ -2,8 +2,9 @@ import copy
 import logging
 import warnings
 import numpy as np
-from itertools import product
 import inspect
+import textwrap
+from itertools import product
 from .plotting import plot_bands, plot_tb_model, plot_tb_model_3d
 from .utils import (
     _offdiag_approximation_warning_and_stop, 
@@ -43,6 +44,18 @@ def _iter_params_of_callable(f):
         for name, p in sig.parameters.items():
             if p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY):
                 yield name
+
+def _describe_callable(func):
+    try:
+        sig = inspect.signature(func)
+        params = tuple(sig.parameters.keys())
+    except (ValueError, TypeError):
+        params = ()
+    try:
+        source = textwrap.dedent(inspect.getsource(func)).strip()
+    except (OSError, TypeError):
+        source = None
+    return params, source
 
 def _call_provider(prov, params):
     """Call a provider with only the kwargs it actually declares (unless it has **kwargs)."""
@@ -331,6 +344,34 @@ class TBModel:
         .. versionadded:: 2.0.0
         """
         return len(self._hoptable)
+
+    @property
+    def parameters(self):
+        out = []
+        for idx, provider in getattr(self, "_onsite_param_terms", {}).items():
+            if provider:
+                descriptor = {
+                    "kind": "onsite",
+                    "orbitals": int(idx),
+                    "function": provider,
+                }
+                if callable(provider):
+                    descriptor["name"], descriptor["source"] = _describe_callable(provider)
+                out.append(descriptor)
+
+        for (i, j, R_vec), provider in getattr(self, "_hopping_param_terms", {}).items():
+            if provider:
+                descriptor = {
+                    "kind": "hopping",
+                    "orbitals": (i, j),
+                    "R": R_vec,
+                    "function": provider,
+                }
+                if callable(provider):
+                     descriptor["name"], descriptor["source"] = _describe_callable(provider)
+                out.append(descriptor)
+
+        return out
     
     @property
     def from_w90(self) -> bool:
@@ -409,10 +450,29 @@ class TBModel:
         if not short:
             # Print Site Energies
             output.append("Site energies:")
+            onsite_params = getattr(self, "_onsite_param_terms", {})
+
+            def _describe_provider(provider):
+                if isinstance(provider, str):
+                    return f"'{provider}'"
+                if callable(provider):
+                    try:
+                        src = inspect.getsource(provider).strip()
+                        return src
+                    except (OSError, TypeError, AttributeError):
+                        name = getattr(provider, "__qualname__", getattr(provider, "__name__", repr(provider)))
+                        return f"callable {name} (source unavailable)"
+                return repr(provider)
+
             for i, site in enumerate(self._site_energies):
+                onsite_param_term = onsite_params.get(i)
+                if onsite_param_term and not self._site_energies_specified[i]:
+                    output.append(f"  # {i} ===> {_describe_provider(onsite_param_term)}")
+                    continue
+
                 if self._nspin == 1:
                     energy_str = f"{site:^7.3f}"
-                elif self._nspin == 2:
+                else:
                     energy_str = str(site).replace("\n", " ")
 
                 output.append(f"  # {i} ===> {energy_str}")
@@ -437,6 +497,15 @@ class TBModel:
 
                 out_str += amp_str
                 output.append(out_str)
+
+            param_hops = getattr(self, "_hopping_param_terms", {})
+            if param_hops:
+                for (hop_from, hop_to, R_tup), provider in param_hops.items():
+                    coords = ", ".join(f"{value:^5.1f}" for value in R_tup) if len(R_tup) else ""
+                    disp = f" + [{coords}]" if coords else ""
+                    output.append(
+                        f"  < {hop_from:^1} | H | {hop_to:^1}{disp} >  ===> {_describe_provider(provider)}"
+                    )
 
             output.append("Hopping distances:")
             if self.nhops != 0:
@@ -517,6 +586,28 @@ class TBModel:
             if cell and not cell:
                 self._hopping_param_terms.pop((i, j))
 
+    def _check_missing_parameters(self, params: dict):
+        """Check for missing parameters in the provided dictionary."""
+        required = set()
+
+        # onsite providers: self._onsite_param_terms : dict[idx] -> callable | str | None
+        for term in getattr(self, "_onsite_param_terms", {}).values():
+            if callable(term):
+                required.update(_iter_params_of_callable(term))
+            elif isinstance(term, str):
+                required.add(term)
+
+        # hopping providers: self._hopping_param_terms : dict[(i,j,R)] -> callable | str
+        for term in getattr(self, "_hopping_param_terms", {}).values():
+            if callable(term):
+                required.update(_iter_params_of_callable(term))
+            elif isinstance(term, str):
+                required.add(term)
+
+        missing = required.difference(params.keys())
+        if missing:
+            raise ValueError("Missing parameter value(s): " + ", ".join(sorted(missing)))
+
     @deprecated("Use 'norb' property instead.")
     def get_num_orbitals(self):
         """
@@ -581,25 +672,30 @@ class TBModel:
 
 
     def set_onsite(self, onsite_en, ind_i=None, mode="set"):
-        r"""
-        Define on-site energies for tight-binding orbitals.
+        r"""Define on-site energies for tight-binding orbitals.
 
         You can set the energy for a single orbital (by specifying ``ind_i``),
-        or for all orbitals at once (by passing a list/array to ``onsite_en``).
+        or for all orbitals at once by passing ``onsite_en`` as a list/array 
+        of length ``norb``.
 
         .. deprecated:: 2.0.0
             ``mode="reset"`` is deprecated. Use ``mode="set"`` instead.
 
         Parameters
         ----------
-        onsite_en : float or array-like or (2, 2) ndarray
+        onsite_en : float | array-like | (2, 2) np.ndarray | str | callable
             If ``ind_i`` is ``None``, ``onsite_en`` must be a list/array of length
             ``norb`` (one value per orbital). Otherwise it may be a single value.
-            In spinful models it may also be a 2 x 2 Hermitian matrix.
+
+            .. versionchanged:: 2.0.0
+                This may also be a symbolic string or callable. The numeric values are
+                then expected to be specified in downstream functions.
 
             **Spinless**  (``spinful=False``)
 
             - Real scalar, or list/array of real scalars (one per orbital).
+            - String, representing a symbolic expression.
+            - Callable, representing a function of parameters.
 
             **Spinful**  (``spinful=True``)
 
@@ -613,6 +709,8 @@ class TBModel:
                     \end{bmatrix}
 
             - **Full matrix**: a 2 x 2 Hermitian ndarray.
+            - **String**: representing a symbolic expression.
+            - **Callable**: representing a function of parameters.
 
         ind_i : int, optional
             Orbital index to update. If ``None``, all orbitals are updated and
@@ -725,106 +823,6 @@ class TBModel:
     def _get_flattened_indices(self):
         return self._hoptable.flatten_cache(self.norb)
 
-    def set_nn_hops(self, hop_amps: list, nn_shells: list[int], mode="set"):
-        r"""Define nearest-neighbor hopping parameters up to a specified shell.
-
-        This function sets hopping amplitudes for all bonds in the specified
-        nearest-neighbor shells. The shells are defined based on the distance
-        from each orbital, with shell 1 being the nearest neighbors, shell 2
-        being the next-nearest neighbors, and so on.
-
-        .. versionadded:: 2.0.0
-
-        Parameters
-        ----------
-        hop_amp : list or array-like
-            List or array of hopping amplitudes for each shell.
-            The length of ``hop_amp`` should match the length of ``nn_shells``, 
-            where each element corresponds to the hopping amplitude for that shell.
-        nn_shells : list[int]
-            List of integers specifying the shells for each hopping amplitude. Counting
-            starts from 1, so ``nn_shells=[1, 2]`` indicates nearest-neighbor and 
-            next-nearest-neighbor shells. The length of ``nn_shells`` should match the length 
-            of ``hop_amp``. Each element in ``nn_shells`` should be a positive integer.
-        mode : {'set', 'add'}, optional
-            Specifies how `hop_amp` is used
-                - "set": Set the hopping term to the value of `hop_amp`. (Default)
-                - "add": Add `hop_amp` to the previous value.
-
-        Notes
-        -----
-        The hopping amplitudes are applied to all bonds in each shell.
-
-        Examples
-        --------
-        Setting nearest-neighbor and next-nearest-neighbor hoppings:
-
-        >>> tb.set_nn_hops([1.0, 0.5], [1, 2])
-
-        Setting only nearest-neighbor hoppings:
-
-        >>> tb.set_nn_hops([1.0], [1])
-
-        """
-        n_shells = max(nn_shells)
-
-        if n_shells == 0:
-            raise ValueError("hop_amp must have at least one element.")
-        if len(nn_shells) != n_shells:
-            raise ValueError("nn_shells must have length equal to n_shells.")
-        if not all(isinstance(shell, int) and shell > 0 for shell in nn_shells):
-            raise ValueError("Each element in nn_shells must be a positive integer.")
-        if not isinstance(hop_amps, (list, np.ndarray)):
-            raise TypeError("hop_amp must be a list or array.")
-        if any(not isinstance(amp, (int, float, complex, list, np.ndarray)) for amp in hop_amps):
-            raise TypeError("Each element in hop_amp must be a scalar, list, or array.")
-
-        shell_bonds = self.nn_bonds(n_shells)[1]
-
-        hops = dict(zip(nn_shells, hop_amps))
-
-        for shell_idx, shell in enumerate(shell_bonds):
-            amp = hops.get(shell_idx + 1, None)
-            if amp is None:
-                continue
-            for bond in shell:
-                i, j, R = bond
-                self.set_hop(amp, i, j, R, mode=mode, allow_conjugate_pair=True)
-
-    def _append_hops(self, hop_amps, i_idx, j_idx, R_vecs):
-        hop_amps = np.asarray(hop_amps)
-        i_idx = np.asarray(i_idx, dtype=int)
-        j_idx = np.asarray(j_idx, dtype=int)
-        R_vecs = np.asarray(R_vecs, dtype=int).reshape(len(i_idx), self.dim_r)
-
-        blocks = [self._val_to_block(val) for val in hop_amps]
-        self._hoptable.extend(
-            blocks,
-            i_idx.tolist(),
-            j_idx.tolist(),
-            R_vecs.tolist(),
-        )
-
-    def _set_hops_bulk(self, hop_amps, i_idx, j_idx, R_vecs, mode="set"):
-        mode = mode.lower()
-        if mode not in {"set", "add"}:
-            raise ValueError("mode must be 'set' or 'add'")
-
-        hop_amps = np.asarray(hop_amps)
-        i_idx = np.asarray(i_idx, dtype=int)
-        j_idx = np.asarray(j_idx, dtype=int)
-        R_vecs = np.asarray(R_vecs, dtype=int).reshape(len(i_idx), self.dim_r)
-
-        for amp, i, j, R in zip(hop_amps, i_idx, j_idx, R_vecs, strict=True):
-            self.set_hop(
-                amp,
-                int(i),
-                int(j),
-                R,
-                mode=mode,
-                allow_conjugate_pair=True,
-            )
-
     def set_hop(
         self,
         hop_amp,
@@ -849,7 +847,11 @@ class TBModel:
 
         Parameters
         ----------
-        hop_amp : scalar, array-like, np.ndarray of shape ``(2, 2)``
+        hop_amp : scalar, array-like, np.ndarray of shape ``(2, 2)``, str, or callable
+            .. versionchanged:: 2.0.0
+                This may also be a symbolic string or callable. The numeric values are
+                then expected to be specified in downstream functions.
+
             For spinless models (`spinful=False`):
                 - Real or complex scalar.
             For spinful models (`spinful=True`):
@@ -987,6 +989,106 @@ class TBModel:
                 table.append(hop_use, ind_i, ind_j, R_vec)
         else:
             raise ValueError("Wrong value of mode parameter. Should be either `set` or `add`.")
+
+    def set_nn_hops(self, hop_amps: list, nn_shells: list[int], mode="set"):
+        r"""Define nearest-neighbor hopping parameters up to a specified shell.
+
+        This function sets hopping amplitudes for all bonds in the specified
+        nearest-neighbor shells. The shells are defined based on the distance
+        from each orbital, with shell 1 being the nearest neighbors, shell 2
+        being the next-nearest neighbors, and so on.
+
+        .. versionadded:: 2.0.0
+
+        Parameters
+        ----------
+        hop_amp : list or array-like
+            List or array of hopping amplitudes for each shell.
+            The length of ``hop_amp`` should match the length of ``nn_shells``, 
+            where each element corresponds to the hopping amplitude for that shell.
+        nn_shells : list[int]
+            List of integers specifying the shells for each hopping amplitude. Counting
+            starts from 1, so ``nn_shells=[1, 2]`` indicates nearest-neighbor and 
+            next-nearest-neighbor shells. The length of ``nn_shells`` should match the length 
+            of ``hop_amp``. Each element in ``nn_shells`` should be a positive integer.
+        mode : {'set', 'add'}, optional
+            Specifies how `hop_amp` is used
+                - "set": Set the hopping term to the value of `hop_amp`. (Default)
+                - "add": Add `hop_amp` to the previous value.
+
+        Notes
+        -----
+        The hopping amplitudes are applied to all bonds in each shell.
+
+        Examples
+        --------
+        Setting nearest-neighbor and next-nearest-neighbor hoppings:
+
+        >>> tb.set_nn_hops([1.0, 0.5], [1, 2])
+
+        Setting only nearest-neighbor hoppings:
+
+        >>> tb.set_nn_hops([1.0], [1])
+
+        """
+        n_shells = max(nn_shells)
+
+        if n_shells == 0:
+            raise ValueError("hop_amp must have at least one element.")
+        if len(nn_shells) != n_shells:
+            raise ValueError("nn_shells must have length equal to n_shells.")
+        if not all(isinstance(shell, int) and shell > 0 for shell in nn_shells):
+            raise ValueError("Each element in nn_shells must be a positive integer.")
+        if not isinstance(hop_amps, (list, np.ndarray)):
+            raise TypeError("hop_amp must be a list or array.")
+        if any(not isinstance(amp, (int, float, complex, list, np.ndarray)) for amp in hop_amps):
+            raise TypeError("Each element in hop_amp must be a scalar, list, or array.")
+
+        shell_bonds = self.nn_bonds(n_shells)[1]
+
+        hops = dict(zip(nn_shells, hop_amps))
+
+        for shell_idx, shell in enumerate(shell_bonds):
+            amp = hops.get(shell_idx + 1, None)
+            if amp is None:
+                continue
+            for bond in shell:
+                i, j, R = bond
+                self.set_hop(amp, i, j, R, mode=mode, allow_conjugate_pair=True)
+
+    def _append_hops(self, hop_amps, i_idx, j_idx, R_vecs):
+        hop_amps = np.asarray(hop_amps)
+        i_idx = np.asarray(i_idx, dtype=int)
+        j_idx = np.asarray(j_idx, dtype=int)
+        R_vecs = np.asarray(R_vecs, dtype=int).reshape(len(i_idx), self.dim_r)
+
+        blocks = [self._val_to_block(val) for val in hop_amps]
+        self._hoptable.extend(
+            blocks,
+            i_idx.tolist(),
+            j_idx.tolist(),
+            R_vecs.tolist(),
+        )
+
+    def _set_hops_bulk(self, hop_amps, i_idx, j_idx, R_vecs, mode="set"):
+        mode = mode.lower()
+        if mode not in {"set", "add"}:
+            raise ValueError("mode must be 'set' or 'add'")
+
+        hop_amps = np.asarray(hop_amps)
+        i_idx = np.asarray(i_idx, dtype=int)
+        j_idx = np.asarray(j_idx, dtype=int)
+        R_vecs = np.asarray(R_vecs, dtype=int).reshape(len(i_idx), self.dim_r)
+
+        for amp, i, j, R in zip(hop_amps, i_idx, j_idx, R_vecs, strict=True):
+            self.set_hop(
+                amp,
+                int(i),
+                int(j),
+                R,
+                mode=mode,
+                allow_conjugate_pair=True,
+            )
     
 
     def _val_to_block(self, val):
@@ -1225,6 +1327,15 @@ class TBModel:
         onsite = np.array(onsite)
         fin_model.set_onsite(onsite, mode="set")
 
+        # replicate parameterised onsite providers
+        onsite_providers = getattr(self, "_onsite_param_terms", {})
+        if onsite_providers:
+            for c in range(num_cells):
+                base = c * self.norb
+                for idx, provider in onsite_providers.items():
+                    if provider:
+                        fin_model.set_onsite(provider, ind_i=base + idx, mode="set")
+
         # remember if came from w90
         fin_model.assume_position_operator_diagonal = (
             self.assume_position_operator_diagonal
@@ -1263,6 +1374,41 @@ class TBModel:
                         mode="add",
                         allow_conjugate_pair=True,
                     )
+
+        # replicate parameterised hoppings
+        param_hops = getattr(self, "_hopping_param_terms", {})
+        if param_hops:
+            for c in range(num_cells):
+                base = c * self.norb
+                for (ind_i, ind_j, R_tuple), provider in param_hops.items():
+                    R_vec = np.array(R_tuple, dtype=int)
+                    jump_fin = int(R_vec[periodic_dir])
+
+                    hi = int(ind_i) + base
+                    hj = int(ind_j) + (c + jump_fin) * self.norb
+
+                    if fin_model.dim_k != 0:
+                        R_copy = R_vec.copy()
+                        R_copy[periodic_dir] = 0
+                        R_arg = R_copy
+                    else:
+                        R_arg = None
+
+                    if not glue_edges:
+                        if hj < 0 or hj >= self.norb * num_cells:
+                            continue
+                    else:
+                        hj = hj % (self.norb * num_cells)
+
+                    fin_model.set_hop(
+                        provider,
+                        hi,
+                        hj,
+                        R_arg,
+                        mode="set",
+                        allow_conjugate_pair=True,
+                    )
+
 
         return fin_model
 
@@ -1537,7 +1683,7 @@ class TBModel:
                 orig_part = total_disp - sc_part @ sc_red_lat
                 pair_idx = sc_index.get(tuple(orig_part.tolist()))
                 if pair_idx is None:
-                    raise Exception("\n\nDid not find super cell vector!")
+                    raise Exception("Did not find super cell vector!")
 
                 hi = int(ind_i) + base
                 hj = int(ind_j) + pair_idx * self.norb
@@ -1550,6 +1696,32 @@ class TBModel:
                 sc_tb.set_hop(
                     amp_use, hi, hj, sc_part, mode="add", allow_conjugate_pair=True
                 )
+
+        param_hops = getattr(self, "_hopping_param_terms", {})
+        if param_hops:
+            for offset, cur_sc_vec in enumerate(sc_vec):
+                base = offset * self.norb
+                for (ind_i, ind_j, R_tuple), provider in param_hops.items():
+                    R_vec = np.array(R_tuple, dtype=float)
+                    total_disp = cur_sc_vec + R_vec
+                    red_disp = total_disp @ red_transform
+                    sc_part = np.floor(red_disp + eps).astype(int)
+                    orig_part = total_disp - sc_part @ sc_red_lat
+                    pair_idx = sc_index.get(tuple(orig_part.tolist()))
+                    if pair_idx is None:
+                        raise RuntimeError("Supercell vector not found for parameterised hopping.")
+
+                    hi = int(ind_i) + base
+                    hj = int(ind_j) + pair_idx * self.norb
+
+                    sc_tb.set_hop(
+                        provider,
+                        hi,
+                        hj,
+                        sc_part,
+                        mode="set",
+                        allow_conjugate_pair=True,
+                    )
 
         if to_home:
             #NOTE: These two functions must be called in this order! 
@@ -1775,98 +1947,7 @@ class TBModel:
         if flatten_spin:
             ham = ham.reshape(n_kpts, norb * nspin, norb * nspin)
         return ham
-    
-    def _hamiltonian(
-            self, 
-            k_pts: np.ndarray = None, 
-            flatten_spin_axis: bool = False,
-            site_override=None,
-            hop_override=None
-            ) -> np.ndarray:
-        r"""Generate the Bloch Hamiltonian for an array of k-points in reduced coordinates.
 
-        The Hamiltonian is computed in tight-binding convention I, which includes phase factors
-        associated with orbital positions in the hopping terms:
-
-        .. math::
-
-            H_{ij}(k) = \sum_{\mathbf{R}} t_{ij}(\mathbf{R}) \exp[i \mathbf{k} \cdot (\mathbf{r}_i - \mathbf{r}_j + \mathbf{R})]
-
-        where :math:`t_{ij}(R)` is the hopping amplitude from orbital j to i through lattice vector :math:`\mathbf{R}`.
-
-        .. versionadded:: 2.0.0
-
-        Parameters
-        ----------
-        k_pts : (Nk, dim_k) array, optional
-            Array of k-points in reduced coordinates.
-            If `None`, the Hamiltonian is computed at a single point (`dim_k = 0`),
-            corresponding to a finite sample.
-        flatten_spin_axis : bool, optional
-            If True, the spin indices are flattened into the orbital indices.
-            This results in a Hamiltonian at each k-point of shape ``(norb*nspin, norb*nspin)``.
-            If False (default), the Hamiltonian has shape ``(norb, nspin, norb, nspin)``.
-
-        Returns
-        -------
-        ham : np.ndarray 
-            Array of Bloch-Hamiltonian matrices defined on the specified k-points. The Hamiltonian is Hermitian by construction.
-
-            - If ``dim_k > 0``: shape is ``(n_kpts, norb, norb)`` for spinless models, or ``(n_kpts, norb, nspin, norb, nspin)`` 
-              for spinful models, unless ``flatten_spin_axis=True``, in which case the shape 
-              is ``(n_kpts, norb*nspin, norb*nspin)``.
-
-            - If ``dim_k=0``: shape is ``(norb, norb)`` for spinless or ``(norb, nspin, norb, nspin)`` for spinful models,
-              unless ``flatten_spin_axis=True``, in which case the shape is ``(norb*nspin, norb*nspin)``.
-
-        Notes
-        -----
-        In convention I, the Hamiltonian satisfies:
-
-        .. math::
-
-            H(k) \neq H(k + G), \quad \text{but instead} \quad H(k) = U H(k + G) U^{\dagger}
-
-        where :math:`G` is a reciprocal lattice vector and :math:`U` is a unitary transformation
-        relating the two.
-
-        Finite difference estimates of :math:`\partial_{k_\mu} H(k)` may not be accurate at
-        boundaries due to the gauge discontinuity inherent in convention I.        
-
-        """
-        site_energies = (
-            np.asarray(site_override, dtype=complex)
-            if site_override is not None
-            else np.asarray(self._site_energies, dtype=complex)
-        )
-        hop_amps, i_idx, j_idx, R_vecs = self._hoptable.components()
-        hop_amps = (
-            np.asarray(hop_override, dtype=complex)
-            if hop_override is not None
-            else np.asarray(hop_amps, dtype=complex)
-        )
-
-        if self.dim_k == 0:
-            if k_pts is not None:
-                raise ValueError("k_pts should not be specified for finite (dim_k=0) models.")
-            return self._hamiltonian_finite(
-                hop_amps,
-                i_idx,
-                j_idx,
-                site_energies,
-                flatten_spin=flatten_spin_axis,
-            )
-
-        k_arr = self._normalize_kpoints(k_pts)
-        return self._hamiltonian_periodic(
-            k_arr,
-            hop_amps,
-            i_idx,
-            j_idx,
-            R_vecs,
-            site_energies,
-            flatten_spin=flatten_spin_axis,
-        )
 
     def hamiltonian(
             self, 
@@ -1874,7 +1955,7 @@ class TBModel:
             params: dict | None = None, 
             flatten_spin_axis=False
             ):
-        r"""Generate the Bloch Hamiltonian for an array of k-points in reduced coordinates.
+        r"""Generate the Bloch Hamiltonian of the tight-binding model.
 
         The Hamiltonian is computed in tight-binding convention I, which includes phase factors
         associated with orbital positions in the hopping terms:
@@ -1894,11 +1975,12 @@ class TBModel:
             If `None`, the Hamiltonian is computed at a single point (`dim_k = 0`),
             corresponding to a finite sample.
 
-        params : dict or None
-            Mapping from parameter name -> value(s). Each value can be a scalar
-            (int/float) or a 1D array of values. If any arrays are present,
-            the Hamiltonian is evaluated on the full Cartesian product and
-            stacked along leading parameter axes (in the order of keys).
+        params : dict, optional
+            Mapping from parameter names to value(s). Each value can be a scalar
+            or a 1D array of values. If any values are array-like,
+            the Hamiltonian is evaluated at all combinations of parameter values,
+            and the final array is stacked with the k-axis leading, followed by each
+            parameter axis in the order of given parameter names.
 
         flatten_spin_axis : bool, optional
             If True, the spin indices are flattened into the orbital indices.
@@ -1937,38 +2019,21 @@ class TBModel:
         boundaries due to the gauge discontinuity inherent in convention I.        
         """
 
-        # ---------- Collect required parameter names from providers ----------
-        required = set()
+        # Check params
+        if params is not None:
+            params = dict(params)
+            self._check_missing_parameters(params)
+        else:
+            params = {}
 
-        # onsite providers: self._onsite_param_terms : dict[idx] -> callable | str | None
-        for term in getattr(self, "_onsite_param_terms", {}).values():
-            if callable(term):
-                required.update(_iter_params_of_callable(term))
-            elif isinstance(term, str):
-                required.add(term)
-
-        # hopping providers: self._hopping_param_terms : dict[(i,j,R)] -> callable | str
-        for term in getattr(self, "_hopping_param_terms", {}).values():
-            if callable(term):
-                required.update(_iter_params_of_callable(term))
-            elif isinstance(term, str):
-                required.add(term)
-
-        params = {} if params is None else dict(params)
-        missing = required.difference(params.keys())
-        if missing:
-            raise ValueError("Missing parameter value(s): " + ", ".join(sorted(missing)))
-
-        # ---------- Normalize k-points ----------
+        # Normalize k-points 
         if self.dim_k == 0:
             k_arr = None
-            Nk = 1
         else:
             if k_pts is None:
                 k_arr = self._normalize_kpoints(np.zeros((1, self.dim_k)))
             else:
                 k_arr = self._normalize_kpoints(k_pts)
-            Nk = len(k_arr)
 
         # ---------- Partition params into scalars vs sweeps (1D arrays/lists) ----------
         sweep_names: list[str] = []
@@ -1987,7 +2052,7 @@ class TBModel:
             else:
                 scalars[name] = raw
 
-          # ---------- Core evaluator for a single parameter assignment ----------
+        # ---------- Core evaluator for a single parameter assignment ----------
         def evaluate(assignments: dict):
             # ---- copy base hops and onsite (immutable per evaluation) ----
             base_hop_amps, base_i_idx, base_j_idx, base_R_vecs = self._hoptable.components()
@@ -1998,7 +2063,6 @@ class TBModel:
             R_vecs   = np.array(base_R_vecs,   copy=True)
 
             site = np.asarray(self._site_energies, dtype=complex).copy()  # copy!
-
             # ---- onsite providers ----
             for idx, term in getattr(self, "_onsite_param_terms", {}).items():
                 if term is None: 
@@ -2046,7 +2110,6 @@ class TBModel:
                 k_arr, hop_amps, i_idx, j_idx, R_vecs, site, flatten_spin=flatten_spin_axis
             )
 
-
         # ---------- No sweeps: just evaluate once ----------
         if not sweep_axes:
             return evaluate(scalars)
@@ -2061,7 +2124,7 @@ class TBModel:
             H = evaluate(assign)                # shapes: (Nk, n,n) or (n,n) if dim_k=0
             if base_shape is None:
                 base_shape = H.shape
-            blocks.append(H[np.newaxis, ...])   # prepend a λ-product axis
+            blocks.append(H[np.newaxis, ...])   
 
         stacked = np.concatenate(blocks, axis=0)    # (*Nλ, *base_shape)
         stacked = stacked.reshape(*axis_lengths, *base_shape)
@@ -2075,43 +2138,31 @@ class TBModel:
         return stacked
     
     def _sol_ham(
-        self, ham, return_eigvecs=False, flatten_spin_axis=False, tf_speedup=False, use_32_bit=False,
-        memory_info=False):
+        self, 
+        ham, 
+        return_eigvecs=False, 
+        flatten_spin_axis=False, 
+        tf_speedup=False, 
+        use_32_bit=False
+        ):
         """Solves Hamiltonian and returns eigenvectors, eigenvalues"""
         # NOTE: this function is separate so that it can be jit-compiled if needed
 
-        # shape(ham): (Nk, n_orb, n_orb), (Nk, n_orb, n_spin, n_orb, n_spin)
-        # or in finite cases (n_orb, n_orb), (n_orb, n_spin, n_orb, n_spin)
-        # flatten spin axes
-        if ham.ndim == 2 * self.nspin + 1:
-            # have k points
-            new_shape = (ham.shape[0],) + (self.nstate, self.nstate)
-            if self.nspin == 1:
-                shape_evecs = (ham.shape[0],) + (self.norb, self.norb)
-            elif self.nspin == 2:
-                shape_evecs = (ham.shape[0],) + (
-                    self.nstate,
-                    self.norb,
-                    self.nspin,
-                )
-        elif ham.ndim == 2 * self.nspin:
-            # must be a finite sample, no k-points
-            new_shape = (self.nstate, self.nstate)
-            if self.nspin == 1:
-                shape_evecs = (self.norb, self.norb)
-            elif self.nspin == 2:
-                shape_evecs = (self.nstate, self.norb, self.nspin)
-        else:
-            raise ValueError("Hamiltonian has wrong shape.")
+        if self.nspin == 1:
+            shape_evecs = (*ham.shape[:-2],) + (self.norb, self.norb)
+        elif self.nspin == 2:
+            shape_evecs = (*ham.shape[:-2],) + (
+                self.nstate,
+                self.norb,
+                self.nspin,
+            )
 
-        ham_use = ham.reshape(*new_shape)
-
-        if not np.allclose(ham_use, ham_use.swapaxes(-1, -2).conj()):
+        if not np.allclose(ham, ham.swapaxes(-1, -2).conj()):
             raise ValueError("Hamiltonian matrix is not Hermitian.")
         
         if tf_speedup:
             result = _tensorflow_solve(
-                ham_use, return_eigvecs=return_eigvecs, use_32_bit=use_32_bit
+                ham, return_eigvecs=return_eigvecs, use_32_bit=use_32_bit
                 )
             if return_eigvecs:
                 # return later
@@ -2121,9 +2172,9 @@ class TBModel:
             
         else:
             if use_32_bit:
-                ham_use = ham_use.astype(np.complex64)
+                ham_use = ham.astype(np.complex64)
             else:
-                ham_use = ham_use.astype(np.complex128)
+                ham_use = ham.astype(np.complex128)
             if return_eigvecs:
                 # return later
                 eval, evec = np.linalg.eigh(ham_use)
@@ -2229,7 +2280,7 @@ class TBModel:
         >>> eval, evec = tb.solve_ham([[0.0, 0.0], [0.0, 0.2]], return_eigvecs=True)
         """
         logger.debug("Initializing Hamiltonian...")
-        Ham = self.hamiltonian(k_pts, params=params)
+        Ham = self.hamiltonian(k_pts, params=params, flatten_spin_axis=True)
 
         logger.debug("Diagonalizing Hamiltonian...")
         if return_eigvecs:
@@ -2237,8 +2288,6 @@ class TBModel:
                 Ham, return_eigvecs=return_eigvecs, flatten_spin_axis=flatten_spin_axis, tf_speedup=tf_speedup
             )
             if self.dim_k != 0:
-                if eigvals.ndim != 2:
-                    raise ValueError("Wrong shape of eigvals")
                 # if only one k_point, remove that redundant axis (reproduces solve_one)
                 if eigvals.shape[0] == 1:
                     eigvals = eigvals[0]
@@ -2249,8 +2298,6 @@ class TBModel:
             eigvals = self._sol_ham(Ham, return_eigvecs=return_eigvecs)
 
             if self.dim_k != 0:
-                if eigvals.ndim != 2:
-                    raise ValueError("Wrong shape of eigvals")
                 # if only one k_point, remove that redundant axis (reproduces solve_one)
                 if eigvals.shape[0] == 1:
                     eigvals = eigvals[0]
@@ -2325,54 +2372,23 @@ class TBModel:
         k_vec, _, _ = self.k_path(k_nodes, nk, report=False)
         return k_vec, self.solve_ham(k_vec, return_eigvecs=False)
     
-    def velocity(
+    def _velocity(
             self, 
-            k_pts: np.ndarray, 
+            k_arr: np.ndarray, 
+            hop_amps: np.ndarray,
+            i_indices: np.ndarray,
+            j_indices: np.ndarray,
+            R_vecs: np.ndarray,
             cartesian: bool = False,
             flatten_spin_axis: bool = False
             ) -> np.ndarray:
-        r"""Generate the velocity operator in the orbital basis.
-
-        The velocity operator is defined via the derivative of the Hamiltonian
-        with respect to k of each reciprocal lattice direction, i.e., 
-
-        .. math::
-            v_k^{\mu} = \hbar \frac{\partial H(k)}{\partial k_{\mu}}
         
-        Here, we use units where :math:`\hbar = 1`.
-
-        .. versionadded:: 2.0.0
-
-        Parameters
-        ----------
-        k_pts : array of shape (Nk, dim_k)
-            Array of k-points in reduced coordinates.
-        cartesian : bool, optional
-            If True, use Cartesian coordinates for the velocity operator.
-            If False (default), use reduced coordinates.
-        flatten_spin_axis : bool, optional
-            If True, the spin indices are flattened into the orbital indices.
-            This results in a velocity operator at each k-point of shape ``(norb*nspin, norb*nspin)``.
-            If False (default), the velocity operator has shape ``(norb, nspin, norb, nspin)``.
-
-        Returns
-        -------
-        vel : np.ndarray
-            Velocity operators at each k-point. First axis indexes the cartesian direction if ``cartesian=True``.
-            Otherwise, it indexes the reduced direction. Shape is `(dim_k, Nk, norb, norb)` for spinless models,
-            or `(dim_k, Nk, norb, nspin, norb, nspin)` for spinful models.
-
-        """
         dim_k = self.dim_k
-
-        k_arr = self._normalize_kpoints(k_pts)
 
         norb = self.norb
         per = np.asarray(self.per)
         orb_red = np.asarray(self.orb_vecs)
 
-        table = self._hoptable
-        amps, i_indices, j_indices, R_vecs = table.components()
         n_hops = i_indices.size
 
         i_indices = i_indices.astype(int)
@@ -2399,7 +2415,7 @@ class TBModel:
         deriv_phase = coeff * phases[None, ...] if n_hops else coeff[:, :, :0]
 
         if not self.spinful:
-            amps_use = np.asarray(amps, dtype=complex)
+            amps_use = np.asarray(hop_amps, dtype=complex)
             vel = np.zeros((dim_k, k_arr.shape[0], norb, norb), dtype=complex)
             if n_hops:
                 cache = self._get_flattened_indices()
@@ -2418,7 +2434,7 @@ class TBModel:
         nspin = self.nspin
         vel = np.zeros((dim_k, k_arr.shape[0], norb, nspin, norb, nspin), dtype=complex)
         if n_hops:
-            weighted = deriv_phase[..., None, None] * amps[None, None, :, :, :]
+            weighted = deriv_phase[..., None, None] * hop_amps[None, None, :, :, :]
             for s_out in range(nspin):
                 for s_in in range(nspin):
                     contrib = weighted[..., s_out, s_in]
@@ -2436,6 +2452,174 @@ class TBModel:
         if flatten_spin_axis:
             vel = vel.reshape(dim_k, k_arr.shape[0], norb * nspin, norb * nspin)
         return vel
+
+    def velocity(
+            self, 
+            k_pts: np.ndarray,
+            params: dict = None,
+            cartesian: bool = False,
+            flatten_spin_axis: bool = False
+            ) -> np.ndarray:
+        r"""Generate the velocity operator in the orbital basis.
+
+        The velocity operator is defined via the derivative of the Hamiltonian
+        with respect to k of each reciprocal lattice direction, i.e., 
+
+        .. math::
+            v_k^{\mu} = \hbar \frac{\partial H(k)}{\partial k_{\mu}}
+        
+        Here, we use units where :math:`\hbar = 1`.
+
+        .. versionadded:: 2.0.0
+
+        Parameters
+        ----------
+        k_pts : array of shape (Nk, dim_k)
+            Array of k-points in reduced coordinates.
+        params : dict, optional
+            Dictionary of parameter values to use in the model.
+        cartesian : bool, optional
+            If True, use Cartesian coordinates for the velocity operator.
+            If False (default), use reduced coordinates.
+        flatten_spin_axis : bool, optional
+            If True, the spin indices are flattened into the orbital indices.
+            This results in a velocity operator at each k-point of shape ``(norb*nspin, norb*nspin)``.
+            If False (default), the velocity operator has shape ``(norb, nspin, norb, nspin)``.
+
+        Returns
+        -------
+        vel : np.ndarray
+            Velocity operators at each k-point. First axis indexes the cartesian direction if ``cartesian=True``.
+            Otherwise, it indexes the reduced direction. Shape is `(dim_k, Nk, norb, norb)` for spinless models,
+            or `(dim_k, Nk, norb, nspin, norb, nspin)` for spinful models.
+
+        """
+        table = self._hoptable
+        k_arr = self._normalize_kpoints(k_pts)
+        hop_amps, i_indices, j_indices, R_vecs = table.components()
+
+        # Check params
+        if params is not None:
+            params = dict(params)
+            self._check_missing_parameters(params)
+        else:
+            params = {}
+
+        # Normalize k-points 
+        if self.dim_k == 0:
+            k_arr = None
+        else:
+            if k_pts is None:
+                k_arr = self._normalize_kpoints(np.zeros((1, self.dim_k)))
+            else:
+                k_arr = self._normalize_kpoints(k_pts)
+
+        # ---------- Partition params into scalars vs sweeps (1D arrays/lists) ----------
+        sweep_names: list[str] = []
+        sweep_axes: list[list[object]] = []  # list of per-parameter lists of scalar values
+        scalars: dict[str, object] = {}
+
+        for name, raw in params.items():
+            # Treat 1D arrays / lists / tuples as sweep axes; everything else as scalar
+            if isinstance(raw, (list, tuple, np.ndarray)) and np.ndim(raw) == 1:
+                # keep raw values as-is so lambdas see original dtype (float/complex/etc.)
+                values = list(raw) if not isinstance(raw, np.ndarray) else [raw[i] for i in range(raw.shape[0])]
+                if len(values) == 0:
+                    raise ValueError(f"Parameter sweep '{name}' must provide at least one value.")
+                sweep_names.append(name)
+                sweep_axes.append(values)
+            else:
+                scalars[name] = raw
+
+        # ---------- Core evaluator for a single parameter assignment ----------
+        def evaluate(assignments: dict):
+            # ---- copy base hops and onsite (immutable per evaluation) ----
+            base_hop_amps, base_i_idx, base_j_idx, base_R_vecs = self._hoptable.components()
+
+            hop_amps = np.array(base_hop_amps, copy=True)      # copy!
+            i_idx    = np.array(base_i_idx,    copy=True)
+            j_idx    = np.array(base_j_idx,    copy=True)
+            R_vecs   = np.array(base_R_vecs,   copy=True)
+
+            site = np.asarray(self._site_energies, dtype=complex).copy()  # copy!
+            # ---- onsite providers ----
+            for idx, term in getattr(self, "_onsite_param_terms", {}).items():
+                if term is None: 
+                    continue
+                if callable(term):
+                    val   = _call_provider(term, assignments)
+                    block = self._val_to_block(val)
+                elif isinstance(term, str):
+                    block = self._eval_expr_to_block(term, **assignments)
+                else:
+                    raise TypeError("Unsupported onsite provider type.")
+                if self.nspin == 2 and not is_Hermitian(block):
+                    raise ValueError(f"Onsite callable for site {idx} returned non-Hermitian 2×2.")
+                site[idx] = np.asarray(block, dtype=complex)
+
+            # ---- collect param-dependent hops without mutating arrays in-place ----
+            dyn_blocks = []
+            dyn_i = []
+            dyn_j = []
+            dyn_R = []
+
+            for key, term in getattr(self, "_hopping_param_terms", {}).items():
+                if callable(term):
+                    val   = _call_provider(term, assignments)
+                    block = self._val_to_block(val)
+                elif isinstance(term, str):
+                    block = self._eval_expr_to_block(term, **assignments)
+                else:
+                    raise TypeError("Unsupported hopping provider type.")
+                dyn_blocks.append(np.asarray(block, dtype=complex)[None, ...])
+                dyn_i.append(key[0])
+                dyn_j.append(key[1])
+                dyn_R.append(list(key[2]) if len(key) > 2 else [0]*self.dim_k)
+
+            if dyn_blocks:
+                hop_amps = np.concatenate([hop_amps] + dyn_blocks, axis=0)
+                i_idx    = np.concatenate([i_idx,    np.asarray(dyn_i, dtype=i_idx.dtype)])
+                j_idx    = np.concatenate([j_idx,    np.asarray(dyn_j, dtype=j_idx.dtype)])
+                R_vecs   = np.concatenate([R_vecs,   np.asarray(dyn_R, dtype=R_vecs.dtype)], axis=0)
+
+            # ---- assemble H from immutable arrays ----
+            if self.dim_k == 0:
+                raise NotImplementedError("Finite Hamiltonian assembly not implemented.")
+            return self._velocity(
+                k_arr, hop_amps, i_idx, j_idx, R_vecs, cartesian=cartesian, flatten_spin_axis=flatten_spin_axis
+            )
+
+        # ---------- No sweeps: just evaluate once ----------
+        if not sweep_axes:
+            return evaluate(scalars)
+
+        # --- λ sweeps: cartesian product, then reshape with λ at the END
+        axis_lengths = [len(ax) for ax in sweep_axes]
+        blocks, base_shape = [], None
+        for multi in product(*[range(n) for n in axis_lengths]):
+            assign = scalars.copy()
+            for a, name in enumerate(sweep_names):
+                assign[name] = sweep_axes[a][multi[a]]
+            v = evaluate(assign)                # shapes: (Nk, n,n) or (n,n) if dim_k=0
+            if base_shape is None:
+                base_shape = v.shape
+            blocks.append(v[np.newaxis, ...])   
+
+        stacked = np.concatenate(blocks, axis=0)    # (*Nλ, *base_shape)
+        stacked = stacked.reshape(*axis_lengths, *base_shape)
+
+        if axis_lengths:
+            p = len(axis_lengths)
+            b = len(base_shape)   # e.g. 4 when base is (dim_k, Nk, norb, norb)
+            perm = (
+                p,          # dim_k
+                p + 1,      # Nk
+                *range(p),  # all param axes in original order
+                *range(p + 2, p + b)  # remaining matrix axes (e.g. norb, norb)
+            )
+            stacked = np.transpose(stacked, perm)
+
+        return stacked
 
     def quantum_geometric_tensor(
         self,
