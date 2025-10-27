@@ -777,8 +777,8 @@ class Wannier:
         of the Wannier functions as a function of `k`. This is related to the
         real part of the quantum metric.
         """
-        P = self.tilde_states.get_projector()
-        Q_nbr = self.tilde_states._Q_nbr
+        P = self.tilde_states.projectors()
+        _, Q_nbr = self.tilde_states._nbr_projectors(return_Q=True)
 
         nks = self.nks
         Nk = np.prod(nks)
