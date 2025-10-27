@@ -1224,6 +1224,11 @@ class Mesh:
             # Default mapping: k-axis winds the same-index k-component
             self.wind_bz(ax_idx, ax_idx)
 
+        if lambda_endpoints is not None:
+            for i, ax_idx in enumerate(self.lambda_axis_indices):
+                if lambda_endpoints[i]:
+                    self.close_axis(ax_idx, ax_idx)
+
         self._set_ax_info()
 
 
