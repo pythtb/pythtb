@@ -957,8 +957,8 @@ class Wannier:
         
         # Projector of initial tilde subspace at each k-point
         init_states = self.tilde_states
-        P, _ = init_states.projectors(return_Q=True)
-        P_nbr, Q_nbr = init_states._P_nbr, init_states._Q_nbr
+        P = init_states.projectors(return_Q=False)
+        P_nbr, Q_nbr = init_states._nbr_projectors(return_Q=True)
         T_kb = np.einsum("...ij, ...kji -> ...k", P, Q_nbr)
 
         omega_I_prev = (1 / Nk) * w_b * np.sum(T_kb)
@@ -1022,8 +1022,8 @@ class Wannier:
             # update projectors
             min_wfa = WFArray(self.lattice, self.mesh, nstates=states_min.shape[-2], spinful=self.bloch_states.spinful)
             min_wfa.set_states(states_min, is_cell_periodic=True, is_spin_axis_flat=True)
-            P_new = min_wfa._P
-            P_nbr_new = min_wfa._P_nbr
+            P_new = min_wfa.projectors()
+            P_nbr_new = min_wfa._nbr_projectors(return_Q=False)
 
             if beta != 1:
                 # for next iteration
@@ -1153,9 +1153,9 @@ class Wannier:
             comp_bands = list(np.setdiff1d(disentang_bands, frozen_bands))
             comp_states = u_nk.take(comp_bands, axis=-2)
 
-          
-        P, Q = init_states.projectors(return_Q=True)
-        P_nbr, Q_nbr = init_states._P_nbr, init_states._Q_nbr
+
+        P = init_states.projectors(return_Q=False)
+        P_nbr, Q_nbr = init_states._nbr_projectors(return_Q=True)
 
         T_kb = np.einsum("...ij, ...kji -> ...k", P, Q_nbr)
         omega_I_prev = (1 / Nk) * w_b * np.sum(T_kb)
@@ -1193,8 +1193,8 @@ class Wannier:
 
             min_wfa = WFArray(self.lattice, self.mesh, nstates=states_min.shape[-2], spinful=self.bloch_states.spinful)
             min_wfa.set_states(states_min, is_cell_periodic=True, is_spin_axis_flat=True)
-            P_new = min_wfa._P
-            P_nbr_new = min_wfa._P_nbr
+            P_new = min_wfa.projectors()
+            P_nbr_new = min_wfa._nbr_projectors(return_Q=False)
 
             if beta != 1:
                 # for next iteration
@@ -1669,17 +1669,19 @@ class Wannier:
         if wan_idxs is not None:
             u_tilde = np.take_along_axis(u_tilde, wan_idxs, axis=-2)
 
-        H_k = self.bloch_states.hamiltonian
+        k_mesh = self.mesh.get_k_points()
+        k_flat = k_mesh.reshape(-1, k_mesh.shape[-1])
+        H_k = self.bloch_states.model.hamiltonian(k_flat)
+        H_k = H_k.reshape(k_mesh.shape[:-1] + H_k.shape[1:])
         if self.bloch_states.spinful:
-            new_shape = H_k.shape[:-4] + (self.bloch_states.nspin * self.bloch_states.norb, self.bloch_states.nspin * self.bloch_states.norb)
+            new_shape = H_k.shape[:-4] + (self.bloch_states.nstates, self.bloch_states.nstates)
             H_k = H_k.reshape(*new_shape)
 
         H_rot_k = u_tilde.conj() @ H_k @ np.swapaxes(u_tilde, -1, -2)
         eigvals, eigvecs = np.linalg.eigh(H_rot_k)
         eigvecs = np.einsum("...ij, ...ik->...kj", u_tilde, eigvecs)
         # eigvecs = np.swapaxes(eigvecs, -1, -2)
-
-        k_mesh = self.mesh.get_k_points()
+        
         nks = self.nks
         idx_grid = np.indices(nks, dtype=int)
         k_idx_arr = idx_grid.reshape(len(nks), -1).T
