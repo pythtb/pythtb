@@ -165,7 +165,7 @@ class WFArray:
         # wfs indexed by [k1, k2,..., state, orb, spin]
         self._wfs = np.empty(self.shape, dtype=complex)
         # energies indexed by [k1, k2,..., state]
-        self._energies = np.empty(self.shape_mesh + (self.nstates,), dtype=float)
+        self._energies = None
 
     def __getitem__(self, index):
         self._check_index(index)
@@ -189,6 +189,7 @@ class WFArray:
                 raise ValueError("Incompatible shape for wavefunction!")
 
         self._wfs[index] = value
+        self._invalidate_caches()
 
     def _check_index(self, index):
         # Normalize to a tuple of ints
@@ -216,6 +217,10 @@ class WFArray:
             if k < lo or k >= hi:
                 raise IndexError("Index outside the range of the WFArray.")
 
+    def _invalidate_caches(self):
+        for attr in ("_P", "_Q", "_P_nbr", "_Q_nbr", "_Mmn"):
+            if hasattr(self, attr):
+                delattr(self, attr)
     @property
     def model(self):
         """The :class:`TBModel` associated with the :class:`WFArray`."""
@@ -281,7 +286,8 @@ class WFArray:
         .. math::
             M_{mn}^{(\mathbf{b})}(\mathbf{k}) = \langle u_{m,\mathbf{k}} | u_{n,\mathbf{k}+\mathbf{b}} \rangle
 
-        where :math:`\mathbf{b}` is a vector connecting nearest neighbor k-points in the mesh. 
+        where :math:`\mathbf{b}` is a vector connecting nearest neighbor k-points in the mesh. Here, the 
+        neighboring k-points are computed in Cartesian space. 
 
         Returns
         -------
@@ -292,6 +298,7 @@ class WFArray:
         -----
         - The overlap matrix is only defined for regular grids.
         - The overlap matrix is not defined for 0D k-space.
+        - To compute the overlap matrix using reduced neighbors, use :meth:`overlap_matrix`.
         """
         if not self.filled:
             raise ValueError("Wavefunctions are not initialized.")
@@ -299,7 +306,10 @@ class WFArray:
             raise ValueError("Overlap matrix is only defined for regular grids.")
         if self.dim_k == 0:
             raise ValueError("Overlap matrix is not defined for 0D k-space.")
-        
+
+        if not hasattr(self, "_Mmn"):
+            self._Mmn = self.overlap_matrix(use_k_metric=True)
+
         return self._Mmn
 
     @property
@@ -313,10 +323,8 @@ class WFArray:
         """
         if not self.filled:
             raise ValueError("Wavefunctions are not initialized.")
-        if self.hamiltonian is None:
-            raise ValueError("Hamiltonian is not set. Use set_ham() to set it.")
-        if self._energies.size == 0:
-            raise ValueError("Energies are not initialized.")
+        if self._energies is None:
+            raise ValueError("Energies are not initialized. Use `solve_model` to compute them.")
         
         return self._energies
 
@@ -410,7 +418,7 @@ class WFArray:
         self, 
         wfs, 
         is_cell_periodic: bool = True, 
-        is_spin_axis_flat: bool =False
+        is_spin_axis_flat: bool = False
         ):
         """Sets the wavefunctions in the *WFArray* object.
 
@@ -484,16 +492,14 @@ class WFArray:
                 u_nk = wfs * phases
                 self._u_nk = self._wfs = u_nk
                 self._psi_nk = wfs
-
-            if self.mesh.is_grid:
-                self._Mmn = self.overlap_matrix(use_k_metric=True)
         
         else:
             if not is_cell_periodic:
                 logger.warning("Setting non-cell-periodic wavefunctions for 0D k-space.")
             self._wfs = wfs
+
+        self._invalidate_caches()
     
-        self._set_projectors()
 
     def remove_states(self, state_idxs):
         r"""Remove states from the *WFArray* object.
@@ -658,186 +664,11 @@ class WFArray:
         """
         return self.lattice.k_shell_weights(self.nks, n_shell, report=report)
     
-    
-    def _get_ham_from_model(
-            self, 
-            model: TBModel = None, 
-            model_func: callable = None, 
-            fixed_params: dict={}
-            ):
-        r"""Gets the Hamiltonian defined on the mesh.
-
-        If a model function is provided, it is used to generate the Hamiltonian
-        with the current mesh parameters. If no parameters are defined in the
-        mesh, a warning is issued and the `TBModel` passed upon instantiation
-        is used to generate the Hamiltonian.
-
-        Parameters
-        ----------
-        model : TBModel, optional
-            A tight-binding model instance. If not provided, the model function
-            must be used to generate the Hamiltonian.
-        model_func : callable, optional
-            A function that takes mesh parameters as input and returns a
-            :class:`TBModel`.
-        fixed_params : dict, optional
-            A dictionary of fixed parameters to be passed to the model function.
-            It has the structure ``{<param_name>: <param_value>, ...}``. 
-            ``param_name`` must match the names of the parameters expected by 
-            the model function.
-
-        Notes
-        ------
-        If there are parameter dimensions in the Mesh, then the ``model_func`` must be used.
-        The ``axis_names`` argument in the ``Mesh`` constructor are used to assign axes to the
-        variables to be passed to the model function. The names must match the parameter names
-        expected by the model function.
-
-        If `axis_names` were not specified in the Mesh initialization, they will be
-        set to the default values of 'k_i' and 'l_i', where i is the
-        index of the axis.
-        """
-
-        if model_func is not None and self.mesh.num_lambda_axes == self.dim_lambda == 0:
-            logger.warning("Model function is provided but no parameters are defined in Mesh.")
-        if model_func is None and self.mesh.num_lambda_axes > 0:
-            raise ValueError("Model function is required when mesh has parameters.")
-
-        flat = self.mesh.flat
-
-        if model_func is None:
-            if model.lattice != self.lattice:
-                raise ValueError("Model lattice does not match WFArray lattice.")
-            if model.nspin != self.nspin:
-                raise ValueError("Model spin does not match WFArray spin.")
-
-            # self._lattice = model.lattice
-            Hk = model.hamiltonian(k_pts=flat)
-
-            if self.mesh.is_grid:
-                shape_k = self.mesh.shape_k
-                Hk = Hk.reshape(*shape_k, *Hk.shape[1:])
-
-            return Hk
-        
-        n_orb = self.norb
-        n_spin = self.nspin
-        n_states = self.nstates
-        
-        dim_lambda = self.mesh.dim_lambda
-        lambda_shape = self.nlams
-        lambda_keys = self.mesh.axis_names[self.mesh.num_k_axes:]
-
-        if any(name is None for name in lambda_keys):
-            raise ValueError(
-                "Parameter axis is unnamed. Set `axis_names` in Mesh so WFArray can match them to model parameters."
-            )
-        
-        sig = inspect.signature(model_func)
-        params = sig.parameters
-        accepts_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
-        valid_names = {
-             name
-             for name, p in params.items()
-             if p.kind in (
-                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                 inspect.Parameter.KEYWORD_ONLY,
-             )
-         }
-        
-        def _require(names: set[str], label: str) -> None:
-            if accepts_kwargs:
-                 return
-            missing = [name for name in names if name not in valid_names]
-            if missing:
-                raise TypeError(
-                    f"{model_func.__name__}() does not accept the {label} "
-                    f"{', '.join(missing)}. "
-                    "Make sure the mesh axis names match the model_func signature. "
-                    f"Valid names are: {', '.join(valid_names)}"
-                )
-        _require(set(lambda_keys), "mesh axis name(s)")
-        _require(set(fixed_params), "fixed parameter(s)")
-
-        model_gen = partial(model_func, **fixed_params)
-        self.fixed_params = fixed_params
-        self.model_func = model_func
-        
-        lambda_ranges = [
-            self.mesh.get_axis_range(i, j) 
-            for i,j in zip(self.mesh.lambda_axis_indices, self.mesh.lambda_component_indices)
-        ]
-
-        # Initialize storage for wavefunctions and energies
-        if self.dim_k > 0:
-            n_kpts = np.prod(self.nks)
-            shape_k = self.mesh.shape_k
-            k_grid = self.k_points
-            k_flat = k_grid.reshape(n_kpts, -1)
-
-            # Initialize storage for wavefunctions and energies
-            if n_spin == 1:
-                H_kl = np.zeros(( *lambda_shape, n_kpts, n_states, n_states), dtype=complex)
-            elif n_spin == 2:
-                H_kl = np.zeros(( *lambda_shape, n_kpts, n_orb, n_spin, n_orb, n_spin), dtype=complex)
-        else:
-            k_flat = None
-
-            if n_spin == 1:
-                H_kl = np.zeros(( *lambda_shape, n_orb, n_orb), dtype=complex)
-            elif n_spin == 2:
-                H_kl = np.zeros(( *lambda_shape, n_orb, n_spin, n_orb, n_spin), dtype=complex)
-
-        # Loop over parameter sets
-        for idx, param_set in enumerate(np.ndindex(*lambda_shape)):
-            # kwargs for model_fxn with specified parameter values
-            param_dict = {lambda_keys[i]: lambda_ranges[i][param_set] for i in range(dim_lambda)}
-
-            # Generate the model with modified parameters
-            modified_model: TBModel = model_gen(**param_dict)
-            # self._lattice = modified_model.lattice
-
-            if not isinstance(modified_model, TBModel):
-                raise TypeError("model_gen must return an instance of TBModel.")
-            if modified_model.lattice != self.lattice:
-                raise ValueError("Model lattice does not match WFArray lattice.")
-            if modified_model.nspin != self.nspin:
-                raise ValueError("Model spin does not match WFArray spin.")
-            
-            ham = modified_model.hamiltonian(k_pts=k_flat)
-            H_kl[param_set] = ham
-
-        if self.dim_k > 0:
-            # Reshape n_kpts into the k-grid shape, then move lambda axes behind k-axes
-            if n_spin == 1:
-                H_kl = H_kl.reshape(*lambda_shape, *shape_k, n_states, n_states)
-            elif n_spin == 2:
-                H_kl = H_kl.reshape(*lambda_shape, *shape_k, n_states, n_orb, n_spin)
-        
-            # Current axes: [lambda_axes..., k_axes..., matrix_axes...]
-            # Desired: [k_axes..., lambda_axes..., matrix_axes...]
-            n_k_axes = len(shape_k)
-            total_axes = H_kl.ndim
-            perm = (
-                list(range(dim_lambda, dim_lambda + n_k_axes)) 
-                + list(range(0, dim_lambda)) 
-                + list(range(dim_lambda + n_k_axes, total_axes))
-            )
-            H_kl = np.transpose(H_kl, axes=perm)
-
-        else:
-            if n_spin == 1:
-                H_kl = H_kl.reshape(*lambda_shape, n_orb, n_orb)
-            elif n_spin == 2:
-                H_kl = H_kl.reshape(*lambda_shape, n_orb, n_spin, n_orb, n_spin)
-
-        return H_kl
-
     def states(
             self, 
             state_idx=None,
-            flatten_spin_axis=False, 
-            return_psi=False
+            flatten_spin_axis: bool=False, 
+            return_psi: bool=False
             ) -> np.ndarray:
         r"""Return cell-periodic (and optionally Bloch) states.
 
@@ -897,28 +728,48 @@ class WFArray:
 
         return (u, psi) if return_psi else u
 
+    def _nbr_projectors(self, return_Q=False):
+        if self.dim_k == 0:
+            raise NotImplementedError("Nearest neighbor projectors are not defined for 0D k-space.")
+        if not self.mesh.is_grid:
+            raise NotImplementedError("Mesh must be a grid to compute nearest neighbor projectors.")
 
-    def _set_projectors(self):
-        P, Q = self.projectors(return_Q=True)
-        self._P = P
-        self._Q = Q
+        # Retrieve cached projectors if available
+        P = getattr(self, "_P", None)
+        if P is None:
+            P = self.projectors(return_Q=False)
 
-        if self.dim_k > 0 and self.mesh.is_grid:
-            _, nnbr_idx_shell = self.get_k_shell(n_shell=1, report=False)
-            num_nnbrs = nnbr_idx_shell[0].shape[0]
+        P_nbr = getattr(self, "_P_nbr", None)
+        Q_nbr = getattr(self, "_Q_nbr", None)
+        if P_nbr is not None:
+            if return_Q and Q_nbr is not None:
+                return P_nbr, Q_nbr
+            return P_nbr
 
-            self._P_nbr = np.zeros(
-                (P.shape[:-2] + (num_nnbrs,) + P.shape[-2:]), dtype=complex
-            )
-            self._Q_nbr = np.zeros_like(self._P_nbr)
+        _, nnbr_idx_shell = self.get_k_shell(n_shell=1, report=False)
+        num_nnbrs = nnbr_idx_shell[0].shape[0]
 
-            for idx, idx_vec in enumerate(nnbr_idx_shell[0]):  # nearest neighbors
-                u_shifted = self.roll_states_with_pbc(idx_vec, flatten_spin_axis=True)
-                P = np.einsum("...ni, ...nj -> ...ij", u_shifted, u_shifted.conj())
+        P_nbr = np.zeros(
+            (P.shape[:-2] + (num_nnbrs,) + P.shape[-2:]), dtype=complex
+        )
+        if return_Q:
+            Q_nbr = np.zeros_like(P_nbr)
+
+        for idx, idx_vec in enumerate(nnbr_idx_shell[0]):  # nearest neighbors
+            u_shifted = self.roll_states_with_pbc(idx_vec, flatten_spin_axis=True)
+            P = np.matmul(u_shifted.swapaxes(-2, -1), u_shifted.conj())
+            P_nbr[..., idx, :, :] = P
+
+            if return_Q:
                 Q = np.eye(u_shifted.shape[-1]) - P
-                self._P_nbr[..., idx, :, :] = P
-                self._Q_nbr[..., idx, :, :] = Q
+                Q_nbr[..., idx, :, :] = Q
 
+        self._P_nbr = P_nbr
+
+        if return_Q:
+            self._Q_nbr = Q_nbr
+            return P_nbr, Q_nbr
+        return P_nbr
 
     def projectors(self, state_idx=None, return_Q=False):
         r"""Returns the band projectors associated with the states in the WFArray.
@@ -927,8 +778,8 @@ class WFArray:
 
         .. math::
 
-            P_{n\mathbf{k}} = \lvert u_{n\mathbf{k}}(\mathbf{r})\rangle \langle u_{n\mathbf{k}}(\mathbf{r}) \rvert, \quad Q_{n\mathbf{k}} = \mathbb{I} - P_{n\mathbf{k}}
-
+            P_{n\mathbf{k}} = \lvert u_{n\mathbf{k}}(\mathbf{r})\rangle \langle u_{n\mathbf{k}}(\mathbf{r}) \rvert, 
+            \quad Q_{n\mathbf{k}} = \mathbb{I} - P_{n\mathbf{k}}
             
         .. versionadded:: 2.0.0
         
@@ -955,17 +806,20 @@ class WFArray:
             u_nk = u_nk[..., state_idx, :]
 
         # band projectors
-        P = np.einsum("...ni, ...nj -> ...ij", u_nk, u_nk.conj())
-        Q = np.eye(u_nk.shape[-1]) - P
+        P = np.matmul(u_nk.swapaxes(-2, -1), u_nk.conj())
+        if state_idx is None:
+            self._P = P
+            self._Q = np.eye(u_nk.shape[-1]) - P
 
         if return_Q:
+            Q = np.eye(u_nk.shape[-1]) - P
             return P, Q
         return P
 
     def solve_model(
             self, 
             model: TBModel = None,
-            use_tf: bool = False
+            use_tensorflow: bool = False
             ):
         r"""Diagonalizes the :class:`TBModel` over the :class:`Mesh` points.
 
@@ -996,7 +850,7 @@ class WFArray:
             It has the structure ``{<param_name>: <param_value>, ...}``. 
             ``param_name`` must match the names of the parameters expected by 
             the model function.
-        use_tf : bool, optional
+        use_tensorflow : bool, optional
             If True, uses the `tf.linalg.eigh` function to diagonalize the Hamiltonian.
             This can be beneficial for large systems where GPU acceleration is available.
             This requires TensorFlow to be installed. Default is False.
@@ -1080,78 +934,45 @@ class WFArray:
         >>> wfa.wfs.shape
         (20, 20, 5, 2, 2)
         """
-        # 1) Gather λ-parameter names & values from the mesh
+        if self.spinful != model.spinful:
+            raise ValueError("Spinful setting of WFArray does not match the model.")
+        
+        # Gather parameter names and values from the mesh
         mesh_param_names = [ax.name for ax in self.mesh.lambda_axes]
         mesh_param_vals = [
             self.mesh.get_axis_range(i, j)
             for i, j in zip(self.mesh.lambda_axis_indices, self.mesh.lambda_component_indices)
         ]
         params = {name: val for name, val in zip(mesh_param_names, mesh_param_vals)}
-        shape_lambda = self.nlams  # tuple of λ axis lengths
 
-        # 2) Prepare k-points (flatten only the k-grid; λ stays leading)
-        shape_k = self.mesh.shape_k                    # e.g. (Nk1, Nk2, ...)
+        # Prepare k-points (flatten only the k-grid; λ stays leading)
         if self.dim_k > 0:
             n_kpts = int(np.prod(self.nks))
             k_flat = self.k_points.reshape(n_kpts, -1) # (Nk, dim_k)
         else:
-            n_kpts = 1
             k_flat = None
 
-        # 3) Build Hamiltonian with λ first, then k, then matrix axes
-        # NOTE: pass params as a keyword and flatten spin if you want a (nstates, nstates) block.
-        ham = model.hamiltonian(
-            k_pts=k_flat,
-            params=params,
-            flatten_spin_axis=False
-        )
+        eigvals, eigvecs = model.solve_ham(
+            k_pts=k_flat, params=params, return_eigvecs=True, flatten_spin_axis=True,
+            tf_speedup=use_tensorflow
+            )
 
-        # Expected shapes now:
-        #  - dim_k > 0: ham.shape == (n_kpts, *shape_lambda, nstates, nstates)
-        #  - dim_k = 0: ham.shape == (*shape_lambda, nstates, nstates)
-
-        # 4) Reshape the k axis back to the mesh k-grid
-        if self.dim_k > 0:
-            ham = ham.reshape(*shape_k, *shape_lambda, self.nstates, self.nstates)
-
-        # flatten spin axes if present
-        if self.nspin == 2:
-            ham = ham.reshape(*ham.shape[:-4], self.nstates, self.nstates)
-
-        if not np.allclose(ham, ham.swapaxes(-1, -2).conj()):
-            raise ValueError("Hamiltonian matrix is not Hermitian.")
-
-        if use_tf:
-            logger.info("Attempting to use tensorflow for eigenvalue calculation")
-
-            from tensorflow import convert_to_tensor
-            from tensorflow import complex64 as tfcomplex64
-            from tensorflow.linalg import eigh as tfeigh
-
-            H_tf = convert_to_tensor(ham, dtype=tfcomplex64)
-            eval, evec = tfeigh(H_tf)
-            eval = eval.numpy()
-            evec = evec.numpy()
-        else:
-            # diagonalize hamiltonian
-            eval, evec = np.linalg.eigh(ham)
-
-        # transpose matrix eig since otherwise it is confusing
-        # now eig[i,:] is eigenvector for eval[i]-th eigenvalue
-        evec = evec.swapaxes(-1, -2)
-        evec = evec.reshape(*self.shape)
-
-        self.set_states(evec, is_cell_periodic=True, is_spin_axis_flat=False)
-        self._energies = eval
-
-        # 8) Smallest direct gap across all bands (if ≥ 2 bands)
+        # Reshape eigenvectors to the full mesh shape
+        eigvecs = eigvecs.reshape(*self.shape)
+        eigvals = eigvals.reshape(*self.mesh.shape_mesh, self.nstates)
+        
+        # Set attributes
+        self.set_states(eigvecs, is_cell_periodic=True, is_spin_axis_flat=False)
+        self._energies = eigvals
+        self._model = model
+        # Smallest direct gap across all bands (if ≥ 2 bands)
         if self.nstates > 1:
-            gaps = eval[..., 1:] - eval[..., :-1]
+            gaps = eigvals[..., 1:] - eigvals[..., :-1]
             self.gaps = gaps.min(axis=tuple(range(self.naxes)))
         else:
             self.gaps = None
             
-        # 9) Enforce PBCs along winding k-axes
+        # Enforce PBCs along winding k-axes
         axes = self.mesh.axes
         for idx, ax in enumerate(axes):
             if ax.has_endpoint and ax.is_loop:
@@ -1166,9 +987,6 @@ class WFArray:
                 else:
                     logger.debug(f"Imposing loop in mesh direction {ax}")
                     self._impose_loop(idx)
-
-        # Set the Hamiltonian attribute
-        self._H = ham
 
 
     @deprecated("Use `solve` instead.")
@@ -1924,10 +1742,6 @@ class WFArray:
             \lambda_n = e^{i \phi_n}
         
         where :math:`\phi_n` are the multiband Berry phases associated with each band.
-        The multiband Berry phases are obtained by taking the negative argument of the eigenvalues:
-
-        .. math::
-            \phi_n = -\text{Im} \ln \lambda_n
 
         .. versionadded:: 2.0.0
 
@@ -1958,7 +1772,9 @@ class WFArray:
 
         Notes
         ------
-        Multiband Berry phases always returns numbers between :math:`-\pi` and :math:`\pi`.
+        ``wilson_evals`` are to be distinguished from multiband Berry phases, in :meth:`berry_phase`.
+        The ``berry_evals`` are the phase arguments of ``wilson_evals`` and are always returned between 
+        :math:`-\pi` and :math:`\pi`.
         """
         # check that wfs_loop has appropriate shape
         if wfs_loop.ndim < 3 or wfs_loop.ndim > 4:
@@ -1981,11 +1797,8 @@ class WFArray:
 
         # calculate phases of all eigenvalues
         if wilson_evals:
-            evals = np.linalg.eigvals(U_wilson)  # Wilson loop eigenvalues
-            eval_pha = -np.angle(evals)  # Multiband Berry phases
-            # sort the eigenvalues
-            eval_pha = np.sort(eval_pha)
-            return U_wilson, eval_pha
+            eigvals = np.linalg.eigvals(U_wilson)  # Wilson loop eigenvalues
+            return U_wilson, eigvals
         else:
             return U_wilson
 
@@ -2065,9 +1878,12 @@ class WFArray:
             )
         
         if berry_evals:
-            U_wilson, evals = WFArray._wilson_loop(wfs_path, wilson_evals=berry_evals)
+            U_wilson, eigvals = WFArray._wilson_loop(wfs_path, wilson_evals=berry_evals)
+            eigvals_phase = -np.angle(eigvals)  # Multiband Berry phases
+            # sort the eigenvalues
+            eigvals_phase = np.sort(eigvals_phase)
             berry_phase = -np.angle(np.linalg.det(U_wilson))
-            return berry_phase, evals
+            return berry_phase, eigvals_phase
         else:
             U_wilson = WFArray._wilson_loop(wfs_path, wilson_evals=berry_evals)
             berry_phase = -np.angle(np.linalg.det(U_wilson))
@@ -2132,7 +1948,9 @@ class WFArray:
 
         Notes
         ------
-        Multiband Berry phases always returns numbers between :math:`-\pi` and :math:`\pi`.
+        - ``wilson_evals`` are to be distinguished from multiband Berry phases, in :meth:`berry_phase`.
+          The ``berry_evals`` are the phase arguments of ``wilson_evals`` and are always returned between 
+          :math:`-\pi` and :math:`\pi`.
         """
         # print(axis_idx)
         
@@ -2209,26 +2027,20 @@ class WFArray:
             berry_evals: bool = False,
             contin: bool = True
             ):
-        r"""Berry phase along a given array direction.
+        r"""Berry phase along a given mesh axis.
 
-        Computes the Berry phase along a given array direction
-        and for a given set of states. These are typically the
-        occupied Bloch states, but can also include unoccupied
-        states if desired. 
-        
         By default, the function returns the Berry phase traced
-        over the specified set of bands, but optionally the individual
-        phases of the eigenvalues of the :meth:`wilson_loop` unitary 
-        rotation matrix (ecorresponding to "maximally localized Wannier
-        centers" or "Wilson loop eigenvalues") can be requested
-        by setting the parameter ``berry_evals=True``. Explicitly, these 
-        take the form
+        over the specified set of bands. Optionally, with ``berry_evals=True``,
+        the function will also return the multiband berry phases associated with
+        the phase of the eigenvalues of the :meth:`wilson_loop` unitary 
+        matrix (corresponding to "hybrid Wannier centers" or "Wilson loop eigenvalues").
+        Explicitly, these take the form
 
         .. math::
             \phi_n = -\text{Im} \ln \lambda_n
 
         where :math:`\lambda_n` are the eigenvalues of the Wilson loop unitary matrix
-        obtained from :meth:`wilson_loop` when ``wilson_evals=True``.
+        from :meth:`wilson_loop`.
 
         Parameters
         ----------
@@ -2252,13 +2064,13 @@ class WFArray:
                 and the ``"all"`` option has been removed.
 
         contin : bool, optional
-            If True then the branch choice of the Berry phase (which is indeterminate
-            modulo :math:`2\pi`) is made so that neighboring strings (in the
-            direction of increasing index value) have as close as
+            If True (default) then the branch choice of the Berry phase (which is 
+            indeterminate modulo :math:`2\pi`) is made so that neighboring strings 
+            (in the direction of increasing index value) have as close as
             possible phases. The phase of the first string (with lowest
             index) is always constrained to be between :math:`-\pi` and :math:`\pi`.
             If False, the Berry phase for every string is constrained to be
-            between :math:`-\pi` and :math:`\pi`. The default value is True.
+            between :math:`-\pi` and :math:`\pi`. 
 
         berry_evals : bool, optional
             If True then will compute and return the phases of the eigenvalues of the
@@ -2269,23 +2081,22 @@ class WFArray:
 
         Returns
         -------
-        phase :
-            If ``berry_evals=False`` (default value) then
-            returns the Berry phase for each string. For a
-            one-dimensional WFArray this is just one number. For a
-            higher-dimensional `WFArray` *pha* contains one phase for
-            each one-dimensional string in the following format. For
-            example, if *WFArray* contains k-points on mesh with
-            indices ``[i,j,k]`` and if direction along which Berry phase
-            is computed is ``mu=1`` then `phase` will be two dimensional
-            array with indices ``[i,k]``, since Berry phase is computed
-            along second direction.
+        phase : np.ndarray
+            Total accumulated Berry phase along the specified axis. 
+            When only a single axis is present in the ``Mesh``, this is
+            a scalar. When multiple axes are present, this is an array
+            with one less dimension than the original mesh, corresponding 
+            to the total Berry phase for the remaining ``Mesh`` points.
+            For example, if ``Mesh`` has three axes, indexed by ``[i,j,k]``,
+            and we specify ``axis_idx=1``, then ``phase`` will be two 
+            dimensional array with indices ``[i,k]``.
 
-            If ``berry_evals = True`` then for
-            each string returns phases of all eigenvalues of the
-            product of overlap matrices. In the convention used for
-            previous example, `phase` in this case would have indices
-            ``[i,k,n]`` where ``n`` refers to index of individual phase of
+        evals : np.ndarray, optional
+            Phases of each eigenvalue of the Wilson loop unitary (product of
+            unitary part of overlap matrices along the specified axis).
+            In the convention used for the previous example, 
+            ``evals`` in this case would have indices ``[i,k,n]``,
+            where ``n`` refers to the index of the individual phase of
             the product matrix eigenvalue.
 
         See Also
@@ -2298,9 +2109,9 @@ class WFArray:
 
         Notes
         -----
-        - For a one-dimensional WFArray (i.e., a single string), the
+        - For a single ``Mesh`` axis in ``WFArray`` (i.e., a single string), the
           computed Berry phases are always chosen to be between :math:`-\pi` 
-          and :math:`\pi`. For a higher dimensional WFArray, the Berry phase 
+          and :math:`\pi`. For a higher dimensional ``WFArray``, the Berry phase 
           is computed for each one-dimensional string of points, and an array of
           Berry phases is returned. The Berry phase for the first string
           (with lowest index) is always constrained to be between :math:`-\pi` and
@@ -2314,9 +2125,9 @@ class WFArray:
           relation. If they correspond to the same physical
           Hamiltonian, then a closed-path Berry phase will be computed.
 
-        - In the case ``state_idx`` should range over all occupied bands,
-          the occupied and unoccupied bands should be well separated in energy; 
-          it is the responsibility of the user to check that this is satisfied.
+        - The bands in ``state_idx`` should be non-degenerate with states
+          outside the manifold. This means they should be well separated in energy.
+          It is the responsibility of the user to check that this is satisfied.
 
         Examples
         ---------
@@ -3151,8 +2962,8 @@ class WFArray:
 
     # TODO allow for subbands
     def _trace_metric(self):
-        P = self._P
-        Q_nbr = self._Q_nbr
+        P = self.tilde_states.projectors()
+        _, Q_nbr = self.tilde_states._nbr_projectors(return_Q=True)
 
         nks = Q_nbr.shape[:-3]
         num_nnbrs = Q_nbr.shape[-3]
