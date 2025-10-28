@@ -4,14 +4,15 @@ import logging
 import warnings
 import numpy as np
 import inspect
-import textwrap
 from itertools import product
 from .plotting import plot_bands, plot_tb_model, plot_tb_model_3d
 from .utils import (
     _offdiag_approximation_warning_and_stop, 
-    is_Hermitian, deprecated, 
+    is_Hermitian, 
+    deprecated, 
     copydoc, 
-    get_tensorflow
+    get_tensorflow,
+    finite_difference
     )
 from .lattice import Lattice
 from .hoptable import HoppingTable
@@ -941,7 +942,7 @@ class TBModel:
 
         >>> tb.set_hop(lambda t1: t1**2, 0, 1, [1, 0])
 
-        This will set a single parameter ``"t1"``, which can be set to a single value
+        This will store a parameter ``"t1"``, which can be set to a single value
         using :meth:`set_parameters`, or with a list of values in downstream functions
         like :meth:`hamiltonian` or :meth:`velocity`.
         """
@@ -1004,14 +1005,14 @@ class TBModel:
             self._hopping_param_terms = {}
 
         if kind in ("callable", "expr"):
-            # Provider path (deferred evaluation). We don't mix additive numeric state with providers.
+            # Provider path (deferred evaluation). We don't mix numeric state with parameters.
             if mode == "add":
-                logger.warning(
-                    f"'add' with a callable/string hopping for key={key} replaces the previous provider."
+                raise NotImplementedError(
+                    "Adding parametric hopping terms is currently not supported."
                 )
-            # Replace any prior numeric or provider entry for this key
+            # Remove any prior numeric or provider entry for this key
             if existing_idx is not None:
-                table.remove(existing_idx)  # you need a small helper; or update amplitude to 0
+                table.remove(existing_idx) 
             self._hopping_param_terms[key] = payload  # callable or str
             return
 
@@ -1036,7 +1037,7 @@ class TBModel:
         else:
             raise ValueError("Wrong value of mode parameter. Should be either `set` or `add`.")
 
-    def set_nn_hops(self, shell_hops: dict, mode="set"):
+    def set_shell_hops(self, shell_hops: dict, mode="set"):
         r"""Define n'th nearest-neighbor hoppings.
 
         This function sets hopping amplitudes for all bonds in specified
@@ -1221,6 +1222,63 @@ class TBModel:
         missing = required - provided
         if missing:
             raise ValueError("Missing parameter value(s): " + ", ".join(sorted(missing)))
+        
+    def _params_to_sweep(self, params: dict):
+        """Partition parameters into scalars and sweeps."""
+        # Partition params into scalars vs sweeps (1D arrays/lists) 
+        sweep_names: list[str] = []
+        sweep_axes: list[list[object]] = []  # list of per-parameter lists of scalar values
+        scalars: dict[str, object] = {}
+
+        for name, raw in params.items():
+            # Treat 1D arrays / lists / tuples as sweep axes; everything else as scalar
+            if isinstance(raw, (list, tuple, np.ndarray)):
+                raw = np.asarray(raw)
+
+                if raw.ndim == 0:
+                    # 0D array -> scalar
+                    scalars[name] = raw.item()
+                    continue
+                elif raw.ndim == 1:
+                    # keep raw values as-is so lambdas see original dtype (float/complex/etc.)
+                    values = list(raw) if not isinstance(raw, np.ndarray) else [raw[i] for i in range(raw.shape[0])]
+                    if len(values) == 0:
+                        raise ValueError(f"Parameter sweep '{name}' must provide at least one value.")
+                    sweep_names.append(name)
+                    sweep_axes.append(values)
+                elif raw.ndim == 2:
+                    # Single-row array -> single value sweep
+                    if raw.shape[0] == 1:
+                        scalars[name] = raw[0, :].copy()
+                    # Single-column array -> scalar sweep
+                    elif raw.shape[1] == 1:
+                        scalars[name] = raw[:, 0].copy()
+                    # Full 2x2 matrix
+                    elif raw.shape == (2, 2):
+                        if not self.spinful:
+                            raise ValueError(
+                                f"Parameter '{name}' is a 2x2 array, but the model is spinless."
+                            )
+                        scalars[name] = raw.copy()
+                    # Pauli 4-vector
+                    elif raw.shape[1] == 4:
+                        if not self.spinful:
+                            raise ValueError(
+                                f"Parameter '{name}' has shape {raw.shape}, but the model is spinless."
+                            )
+                        sweep_names.append(name)
+                        sweep_axes.append([raw[i, :].copy() for i in range(raw.shape[0])])
+
+            elif isinstance(raw, (int, float, complex)):
+                # single scalar value
+                scalars[name] = raw
+            else:
+                raise TypeError(
+                    f"Parameter '{name}' has unsupported type {type(raw)}. "
+                    "Expected scalar, list, tuple, or numpy.ndarray."
+                )
+            
+        return scalars, sweep_names, sweep_axes
 
     def _evaluate_params(self, assignments: dict):
         """Evaluate the model with given parameter assignments.
@@ -1312,6 +1370,40 @@ class TBModel:
         return self._val_to_block(value)
 
     def set_parameters(self, params=None, /, **kwargs):
+        r"""
+        Evaluate any parameter-dependent onsite or hopping term at the supplied scalar values.
+
+        This helper is the inverse of declaring a parameterized term via `set_onsite` /
+        `set_hop` with a callable or string provider. Each parameter name is mapped to
+        the value that should be passed directly to the provider; once evaluated, the resulting
+        block is fed back into `set_onsite`/`set_hop` so all standard validation (Hermiticity,
+        conjugate handling, etc.) still applies.
+
+        Parameters
+        ----------
+        params : mapping, optional
+            Dictionary that maps parameter names to scalar values. Use this when a parameter
+            name is not a valid Python identifier (for example, contains spaces or symbols).
+            Mutually compatible with ``kwargs`` — entries from ``params`` are applied first,
+            then any keyword arguments override them.
+        **kwargs
+            Additional parameter/value pairs. These are merged on top of ``params`` and are
+            convenient when the parameter names are valid identifiers (e.g. ``model.set_parameters(beta=0.3)``).
+
+        Notes
+        -----
+        - Only scalar values are accepted; 0-D NumPy arrays are unwrapped via ``.item()``.
+        - Providers whose parameter lists are not completely covered by the supplied values
+          are left untouched. In other words, you can freeze parameters incrementally.
+        - After a parameter is set, the corresponding provider entry is removed so future
+          Hamiltonian builds no longer depend on externally supplied values.
+
+        Examples
+        --------
+        >>> tb.set_onsite(lambda m: [m, -m], ind_i=0)
+        >>> tb.set_hop(lambda t: t * np.eye(2), 0, 1, [0, 0, 0])
+        >>> tb.set_parameters(m=0.4, t=1.2)    # both terms become numeric, providers removed
+        """
         merged = {}
         if params is not None:
             if not isinstance(params, Mapping):
@@ -1351,71 +1443,6 @@ class TBModel:
                 continue
             block = provider(cleaned[name]) if callable(provider) else cleaned[name]
             self.set_hop(block, i, j, list(R), mode="set", allow_conjugate_pair=True)
-
-
-    # def set_parameters(self, **params):
-    #     """
-    #     Fold the supplied scalar parameter values into any matching onsite/hopping providers.
-
-    #     Parameters may be passed either as a mapping (`params`) or as keyword arguments; the
-    #     two forms are merged.  Any provider whose argument list is fully covered by the supplied
-    #     names is evaluated and replaced by its numeric block.  Providers that still reference a
-    #     missing parameter are left untouched.
-    #     """
-    #     if not params:
-    #         return
-        
-    #     self._check_parameter_exists(params)
-        
-    #     # onsite providers
-    #     for idx, provider in list(getattr(self, "_onsite_param_terms", {}).items()):
-    #         if provider is None:
-    #             continue
-
-    #         try:
-    #             if callable(provider):
-    #                 required = set(_iter_params_of_callable(provider))
-    #                 if not required.issubset(params):
-    #                     continue
-    #                 block = self._val_to_block(_call_provider(provider, params))
-    #             elif isinstance(provider, str):
-    #                 block = self._eval_expr_to_block(provider, **params)
-    #             else:
-    #                 raise TypeError(
-    #                     f"Unsupported onsite provider type on site {idx}: {type(provider)}"
-    #                 )
-    #         except (TypeError, ValueError):
-    #             # Missing parameters or evaluation failure → leave provider in place.
-    #             continue
-
-    #         self.set_onsite(block, ind_i=idx, mode="set")
-
-    #     # hopping providers
-    #     for key, provider in list(getattr(self, "_hopping_param_terms", {}).items()):
-    #         i, j, R = key
-    #         try:
-    #             if callable(provider):
-    #                 required = set(_iter_params_of_callable(provider))
-    #                 if not required.issubset(params):
-    #                     continue
-    #                 block = self._val_to_block(_call_provider(provider, params))
-    #             elif isinstance(provider, str):
-    #                 block = self._eval_expr_to_block(provider, **params)
-    #             else:
-    #                 raise TypeError(
-    #                     f"Unsupported hopping provider at {(i, j, R)}: {type(provider)}"
-    #                 )
-    #         except (TypeError, ValueError):
-    #             continue
-
-    #         self.set_hop(
-    #             block,
-    #             i,
-    #             j,
-    #             list(R),
-    #             mode="set",
-    #             allow_conjugate_pair=True,
-    #         )
 
     ###### Lattice manipulation #########
     
@@ -2248,8 +2275,8 @@ class TBModel:
     def hamiltonian(
             self, 
             k_pts=None, 
-            params: dict | None = None, 
-            flatten_spin_axis=False
+            flatten_spin_axis=False,
+            **params
             ):
         r"""Generate the Bloch Hamiltonian of the tight-binding model.
 
@@ -2271,51 +2298,46 @@ class TBModel:
             If `None`, the Hamiltonian is computed at a single point (`dim_k = 0`),
             corresponding to a finite sample.
 
-        params : dict, optional
-            Mapping from parameter names to value(s). Each value can be a scalar
-            or a 1D array of values. If any values are array-like,
-            the Hamiltonian is evaluated at all combinations of parameter values,
-            and the final array is stacked with the k-axis leading, followed by each
-            parameter axis in the order of given parameter names.
-
         flatten_spin_axis : bool, optional
             If True, the spin indices are flattened into the orbital indices.
             This results in a Hamiltonian at each k-point of shape ``(norb*nspin, norb*nspin)``.
             If False (default), the Hamiltonian has shape ``(norb, nspin, norb, nspin)``.
 
+        **params : 
+            Keyword arguments mapping parameter names to value(s). Each value can be a scalar
+            or a 1D array of values. If any values are array-like,
+            the Hamiltonian is evaluated at all combinations of parameter values,
+            and the final array is stacked with the k-axis leading, followed by each
+            parameter axis in the order of given parameter names.
+
         Returns
         -------
-        ham : np.ndarray 
+        ham : numpy.ndarray
             Array of Bloch-Hamiltonian matrices defined on the specified k-points. The Hamiltonian is Hermitian by construction.
+            The shape of the returned array depends on the presence of k-points and spin:
 
-            - If ``dim_k > 0``: shape is ``(n_kpts, norb, norb)`` for spinless models, or ``(n_kpts, norb, nspin, norb, nspin)`` 
-              for spinful models, unless ``flatten_spin_axis=True``, in which case the shape 
-              is ``(n_kpts, norb*nspin, norb*nspin)``.
-
-            - If ``dim_k=0``: shape is ``(norb, norb)`` for spinless or ``(norb, nspin, norb, nspin)`` for spinful models,
-              unless ``flatten_spin_axis=True``, in which case the shape is ``(norb*nspin, norb*nspin)``.
-
-            For spinless:
-                shape == (*param_shape, Nk, norb, norb)
-            For spinful:
-                shape == (*param_shape, Nk, norb, 2, norb, 2)
+            - Spinless models: ``(..., norb, norb)``
+            - Spinful models: ``(..., norb, nspin, norb, nspin)`` if ``flatten_spin_axis=False``,
+              or ``(..., norb*nspin, norb*nspin)`` if ``flatten_spin_axis=True``.
+            - ``dim_k > 0``: ``(n_kpts, ...)``
+            - ``dim_k = 0``: no k-point axis.
+            - Parameter sweeps: ``(n_kpts, n_param1, n_param2, ...)`` parameter axes are added after the k-point axis (if present).
 
         Notes
         -----
-        In convention I, the Hamiltonian satisfies:
+        - In convention I, the Hamiltonian satisfies:
 
-        .. math::
-
+          .. math::
             H(k) \neq H(k + G), \quad \text{but instead} \quad H(k) = U H(k + G) U^{\dagger}
 
-        where :math:`G` is a reciprocal lattice vector and :math:`U` is a unitary transformation
-        relating the two.
+          where :math:`G` is a reciprocal lattice vector and :math:`U` is a unitary transformation
+          relating the two.
 
-        Finite difference estimates of :math:`\partial_{k_\mu} H(k)` may not be accurate at
-        boundaries due to the gauge discontinuity inherent in convention I.        
+        - Finite difference estimates of :math:`\partial_{k_\mu} H(k)` may not be accurate at
+          boundaries due to the gauge discontinuity inherent in convention I.        
         """
 
-        # Check params
+        # Check params includes all parameters
         if params is not None:
             params = dict(params)
             self._check_missing_parameters(params)
@@ -2331,24 +2353,13 @@ class TBModel:
             else:
                 k_arr = self._normalize_kpoints(k_pts)
 
-        # ---------- Partition params into scalars vs sweeps (1D arrays/lists) ----------
-        sweep_names: list[str] = []
-        sweep_axes: list[list[object]] = []  # list of per-parameter lists of scalar values
-        scalars: dict[str, object] = {}
+        # Partition params into scalars vs sweeps (1D arrays/lists)
+        # scalars: dict of param_name -> scalar value
+        # sweep_names: list of param names to sweep over
+        # sweep_axes: list of arrays/lists of values to sweep over 
+        scalars, sweep_names, sweep_axes = self._params_to_sweep(params)
 
-        for name, raw in params.items():
-            # Treat 1D arrays / lists / tuples as sweep axes; everything else as scalar
-            if isinstance(raw, (list, tuple, np.ndarray)) and np.ndim(raw) == 1:
-                # keep raw values as-is so lambdas see original dtype (float/complex/etc.)
-                values = list(raw) if not isinstance(raw, np.ndarray) else [raw[i] for i in range(raw.shape[0])]
-                if len(values) == 0:
-                    raise ValueError(f"Parameter sweep '{name}' must provide at least one value.")
-                sweep_names.append(name)
-                sweep_axes.append(values)
-            else:
-                scalars[name] = raw
-
-        # ---------- No sweeps: just evaluate once ----------
+        # No sweep axes, resolve scalar parameters only
         if not sweep_axes:
             hop_amps, i_idx, j_idx, R_vecs, site = self._evaluate_params(scalars)
             if self.dim_k == 0:
@@ -2359,7 +2370,7 @@ class TBModel:
                 )
             return H
 
-        # --- λ sweeps: cartesian product, then reshape with λ at the END
+        # param sweeps: cartesian product, then reshape with lambda at the end
         axis_lengths = [len(ax) for ax in sweep_axes]
         blocks, base_shape = [], None
         for multi in product(*[range(n) for n in axis_lengths]):
@@ -2448,10 +2459,11 @@ class TBModel:
     def solve_ham(
             self, 
             k_pts = None, 
-            params = None,
             return_eigvecs: bool = False, 
             flatten_spin_axis: bool = True,
-            tf_speedup: bool = False) -> tuple[np.ndarray, np.ndarray] | np.ndarray:
+            tf_speedup: bool = False,
+            **params
+            ) -> tuple[np.ndarray, np.ndarray] | np.ndarray:
         r"""Diagonalize the Hamiltonian 
         
         Solve for eigenvalues and optionally eigenvectors of the tight-binding model
@@ -2492,6 +2504,15 @@ class TBModel:
 
             .. versionadded:: 2.0.0
 
+        **params : 
+            Keyword arguments mapping parameter names to value(s). Each value can be a scalar
+            or a 1D array of values. If any values are array-like,
+            the Hamiltonian is evaluated at all combinations of parameter values,
+            and the final array is stacked with the k-axis leading, followed by each
+            parameter axis in the order of given parameter names.
+
+            .. versionadded:: 2.0.0
+
         Returns
         -------
         eval : np.ndarray 
@@ -2499,6 +2520,8 @@ class TBModel:
 
             - ``(Nk, nstates)`` for periodic systems
             - ``(nstates,)`` for zero-dimensional (molecular) systems
+            - ``(Nk, n_param1, n_param2, ..., nstates)`` if parameter sweeps are performed,
+              with parameter axes added after the k-point axis.
 
         evec : np.ndarray, optional
             Array of eigenvectors (if ``return_eigvecs=True``). The ordering of bands matches that in ``eval``.
@@ -2513,6 +2536,11 @@ class TBModel:
 
             - ``(..., nstates, norb, 2)``: If ``flatten_spin_axis=False``, an additional spin axis of size 2 is appended at the end.
             - ``(..., nstates, nstates)``: If ``flatten_spin_axis=True``, the spin axes are flattened into the orbital axes.
+
+            If parameter sweeps are performed, parameter axes are added after the k-point axis.
+
+            - ``(Nk, n_param1, n_param2, ..., nstates, norb[, 2])`` or
+              ``(Nk, n_param1, n_param2, ..., nstates, nstates)`` depending on ``flatten_spin_axis``.
             
         Notes
         -----
@@ -2536,7 +2564,7 @@ class TBModel:
         >>> eval, evec = tb.solve_ham([[0.0, 0.0], [0.0, 0.2]], return_eigvecs=True)
         """
         logger.debug("Initializing Hamiltonian...")
-        Ham = self.hamiltonian(k_pts, params=params, flatten_spin_axis=True)
+        Ham = self.hamiltonian(k_pts, flatten_spin_axis=True, **params)
 
         logger.debug("Diagonalizing Hamiltonian...")
         if return_eigvecs:
@@ -2578,55 +2606,6 @@ class TBModel:
         return self.solve_ham(
             k_list=k_list, return_eigvecs=eig_vectors, flatten_spin_axis=False
         )
-    
-    def compute_bands(self, k_nodes, nk=10):
-        r"""Compute band structure along a specified k-point path.
-
-        The band structure is computed by diagonalizing the Hamiltonian at
-        a series of k-points along the specified path in reciprocal space.
-
-        .. versionadded:: 2.0.0
-
-        Parameters
-        ----------
-        k_nodes : list of array_like
-            List of k-points defining the path in reduced coordinates.
-            Each k-point should be an array-like of length `dim_k`.
-            The path is constructed by linearly interpolating between
-            consecutive k-points in the list.
-
-        n_kperseg : int, optional
-            Number of k-points to interpolate between each pair of consecutive
-            k-points in `k_path`. Default is 10.
-
-        flatten_spin : bool, optional
-            If True, the spin indices are flattened into the orbital indices.
-            This results in a Hamiltonian at each k-point of shape ``(norb*nspin, norb*nspin)``.
-            If False (default), the Hamiltonian has shape ``(norb, nspin, norb, nspin)``.
-
-        Returns
-        -------
-        k_vecs : np.ndarray of shape (N, dim_k)
-            Array of interpolated k-points along the path.
-
-        evals : np.ndarray of shape (N, nbnd)
-            Array of eigenvalues at each k-point along the path.
-
-        Notes
-        -----
-        This function uses linear interpolation to generate intermediate k-points
-        between those specified in `k_nodes`. The total number of k-points returned
-        is ``nk``.
-
-        Examples
-        --------
-        Compute band structure along a path from Gamma to X to M in a 2D square lattice:
-
-        >>> k_nodes = [[0.0, 0.0], [0.5, 0.0], [0.5, 0.5]]
-        >>> k_vecs, evals = tb.compute_bands(k_nodes, n_kperseg=20)
-        """
-        k_vec, _, _ = self.k_path(k_nodes, nk, report=False)
-        return k_vec, self.solve_ham(k_vec, return_eigvecs=False)
     
     def _velocity(
             self, 
@@ -2744,9 +2723,13 @@ class TBModel:
     def velocity(
             self, 
             k_pts: np.ndarray,
-            params: dict = None,
             cartesian: bool = False,
-            flatten_spin_axis: bool = False
+            flatten_spin_axis: bool = False,
+            *,
+            include_lambda: bool = False,
+            lambda_scheme: str = "central",
+            lambda_order: int = 2,
+            **params
             ) -> np.ndarray:
         r"""Generate the velocity operator in the orbital basis.
 
@@ -2762,10 +2745,8 @@ class TBModel:
 
         Parameters
         ----------
-        k_pts : array of shape (Nk, dim_k)
+        k_pts : (Nk, dim_k) numpy.ndarray
             Array of k-points in reduced coordinates.
-        params : dict, optional
-            Dictionary of parameter values to use in the model.
         cartesian : bool, optional
             If True, use Cartesian coordinates for the velocity operator.
             If False (default), use reduced coordinates.
@@ -2773,14 +2754,82 @@ class TBModel:
             If True, the spin indices are flattened into the orbital indices.
             This results in a velocity operator at each k-point of shape ``(norb*nspin, norb*nspin)``.
             If False (default), the velocity operator has shape ``(norb, nspin, norb, nspin)``.
+        include_lambda : bool, optional
+            If True, append the finite-difference derivatives of the Hamiltonian with respect to
+            each parameter list in ``params``. Use for periodic sweeps without the endpoint, otherwise
+            consider precomputing finite differences yourself. Default is False.
+
+            .. warning::
+                The user must ensure that the parameter lists specified in ``params`` are uniformly spaced for accurate finite difference
+                derivatives. Additionally, if the parameter lists do not form a loop in parameter
+                space, bringing the Hamiltonian back to itself, then the finite difference
+                derivatives will be inaccurate at the boundaries due to discontinuities.
+                The same caveat applies when the parameter points form a loop and the endpoints
+                are included. 
+
+        lambda_scheme : str, optional
+            Finite difference scheme to use for lambda derivatives.
+            Options are "central" (default) or "forward".
+            This parameter is only relevant if ``include_lambda=True``.
+        lambda_order : int, optional
+            Order of accuracy for finite difference lambda derivatives.
+            Must be an even integer for "central" scheme (default is 2),
+            and a positive integer for "forward" scheme.
+            This parameter is only relevant if ``include_lambda=True``.
+        **params : 
+            Parameter values to use in the model. The keys are
+            parameter names, and the values can be either scalars or 1D arrays/lists
+            of values to be passed onto `set_hop` and `set_onsite`. If any of the
+            values are array-like, the velocity operator is computed at all combinations
+            of parameter values, and the final array is stacked with the k-axis leading,
+            followed by each parameter axis in the order of given parameter names.
 
         Returns
         -------
-        vel : np.ndarray
-            Velocity operators at each k-point. First axis indexes the cartesian direction if ``cartesian=True``.
-            Otherwise, it indexes the reduced direction. Shape is `(dim_k, Nk, norb, norb)` for spinless models,
-            or `(dim_k, Nk, norb, nspin, norb, nspin)` for spinful models.
+        vel : numpy.ndarray
+            Velocity operator in the orbital basis. First axis indexes the cartesian direction 
+            if ``cartesian=True``. Otherwise, it indexes the reduced direction. If
+            ``include_lambda=True``, the lambda (parameter) derivatives are appended
+            after the k-directions along the first axis.
+            
+            Shape is: 
 
+            - ``(dim_k, Nk, *param_shape, norb, norb)`` for spinless models,
+            - ``(dim_k, Nk, *param_shape, norb, nspin, norb, nspin)`` for spinful models.
+            - ``(dim_k + n_lambda, ...)`` if ``include_lambda=True``.
+            - ``(..., norb*nspin, norb*nspin)`` if ``flatten_spin_axis=True``.
+        
+        Notes
+        -----
+        - The velocity operator is computed in tight-binding convention I, which includes phase factors
+          associated with orbital positions in the hopping terms.
+        - The finite difference derivatives with respect to parameters are computed explicitly as
+
+          .. math::
+            \frac{\partial H}{\partial \lambda} \approx 
+            \sum_{m} c_m H(\lambda + m \Delta \lambda)
+
+          where the coefficients :math:`c_m` depend on the finite difference scheme and order. When
+          :math:`\lambda + m \Delta \lambda` falls outside the provided parameter values, the Hamiltonian
+          is rolled back to the beginning, assuming periodicity in parameter space.
+        - Only use ``include_lambda=True`` when the parameter values in ``params`` are
+          uniformly spaced for accurate finite difference derivatives.
+        - Only use ``include_lambda=True`` when the parameter values in ``params`` form a closed loop
+          in parameter space, and the endpoints are not included, to avoid inaccuracies at the boundaries.
+
+        Examples
+        --------
+        Compute the velocity operator at the Gamma point:
+
+        >>> vel = tb.velocity(np.array([[0.0, 0.0]]))
+
+        Compute the velocity operator at several k-points with a parameter sweep:
+
+        >>> vel = tb.velocity(np.array([[0.0, 0.0], [0.5, 0.5]]), mA=[0.0, 1.0, 2.0])
+
+        Compute the velocity operator including parameter derivatives:
+
+        >>> vel = tb.velocity(np.array([[0.0, 0.0]]), mA=[0.0, 1.0, 2.0], include_lambda=True)
         """
         # Check params
         if params is not None:
@@ -2799,22 +2848,12 @@ class TBModel:
             k_arr = self._normalize_kpoints(k_pts)
 
         # Partition params into scalars vs sweeps (1D arrays/lists)
-        sweep_names: list[str] = []
-        sweep_axes: list[list[object]] = []  # list of per-parameter lists of scalar values
-        scalars: dict[str, object] = {}
-        for name, raw in params.items():
-            # Treat 1D arrays / lists / tuples as sweep axes; everything else as scalar
-            if isinstance(raw, (list, tuple, np.ndarray)) and np.ndim(raw) == 1:
-                # keep raw values as-is so lambdas see original dtype (float/complex/etc.)
-                values = list(raw) if not isinstance(raw, np.ndarray) else [raw[i] for i in range(raw.shape[0])]
-                if len(values) == 0:
-                    raise ValueError(f"Parameter sweep '{name}' must provide at least one value.")
-                sweep_names.append(name)
-                sweep_axes.append(values)
-            else:
-                scalars[name] = raw
+        # scalars: dict of param_name -> scalar value
+        # sweep_names: list of param names to sweep over
+        # sweep_axes: list of arrays/lists of values to sweep over 
+        scalars, sweep_names, sweep_axes = self._params_to_sweep(params)
 
-        # No sweeps: just evaluate in place 
+        # No sweeps: just evaluate in place
         if not sweep_axes:
             hop_amps, i_idx, j_idx, R_vecs, _ = self._evaluate_params(scalars)
             v = self._velocity(
@@ -2865,17 +2904,67 @@ class TBModel:
             )
             stacked = np.transpose(stacked, perm)
 
-        return stacked
+        vel_k = stacked
+        if not include_lambda:
+            return vel_k
+        
+        # Gather Hamiltonians on same parameter grid
+        ham = self.hamiltonian(
+            k_pts,
+            params=params,
+            flatten_spin_axis=flatten_spin_axis,
+        )  # shape: (Nk, *λ_axes, norb[, nspin], norb[, nspin])
+
+        # λ axes sit between the momentum axis and the matrix axes.
+        axis_order = []
+        sweep_info = []
+        if params:
+            for name, raw in params.items():
+                if isinstance(raw, (list, tuple, np.ndarray)) and np.ndim(raw) == 1:
+                    values = np.asarray(raw, dtype=float)
+                    if values.size < 2:
+                        raise ValueError(f"Parameter '{name}' needs at least two samples.")
+                    steps = np.diff(values)
+                    if not np.allclose(steps, steps[0]):
+                        raise ValueError(
+                            f"Parameter '{name}' is not uniformly spaced; "
+                            "supply evenly spaced values or precompute derivatives."
+                        )
+                    sweep_info.append((name, steps[0]))
+        n_lambda = len(sweep_info)
+
+        if not n_lambda:
+            return vel_k  # nothing extra to append
+        
+        # Bring axes into the same order as `vel_k`: (Nk, l1, l2, ...)
+        ham = np.asarray(ham)
+        if ham.ndim < 3:
+            raise RuntimeError("Unexpected Hamiltonian shape while building lambda derivatives.")
+        
+        # The velocity output currently has shape (dim_k, Nk, l1, ..., norb, norb).
+        # Append parameter-derivatives after the existing k components.
+        vel_components = [vel_k]
+        for idx, (name, step) in enumerate(sweep_info):
+            axis = 1 + idx  # axis 0 is Nk, axis 1 begins the λ sweeps
+            dH = finite_difference(ham, axis=axis, delta=step, order=lambda_order, mode=lambda_scheme)
+            vel_components.append(dH[np.newaxis, ...])  # prepend new derivative axis
+
+        return np.concatenate(vel_components, axis=0)
 
     def quantum_geometric_tensor(
         self,
         k_pts,
-        evals: np.ndarray = None,
-        evecs: np.ndarray = None,
         occ_idxs = None,
         plane = None,
+        *,
+        evals: np.ndarray = None,
+        evecs: np.ndarray = None,
         cartesian: bool = False,
-        non_abelian: bool = False
+        non_abelian: bool = False,
+        include_lambda: bool = False,
+        lambda_scheme: str = "central",
+        lambda_order: int = 2,
+        **params
     ):
         r"""Quantum geometric tensor at a list of k-points via Kubo formula.
 
@@ -2901,7 +2990,7 @@ class TBModel:
 
             Q_{\mu \nu}(k) = \sum_{m \in \text{occ}} Q_{\mu \nu;\ mm}(k)
 
-        By specifying the `plane` parameter, we choose a particular :math:`(\mu, \nu)` pair
+        By specifying the ``plane`` parameter, we choose a particular :math:`(\mu, \nu)` pair
         of the quantum geometric tensor to return.
 
         .. versionadded:: 2.0.0
@@ -2926,9 +3015,28 @@ class TBModel:
             If True, computes the velocity operator in Cartesian coordinates.
             Default is False (reduced coordinates).
         non_abelian : bool, optional
-            If True, returns the full Berry curvature tensor (non-abelian case).
-            If False, returns the band-trace of the Berry curvature tensor (abelian case).
+            If True, returns the full tensor (non-abelian case).
+            If False, returns the band-trace of the tensor (abelian case).
             Default is False.
+        include_lambda : bool, optional
+            If True, includes finite-difference derivatives with respect to parameters
+            in the velocity operator used to compute the quantum geometric tensor.
+            Default is False.
+        lambda_scheme : str, optional
+            Finite difference scheme to use for lambda derivatives.
+            Options are "central" (default) or "forward".
+            This parameter is only relevant if ``include_lambda=True``.
+        lambda_order : int, optional
+            Order of accuracy for finite difference lambda derivatives.
+            Must be an even integer for "central" scheme (default is 2),
+            and a positive integer for "forward" scheme.
+            This parameter is only relevant if ``include_lambda=True``.
+        **params : 
+            Keyword arguments mapping parameter names to value(s). Each value can be a scalar
+            or a 1D array of values. If any values are array-like,
+            the QGT is evaluated at all combinations of parameter values,
+            and the final array is stacked with the k-axis leading, followed by each
+            parameter axis in the order of given parameter names.
 
         Returns
         -------
@@ -2938,7 +3046,24 @@ class TBModel:
             If ``plane`` is a tuple, shape is ``(Nk, n_orb, n_orb)`` and the returned 
             tensor is restricted to the specified directions. If ``non_abelian=False``,
             returns the band-trace of the quantum geometric tensor and the last 
-            two axes are not present.
+            two axes are not present. If parameter sweeps are performed via ``params``,
+            parameter axes are added after the k-point axis.
+
+        See Also
+        --------
+        velocity : Computes the velocity operator used in the Kubo formula.
+        berry_curvature : Computes the Berry curvature from the quantum geometric tensor.
+        quantum_metric : Computes the quantum metric from the quantum geometric tensor.
+
+        Notes
+        -----
+        - The quantum geometric tensor captures both the Berry curvature (imaginary part)
+          and the quantum metric (real part) of the occupied bands.
+        - The velocity operator is computed in tight-binding convention I, which includes phase factors
+          associated with orbital positions in the hopping terms.
+        - The finite difference derivatives with respect to parameters are computed explicitly as
+          centered differences using a uniform grid of parameter values.
+    
         """
 
         if self.dim_k < 2:
@@ -2949,7 +3074,11 @@ class TBModel:
                 """
             )
 
-        v_k = self.velocity(k_pts, cartesian=cartesian, flatten_spin_axis=True)  # (Nk, dim_k, nstate, nstate)
+        v_k = self.velocity(
+            k_pts, cartesian=cartesian, flatten_spin_axis=True,
+            include_lambda=include_lambda, lambda_scheme=lambda_scheme,
+            lambda_order=lambda_order, **params
+            )  # (dim_k + dim_lam , Nk, *lam_shape, nstate, nstate)
        
         if evals is None or evecs is None:
             evals, evecs = self.solve_ham(
@@ -2971,9 +3100,11 @@ class TBModel:
         delta_E = evals[..., np.newaxis, :] - evals[..., :, np.newaxis]  # shape (Nk, nstate, nstate)
         # Energy differences between occupied and conduction bands
         delta_occ_cond = delta_E[:, occ_idxs][:, :, cond_idxs]
+        # delta_cond_occ = delta_E[:, cond_idxs][:, :, occ_idxs]  # shape (Nk, n_occ, n_con)
         if np.any(np.isclose(delta_occ_cond, 0.0)):
             raise ZeroDivisionError("Degenerate occupied/conduction bands encountered.")
         inv_delta_occ_cond = np.divide(1.0, delta_occ_cond)
+        # inv_delta_cond_occ = np.divide(1.0, delta_cond_occ)
 
         ### Project vk into energy eigenbasis ####
 
@@ -3003,16 +3134,20 @@ class TBModel:
                 raise ValueError("plane must be a tuple of length 2.")
             return Q[plane]
 
-
     def berry_curvature(
         self,
         k_pts,
-        evals: np.ndarray = None,
-        evecs: np.ndarray = None,
         occ_idxs = None,
         plane = None,
+        *,
+        evals: np.ndarray = None,
+        evecs: np.ndarray = None,
         cartesian: bool = False,
         non_abelian: bool = False,
+        include_lambda: bool = False,
+        lambda_scheme: str = "central",
+        lambda_order: int = 2,
+        **params
     ):
         r"""Compute the Berry curvature at a list of k-points via Kubo formula.
 
@@ -3060,6 +3195,25 @@ class TBModel:
             If True, returns the full Berry curvature tensor (non-abelian case).
             If False, returns the band-trace of the Berry curvature tensor (abelian case).
             Default is False.
+        include_lambda : bool, optional
+            If True, includes finite-difference derivatives with respect to parameters
+            in the velocity operator used to compute the Berry curvature.
+            Default is False.
+        lambda_scheme : str, optional
+            Finite difference scheme to use for lambda derivatives.
+            Options are "central" (default) or "forward".
+            This parameter is only relevant if ``include_lambda=True``.
+        lambda_order : int, optional
+            Order of accuracy for finite difference lambda derivatives.
+            Must be an even integer for "central" scheme (default is 2),
+            and a positive integer for "forward" scheme.
+            This parameter is only relevant if ``include_lambda=True``.
+        **params : 
+            Keyword arguments mapping parameter names to value(s). Each value can be a scalar
+            or a 1D array of values. If any values are array-like,
+            the Berry curvature is evaluated at all combinations of parameter values,
+            and the final array is stacked with the k-axis leading, followed by each
+            parameter axis in the order of given parameter names.
 
         Returns
         -------
@@ -3068,7 +3222,14 @@ class TBModel:
             If ``plane`` is a tuple, shape is (Nk, n_orb, n_orb) and the returned tensor is restricted 
             to the specified directions.
             If ``non_abelian=False``, returns the band-trace of the Berry curvature tensor and the last
-            two dimensions are not present.
+            two dimensions are not present. If parameter sweeps are performed via ``params``,
+            parameter axes are added after the k-point axis.
+
+        See Also
+        --------
+        quantum_geometric_tensor : Computes the quantum geometric tensor.
+        quantum_metric : Computes the quantum metric tensor.
+        velocity : Computes the velocity operator used in the Kubo formula.
 
         Notes
         -----
@@ -3087,16 +3248,27 @@ class TBModel:
                 (E_{nk} - E_{lk})(E_{mk} - E_{lk})
             }
         - This quantity is an anti-symmetric under :math:`\mu \leftrightarrow \nu`. 
-        - The Berry curvature is only defined for models with at least 2 k-space dimensions
-          (``dim_k >= 2``). 
+        - The Berry curvature is only defined for models with at least 2 k+parameter-space dimensions
+          (``dim_k + dim_params >= 2``). 
         - The Berry curvature is computed using the Kubo formula, which
           requires knowledge of the velocity operator :math:`\partial_\mu H_k`. This operator
           is computed using the gradient of the Hamiltonian provided by :func:`velocity`.
+        - When using parameter sweeps via ``params``, the Berry curvature is computed
+          at all combinations of parameter values, and the resulting array has
+          parameter axes added after the k-point axis in the output.
+        - When using ``include_lambda=True``, the velocity operator includes
+          finite-difference derivatives with respect to parameters, allowing
+          computation of Berry curvature components involving parameter directions.
+          This should only be used when the parameter values in ``params`` are
+          uniformly spaced and form a closed loop in parameter space (endpoints not included)
+          for accurate finite difference derivatives.
         """
         Q = self.quantum_geometric_tensor(
             k_pts, occ_idxs=occ_idxs, evals=evals, evecs=evecs,
-            cartesian=cartesian, non_abelian=non_abelian
-        ) 
+            cartesian=cartesian, non_abelian=non_abelian,
+            include_lambda=include_lambda, lambda_scheme=lambda_scheme,
+            lambda_order=lambda_order, **params
+        )
         # Berry curvature is the anti-symmetric part of the quantum geometric tensor
         Omega = -2 * Q.imag 
         if plane is not None:
@@ -3108,12 +3280,17 @@ class TBModel:
     def quantum_metric(
         self,
         k_pts,
-        evals: np.ndarray = None,
-        evecs: np.ndarray = None,
         occ_idxs = None,
         plane = None,
+        *,
+        evals: np.ndarray = None,
+        evecs: np.ndarray = None,
         cartesian: bool = False,
         non_abelian: bool = False,
+        include_lambda: bool = False,
+        lambda_scheme: str = "central",
+        lambda_order: int = 2,
+        **params
     ):
         r"""Quantum metric at a list of k-points via Kubo formula.
 
@@ -3137,7 +3314,6 @@ class TBModel:
         of the quantum metric tensor to return.
 
         .. versionadded:: 2.0.0
-
 
         Parameters
         ----------
@@ -3175,6 +3351,7 @@ class TBModel:
         --------
         quantum_geometric_tensor
         berry_curvature
+        velocity
 
         Notes
         -----
@@ -3202,7 +3379,9 @@ class TBModel:
         """
         Q = self.quantum_geometric_tensor(
             k_pts, occ_idxs=occ_idxs, evals=evals, evecs=evecs,
-            cartesian=cartesian, non_abelian=non_abelian
+            cartesian=cartesian, non_abelian=non_abelian, 
+            include_lambda=include_lambda, lambda_scheme=lambda_scheme,
+            lambda_order=lambda_order, **params
         )
         # Quantum metric is the symmetric part of the quantum geometric tensor
         g = Q.real #(1/2) * (Q + Q.swapaxes(0, 1))
@@ -3211,11 +3390,16 @@ class TBModel:
             g = g[mu, nu]
         return g
 
+    #TODO: Allow chern number on parameter planes
     def chern_number(
             self, 
             occ_idxs=None, 
             plane=(0, 1), 
-            nk=200
+            nk=200,
+            include_lambda: bool = False,
+            lambda_scheme: str = "central",
+            lambda_order: int = 2,
+            **params
             ):
         r"""Computes Chern number for occupied manifold.
 
@@ -3263,19 +3447,30 @@ class TBModel:
         k_grid = self.k_uniform_mesh(nks)
         k_flat = k_grid.reshape(-1, self.dim_k)
         
-        Omega = self.berry_curvature(k_flat, occ_idxs=occ_idxs)
+        Omega = self.berry_curvature(
+            k_flat, occ_idxs=occ_idxs, plane=plane,
+            include_lambda=include_lambda, lambda_scheme=lambda_scheme,
+            lambda_order=lambda_order, **params
+        )
 
-        Nk = Omega.shape[2]
+        if plane[0] >= self.dim_k or plane[1] >= self.dim_k:
+            raise NotImplementedError(
+                "Chern number can only be computed for planes within k-space dimensions."
+            )
+
+        Nk = Omega.shape[0]
         dk_sq = 1 / Nk
-        chern_num = np.sum(Omega[plane]) * dk_sq / (2 * np.pi)
+        chern_num = np.sum(Omega) * dk_sq / (2 * np.pi)
 
         return chern_num.real
 
+    #TODO: Handle params lists
     def local_chern_marker(
             self, 
             occ_idxs=None,
             return_bulk_avg: bool = False,
-            trim_cells: int = 4
+            trim_cells: int = 4,
+            **params
             ):
         r"""Bianco–Resta local Chern marker.
 
@@ -3318,7 +3513,7 @@ class TBModel:
         if self.dim_r != 2:
             raise ValueError("Local Chern marker is only defined for 2D models (dim_r=2).")
         
-        H = self.hamiltonian()
+        H = self.hamiltonian(flatten_spin_axis=True, **params)  # (N,N) dense
         N = H.shape[0]
         r_cart = self.get_orb_vecs(cartesian=True) # (N, 2)
         if r_cart.ndim != 2 or r_cart.shape[1] != 2 or r_cart.shape[0] != N:
