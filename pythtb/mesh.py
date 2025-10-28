@@ -542,6 +542,12 @@ class Mesh:
         """
         if not self.is_grid:
             return False
+        
+        if self.num_k_axes < self.dim_k:
+            return False
+        
+        if self.dim_k == 0:
+            return False
 
         k_axes = self.k_axes
         bz_winding_axes = self.bz_winding_axes
