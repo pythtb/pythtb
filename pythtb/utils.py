@@ -9,10 +9,10 @@ import warnings
 __all__ = [
     "levi_civita",
     "finite_diff_coeffs",
+    "finite_difference",
     "is_Hermitian",
     "pauli_decompose",
     "get_trial_wfs",
-    "get_periodic_H",
 ]
 
 _TF_CACHE = None  # module-level cache so we import once
@@ -66,17 +66,6 @@ def copydoc(src):
         dst.__doc__ = src.__doc__
         return dst
     return deco
-
-
-def get_periodic_H(model, H_flat, k_vals):
-    orb_vecs = model.get_orb_vecs()
-    orb_vec_diff = orb_vecs[:, None, :] - orb_vecs[None, :, :]
-    # orb_phase = np.exp(1j * 2 * np.pi * np.einsum('ijm, ...m->...ij', orb_vec_diff, k_vals))
-    orb_phase = np.exp(1j * 2 * np.pi * np.matmul(orb_vec_diff, k_vals.T)).transpose(
-        2, 0, 1
-    )
-    H_per_flat = H_flat * orb_phase
-    return H_per_flat
 
 
 def get_trial_wfs(tf_list, norb, nspin=1):
@@ -151,18 +140,18 @@ def detect_degeneracies(eigenvalues, tol=1e-8):
     return degenerate_groups
 
 def mat_exp(M):
-        eigvals, eigvecs = np.linalg.eig(M)
-        U = eigvecs
-        U_inv = np.linalg.inv(U)
-        # Diagonal matrix of the exponentials of the eigenvalues
-        exp_diagM = np.exp(eigvals)
-        # Construct the matrix exponential
-        expM = np.einsum(
-            "...ij, ...jk -> ...ik",
-            U,
-            np.multiply(U_inv, exp_diagM[..., :, np.newaxis]),
-        )
-        return expM
+    eigvals, eigvecs = np.linalg.eig(M)
+    U = eigvecs
+    U_inv = np.linalg.inv(U)
+    # Diagonal matrix of the exponentials of the eigenvalues
+    exp_diagM = np.exp(eigvals)
+    # Construct the matrix exponential
+    expM = np.einsum(
+        "...ij, ...jk -> ...ik",
+        U,
+        np.multiply(U_inv, exp_diagM[..., :, np.newaxis]),
+    )
+    return expM
 
 
 def levi_civita(n, d):
@@ -307,7 +296,7 @@ def get_fd_weights(model, nks, dim_k, N_sh=1, report=False):
     return w, k_shell, idx_shell
 
 
-def finite_diff_coeffs(order_eps, derivative_order=1, mode="central"):
+def finite_diff_coeffs(order, derivative_order=1, mode="central"):
     """
     Compute finite difference coefficients using the inverse of the Vandermonde matrix.
 
@@ -321,7 +310,7 @@ def finite_diff_coeffs(order_eps, derivative_order=1, mode="central"):
     if mode not in ["central", "forward", "backward"]:
         raise ValueError("Mode must be 'central', 'forward', or 'backward'.")
 
-    num_points = derivative_order + order_eps
+    num_points = derivative_order + order
 
     if mode == "central":
         if num_points % 2 == 0:
@@ -344,15 +333,15 @@ def finite_diff_coeffs(order_eps, derivative_order=1, mode="central"):
     coeffs = np.linalg.solve(A, b)  # Solve system Ax = b
     return coeffs, stencil
 
-def fin_diff(U_k, mu, dk_mu, order_eps, mode='central'):
-    coeffs, stencil = finite_diff_coeffs(order_eps=order_eps, mode=mode)
+def finite_difference(M, axis, delta, order, mode='central'):
+    coeffs, stencil = finite_diff_coeffs(order=order, mode=mode)
 
-    fd_sum = np.zeros_like(U_k)
+    fd_sum = np.zeros_like(M)
 
     for s, c in zip(stencil, coeffs):
-        fd_sum += c * np.roll(U_k, shift=-s, axis=mu)
+        fd_sum += c * np.roll(M, shift=-s, axis=axis)
 
-    v = fd_sum / (dk_mu)
+    v = fd_sum / (delta)
     return v
 
 def is_Hermitian(M):
