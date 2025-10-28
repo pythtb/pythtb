@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 import copy
 import logging
 import warnings
@@ -41,21 +42,10 @@ def _tensorflow_solve(ham, *, return_eigvecs: bool, use_32_bit: bool):
 def _iter_params_of_callable(f):
         """Yield explicit parameter names (ignore *args/**kwargs)."""
         sig = inspect.signature(f)
-        for name, p in sig.parameters.items():
-            if p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY):
-                yield name
-
-def _describe_callable(func):
-    try:
-        sig = inspect.signature(func)
-        params = tuple(sig.parameters.keys())
-    except (ValueError, TypeError):
-        params = ()
-    try:
-        source = textwrap.dedent(inspect.getsource(func)).strip()
-    except (OSError, TypeError):
-        source = None
-    return params, source
+        for name, param in sig.parameters.items():
+            if param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY):
+                if param.default is inspect._empty:  # user must supply
+                    yield name
 
 def _call_provider(prov, params):
     """Call a provider with only the kwargs it actually declares (unless it has **kwargs)."""
@@ -66,6 +56,18 @@ def _call_provider(prov, params):
         return prov(**params)  # accepts anything
     kwargs = {k: params[k] for k in _iter_params_of_callable(prov) if k in params}
     return prov(**kwargs)
+
+def _describe_provider(provider):
+    if isinstance(provider, str):
+        return f"'{provider}'"
+    if callable(provider):
+        try:
+            src = inspect.getsource(provider).strip()
+            return src
+        except (OSError, TypeError, AttributeError):
+            name = getattr(provider, "__qualname__", getattr(provider, "__name__", repr(provider)))
+            return f"callable {name} (source unavailable)"
+    return repr(provider)
 
 class TBModel:
     r"""Tight-binding model constructor.
@@ -349,31 +351,24 @@ class TBModel:
     def parameters(self):
         out = []
         for idx, provider in getattr(self, "_onsite_param_terms", {}).items():
-            if provider:
-                descriptor = {
-                    "kind": "onsite",
-                    "orbitals": int(idx)
-                }
-                if callable(provider):
-                    descriptor["name"], descriptor["source"] = _describe_callable(provider)
-                    descriptor["function"] = provider
-                else:
-                    descriptor["name"] = provider
-                out.append(descriptor)
+            if provider is None:
+                continue
+            name = self._provider_name(provider, ctx=f"onsite[{idx}]")
+            desc = {"kind": "onsite", "orbitals": int(idx), "name": name}
+            if callable(provider):
+                desc["source"] = _describe_provider(provider)
+                desc["function"] = provider
+            out.append(desc)
 
-        for (i, j, R_vec), provider in getattr(self, "_hopping_param_terms", {}).items():
-            if provider:
-                descriptor = {
-                    "kind": "hopping",
-                    "orbitals": (i, j),
-                    "R": R_vec,
-                }
-                if callable(provider):
-                     descriptor["name"], descriptor["source"] = _describe_callable(provider)
-                     descriptor["function"] = provider
-                else:
-                    descriptor["name"] = provider
-                out.append(descriptor)
+        for (i, j, R), provider in getattr(self, "_hopping_param_terms", {}).items():
+            if provider is None:
+                continue
+            name = self._provider_name(provider, ctx=f"hopping[{i},{j},{tuple(R)}]")
+            desc = {"kind": "hopping", "orbitals": (i, j), "R": tuple(R), "name": name}
+            if callable(provider):
+                desc["source"] = _describe_provider(provider)
+                desc["function"] = provider
+            out.append(desc)
 
         return out
     
@@ -446,7 +441,7 @@ class TBModel:
         output.append(header)
         lat_report = self.lattice._report_list()
         lat_report.pop(0)  # remove header
-        lat_report.insert(2, f"spinful                     = {self.spinful}")
+        lat_report.insert(3, f"spinful                     = {self.spinful}")
         lat_report.insert(4, f"number of spin components   = {self.nspin}")
         lat_report.insert(5, f"number of electronic states = {self.nstate}")
         output.extend(lat_report)
@@ -456,22 +451,10 @@ class TBModel:
             output.append("Site energies:")
             onsite_params = getattr(self, "_onsite_param_terms", {})
 
-            def _describe_provider(provider):
-                if isinstance(provider, str):
-                    return f"'{provider}'"
-                if callable(provider):
-                    try:
-                        src = inspect.getsource(provider).strip()
-                        return src
-                    except (OSError, TypeError, AttributeError):
-                        name = getattr(provider, "__qualname__", getattr(provider, "__name__", repr(provider)))
-                        return f"callable {name} (source unavailable)"
-                return repr(provider)
-
             for i, site in enumerate(self._site_energies):
                 onsite_param_term = onsite_params.get(i)
-                if onsite_param_term and not self._site_energies_specified[i]:
-                    output.append(f"  # {i} ===> {_describe_provider(onsite_param_term)}")
+                if onsite_param_term:
+                    output.append(f"  # {i:<3} ===> {_describe_provider(onsite_param_term)}")
                     continue
 
                 if self._nspin == 1:
@@ -479,7 +462,7 @@ class TBModel:
                 else:
                     energy_str = str(site).replace("\n", " ")
 
-                output.append(f"  # {i} ===> {energy_str}")
+                output.append(f"  # {i:<3} ===> {energy_str}")
 
             amps, i_idx, j_idx, R_vecs = self._hoptable.components()
 
@@ -490,8 +473,8 @@ class TBModel:
                 R_vec = R_vecs[hop_idx]
 
                 coords = ", ".join(f"{value:^5.1f}" for value in R_vec)
-                disp = f" + [{coords}]" if self.dim_k else ""
-                out_str = f"  < {hop_from:^1} | H | {hop_to:^1}{disp} >  ===> "
+                disp = f" + [{coords}] " if self.dim_k else ""
+                out_str = f"  <{hop_from:^3}| H |{hop_to:^3}{disp}>  ===> "
 
                 amp = amps[hop_idx]
                 if self.spinful:
@@ -506,15 +489,16 @@ class TBModel:
             if param_hops:
                 for (hop_from, hop_to, R_tup), provider in param_hops.items():
                     coords = ", ".join(f"{value:^5.1f}" for value in R_tup) if len(R_tup) else ""
-                    disp = f" + [{coords}]" if coords else ""
+                    disp = f" + [{coords}] " if (coords and self.dim_k) else ""
                     output.append(
-                        f"  < {hop_from:^1} | H | {hop_to:^1}{disp} >  ===> {_describe_provider(provider)}"
+                        f"  <{hop_from:^3}| H |{hop_to:^3}{disp}>  ===> {_describe_provider(provider)}"
                     )
 
             output.append("Hopping distances:")
-            if self.nhops != 0:
-                orb_cart = self.get_orb_vecs(cartesian=True)
-                lat_vecs = self.lat_vecs
+            orb_cart = self.get_orb_vecs(cartesian=True)
+            lat_vecs = np.asarray(self.lat_vecs, dtype=float)
+
+            if self.nhops:
                 for hop_idx in range(self.nhops):
                     hop_from = int(i_idx[hop_idx])
                     hop_to = int(j_idx[hop_idx])
@@ -523,15 +507,27 @@ class TBModel:
                     pos_i = orb_cart[hop_from]
                     pos_j = orb_cart[hop_to] + R_vec @ lat_vecs
 
-                    coords = ", ".join(f"{value:5.1f}" for value in R_vec)
+                    coords = ", ".join(f"{value:^5.1f}" for value in R_vec)
                     disp = f" + [{coords}]" if self.dim_k else ""
-
                     distance = np.linalg.norm(pos_j - pos_i)
 
-                    out_str = (
-                    f"  | pos({hop_from:>2}) - pos({hop_to:<2}){disp} | = {distance:7.3f}"
+                    output.append(
+                        f"  | pos({hop_from:^3}) - pos({hop_to:^3}){disp} | = {distance:7.3f}"
                     )
-                    output.append(out_str)
+
+            for (hop_from, hop_to, R_tup), _ in param_hops.items():
+                R_vec = np.asarray(R_tup, dtype=float)
+
+                pos_i = orb_cart[hop_from]
+                pos_j = orb_cart[hop_to] + R_vec @ lat_vecs
+
+                coords = ", ".join(f"{value:^5.1f}" for value in R_vec)
+                disp = f" + [{coords}]" if self.dim_k else ""
+                distance = np.linalg.norm(pos_j - pos_i)
+
+                output.append(
+                    f"  | pos({hop_from:^3}) - pos({hop_to:^3}){disp} | = {distance:7.3f} (param)"
+                )
 
         if show:
             print("\n".join(output))
@@ -647,63 +643,99 @@ class TBModel:
 
         You can set the energy for a single orbital (by specifying ``ind_i``),
         or for all orbitals at once by passing ``onsite_en`` as a list/array 
-        of length ``norb``.
+        of length :attr:`norb`.
 
         .. deprecated:: 2.0.0
             ``mode="reset"`` is deprecated. Use ``mode="set"`` instead.
 
         Parameters
         ----------
-        onsite_en : float | array-like | (2, 2) np.ndarray | str | callable
-            If ``ind_i`` is ``None``, ``onsite_en`` must be a list/array of length
-            ``norb`` (one value per orbital). Otherwise it may be a single value.
+        onsite_en : float, array_like, (2, 2) numpy.ndarray, str, callable
+            .. versionadded:: 2.0.0
+                Symbolic expressions and callables for onsite energies.
 
-            .. versionchanged:: 2.0.0
-                This may also be a symbolic string or callable. The numeric values are
-                then expected to be specified in downstream functions.
+            On-site energy value(s) to set. When specifying a single orbital
+            with ``ind_i``, this may be one of the following:
+            
+            **Symbolic (spinless or spinful)**
 
+            - String: A symbolic expression for the onsite energy.
+            - Callable: A function of a single parameter that returns the onsite energy
+              in one of the formats listed below.
+            
             **Spinless**  (``spinful=False``)
 
-            - Real scalar, or list/array of real scalars (one per orbital).
-            - String, representing a symbolic expression.
-            - Callable, representing a function of parameters.
+            - Real scalar.
 
             **Spinful**  (``spinful=True``)
 
             - **Scalar** ``a``: interpreted as :math:`a I` (same value for both spins).
-            - **4-vector** ``[a, b, c, d]``: interpreted as :math:`a I + b\,\sigma_x + c\,\sigma_y + d\,\sigma_z`, i.e.
-                .. math::
-
-                    \begin{bmatrix}
-                    a + d & b - i c \\
-                    b + i c & a - d
-                    \end{bmatrix}
+            - **4-vector** ``[a, b, c, d]``:
+              
+              .. math::
+                a I + b\,\sigma_x + c\,\sigma_y + d\,\sigma_z =
+                \begin{bmatrix}
+                a + d & b - i c \\
+                b + i c & a - d
+                \end{bmatrix}
 
             - **Full matrix**: a 2 x 2 Hermitian ndarray.
-            - **String**: representing a symbolic expression.
-            - **Callable**: representing a function of parameters.
+
+            When specifying all orbitals at once (``ind_i=None``), this should be
+            a list or array of length :attr:`norb`, where each entry is one of the
+            above types.
 
         ind_i : int, optional
-            Orbital index to update. If ``None``, all orbitals are updated and
-            ``onsite_en`` must be a sequence of length ``norb``.
+            Orbital index to update. If unspecified, all orbitals are updated and
+            ``onsite_en`` must be a sequence of length :attr:`norb`.
 
         mode : {'set', 'add'}, optional
             How to apply ``onsite_en``.
 
-            - ``'set'``: replace the value(s).
+            - ``'set'``: replace the value(s). (Default)
             - ``'add'``: add to existing value(s).
+
+        See Also
+        --------
+        set_hop : Define hopping amplitudes between orbitals.
 
         Notes
         -----
-        When called multiple times with ``mode='add'``, values accumulate.
+        - When called multiple times with ``mode='add'``, values accumulate.
 
         Examples
         --------
-        >>> tb.set_onsite([0.0, 1.0, 2.0])              # all orbitals
-        >>> tb.set_onsite(100.0, ind_i=1, mode="add")   # single orbital
+        Setting all on-site energies at once:
+
+        >>> tb.set_onsite([0.0, 1.0, 2.0]) 
+
+        Adding an on-site energy to a single orbital:
+
+        >>> tb.set_onsite(100.0, ind_i=1, mode="add")  
+
+        Setting the on-site energy of a single orbital:
+
         >>> tb.set_onsite(0.0, ind_i=1, mode="set")
-        >>> tb.set_onsite([2.0, 3.0, 4.0], mode="set")
-        >>> tb.set_onsite([1.0, 0.2, 0.0, -0.1], ind_i=0)  # spinful 4-vector
+
+        Setting a spinful on-site term using a 4-vector:
+
+        >>> tb.set_onsite([1.0, 0.2, 0.0, -0.1], ind_i=0)
+
+        Parametric onsite energy using a string expression:
+
+        >>> tb.set_onsite("mA", ind_i=0)
+
+        Parametric onsite energy using a callable:
+
+        >>> tb.set_onsite(lambda mA: mA**2, ind_i=0)
+
+        Setting all on-site energies with parametric callables:
+
+        >>> tb.set_onsite([lambda mA: mA, lambda mA: 2*mA, lambda mA: 3*mA])
+
+        This will set a single parameter ``"mA"``, which can be set to a single value
+        using :meth:`set_parameters`, or with a list of values in downstream functions
+        like :meth:`hamiltonian` or :meth:`velocity`.
         """
         # Handle deprecated 'reset' mode
         mode = mode.lower()
@@ -811,64 +843,107 @@ class TBModel:
             H_{ij}(\mathbf{R}) = \langle \phi_{\mathbf{0},i} | H | \phi_{\mathbf{R},j} \rangle
 
         where :math:`\langle \phi_{\mathbf{0},i} |` is the i-th orbital in the home unit cell,
-        and :math:`| \phi_{\mathbf{R},j} \rangle` is the j-th orbital in a cell shifted by lattice vector :math:`\mathbf{R}`.
+        and :math:`| \phi_{\mathbf{R},j} \rangle` is the j-th orbital in a cell shifted by lattice 
+        vector :math:`\mathbf{R}`.
 
         .. deprecated:: 2.0.0
             Using 'reset' for `mode` is deprecated, use 'set' instead.
 
         Parameters
         ----------
-        hop_amp : scalar, array-like, np.ndarray of shape ``(2, 2)``, str, or callable
-            .. versionchanged:: 2.0.0
-                This may also be a symbolic string or callable. The numeric values are
-                then expected to be specified in downstream functions.
+        hop_amp : scalar, array-like, (2,2) numpy.ndarray, str, callable
+            .. versionadded:: 2.0.0
+                Symbolic expressions and callables for hoppings.
 
-            For spinless models (`spinful=False`):
-                - Real or complex scalar.
-            For spinful models (`spinful=True`):
-                - Scalar: interpreted as :math:`a I` for both spin components.
-                - 4-vector ``[a, b, c, d]``: interpreted as :math:`a I + b \sigma_x + c \sigma_y + d \sigma_z`:
+            **Symbolic (spinless or spinful)**
 
-                    .. math::
-                        \begin{bmatrix}
-                            a + d & b - i c \\
-                            b + i c & a - d
-                        \end{bmatrix}
+            - String: A symbolic expression for the onsite energy.
+            - Callable: A callable with a single parameter that returns the onsite energy
+              in one of the formats listed below.
 
-                - Full 2 x 2 Hermitian matrix.
+            **Spinless** (``spinful=False``):
+
+            - Real or complex scalar.
+
+            **Spinful** (``spinful=True``):
+
+            - Scalar ``a`` multiplied by identity: :math:`a I`.
+            - 4-vector ``[a, b, c, d]`` dotted into identity and Pauli matrices: 
+
+            .. math::
+                a I + b\,\sigma_x + c\,\sigma_y + d\,\sigma_z =
+                \begin{bmatrix}
+                    a + d & b - i c \\
+                    b + i c & a - d
+                \end{bmatrix}
+
+            - Full 2 x 2 Hermitian matrix.
+
         ind_i : int
             Index of bra orbital (in home unit cell).
         ind_j : int
-            Index of ket orbital (in cell shifted by `ind_R`).
+            Index of ket orbital (in cell shifted by ``ind_R``).
         ind_R : array-like of int, optional
             Lattice vector (integer array, in reduced coordinates)
             pointing to the unit cell where the ket orbital is located.
             The number of coordinates must equal the dimensionality in
-            real space (``dim_r``) for consistency, but only the periodic directions of ``ind_R`` are used.
-            If reciprocal space is zero-dimensional (as in a molecule), this parameter does not need 
-            to be specified.
+            real space (``dim_r``) for consistency, but only the periodic 
+            directions of ``ind_R`` are used. If reciprocal space is zero-dimensional
+            (as in a molecule), this parameter does not need to be specified.
         mode : {'set', 'add'}, optional
-            Specifies how `hop_amp` is used
-                - "set": Set the hopping term to the value of `hop_amp`. (Default)
-                - "add": Add `hop_amp` to the previous value.
+            How to apply ``hop_amp``.
+
+            - ``'set'``: replace the value(s). (Default)
+            - ``'add'``: add to existing value(s).
+
         allow_conjugate_pair : bool, optional
             If True, allows specification of both a hopping and its conjugate pair.
             If False, prevents double-counting.
 
+        See Also
+        --------
+        set_onsite : Define on-site energies for orbitals.
+
         Notes
         -----
-        Strictly speaking, this term specifies hopping amplitude for hopping from site `j+R` to site i, not vice-versa.
-        There is no need to specify hoppings in both :math:`i \rightarrow j+\mathbf{R}` and
-        :math:`j \rightarrow i-\mathbf{R}` directions, since the latter is included automatically as
+        - Unlike `set_onsite`, there is no way to bulk set hoppings; each hopping
+          must be specified individually.
+        - Strictly speaking, this term specifies hopping amplitude for hopping from site `j+R` to site `i`, 
+          not vice-versa.
+          There is no need to specify hoppings in both :math:`i \rightarrow j+\mathbf{R}` and
+          :math:`j \rightarrow i-\mathbf{R}` directions, since the latter is included automatically as
 
-        .. math::
-            H_{ji}(-\mathbf{R}) = \left[ H_{ij}(\mathbf{R}) \right]^*
+          .. math::
+              H_{ji}(-\mathbf{R}) = \left[ H_{ij}(\mathbf{R}) \right]^*
+    
+        - When called multiple times with ``mode='add'``, values accumulate.
 
         Examples
         --------
-        >>> tb.set_hop(0.3+0.4j, 0, 2, [0, 1])
-        >>> tb.set_hop(0.1+0.2j, 0, 2, [0, 1], mode="set")
+        Setting a hopping amplitude between orbital 0 in the home cell and orbital 1
+        in the unit cell shifted by lattice vector ``R = [0, 1]``:
+
+        >>> tb.set_hop(0.3+0.4j, 0, 2, [0, 1], mode="set")
+
+        Adding to an existing hopping amplitude:
+
         >>> tb.set_hop(100.0, 0, 2, [0, 1], mode="add")
+
+        Setting a spinful hopping using a 4-vector:
+
+        >>> tb.set_hop([0.1, 0.0, 0.2, -0.1], 0, 1, [1, 0])
+
+        Parametric hopping using a string expression:
+
+        >>> tb.set_hop("t1", 0, 1, [1, 0])
+
+        Parametric hopping using a callable:
+
+        >>> tb.set_hop(lambda t1: t1**2, 0, 1, [1, 0])
+
+        This will set a single parameter ``"t1"``, which can be set to a single value
+        using :meth:`set_parameters`, or with a list of values in downstream functions
+        like :meth:`hamiltonian` or :meth:`velocity`.
         """
         #### Prechecks and formatting ####
         mode = mode.lower()
@@ -961,66 +1036,57 @@ class TBModel:
         else:
             raise ValueError("Wrong value of mode parameter. Should be either `set` or `add`.")
 
-    def set_nn_hops(self, hop_amps: list, nn_shells: list[int], mode="set"):
-        r"""Define nearest-neighbor hopping parameters up to a specified shell.
+    def set_nn_hops(self, shell_hops: dict, mode="set"):
+        r"""Define n'th nearest-neighbor hoppings.
 
-        This function sets hopping amplitudes for all bonds in the specified
+        This function sets hopping amplitudes for all bonds in specified
         nearest-neighbor shells. The shells are defined based on the distance
         from each orbital, with shell 1 being the nearest neighbors, shell 2
-        being the next-nearest neighbors, and so on.
+        being the next-nearest neighbors, and so on. All hoppings in a given shell
+        are assigned the same value.
 
         .. versionadded:: 2.0.0
 
         Parameters
         ----------
-        hop_amp : list or array-like
-            List or array of hopping amplitudes for each shell.
-            The length of ``hop_amp`` should match the length of ``nn_shells``, 
-            where each element corresponds to the hopping amplitude for that shell.
-        nn_shells : list[int]
-            List of integers specifying the shells for each hopping amplitude. Counting
-            starts from 1, so ``nn_shells=[1, 2]`` indicates nearest-neighbor and 
-            next-nearest-neighbor shells. The length of ``nn_shells`` should match the length 
-            of ``hop_amp``. Each element in ``nn_shells`` should be a positive integer.
+        shell_hops : dict[int, array-like]
+            Dictionary mapping shell indices (counting from 1) to hopping amplitudes.
+            The keys are integers representing the shell number, and the values
+            are the hopping amplitudes for that shell.
         mode : {'set', 'add'}, optional
-            Specifies how `hop_amp` is used
-                - "set": Set the hopping term to the value of `hop_amp`. (Default)
-                - "add": Add `hop_amp` to the previous value.
+            Specifies how ``shell_hops`` is used
+            - ``"set"``: Set the hopping term to the values in ``shell_hops``. (Default)
+            - ``"add"``: Add the values in ``shell_hops`` to the previously set values.
 
         Notes
         -----
-        The hopping amplitudes are applied to all bonds in each shell.
+        - The hopping amplitudes are applied to all bonds in each shell.
 
         Examples
         --------
         Setting nearest-neighbor and next-nearest-neighbor hoppings:
 
-        >>> tb.set_nn_hops([1.0, 0.5], [1, 2])
+        >>> tb.set_nn_hops({1: 1.0, 2: 0.5})
 
         Setting only nearest-neighbor hoppings:
 
-        >>> tb.set_nn_hops([1.0], [1])
+        >>> tb.set_nn_hops({1: 1.0})
 
         """
-        n_shells = max(nn_shells)
-
-        if n_shells == 0:
-            raise ValueError("hop_amp must have at least one element.")
-        if len(nn_shells) != n_shells:
-            raise ValueError("nn_shells must have length equal to n_shells.")
+        if not isinstance(shell_hops, dict):
+            raise TypeError("shell_hops must be a dictionary mapping shell index to hopping amplitude.")
+        
+        nn_shells = list(shell_hops.keys())
+        if len(nn_shells) == 0:
+            raise ValueError("shell_hops must have at least one element.")
         if not all(isinstance(shell, int) and shell > 0 for shell in nn_shells):
             raise ValueError("Each element in nn_shells must be a positive integer.")
-        if not isinstance(hop_amps, (list, np.ndarray)):
-            raise TypeError("hop_amp must be a list or array.")
-        if any(not isinstance(amp, (int, float, complex, list, np.ndarray)) for amp in hop_amps):
-            raise TypeError("Each element in hop_amp must be a scalar, list, or array.")
 
-        shell_bonds = self.nn_bonds(n_shells)[1]
-
-        hops = dict(zip(nn_shells, hop_amps))
+        max_shell = max(nn_shells)
+        shell_bonds = self.nn_bonds(max_shell)[1]
 
         for shell_idx, shell in enumerate(shell_bonds):
-            amp = hops.get(shell_idx + 1, None)
+            amp = shell_hops.get(shell_idx + 1, None)
             if amp is None:
                 continue
             for bond in shell:
@@ -1122,19 +1188,40 @@ class TBModel:
             if cell and not cell:
                 self._hopping_param_terms.pop((i, j))
 
+    def _provider_name(self, provider, *, ctx):
+        if callable(provider):
+            params = tuple(_iter_params_of_callable(provider))
+            if len(params) != 1:
+                raise ValueError(
+                    f"{ctx} provider must accept exactly one parameter; got {params}"
+                )
+            return params[0]
+        if isinstance(provider, str):
+            return provider
+        raise TypeError(f"Unsupported {ctx} provider type: {type(provider)}")
+
+    def _check_parameter_exists(self, params: dict):
+        """Check if any parameters are defined in the model."""
+        required = {entry["name"] for entry in self.parameters}
+        provided = set(params.keys())
+
+        unknown = provided - required
+        if unknown:
+            raise ValueError("Unknown parameter name(s): " + ", ".join(sorted(unknown)))
+
     def _check_missing_parameters(self, params: dict):
         """Check for missing parameters in the provided dictionary."""
-        required = set([param["name"][0] for param in self.parameters])
-        input_param_names = set(params.keys())
+        required = {entry["name"] for entry in self.parameters}
+        provided = set(params.keys())
 
-        unknown_params = input_param_names.difference(required)
-        if unknown_params:
-            raise ValueError("Unknown parameter name(s): " + ", ".join(sorted(unknown_params)))
+        unknown = provided - required
+        if unknown:
+            raise ValueError("Unknown parameter name(s): " + ", ".join(sorted(unknown)))
 
-        missing = required.difference(input_param_names)
+        missing = required - provided
         if missing:
             raise ValueError("Missing parameter value(s): " + ", ".join(sorted(missing)))
-        
+
     def _evaluate_params(self, assignments: dict):
         """Evaluate the model with given parameter assignments.
         
@@ -1224,23 +1311,17 @@ class TBModel:
             raise ValueError(f"Could not evaluate expression '{expr}': {exc}") from exc
         return self._val_to_block(value)
 
-    def set_parameters(self, **params):
-        """
-        Fold the supplied scalar parameter values into any matching onsite/hopping providers.
-
-        Parameters may be passed either as a mapping (`params`) or as keyword arguments; the
-        two forms are merged.  Any provider whose argument list is fully covered by the supplied
-        names is evaluated and replaced by its numeric block.  Providers that still reference a
-        missing parameter are left untouched.
-        """
-        # Accept both dict-like inputs and keyword arguments so parameter names can contain
-        # characters that aren’t valid Python identifiers.
-        merged = params
-
+    def set_parameters(self, params=None, /, **kwargs):
+        merged = {}
+        if params is not None:
+            if not isinstance(params, Mapping):
+                raise TypeError("params must be a mapping of parameter names to values.")
+            merged.update(params)
+        merged.update(kwargs)
         if not merged:
             return
 
-        cleaned: dict[str, float | complex] = {}
+        cleaned = {}
         for name, value in merged.items():
             if isinstance(value, np.ndarray):
                 if value.ndim != 0:
@@ -1250,55 +1331,91 @@ class TBModel:
                 raise TypeError(f"Parameter '{name}' must be a scalar.")
             cleaned[name] = value
 
-        # -------------------------- onsite providers --------------------------
+        # onsite
         for idx, provider in list(getattr(self, "_onsite_param_terms", {}).items()):
             if provider is None:
                 continue
-
-            try:
-                if callable(provider):
-                    required = set(_iter_params_of_callable(provider))
-                    if not required.issubset(params):
-                        continue
-                    block = self._val_to_block(_call_provider(provider, params))
-                elif isinstance(provider, str):
-                    block = self._eval_expr_to_block(provider, **params)
-                else:
-                    raise TypeError(
-                        f"Unsupported onsite provider type on site {idx}: {type(provider)}"
-                    )
-            except (TypeError, ValueError):
-                # Missing parameters or evaluation failure → leave provider in place.
+            name = self._provider_name(provider, ctx=f"onsite[{idx}]")
+            if name not in cleaned:
                 continue
+            block = provider(cleaned[name]) if callable(provider) else cleaned[name]
+            self.set_onsite(block, ind_i=idx, mode="set")        # reuse existing validation
 
-            self.set_onsite(block, ind_i=idx, mode="set")
-
-        # -------------------------- hopping providers -------------------------
+        # hoppings
         for key, provider in list(getattr(self, "_hopping_param_terms", {}).items()):
-            i, j, R = key
-            try:
-                if callable(provider):
-                    required = set(_iter_params_of_callable(provider))
-                    if not required.issubset(params):
-                        continue
-                    block = self._val_to_block(_call_provider(provider, params))
-                elif isinstance(provider, str):
-                    block = self._eval_expr_to_block(provider, **params)
-                else:
-                    raise TypeError(
-                        f"Unsupported hopping provider at {(i, j, R)}: {type(provider)}"
-                    )
-            except (TypeError, ValueError):
+            if provider is None:
                 continue
+            i, j, R = key
+            name = self._provider_name(provider, ctx=f"hopping[{i},{j},{tuple(R)}]")
+            if name not in cleaned:
+                continue
+            block = provider(cleaned[name]) if callable(provider) else cleaned[name]
+            self.set_hop(block, i, j, list(R), mode="set", allow_conjugate_pair=True)
 
-            self.set_hop(
-                block,
-                i,
-                j,
-                list(R),
-                mode="set",
-                allow_conjugate_pair=True,
-            )
+
+    # def set_parameters(self, **params):
+    #     """
+    #     Fold the supplied scalar parameter values into any matching onsite/hopping providers.
+
+    #     Parameters may be passed either as a mapping (`params`) or as keyword arguments; the
+    #     two forms are merged.  Any provider whose argument list is fully covered by the supplied
+    #     names is evaluated and replaced by its numeric block.  Providers that still reference a
+    #     missing parameter are left untouched.
+    #     """
+    #     if not params:
+    #         return
+        
+    #     self._check_parameter_exists(params)
+        
+    #     # onsite providers
+    #     for idx, provider in list(getattr(self, "_onsite_param_terms", {}).items()):
+    #         if provider is None:
+    #             continue
+
+    #         try:
+    #             if callable(provider):
+    #                 required = set(_iter_params_of_callable(provider))
+    #                 if not required.issubset(params):
+    #                     continue
+    #                 block = self._val_to_block(_call_provider(provider, params))
+    #             elif isinstance(provider, str):
+    #                 block = self._eval_expr_to_block(provider, **params)
+    #             else:
+    #                 raise TypeError(
+    #                     f"Unsupported onsite provider type on site {idx}: {type(provider)}"
+    #                 )
+    #         except (TypeError, ValueError):
+    #             # Missing parameters or evaluation failure → leave provider in place.
+    #             continue
+
+    #         self.set_onsite(block, ind_i=idx, mode="set")
+
+    #     # hopping providers
+    #     for key, provider in list(getattr(self, "_hopping_param_terms", {}).items()):
+    #         i, j, R = key
+    #         try:
+    #             if callable(provider):
+    #                 required = set(_iter_params_of_callable(provider))
+    #                 if not required.issubset(params):
+    #                     continue
+    #                 block = self._val_to_block(_call_provider(provider, params))
+    #             elif isinstance(provider, str):
+    #                 block = self._eval_expr_to_block(provider, **params)
+    #             else:
+    #                 raise TypeError(
+    #                     f"Unsupported hopping provider at {(i, j, R)}: {type(provider)}"
+    #                 )
+    #         except (TypeError, ValueError):
+    #             continue
+
+    #         self.set_hop(
+    #             block,
+    #             i,
+    #             j,
+    #             list(R),
+    #             mode="set",
+    #             allow_conjugate_pair=True,
+    #         )
 
     ###### Lattice manipulation #########
     
