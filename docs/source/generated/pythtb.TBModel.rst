@@ -44,8 +44,9 @@ Methods
    pythtb.TBModel.reduce_dim
    pythtb.TBModel.remove_orb
    pythtb.TBModel.set_hop
-   pythtb.TBModel.set_nn_hops
    pythtb.TBModel.set_onsite
+   pythtb.TBModel.set_parameters
+   pythtb.TBModel.set_shell_hops
    pythtb.TBModel.solve_all
    pythtb.TBModel.solve_ham
    pythtb.TBModel.solve_one
@@ -75,6 +76,7 @@ Attributes
    pythtb.TBModel.nspin
    pythtb.TBModel.nstate
    pythtb.TBModel.orb_vecs
+   pythtb.TBModel.parameters
    pythtb.TBModel.per
    pythtb.TBModel.periodic_dirs
    pythtb.TBModel.recip_lat_vecs
