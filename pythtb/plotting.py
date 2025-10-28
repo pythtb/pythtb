@@ -583,14 +583,26 @@ def plot_tb_model(
 
     # to ensure proper padding, track all plotted coordinates
     all_coords = []
-    # append ends of lattice vectors
     all_coords.append([0.0, 0.0])
+
+    # append ends of lattice vectors to all_coords for proper padding
+    ends = []
     for i in model.lattice.periodic_dirs:
         end = _proj(model.lattice.lat_vecs[i], proj_plane=proj_plane)
+        ends.append(end)
         all_coords.append(end)
+
+    ends = np.array(ends)
+    all_coords += ends.tolist()
+
+    # append dotted bounding lines to unit cell to all_coords for proper padding
+    # if 2d cell
+    if ends.shape[0] > 1:
+        end = ends[0] + ends[1]
+        all_coords.append(end)
+
     orb_coords = []
     orb_cart = model.get_orb_vecs(cartesian=True)
-
     for i in range(model.norb):
         pos = orb_cart[i].copy()
         p = _proj(pos, proj_plane=proj_plane)
