@@ -953,8 +953,8 @@ class WFArray:
             k_flat = None
 
         eigvals, eigvecs = model.solve_ham(
-            k_pts=k_flat, params=params, return_eigvecs=True, flatten_spin_axis=True,
-            tf_speedup=use_tensorflow
+            k_pts=k_flat, return_eigvecs=True, flatten_spin_axis=True,
+            tf_speedup=use_tensorflow, **params
             )
 
         # Reshape eigenvectors to the full mesh shape
