@@ -1260,10 +1260,12 @@ class WFArray:
 
         slc_lft, slc_rt = self._edge_slices(mesh_dir)
         self._wfs[slc_lft] = self._wfs[slc_rt]
-        if self.u_nk is not None:
-            self._u_nk[slc_lft] = self._u_nk[slc_rt]
-        if self.psi_nk is not None:
-            self._psi_nk[slc_lft] = self._psi_nk[slc_rt]
+
+        if self.dim_k > 0:
+            if self.u_nk is not None:
+                self._u_nk[slc_lft] = self._u_nk[slc_rt]
+            if self.psi_nk is not None:
+                self._psi_nk[slc_lft] = self._psi_nk[slc_rt]
 
     def _unit_shift(self, axis: int):
         """Return an integer shift vector with +1 along *axis* over sampling axes."""
@@ -2346,7 +2348,7 @@ class WFArray:
         .. math::
 
             \mathcal{F}_{\mu\nu}(\mathbf{k}) = 
-            \mathrm{Im}\ln\det[U_{\mu}(\mathbf{k}) U_{\nu}(\mathbf{k} + \hat{\mu}) 
+            -\mathrm{Im}\ln\det[U_{\mu}(\mathbf{k}) U_{\nu}(\mathbf{k} + \hat{\mu}) 
             U_{\mu}^{-1}(\mathbf{k} + \hat{\nu}) U_{\nu}^{-1}(\mathbf{k})].
 
         The (non-Abelian) Berry flux tensor is computed by taking the 
@@ -2356,7 +2358,7 @@ class WFArray:
         .. math::
 
             \mathcal{F}_{\mu\nu}(\mathbf{k}) =
-            \mathrm{Im} \,\ln \Big[
+            -\mathrm{Im} \,\ln \Big[
                 U_{\mu}(\mathbf{k}) \;
                 U_{\nu}(\mathbf{k} + \hat{\mu}) \;
                 U_{\mu}^\dagger(\mathbf{k} + \hat{\nu}) \;
@@ -2378,6 +2380,9 @@ class WFArray:
 
         >>> flux = wf.berry_flux([0, 1, 2], plane=(0, 1)) # shape: (nk1, nk2, nk3)
         """
+        if (self.naxes) < 2:
+            raise ValueError("Berry curvature only defined if number of mesh axes >= 2.")
+        
         # Validate state_idx
         if state_idx is None:
             state_idx = np.arange(self.nstates)
@@ -2429,6 +2434,23 @@ class WFArray:
             shape = (*flux_shape, n_states, n_states) if non_abelian else (*flux_shape,)
             berry_flux = np.zeros(shape, dtype=float)
 
+        # Trim the last point along closed/non-periodic axes to avoid overcounting
+        for ax in dirs:
+            if (self.mesh.is_axis_closed(ax)
+                or (
+                    not self.mesh.is_axis_looped(ax) 
+                    and not self.mesh.is_axis_bz_winding(ax)
+                    )
+                ):
+                logger.debug(
+                    f"Axis {ax} is closed or non-periodic. "
+                    "Trimming the last point in the flux array to avoid overcounting."
+                    )
+                if plane is None:
+                    berry_flux = np.delete(berry_flux, -1, axis=ax+2)
+                else:
+                    berry_flux = np.delete(berry_flux, -1, axis=ax)
+
         # U_forward: Unitary part of overlaps <u_{nk} | u_{n, k+delta k_mu}>
         U_forward = self.links(state_idx=state_idx, axis_idxs=dirs)
 
@@ -2455,10 +2477,19 @@ class WFArray:
                     @ U_nu.conj().swapaxes(-1, -2)
                 )
 
+                # Trim the last point along closed/non-periodic axes to avoid overcounting
                 for ax in dirs:
-                    if self.mesh.is_axis_closed(ax) or (not self.mesh.is_axis_looped(ax) and not self.mesh.is_axis_bz_winding(ax)):
-                        logger.debug(f"Axis {ax} is closed or non-periodic. "
-                                    f"Removing last point in the flux array to avoid overcounting.")
+                    if (self.mesh.is_axis_closed(ax)
+                        or (
+                            not self.mesh.is_axis_looped(ax) 
+                            and not self.mesh.is_axis_bz_winding(ax)
+                            )
+                        ):
+                        logger.debug(
+                            f"Axis {ax} is closed or non-periodic. "
+                            "Trimming the last point in the Wilson loop to avoid overcounting."
+                            )
+                        # slice_per_axis[ax] = slice(None, -1)
                         U_wilson = np.delete(U_wilson, -1, axis=ax)
 
                 if non_abelian:
@@ -2472,7 +2503,6 @@ class WFArray:
                     )
                     eigvecs_inv = np.linalg.inv(eigvecs)
                     phases_plane = eigvecs @ F_diag @ eigvecs_inv
-                    
                 else:
                     det_U = np.linalg.det(U_wilson)
                     phases_plane = -np.angle(det_U)
@@ -2532,13 +2562,31 @@ class WFArray:
         berry_flux : np.ndarray, optional
             Berry flux tensor with shape depending on input parameters.
         """
-        n_lambda = self.nlams  # Number of adiabatic parameters
+        n_lambda = list(self.nlams)  # Number of adiabatic parameters
+        nks = list(self.nks)
         dim_k = self.dim_k      # Number of k-space dimensions
         dim_lam = self.dim_lambda   # Number of adiabatic dimensions
         dim_total = dim_k + dim_lam  # Total number of dimensions
 
-        if dim_k < 2:
-            raise ValueError("Berry curvature only defined for dim_k >= 2.")
+        ndims = self.naxes  # Total dimensionality of adiabatic space: d
+        if plane is None:
+            dirs = list(range(ndims))
+        else:
+            p, q = plane  # Unpack plane directions
+            dirs = [p, q]
+
+        for ax in dirs:
+            if (self.mesh.is_axis_closed(ax)
+                or (
+                    not self.mesh.is_axis_looped(ax) 
+                    and not self.mesh.is_axis_bz_winding(ax)
+                    )
+                ):
+                if ax < len(nks):
+                    nks[ax] -= 1
+                else:
+                    n_lambda[ax - len(nks)] -= 1
+                   
 
         Berry_flux = self.berry_flux(state_idx=state_idx, non_abelian=non_abelian)
         Berry_curv = np.zeros_like(Berry_flux, dtype=complex)
@@ -2546,24 +2594,22 @@ class WFArray:
         # Get delta vectors for each dimension in parameter space
         recip_lat_vecs = self.lattice.recip_lat_vecs  # Expressed in inverse cartesian (x,y,z) coordinates
         dks = np.zeros((dim_total, dim_total))
-        dks[:dim_k, :dim_k] = recip_lat_vecs / np.array([nk-1 for nk in self.nks])[:, None]
+        dks[:dim_k, :dim_k] = recip_lat_vecs / np.array([nk for nk in self.nks])[:, None]
 
-        # set delta lam to be difference between 0th and last points along each adiabatic axis
+        # set delta lambda to be the difference between the first and last points along
+        # each adiabatic axis (param_points has shape (*nl, dim_total))
         if dim_lam != 0:
-            param_points = self.mesh.get_param_points()
-            delta_lam = np.zeros(dim_lam)
-            for i in range(dim_lam):
-                # shape of param_points is (nl1, nl2, ..., nld, d)
-                # FIX: Need to index param_points correctly for each adiabatic axis
-                delta_lam[i] = param_points[(0,)*i + (-1,) + (0,)*(dim_lam - i - 1), dim_k + i] - param_points[(0,)*dim_lam, dim_k + i]
-                dks[dim_k + i, dim_k + i] = delta_lam[i] / (n_lambda[i] - 1)
+            for i, param_ax in enumerate(self.mesh.lambda_axis_indices):
+                component = self.mesh.lambda_component_indices[i]
+                param_points = self.mesh.get_axis_range(param_ax, component_index=component)
+                diff = param_points[-1] - param_points[0]
+                dlam = diff / n_lambda[i]
+                dks[dim_k + i, dim_k + i] = dlam
 
-        dim = Berry_flux.shape[0]  # Number of dimensions in parameter space
         # Divide by area elements for the (mu, nu)-plane
-        for mu in range(dim):
-            for nu in range(mu+1, dim):
-                A = np.vstack([dks[mu], dks[nu]])
-                # area_element = np.prod([np.linalg.norm(dk[i]), np.linalg.norm(dk[j])])
+        for mu in range(len(dirs)):
+            for nu in range(mu+1, len(dirs)):
+                A = np.vstack([dks[dirs[mu]], dks[dirs[nu]]])
                 area_element = np.sqrt(np.linalg.det(A @ A.T))
 
                 # Divide flux by the area element to get approx curvature
