@@ -183,7 +183,7 @@ class HoppingTable:
         self._rebuild_index()
         self._flatten_cache.clear()
 
-    def accumulate(self, idx: int, delta: np.ndarray) -> None:
+    def add(self, idx: int, delta: np.ndarray) -> None:
         """Increment the hopping amplitude at ``idx`` by ``delta`` (in-place)."""
         if self.spinful:
             self.amplitudes[idx] += np.asarray(delta, dtype=complex)
