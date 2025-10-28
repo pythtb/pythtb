@@ -294,7 +294,23 @@ class HoppingTable:
     # cached utilities
     # ------------------------------------------------------------------
     def flatten_cache(self, norb: int) -> dict[str, np.ndarray]:
-        """Return (and cache) index arrays useful for block-building Hamiltonians."""
+        """Return (and cache) index arrays useful for block-building Hamiltonians.
+
+        Parameters
+        ----------
+        norb : int
+            Number of orbitals in the model; used to compute flattened indices.
+
+        Returns
+        -------
+        dict[str, np.ndarray]
+            A dictionary with the following entries:
+            - "order": Indices that sort the flattened (i, j) hopping indices.
+            - "starts": Start indices of unique flattened (i, j) pairs in the sorted array.
+            - "uniq": Unique flattened (i, j) indices in sorted order.
+            - "cols_transposed": Flattened (j, i) indices corresponding to "uniq".
+            - "inverse_order": Indices that invert the "order" array.
+        """
         key = (norb, len(self))
         cache = self._flatten_cache.get(key)
         if cache is not None:
