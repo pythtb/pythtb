@@ -13,12 +13,12 @@ Methods
    :toctree: pythtb/TBModel/
 
    pythtb.TBModel.add_orb
+   pythtb.TBModel.axion_angle
    pythtb.TBModel.berry_curvature
    pythtb.TBModel.change_nonperiodic_vector
    pythtb.TBModel.chern_number
    pythtb.TBModel.clear_hoppings
    pythtb.TBModel.clear_onsite
-   pythtb.TBModel.compute_bands
    pythtb.TBModel.copy
    pythtb.TBModel.cut_piece
    pythtb.TBModel.display

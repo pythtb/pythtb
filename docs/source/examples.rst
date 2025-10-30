@@ -44,10 +44,12 @@ You can open the entire set of examples in Binder by clicking the button below:
    examples/mesh
    examples/tb_model_v2
    examples/wfarray_v2
+   examples/param_model
    examples/haldane_wannier
    examples/reduced_wannier
-   examples/local_chern
    examples/quantum_geom_tens
+   examples/local_chern
+   examples/axion_fkm
    examples/nn_shells
    examples/visualize_3d
 

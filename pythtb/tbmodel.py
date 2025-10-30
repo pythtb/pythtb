@@ -3928,9 +3928,10 @@ class TBModel:
     #TODO: Allow chern number on parameter planes
     def chern_number(
             self, 
+            nks: tuple = (100, 100),
             occ_idxs=None, 
-            plane: tuple = (0, 1), 
-            k_mesh: tuple = (100, 100),
+            plane: tuple = (0, 1),
+            *, 
             diff_scheme: str = "central",
             diff_order: int = 2,
             **params
@@ -3951,16 +3952,30 @@ class TBModel:
 
         Parameters
         ----------
+        nks : tuple[int, int], optional
+            Tuple ``(nk1, nk2)`` of number of k-points along each direction 
+            in the 2D surface for performing the integration. 
+            Default is ``(100, 100)``.
         occ_idxs : array-like, optional
             Occupied band indices. If none are provided, 
             the lower half bands are considered occupied.
         plane : tuple[int, int], optional
-            Indices for reciprocal space directions defining
-            2D surface to integrate Berry flux.
-        k_mesh : tuple[int, int], optional
-            Tuple ``(nk1, nk2)`` of number of k-points along each direction 
-            in the 2D surface for performing the integration. 
-            Default is ``(100, 100)``.
+            Indices for defining 2D surface to integrate Berry flux, 
+            ``0`` through ``dim_k - 1`` refers to k-space dimensions, while 
+            any higher index refers to swept parameters. Default is ``(0, 1)``.
+        diff_scheme : str, optional
+            Finite difference scheme to use for parameter derivatives.
+            Options are "central" (default) or "forward".
+        diff_order : int, optional
+            Order of accuracy for finite difference lambda derivatives.
+            Must be an even integer for "central" scheme (default is 2),
+            and a positive integer for "forward" scheme.
+        **params : 
+            Keyword arguments mapping parameter names to value(s). Each value can be a scalar
+            or a 1D array of values. If any values are array-like,
+            the Chern number is evaluated at all combinations of parameter values,
+            and integration is performed over the specified 2D surface
+            in k+parameter space.
 
         Returns
         -------
@@ -3981,11 +3996,10 @@ class TBModel:
             raise ValueError("Chern number requires at least 2 k-space dimensions (dim_k >= 2).")
         if not (isinstance(plane, tuple) and len(plane) == 2):
             raise ValueError("plane must be a tuple of length 2.")
-        # check k_mesh is tuple of all ints and length dim_k
-        if not (isinstance(k_mesh, tuple) and len(k_mesh) == 2 and all(isinstance(nk, int) for nk in k_mesh)):
-            raise ValueError("k_mesh must be a tuple of length 2 with integer values.")
+        # check nks is tuple of all ints and length dim_k
+        if not (isinstance(nks, tuple) and len(nks) == 2 and all(isinstance(nk, int) for nk in nks)):
+            raise ValueError("nks must be a tuple of length 2 with integer values.")
 
-        nks = k_mesh
         k_grid = self.k_uniform_mesh(nks)
         k_flat = k_grid.reshape(-1, 2)
         
