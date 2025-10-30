@@ -92,7 +92,7 @@ class Lattice():
     def _set_orb_vecs(self, orb_vecs):
 
         if isinstance(orb_vecs, int):
-            if orb_vecs < 1:
+            if orb_vecs < 0:
                 raise ValueError("Number of orbitals must be positive.")
             orb_vecs = np.zeros((orb_vecs, self.dim_r), dtype=float)
         elif isinstance(orb_vecs, (list, np.ndarray)):
@@ -155,7 +155,8 @@ class Lattice():
             self._recip_vol = np.sqrt(np.linalg.det(self._recip_lat @ self._recip_lat.T))
 
         if hasattr(self, '_orb_vectors'):
-            self._orb_vecs_cart = self._orb_vectors @ self.lat_vecs
+            # reframe fractional orbital positions into new lattice
+            self.orb_vecs = self.orb_vecs @ np.linalg.inv(lat_vecs)
 
     @property
     def periodic_dirs(self) -> list[int]:
@@ -231,7 +232,7 @@ class Lattice():
     @property
     def norb(self) -> int:
         """The number of orbitals in the lattice."""
-        return self._orb_vectors.shape[0]
+        return self.orb_vecs.shape[0]
 
     @property
     def recip_lat_vecs(self) -> np.ndarray:
@@ -518,8 +519,7 @@ class Lattice():
         if orb_pos.ndim != 1 or orb_pos.shape[0] != self.dim_r:
             raise ValueError(f"Orbital position must be of length {self.dim_r}.")
         
-        self._orb_vectors = np.vstack([self._orb_vectors, orb_pos])
-        self._orb_vecs_cart = self._orb_vectors @ self.lat_vecs
+        self.orb_vecs = np.vstack([self.orb_vecs, orb_pos])
 
     def remove_orb(self, to_remove):
         r"""Remove an orbital from the lattice.
@@ -561,10 +561,7 @@ class Lattice():
         # remove indices one by one
         for i, orb_ind in enumerate(orb_index):
             # adjust variables
-            self._orb_vectors = np.delete(self._orb_vectors, orb_ind, 0)
-
-        self._orb_vecs_cart = self._orb_vectors @ self.lat_vecs
-
+            self.orb_vecs = np.delete(self.orb_vecs, orb_ind, 0)
 
     def change_nonperiodic_vector(
         self, 
