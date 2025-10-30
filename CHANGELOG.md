@@ -63,12 +63,14 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 ##### New Methods
 - `TBModel.__repr__`: Object representation now displays `rdim`, `kdim`, and `nspin`
 - `TBModel.__str__`: Allows printing a `TBModel` instance using `print(TBModel)`, which prints `TBModel.info()`
+- `TBModel.set_parameters()`: Bulk setting of model parameters with scalar values for parameterized models (see "Enhanced Methods" below)
 - `TBModel.hamiltonian()`: Generates Hamiltonians for finite and periodic systems
 - `TBModel.velocity()`: Computes $dH/dk$ (velocity operator) in the orbital basis
 - `TBModel.quantum_geometric_tensor()`: Computes quantum geometric tensor using Kubo formula
 - `TBModel.berry_curvature()`: Computes Berry curvature from $dH/dk$ elements using the Kubo formula
 - `TBModel.quantum_metric()`: Computes quantum metric tensor from $dH/dk$ elements using the Kubo formula
 - `TBModel.chern_number()`: Returns Chern number for a given set of occupied bands using Berry curvature in Kubo formula
+- `TBModel.axion_angle()`: Computes axion angle ($\theta$ term) for 3D insulators using 4-curvature integration. Requires a 3D periodic model with 1 varying parameter axis.
 - `TBModel.local_chern_marker()`: Bianco-Resta formula for real-space Chern marker
 - `TBModel.visualize3d()`: For 3D tight-binding models, displays an interactive 3D figure using `plotly`
 - `TBModel.get_recip_lat()`: Returns reciprocal lattice vectors
@@ -76,6 +78,7 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 - `TBModel.make_finite()`: Convenience function for chaining `cut_piece()` along different directions
 
 ##### Enhanced Methods
+- `TBModel.set_onsite` and `TBModel.set_hop` both accepts strings and callables for setting onsite energies and hoppings. This allows for the terms to vary parametrically, and downstream functions like `hamiltonian`, `velocity`, `berry_curvature`, etc. accept kwargs in the form of `param_name = x` where `x` can be a single value or list of values. If a list is provided, the function will return results for all parameter values in a vectorized manner.
 - `TBModel.solve_ham()`: Unified method that subsumes `solve_one()` and `solve_all()` with vectorized diagonalization
   - Added parameter `tf_speedup` for faster computations using TensorFlow if available
   - Added parameter `flatten_spin_axis` to control spin axis flattening in output
@@ -88,31 +91,28 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 #### `WFArray`
 
 ##### New Methods
-- `WFArray.chern_number()`: Returns the Chern number for a given plane in the parameter mesh
-- `WFArray.wilson_loop()`: Static method that computes the Wilson loop unitary matrix for a loop of states
+- `WFArray.overlap_matrix()`: Computes overlap matrix of the states in the `WFArray` with their nearest neighbors in the `Mesh`. Optionally considers the k-space metric when computing neighbors for k-axes.
 - `WFArray.links()`: Computes the unitary part of the overlap between states and their nearest neighbors in each mesh direction
+- `WFArray.wilson_loop()`: Static method that computes the Wilson loop unitary matrix for a loop of states
 - `WFArray.berry_curvature()`: Computes dimensionful Berry curvature by divinding Berry flux by mesh cell area/volume
+- `WFArray.chern_number()`: Returns the Chern number for a given plane in the parameter mesh
 - `WFArray.solve_model()`: Populates `WFArray` with energy eigenstates from a given `TBModel` or set of parameterized `TBModel`'s
+  - Replaces `WFArray.solve_on_one_point()` and `WFArray.solve_on_grid()`
 - `WFArray.projectors()`: Returns band projectors and optionally their complements as NumPy arrays
 - `WFArray.states()`: Returns `WFArray` states in cell-periodic ($u_{nk}$) and optionally Bloch ($\psi_{nk}$) form as NumPy arrays
   - Optional flag to flatten spin axis for spinful states
-- `WFArray.overlap_matrix()`: Computes overlap matrix of the states in the `WFArray` with their nearest neighbors in the `Mesh`. Optionally considers the k-space metric when computing neighbors for k-axes.
 - `WFArray.get_k_shell()`: Generates vectors connecting Gamma point to nearest neighboring k-points in the mesh. The vectors are expressed in inverse units of lattice vectors.
 - `WFArray.get_shell_weights()`: For a given shell index, returns the finite-difference weights of k-points in that shell connecting to Gamma point.
 - `WFArray.roll_states_with_pbc()`: Rolls states along a given mesh axis with periodic boundary conditions, useful for computing overlaps with neighboring k-points.
 
 ##### Enhanced Methods
-- `WFArray.berry_flux()`: Enhanced and Optimized
-  - Added parameter `non_abelian` to compute non-Abelian Berry flux for a manifold of states
+- `WFArray.berry_flux()`: Added parameter `non_abelian` to compute non-Abelian Berry flux for a manifold of states
 
 ##### Read-only properties
 - Added properties for core attributes to prevent unintended modifications
 
 ##### Performance Improvements
-- Vectorized implementations using NumPy for substantial speed improvements in:
-  - State manipulations and overlaps
-  - `berry_flux()` computation
-  - `berry_phase()` computation
+- Vectorized implementations using NumPy for substantial speed improvements
 
 ### Changed
 
@@ -182,12 +182,15 @@ Version 2.0.0 represents a major refactoring of PythTB with significant architec
 
 - `position_expectation()` - Parameter renaming
   - Renamed parameter `evec` to `evecs` for clarity
+  - Renamed parameter `dir` to `pos_dir` to avoid conflict with built-in Python function `dir()`
 
 - `position_matrix()` - Parameter renaming
   - Renamed parameter `evec` to `evecs` for clarity
+  - Renamed parameter `dir` to `pos_dir` to avoid conflict with built-in Python function `dir()`
 
 - `hwf_centers()` - Parameter renaming
   - Renamed parameter `evec` to `evecs` for clarity
+  - Renamed parameter `dir` to `pos_dir` to avoid conflict with built-in Python function `dir()`
 
 ##### Performance Improvements
 - Vectorized implementations using NumPy for substantial speed improvements in linear algebra operations
