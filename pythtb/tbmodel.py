@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 import copy
 import logging
+import math
 import warnings
 import numpy as np
 import inspect
@@ -3375,7 +3376,10 @@ class TBModel:
             v_k_tf = const(v_k, dtype=tf.complex64)
             evals_tf, evecs_tf = const(eigvals, dtype=tf.complex64), const(eigvecs, dtype=tf.complex64)
 
-            evecs_T_tf = tf.transpose(evecs_tf, perm=[0, 1, 3, 2])  # (n_kpts, n_beta, n_state, n_state)
+            # Transpose eigenvectors for matmul
+            r = tf.rank(evecs_tf) # number of axes
+            evecs_T_tf = tf.transpose(evecs_tf, tf.concat([tf.range(r-2), [r-1, r-2]], 0))
+            #tf.transpose(evecs_tf, perm=[0, 1, 3, 2])  # (n_kpts, ..., n_state, n_state)
             evecs_conj_tf = tf.math.conj(evecs_tf)
 
             # All pairwise energy differences
@@ -3397,10 +3401,10 @@ class TBModel:
 
             # Rotate velocity operators to eigenbasis
             v_k_rot_tf = tf.matmul(
-                evecs_conj_tf[None, :, :, :, :],  # (1, n_kpts, n_beta, n_state, n_state)
+                evecs_conj_tf[None, ...],  # (1, n_kpts, n_beta, n_state, n_state)
                 tf.matmul(
                     v_k_tf,                       # (dim_k, n_kpts, n_beta, n_state, n_state)
-                    evecs_T_tf[None, :, :, :, :]  # (1, n_kpts, n_beta, n_state, n_state)
+                    evecs_T_tf[None, ...]  # (1, n_kpts, n_beta, n_state, n_state)
                 )
             )  # (dim_k, n_kpts, n_beta, n_state, n_state)
 
@@ -3416,10 +3420,10 @@ class TBModel:
             Q = Q.numpy()
         else:
             # All pairs of energy differences
-            delta_E = eigvals[..., np.newaxis, :] - eigvals[..., :, np.newaxis]  # shape (Nk, nstate, nstate)
+            delta_E = eigvals[..., np.newaxis, :] - eigvals[..., :, np.newaxis]  # shape (Nk, *params, nstate, nstate)
             # Energy differences between occupied and conduction bands
-            delta_occ_cond = delta_E[:, occ_idxs][:, :, cond_idxs]
-            delta_cond_occ = delta_E[:, cond_idxs][:, :, occ_idxs]  # shape (Nk, n_occ, n_con)
+            delta_occ_cond = np.take(np.take(delta_E, occ_idxs, axis=-2), cond_idxs, axis=-1)
+            delta_cond_occ = np.take(np.take(delta_E, cond_idxs, axis=-2), occ_idxs, axis=-1)
             if np.any(np.isclose(delta_occ_cond, 0.0)):
                 raise ZeroDivisionError("Degenerate occupied/conduction bands encountered.")
             inv_delta_occ_cond = np.divide(1.0, delta_occ_cond)
@@ -3928,12 +3932,14 @@ class TBModel:
     #TODO: Allow chern number on parameter planes
     def chern_number(
             self, 
-            nks: tuple = (100, 100),
+            plane: tuple[int, int],
+            nks: tuple[int, ...],
             occ_idxs=None, 
-            plane: tuple = (0, 1),
             *, 
+            param_periods: dict[str, float] | None = None,
             diff_scheme: str = "central",
-            diff_order: int = 2,
+            diff_order: int = 4,
+            use_tensorflow: bool = False,
             **params
             ):
         r"""Computes Chern number for occupied manifold.
@@ -3952,17 +3958,22 @@ class TBModel:
 
         Parameters
         ----------
-        nks : tuple[int, int], optional
-            Tuple ``(nk1, nk2)`` of number of k-points along each direction 
+        plane : tuple[int, int]
+            Indices for defining 2D surface to integrate Berry flux, 
+            ``0`` through ``dim_k - 1`` refers to k-space dimensions, while 
+            any higher index refers to swept parameters.
+        nks : tuple[int, int]
+            Tuple ``(nk1, nk2)`` of number of k points along each direction
             in the 2D surface for performing the integration. 
-            Default is ``(100, 100)``.
         occ_idxs : array-like, optional
             Occupied band indices. If none are provided, 
             the lower half bands are considered occupied.
-        plane : tuple[int, int], optional
-            Indices for defining 2D surface to integrate Berry flux, 
-            ``0`` through ``dim_k - 1`` refers to k-space dimensions, while 
-            any higher index refers to swept parameters. Default is ``(0, 1)``.
+        param_periods : dict[str, float], optional
+            Optional map ``{param_name: period}` for swept parameters. When supplied,
+            assumes the parameter is cyclic and trims any duplicated endpoint
+            before building finite-difference stencils. Parameters not listed here
+            are treated as non-periodic unless their sample list starts and ends
+            at the same value.
         diff_scheme : str, optional
             Finite difference scheme to use for parameter derivatives.
             Options are "central" (default) or "forward".
@@ -3970,6 +3981,8 @@ class TBModel:
             Order of accuracy for finite difference lambda derivatives.
             Must be an even integer for "central" scheme (default is 2),
             and a positive integer for "forward" scheme.
+        use_tensorflow: bool, optional
+            If True, will use tensorflow to speed up linear algebra routines.
         **params : 
             Keyword arguments mapping parameter names to value(s). Each value can be a scalar
             or a 1D array of values. If any values are array-like,
@@ -3992,36 +4005,140 @@ class TBModel:
         separated by an energy gap from the unoccupied manifold over
         the entire 2D surface in k-space.
         """
-        if self.dim_k < 2:
-            raise ValueError("Chern number requires at least 2 k-space dimensions (dim_k >= 2).")
         if not (isinstance(plane, tuple) and len(plane) == 2):
             raise ValueError("plane must be a tuple of length 2.")
-        # check nks is tuple of all ints and length dim_k
-        if not (isinstance(nks, tuple) and len(nks) == 2 and all(isinstance(nk, int) for nk in nks)):
-            raise ValueError("nks must be a tuple of length 2 with integer values.")
-
-        k_grid = self.k_uniform_mesh(nks)
-        k_flat = k_grid.reshape(-1, 2)
         
-        Omega = self.berry_curvature(
-            k_flat, 
-            occ_idxs=occ_idxs, 
-            plane=plane,
-            diff_scheme=diff_scheme,
-            diff_order=diff_order, 
-            **params
+        mu, nu = plane
+        if mu == nu:
+            raise ValueError("Chern number plane indices must be different.")
+        
+        nk = tuple(int(n) for n in nks)
+        if len(nk) != self.dim_k:
+            raise ValueError("nks must have length equal to dim_k.")
+        
+        params = dict(params)
+        self._check_missing_parameters(params)
+
+        param_periods = dict(param_periods) if param_periods is not None else {}
+        scalars, sweep_names, sweep_axes = self._params_to_sweep(params)
+
+        axis_values: dict[int, np.ndarray] = {
+            axis: np.linspace(0.0, 1.0, nk_val, endpoint=False)
+            for axis, nk_val in enumerate(nk)
+        }
+        axis_steps: dict[int, float] = {
+            axis: 1.0 / nk_val for axis, nk_val in enumerate(nk)
+        }
+
+        param_axis_to_name = {
+            self.dim_k + i: name for i, name in enumerate(sweep_names)
+        }
+
+        for idx, name in enumerate(sweep_names):
+            raw = np.asarray(sweep_axes[idx], dtype=float)
+            if raw.ndim !=1 or raw.size < 2:
+                raise ValueError(f"Swept parameter '{name}' must be a 1D array of at least two values.")
+            values, step, periodic, _ = self._normalize_parameter_axis(
+                raw,
+                name=name,
+                period=param_periods.get(name, None),
+            )
+            axis_id = self.dim_k + idx
+            axis_values[axis_id] = values
+            axis_steps[axis_id] = step
+
+        for ax in plane:
+            if ax not in axis_values:
+                raise ValueError(f"Chern number plane index {ax} does not correspond to a k-space or swept parameter axis.")
+            
+        plane_axes = tuple(sorted(plane))
+        spectator_axes = [
+            ax for ax in sorted(axis_values.keys())
+            if ax not in plane_axes
+        ]
+        plane_shape = tuple(len(axis_values[ax]) for ax in plane_axes)
+        spectator_shape = tuple(len(axis_values[ax]) for ax in spectator_axes)
+
+        result = np.zeros(spectator_shape or (1, ), dtype=float)
+        density_grid = (
+            np.zeros((*(spectator_shape or (1, )), *plane_shape), dtype=float)
         )
 
-        if plane[0] >= self.dim_k or plane[1] >= self.dim_k:
-            raise NotImplementedError(
-                "Chern number can only be computed for planes within k-space dimensions."
-            )
+        if spectator_axes:
+            spectator_iter = np.ndindex(spectator_shape)
+        else:
+            spectator_iter = [()]
 
-        Nk = Omega.shape[0]
-        dk_sq = 1 / Nk
-        chern_num = np.sum(Omega) * dk_sq / (2 * np.pi)
+        n_states = self.nstate
+        if occ_idxs is None:
+            occ_idxs = np.arange(n_states // 2)
+        else:
+            occ_idxs = np.asarray(occ_idxs, int)
 
-        return chern_num.real
+        for spectator_idx in spectator_iter:
+            local_scalars = scalars.copy()
+            k_fixed = np.zeros((self.dim_k,), dtype=float)
+
+            for ax, idx_val in zip(spectator_axes, spectator_idx):
+                val = axis_values[ax][idx_val]
+                if ax < self.dim_k:
+                    k_fixed[ax] = val
+                else:
+                    local_scalars[param_axis_to_name[ax]] = val
+            
+            integrand = np.zeros(plane_shape, dtype=float)
+
+            plane_values = [axis_values[ax] for ax in plane_axes]
+            for plane_pos in np.ndindex(plane_shape):
+                k_var = k_fixed.copy()
+                local_params = local_scalars.copy()
+
+                for ax, idx_val in zip(plane_axes, plane_pos):
+                    if ax < self.dim_k:
+                        k_var[ax] = axis_values[ax][idx_val]
+                    else:
+                        local_params[param_axis_to_name[ax]] = axis_values[ax][idx_val]
+                
+                curv = self.berry_curvature(
+                    k_pts=np.asarray([k_var]),
+                    occ_idxs=occ_idxs,
+                    plane=plane,
+                    cartesian=False,
+                    non_abelian=True,
+                    param_periods=param_periods,
+                    diff_scheme=diff_scheme,
+                    diff_order=diff_order,
+                    use_tensorflow=use_tensorflow,
+                    **local_params,
+                )
+                integrand[plane_pos] = np.trace(curv[0]).real
+            
+            d_mu = axis_steps[plane_axes[0]]
+            d_nu = axis_steps[plane_axes[1]]
+            chern_val = (integrand.sum() * d_mu * d_nu) / (2 * np.pi)
+
+            if spectator_axes:
+                result[spectator_idx] = chern_val
+                density_grid[(*spectator_idx, ) + (slice(None), ) * 2] = integrand
+            else:
+                result[0] = chern_val
+            
+        if not spectator_axes:
+            result = result[0]
+
+        return result
+    
+    
+    @staticmethod
+    def _permutation_sign(indices: list[int]) -> int:
+        perm = list(indices)
+        sign = 1
+        for i in range(len(perm)):
+            for j in range(i + 1, len(perm)):
+                if perm[i] > perm[j]:
+                    perm[i], perm[j] = perm[j], perm[i]
+                    sign *= -1
+        return sign
 
     #TODO: Handle params lists
     def local_chern_marker(
