@@ -1,4 +1,4 @@
-from pythtb import TBModel
+from pythtb import TBModel, Lattice
 import pytest
 import numpy as np
 
@@ -11,15 +11,15 @@ SIGMA_Y = np.array([[0, -1j], [1j, 0]], dtype=complex)
 SIGMA_Z = np.array([[1, 0], [0, -1]], dtype=complex)
 SIGMAS = [SIGMA_0, SIGMA_X, SIGMA_Y, SIGMA_Z]
 
-@pytest.mark.parametrize("nspin", [1, 2])
-def test_set_onsite(nspin):
+@pytest.mark.parametrize("spinful", [False, True])
+def test_set_onsite(spinful):
     """
     Test the TBModel with nspin=1.
     """
-    # Create a TBModel instance with nspin=1
-    test_model = TBModel(3, 3, lat=lat_vecs, orb=orbital_pos, nspin=nspin)
+    latt = Lattice(lat_vecs=lat_vecs, orb_vecs=orbital_pos, periodic_dirs=[0,1,2])
+    test_model = TBModel(lattice=latt, spinful=spinful)
 
-    if nspin == 1:
+    if not spinful:
         # setting with list for each orbital
         onsite_values = [1.0, 2.0, 3.0]
         test_model.set_onsite(onsite_values)
@@ -28,7 +28,7 @@ def test_set_onsite(nspin):
         onsite_values = 1
         test_model.set_onsite(onsite_values, ind_i=0)
 
-    elif nspin == 2:
+    else:
         # setting with list of pauli components for each orbital
         onsite_values = [[0, 1, 2, 2], [0, 1, 2, 2], [0, 1, 2, 2]]
         test_model.set_onsite(onsite_values)

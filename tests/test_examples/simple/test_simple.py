@@ -3,13 +3,16 @@ import numpy as np
 from tests.utils import import_run
 
 OUTPUTDIR = "golden_outputs"
+
+# NOTE: Replace with your expected output file name(s). Should be in order
+# of the results returned by run()
 OUTPUTS = {
     "evals": "evals.npy",
 }
-#NOTE: Replace with your expected output file name(s). Should be in order
-# of the results returned by run()
 
 def test_example():
+    # NOTE: Mostly boilerplate code to load expected outputs and compare
+    ###################################################################
     example_dir = os.path.dirname(__file__)
     run = import_run(example_dir)
 
@@ -25,9 +28,10 @@ def test_example():
         results = [results]
     if len(results) != len(OUTPUTS):
         raise AssertionError(f"Expected {len(OUTPUTS)} outputs, got {len(results)}")
+    ###################################################################
 
     # Compare results with expected outputs
-    #NOTE: Modify to match your expected output structure
+    # NOTE: Modify to match your expected output structure
     for i, (label, fname) in enumerate(OUTPUTS.items()):
         eigvals = results[i]
         eigvals = eigvals.T  # in v2.0 eigvals shape is changed

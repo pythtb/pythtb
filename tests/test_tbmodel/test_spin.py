@@ -2,9 +2,8 @@ import sys
 
 sys.path.append("../")
 
-from pythtb import TBModel, WFArray
-from tests.test_tbmodel.test_dimr_dimk_different import generic_test_of_models
-
+from pythtb import TBModel, Lattice
+from generic_run import generic_test_of_models
 
 def test_spin():
 
@@ -19,20 +18,18 @@ def test_spin():
         [0.2, 0.3, 0.4],
         [0.2, 0.3, 0.4],
     ]
-    model0 = TBModel(2, 3, lat, orb, nspin=1, per=[0, 2])
+    lattice = Lattice(lat_vecs=lat, orb_vecs=orb, periodic_dirs=[0, 2])
+    model0 = TBModel(lattice=lattice, spinful=False)
     model0.set_onsite([-2.3, -2.3, 0.5, 0.5, 0.1, 0.1])
-    #
+    
     model0.set_hop(0.11 + 0.41, 0 * 2 + 0, 1 * 2 + 0, [1, 0, 2])
     model0.set_hop(0.11 - 0.41, 0 * 2 + 1, 1 * 2 + 1, [1, 0, 2])
     model0.set_hop(0.21 - 0.31j, 0 * 2 + 0, 1 * 2 + 1, [1, 0, 2])
     model0.set_hop(0.21 + 0.31j, 0 * 2 + 1, 1 * 2 + 0, [1, 0, 2])
-    #
     model0.set_hop(0.42, 0 * 2 + 0, 1 * 2 + 0, [3, 0, 2])
     model0.set_hop(0.42, 0 * 2 + 1, 1 * 2 + 1, [3, 0, 2])
-    #
     model0.set_hop(-0.12, 1 * 2 + 0, 2 * 2 + 0, [2, 0, 3])
     model0.set_hop(-0.12, 1 * 2 + 1, 2 * 2 + 1, [2, 0, 3])
-    #
     model0.set_hop(-0.34 + 0.29, 2 * 2 + 0, 0 * 2 + 0, [-1, 0, 2])
     model0.set_hop(-0.34 - 0.29, 2 * 2 + 1, 0 * 2 + 1, [-1, 0, 2])
     model0.set_hop(0.21 + 0.14j, 2 * 2 + 0, 0 * 2 + 1, [-1, 0, 2])
@@ -40,7 +37,8 @@ def test_spin():
 
     lat = [[3.0, 0.4], [0.8, 3.5]]
     orb = [[0.3, 0.2], [0.1, 0.3], [0.2, 0.4]]
-    model1 = TBModel(2, 2, lat, orb, nspin=2)
+    lattice = Lattice(lat_vecs=lat, orb_vecs=orb, periodic_dirs=[0, 1])
+    model1 = TBModel(lattice=lattice, spinful=True)
     model1.set_onsite([-2.3, 0.5, 0.1])
     model1.set_hop(
         [[0.11 + 0.41, 0.21 - 0.31j], [0.21 + 0.31j, 0.11 - 0.41]], 0, 1, [1, 2]

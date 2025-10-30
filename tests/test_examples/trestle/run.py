@@ -1,13 +1,14 @@
 import numpy as np
-from pythtb import TBModel
+from pythtb import TBModel, Lattice
 
 def trestle_model():
     "Return a trestle-like model on a rectangular lattice."
 
     lat = [[2.0, 0.0], [0.0, 1.0]]
     orb = [[0.0, 0.0], [0.5, 1.0]]
+    lattice = Lattice(lat_vecs=lat, orb_vecs=orb, periodic_dirs=[0])
 
-    my_model = TBModel(1, 2, lat, orb, per=[0])
+    my_model = TBModel(lattice=lattice, spinful=False)
 
     return my_model
 

@@ -1,18 +1,16 @@
 import numpy as np
-from pythtb import TBModel
+from pythtb import Lattice, TBModel
 
 def buckled_model():
     "Return a buckled layer model on a rectangular lattice."
 
-    # define lattice vectors
     lat = [[1.0, 0.0, 0.0], [0.0, 1.25, 0.0], [0.0, 0.0, 3.0]]
-    # define coordinates of orbitals
     orb = [[0.0, 0.0, -0.15], [0.5, 0.5, 0.15]]
 
-    # only first two lattice vectors repeat, so k-space is 2D
-    my_model = TBModel(2, 3, lat, orb)
+    lattice = Lattice(lat_vecs=lat, orb_vecs=orb, periodic_dirs=[0, 1])
+    model = TBModel(lattice=lattice, spinful=False) 
 
-    return my_model
+    return model
 
 def run():
     my_model = buckled_model()

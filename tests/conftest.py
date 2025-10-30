@@ -5,6 +5,8 @@ from collections import defaultdict
 from datetime import datetime
 from copy import deepcopy
 import re
+import numpy as np
+from pythtb import TBModel, Lattice
 
 results = defaultdict(list)
 
@@ -27,7 +29,7 @@ def build_nested_tree(results):
         for part in parts:
             node = node.setdefault(part, {})
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        node["_tests"] = sorted((name, passed, now if passed else None) for name, passed in tests)
+        node["_tests"] = sorted((name, passed, now) for name, passed in tests)
     return tree
 
 def format_tree(node, indent=0):
@@ -75,8 +77,7 @@ def merge_trees(existing, new):
         if key == "_tests":
             existing_tests = {name: (status, ts) for name, status, ts in existing.get("_tests", [])}
             for name, status, timestamp in value:
-                if name not in existing_tests or not existing_tests[name][0]:  # Only update on pass or new
-                    existing_tests[name] = (status, timestamp)
+                existing_tests[name] = (status, timestamp)
             existing["_tests"] = sorted([(k, v[0], v[1]) for k, v in existing_tests.items()])
         else:
             existing.setdefault(key, {})
@@ -119,11 +120,46 @@ def pytest_sessionfinish(session, exitstatus):
     merged_tree = deepcopy(existing_tree)
     merge_trees(merged_tree, new_tree)
 
-    # If nothing changed, don't touch the file (prevents spurious diffs)
-    if merged_tree == existing_tree:
-        print(f"\nℹ️ No test result changes; leaving {out_path} untouched.")
-        return
-
     ts = datetime.now().strftime('%Y-%m-%d at %H:%M:%S')
     out_path.write_text(render_markdown(merged_tree, ts), encoding="utf-8")
     print(f"\n✅ Updated test results in {out_path}")
+
+
+@pytest.fixture
+def ssh_model():
+    lat = Lattice(lat_vecs=[[1]], orb_vecs=[[0], [0.5]], periodic_dirs=[0])
+    tb = TBModel(lattice=lat)
+    tb.set_hop(1.0, 0, 1, [0])
+    tb.set_hop(0.6, 0, 1, [1])
+    return tb
+
+@pytest.fixture
+def fkm_model():
+    lat = Lattice(
+        lat_vecs=[[0, 1, 1], [1, 0, 1], [1, 1, 0]],
+        orb_vecs=[[0, 0, 0], [0.25, 0.25, 0.25]],
+        periodic_dirs=[0, 1, 2],
+    )
+    tb = TBModel(lattice=lat, spinful=True)
+    t, soc, m = 1.0, 0.25, 0.5
+    tb.set_onsite(
+    lambda beta: [0, m*np.sin(beta), m*np.sin(beta), m*np.sin(beta)],
+    ind_i=0,
+    )
+    tb.set_onsite(
+        lambda beta: [0, -m*np.sin(beta), -m*np.sin(beta), -m*np.sin(beta)],
+        ind_i=1,
+    )
+    for R in ([-1,0,0], [0,-1,0], [0,0,-1]):
+        tb.set_hop(t, 0, 1, R)
+    tb.set_hop(lambda beta: 3*t + m*np.cos(beta), 0, 1, [0,0,0])
+
+    # spin-dependent second-neighbor hops
+    lvec_list = ([1, 0, 0], [0, 1, 0], [0, 0, 1], [-1, 1, 0], [0, -1, 1], [1, 0, -1])
+    dir_list = ([0, 1, -1], [-1, 0, 1], [1, -1, 0], [1, 1, 0], [0, 1, 1], [1, 0, 1])
+    for j in range(6):
+        spin = np.array([0.0] + dir_list[j])
+        tb.set_hop(1j * soc * spin, 0, 0, lvec_list[j])
+        tb.set_hop(-1j * soc * spin, 1, 1, lvec_list[j])
+
+    return tb

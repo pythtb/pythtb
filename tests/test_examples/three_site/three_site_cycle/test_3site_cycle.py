@@ -14,7 +14,6 @@ OUTPUTS = {
 #NOTE: Replace with your expected output file name(s). Should be in order
 # of the results returned by run()
 
-
 @pytest.mark.parametrize("t, delta", [(-1, 2)])
 def test_example(t, delta):
     example_dir = os.path.dirname(__file__)

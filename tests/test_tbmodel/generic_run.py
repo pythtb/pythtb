@@ -1,15 +1,17 @@
 import numpy as np
-from pythtb import TBModel, WFArray
+from pythtb import TBModel, WFArray, Mesh
 
 
 def generic_test_of_models(models: list[TBModel], use_dir, use_occ):
+    mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+    mesh.build_grid([11,11])
 
     # check that berry phases are the same
     val = []
     for ii, mod in enumerate(models):
-        my_array = WFArray(mod, [11, 11])
-        my_array.solve_on_grid([-0.5, -0.5])
-        val.append(my_array.berry_phase(use_occ[ii], 1, contin=True))
+        my_array = WFArray(mod.lattice, mesh, spinful=mod.spinful)
+        my_array.solve_model(mod)
+        val.append(my_array.berry_phase(1, use_occ[ii], contin=True))
     val = np.array(val)
     passed = []
     for i in range(1, val.shape[0]):
@@ -33,10 +35,11 @@ def generic_test_of_models(models: list[TBModel], use_dir, use_occ):
     H = []
     evecs = []
     for ii, mod in enumerate(models):
-        mod_cut = mod.cut_piece(4, use_dir[ii], glue_edgs=False)
+        mod_cut = mod.cut_piece(4, use_dir[ii], glue_edges=False)
         H.append(mod_cut.hamiltonian([0.214]))
-        evalu, evec = mod_cut.solve_ham([0.214], return_eigvecs=True)
+        _, evec = mod_cut.solve_ham([0.214], return_eigvecs=True, flatten_spin_axis=False)
         evecs.append(evec)
+        print(evec.shape)
         val.append(mod_cut.position_expectation(evec, use_dir[ii]))
        
 
