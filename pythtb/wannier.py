@@ -363,7 +363,7 @@ class Wannier:
         # number of trial functions to define
         num_tf = len(twf_list)
         if self.bloch_states.spinful:
-            tfs = np.zeros([num_tf, self.lattice.norb, self.wfa.nspin], dtype=complex)
+            tfs = np.zeros([num_tf, self.lattice.norb, self.bloch_states.nspin], dtype=complex)
             for j, tf in enumerate(twf_list):
                 assert isinstance(
                     tf, (list, np.ndarray)
