@@ -14,7 +14,7 @@ authors = [
   { name = "David Vanderbilt", email = "dhv@physics.rutgers.edu" }
 ]
 license = { file = "LICENSE" } 
-keywords = ["tight binding", "solid state physics", "condensed matter physics", "materials science"]
+keywords = ["physics", "tight binding", "solid state physics", "condensed matter physics", "materials science"]
 classifiers = [
   "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
   "Programming Language :: Python :: 3",
@@ -68,3 +68,8 @@ fallback_version = "0.0.0"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["pythtb*"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+
