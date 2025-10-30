@@ -1044,6 +1044,7 @@ class Mesh:
     def build_grid(self,
         shape: tuple | list,
         gamma_centered: bool | list = False,
+        k_endpoints: bool | list = False,
         lambda_endpoints: bool | list = True,
         lambda_start: int | float | list = 0.0,
         lambda_stop: int | float | list = 1.0
@@ -1080,6 +1081,10 @@ class Mesh:
             If True, center the k-space grid at the Gamma point. This
             makes the grid axes go from -0.5 to 0.5. One may also specify
             a list of booleans to control the centering for each k-axis.
+        k_endpoints : bool, list[bool], optional
+            If True, include the endpoints of the k-space grid.
+            One may also specify a list of booleans to control the inclusion
+            of endpoints for each k-axis.
         lambda_endpoints : bool, list[bool], optional
             If True, include the endpoints of the lambda space grid.
             One may also specify a list of booleans to control the inclusion
@@ -1140,6 +1145,13 @@ class Mesh:
         else:
             raise TypeError("gamma_centered must be a bool or a list of bools.")
 
+        if isinstance(k_endpoints, bool):
+            k_endpoints = [k_endpoints] * self.num_k_axes
+        elif isinstance(k_endpoints, list) and len(k_endpoints) != self.num_k_axes:
+            raise ValueError(f"Expected {self.num_k_axes} elements in k_endpoints, got {len(k_endpoints)}")
+        else:
+            raise TypeError("k_endpoints must be a bool or a list of bools.")
+
         if isinstance(lambda_endpoints, bool):
             lambda_endpoints = [lambda_endpoints] * self.num_lambda_axes
         elif isinstance(lambda_endpoints, list) and len(lambda_endpoints) != self.num_lambda_axes:
@@ -1171,7 +1183,7 @@ class Mesh:
             ax.size = shape[i]
         
         self._gamma_centered = gamma_centered
-        k_endpoints = [False] * self.num_k_axes
+        # k_endpoints = [False] * self.num_k_axes
 
         k_starts = []
         k_stops = []
