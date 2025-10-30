@@ -542,6 +542,12 @@ class Mesh:
         """
         if not self.is_grid:
             return False
+        
+        if self.num_k_axes < self.dim_k:
+            return False
+        
+        if self.dim_k == 0:
+            return False
 
         k_axes = self.k_axes
         bz_winding_axes = self.bz_winding_axes
@@ -1223,6 +1229,11 @@ class Mesh:
         for ax_idx in self.k_axis_indices:
             # Default mapping: k-axis winds the same-index k-component
             self.wind_bz(ax_idx, ax_idx)
+
+        if lambda_endpoints is not None:
+            for i, ax_idx in enumerate(self.lambda_axis_indices):
+                if lambda_endpoints[i]:
+                    self.close_axis(ax_idx, ax_idx)
 
         self._set_ax_info()
 

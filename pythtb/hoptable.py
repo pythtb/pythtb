@@ -172,7 +172,18 @@ class HoppingTable:
             self._index[new_key] = idx
         self._flatten_cache.clear()
 
-    def accumulate(self, idx: int, delta: np.ndarray) -> None:
+    def remove(self, idx: int) -> None:
+        """Remove the hopping at index ``idx``."""
+        if idx < 0 or idx >= len(self):
+            raise IndexError("Index out of range.")
+        self.amplitudes = np.delete(self.amplitudes, idx, axis=0)
+        self.from_idx = np.delete(self.from_idx, idx)
+        self.to_idx = np.delete(self.to_idx, idx)
+        self.lattice_vecs = np.delete(self.lattice_vecs, idx, axis=0)
+        self._rebuild_index()
+        self._flatten_cache.clear()
+
+    def add(self, idx: int, delta: np.ndarray) -> None:
         """Increment the hopping amplitude at ``idx`` by ``delta`` (in-place)."""
         if self.spinful:
             self.amplitudes[idx] += np.asarray(delta, dtype=complex)
@@ -283,7 +294,23 @@ class HoppingTable:
     # cached utilities
     # ------------------------------------------------------------------
     def flatten_cache(self, norb: int) -> dict[str, np.ndarray]:
-        """Return (and cache) index arrays useful for block-building Hamiltonians."""
+        """Return (and cache) index arrays useful for block-building Hamiltonians.
+
+        Parameters
+        ----------
+        norb : int
+            Number of orbitals in the model; used to compute flattened indices.
+
+        Returns
+        -------
+        dict[str, np.ndarray]
+            A dictionary with the following entries:
+            - "order": Indices that sort the flattened (i, j) hopping indices.
+            - "starts": Start indices of unique flattened (i, j) pairs in the sorted array.
+            - "uniq": Unique flattened (i, j) indices in sorted order.
+            - "cols_transposed": Flattened (j, i) indices corresponding to "uniq".
+            - "inverse_order": Indices that invert the "order" array.
+        """
         key = (norb, len(self))
         cache = self._flatten_cache.get(key)
         if cache is not None:

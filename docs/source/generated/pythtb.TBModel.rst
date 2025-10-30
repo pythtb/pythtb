@@ -13,12 +13,12 @@ Methods
    :toctree: pythtb/TBModel/
 
    pythtb.TBModel.add_orb
+   pythtb.TBModel.axion_angle
    pythtb.TBModel.berry_curvature
    pythtb.TBModel.change_nonperiodic_vector
    pythtb.TBModel.chern_number
    pythtb.TBModel.clear_hoppings
    pythtb.TBModel.clear_onsite
-   pythtb.TBModel.compute_bands
    pythtb.TBModel.copy
    pythtb.TBModel.cut_piece
    pythtb.TBModel.display
@@ -44,8 +44,9 @@ Methods
    pythtb.TBModel.reduce_dim
    pythtb.TBModel.remove_orb
    pythtb.TBModel.set_hop
-   pythtb.TBModel.set_nn_hops
    pythtb.TBModel.set_onsite
+   pythtb.TBModel.set_parameters
+   pythtb.TBModel.set_shell_hops
    pythtb.TBModel.solve_all
    pythtb.TBModel.solve_ham
    pythtb.TBModel.solve_one
@@ -75,6 +76,7 @@ Attributes
    pythtb.TBModel.nspin
    pythtb.TBModel.nstate
    pythtb.TBModel.orb_vecs
+   pythtb.TBModel.parameters
    pythtb.TBModel.per
    pythtb.TBModel.periodic_dirs
    pythtb.TBModel.recip_lat_vecs

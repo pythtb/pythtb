@@ -71,17 +71,13 @@ class Lattice():
             periodic_dirs = []
         elif isinstance(periodic_dirs, (list, tuple, np.ndarray)):
             periodic_dirs = list(periodic_dirs)
-            if len(periodic_dirs) > len(lat_vecs):
-                raise ValueError(
-                    "Wrong periodic_dirs length. Must be of length <= dim_r."
-                )
         else:
             raise TypeError("periodic_dirs must be a list of integers.")
 
-        self._periodic_dirs = periodic_dirs
-
-        self._set_lat_vecs(lat_vecs)
-        self._set_orb_vecs(orb_vecs)
+        self._periodic_dirs = []
+        self.lat_vecs = lat_vecs
+        self.periodic_dirs = periodic_dirs
+        self.orb_vecs = orb_vecs
         self._nsuper = [1 for _ in range(self.dim_r)]  # default supercell sizes
 
     def __eq__(self, value):
@@ -187,20 +183,34 @@ class Lattice():
         if not isinstance(new_per, (list, tuple, np.ndarray)):
             raise TypeError("periodic_dirs must be a list of integers.")
         new_per = list(new_per)
-        if hasattr(self, '_lat_vectors') and len(new_per) > len(self._lat_vectors):
-            raise ValueError(
-                "Wrong periodic_dirs length. Must be of length <= dim_r."
-            )
+        if not hasattr(self, "_lat_vectors"):
+            raise AttributeError("Lattice vectors must be defined before setting periodic_dirs.")
 
-        self._periodic_dirs = new_per
+        dim_r = self._lat_vectors.shape[0]
+        validated: list[int] = []
+        seen = set()
+        for idx in new_per:
+            if not isinstance(idx, (int, np.integer)):
+                raise TypeError("periodic_dirs entries must be integers.")
+            val = int(idx)
+            if val < 0 or val >= dim_r:
+                raise ValueError(
+                    f"Periodic direction {val} is out of bounds for lattice dimension {dim_r}."
+                )
+            if val in seen:
+                raise ValueError("periodic_dirs entries must be unique.")
+            seen.add(val)
+            validated.append(val)
 
-        if hasattr(self, '_lat_vectors'):
-            # Update reciprocal lattice since periodic directions may have changed
-            self._recip_lat = self._get_recip_lat() if self.dim_k > 0 else None
-            if self.dim_k == 0:
-                self._recip_vol = 0.0
-            else:
-                self._recip_vol = np.sqrt(np.linalg.det(self._recip_lat @ self._recip_lat.T))
+        self._periodic_dirs = validated
+
+        # Update reciprocal lattice since periodic directions may have changed
+        if self.dim_k == 0:
+            self._recip_lat = None
+            self._recip_vol = 0.0
+        else:
+            self._recip_lat = self._get_recip_lat()
+            self._recip_vol = np.sqrt(np.linalg.det(self._recip_lat @ self._recip_lat.T))
 
     # Read-only properties inferred from mutable attributes
     @property
@@ -1223,20 +1233,14 @@ class Lattice():
             return w, k_shell, idx_shell
         return w
 
-    def k_path(self, k_nodes, nk: int, report: bool=True):
+    def k_path(self, k_nodes, nk: int, report: bool=False):
         r"""Interpolates a path in reciprocal space.
-
-        .. versionchanged:: 2.0.0
-            The returned k-dist now includes the factors of :math:`2\pi`.
-            See notes for further details.
 
         Interpolates a path in reciprocal space between specified
         k-points. In 2D or 3D the k-path can consist of several
-        straight segments connecting high-symmetry points ("nodes"),
-        and the results can be used to plot the bands along this path.
-
-        The interpolated path that is returned contains as
-        equidistant k-points as possible.
+        straight segments connecting high-symmetry points ("nodes").
+        The interpolated path is constructed so that the k-points
+        are (nearly) equidistant in Cartesian k-space. 
 
         Parameters
         ----------
@@ -1253,23 +1257,28 @@ class Lattice():
             Total number of k-points along the path.
         report : bool, optional
             Optional parameter specifying whether printout
-            is desired (default is True).
+            is desired (default is False).
 
         Returns
         -------
         k_vec : np.ndarray
-            Array of (nearly) equidistant interpolated k-points. 
+            Array of (nearly) equidistant interpolated k-points. Shape is ``(nk, dim_k)``.
         k_dist : np.ndarray
             Array giving accumulated k-distance to each
             k-point in the path. This array is useful when plotting
             bands along the path. The distances between the points
             can be used to ensure that the plot accurately reflects
-            the k-space geometry.
+            the k-space geometry. Shape is ``(nk,)``.
+
+            .. versionchanged:: 2.0.0
+                The returned ``k_dist`` now includes the factors of :math:`2\pi`.
+                See notes for further details.
+
         k_node : np.ndarray
             Array giving accumulated k-distance to each
             node on the path in Cartesian coordinates. This array can
-            be used to plot nodes (typically high-symmetry points) on
-            the path in k-space.
+            be used to reference the nodes on the 1D ``k_dist`` array,
+            e.g., when plotting high-symmetry points. Shape is ``(n_nodes,)``.
 
         Notes
         -----
@@ -1277,7 +1286,7 @@ class Lattice():
           however coordinates themselves are given in dimensionless reduced coordinates!  
           This is done so that this array can be directly passed to function
           :func:`pythtb.TBModel.solve_ham`.
-        - Unlike array `k_vec`, `k_dist` has dimensions! Units are defined
+        - Unlike array ``k_vec``, ``k_dist`` has dimensions! Units are defined
           so that for a one-dimensional crystal with lattice constant equal to
           for example :math:`10` the length of the Brillouin zone would equal
           :math:`2\pi/10`.
@@ -1290,9 +1299,17 @@ class Lattice():
         >>> path = [[0.0, 0.0], [0.0, 0.5], [0.5, 0.5], [0.0, 0.0]]
         >>> (k_vec, k_dist, k_node) = my_model.k_path(path,401)
         
-        Solve for eigenvalues on that path
+        Solve for eigenvalues on that path and plot the band structure
 
+        >>> import matplotlib.pyplot as plt
         >>> evals = tb.solve_ham(k_vec)
+        >>> for n in range(evals.shape[1]):
+        ...     plt.plot(k_dist, evals[:, n], 'b-')
+        >>> for node_dist in k_node:
+        ...     plt.axvline(x=node_dist, color='k', linestyle='--')
+        >>> plt.xlabel('k')
+        >>> plt.ylabel('Energy (eV)')
+        >>> plt.show()
         """
         # Parse kpts and validate
         k_list = _parse_kpts(k_nodes, self.dim_k)
@@ -1360,40 +1377,46 @@ class Lattice():
     
     @staticmethod
     def k_uniform_mesh(mesh_size):
-        r"""Uniform grid of k-points in reduced coordinates.
+        r"""
+        Generate a uniform grid of k-points in reduced (fractional) coordinates.
 
-        The mesh along each direction is defined from [0, 1). 
-        The mesh always contains the origin.
+        The grid spans the interval :math:`[0,1)` along each periodic crystal direction
+        and always contains the origin. The total number of k-points is the product of
+        the entries in ``mesh_size``.
 
         Parameters
         ----------
         mesh_size : array_like
-            Number of k-points in the mesh in each periodic direction of the model.
+            The number of k-points along each periodic direction.
+            Its length must equal the number of periodic dimensions of the model.
+            For example, ``mesh_size = [n1, n2, n3]`` produces a 3D mesh with
+            ``n1 x n2 x n3`` points.
 
         Returns
         -------
-        k_points : np.ndarray
-          Array of k-vectors with shape
-          ``(nk1, nk2, ..., dim_k)`` where ``nk1``, ``nk2``, ... are the number of k-points
-          in each direction defined by ``mesh_size``.
+        k_points : numpy.ndarray
+            An array of shape ``(n1, n2, ..., dim_k)`` where the final index runs
+            over the reduced-coordinate components of each k-vector.
+
+            - If ``mesh_size = [n1, n2, ..., nD]`` and the model has ``dim_k = D``,
+              then the returned array has shape ``(n1, n2, ..., nD, D)``.
 
         Notes
         -----
-        The uniform grid of k-points that can be passed to
-        function :func:`pythtb.TBModel.solve_ham`. 
+        This uniform mesh is suitable for evaluating model quantities on a regular
+        Brillouin-zone sampling grid, e.g. via :func:`~pythtb.TBModel.solve_ham`.
 
         Examples
         --------
-        Returns a 10x20x30 mesh of a tight binding model 
-        with three periodic directions
+        Construct a 10×20×30 mesh for a model with three periodic directions:
 
-        >>> k_points = my_model.k_uniform_mesh([10,20,30])
-        >>> print(k_points.shape)
+        >>> k_points = my_model.k_uniform_mesh([10, 20, 30])
+        >>> k_points.shape
         (10, 20, 30, 3)
 
-        Solve model on the uniform mesh
+        Solve the model on the mesh:
 
-        >>> my_model.solve_ham(k_points)
+        >>> evals = my_model.solve_ham(k_points)
 
         """
         use_mesh = np.array(list(map(round, mesh_size)), dtype=int)

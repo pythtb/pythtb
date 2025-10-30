@@ -583,14 +583,26 @@ def plot_tb_model(
 
     # to ensure proper padding, track all plotted coordinates
     all_coords = []
-    # append ends of lattice vectors
     all_coords.append([0.0, 0.0])
+
+    # append ends of lattice vectors to all_coords for proper padding
+    ends = []
     for i in model.lattice.periodic_dirs:
         end = _proj(model.lattice.lat_vecs[i], proj_plane=proj_plane)
+        ends.append(end)
         all_coords.append(end)
+
+    ends = np.array(ends)
+    all_coords += ends.tolist()
+
+    # append dotted bounding lines to unit cell to all_coords for proper padding
+    # if 2d cell
+    if ends.shape[0] > 1:
+        end = ends[0] + ends[1]
+        all_coords.append(end)
+
     orb_coords = []
     orb_cart = model.get_orb_vecs(cartesian=True)
-
     for i in range(model.norb):
         pos = orb_cart[i].copy()
         p = _proj(pos, proj_plane=proj_plane)
@@ -630,8 +642,8 @@ def plot_tb_model(
     hopping_coords = []
 
     # maximum magnitudes of hopping strengths
-    amps, hop_i, hop_j, hop_R = model._hoppings.components()
-    n_hops = len(model._hoppings)
+    amps, hop_i, hop_j, hop_R = model._hoptable.components()
+    n_hops = len(model._hoptable)
     if n_hops:
         if model._nspin == 2:
             mags = np.array([np.max(np.abs(amp)) for amp in amps], dtype=float)
@@ -944,8 +956,8 @@ def plot_tb_model_3d(
     # Draw hopping terms ---
     if draw_hoppings:
         hopping_traces = []
-        amps, hop_i, hop_j, hop_R = model._hoppings.components()
-        n_hops = len(model._hoppings)
+        amps, hop_i, hop_j, hop_R = model._hoptable.components()
+        n_hops = len(model._hoptable)
         if n_hops:
             if model._nspin == 2:
                 mags = np.array([np.max(np.abs(amp)) for amp in amps], dtype=float)

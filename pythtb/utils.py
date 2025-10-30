@@ -9,10 +9,10 @@ import warnings
 __all__ = [
     "levi_civita",
     "finite_diff_coeffs",
+    "finite_difference",
     "is_Hermitian",
     "pauli_decompose",
     "get_trial_wfs",
-    "get_periodic_H",
 ]
 
 _TF_CACHE = None  # module-level cache so we import once
@@ -66,17 +66,6 @@ def copydoc(src):
         dst.__doc__ = src.__doc__
         return dst
     return deco
-
-
-def get_periodic_H(model, H_flat, k_vals):
-    orb_vecs = model.get_orb_vecs()
-    orb_vec_diff = orb_vecs[:, None, :] - orb_vecs[None, :, :]
-    # orb_phase = np.exp(1j * 2 * np.pi * np.einsum('ijm, ...m->...ij', orb_vec_diff, k_vals))
-    orb_phase = np.exp(1j * 2 * np.pi * np.matmul(orb_vec_diff, k_vals.T)).transpose(
-        2, 0, 1
-    )
-    H_per_flat = H_flat * orb_phase
-    return H_per_flat
 
 
 def get_trial_wfs(tf_list, norb, nspin=1):
@@ -151,38 +140,52 @@ def detect_degeneracies(eigenvalues, tol=1e-8):
     return degenerate_groups
 
 def mat_exp(M):
-        eigvals, eigvecs = np.linalg.eig(M)
-        U = eigvecs
-        U_inv = np.linalg.inv(U)
-        # Diagonal matrix of the exponentials of the eigenvalues
-        exp_diagM = np.exp(eigvals)
-        # Construct the matrix exponential
-        expM = np.einsum(
-            "...ij, ...jk -> ...ik",
-            U,
-            np.multiply(U_inv, exp_diagM[..., :, np.newaxis]),
-        )
-        return expM
+    eigvals, eigvecs = np.linalg.eig(M)
+    U = eigvecs
+    U_inv = np.linalg.inv(U)
+    # Diagonal matrix of the exponentials of the eigenvalues
+    exp_diagM = np.exp(eigvals)
+    # Construct the matrix exponential
+    expM = np.einsum(
+        "...ij, ...jk -> ...ik",
+        U,
+        np.multiply(U_inv, exp_diagM[..., :, np.newaxis]),
+    )
+    return expM
 
 
 def levi_civita(n, d):
     """
     Constructs the rank-n Levi-Civita tensor in dimension d.
 
-    Parameters:
-    n (int): Rank of the tensor (number of indices).
-    d (int): Dimension (number of possible index values).
+    The Levi-Civita tensor is an antisymmetric tensor used in various
+    areas of physics and mathematics, particularly in the context of
+    cross products and determinants. It is defined such that its components
+    are +1 for even permutations of indices, -1 for odd permutations,
+    and 0 if any indices are repeated. 
 
-    Returns:
-    np.ndarray: Levi-Civita tensor of shape (d, d, ..., d) with n dimensions.
+    Parameters
+    ----------
+    n : int
+        Rank of the tensor (number of indices).
+    d : int
+        Dimension (number of possible index values).
+
+    Returns
+    -------
+    np.ndarray
+        Levi-Civita tensor of shape (d, d, ..., d) with n dimensions.
     """
     shape = (d,) * n
     epsilon = np.zeros(shape, dtype=int)
     # Generate all possible permutations of n indices
     for perm in permutations(range(d), n):
-        # Compute the sign of the permutation
-        sign = np.linalg.det(np.eye(n)[list(perm)])
-        epsilon[perm] = int(np.sign(sign))  # +1 for even, -1 for odd permutations
+        sign = 1
+        for i in range(n):
+            for j in range(i + 1, n):
+                if perm[i] > perm[j]:
+                    sign *= -1
+        epsilon[perm] = sign
 
     return epsilon
 
@@ -307,7 +310,7 @@ def get_fd_weights(model, nks, dim_k, N_sh=1, report=False):
     return w, k_shell, idx_shell
 
 
-def finite_diff_coeffs(order_eps, derivative_order=1, mode="central"):
+def finite_diff_coeffs(order, derivative_order=1, mode="central"):
     """
     Compute finite difference coefficients using the inverse of the Vandermonde matrix.
 
@@ -321,7 +324,7 @@ def finite_diff_coeffs(order_eps, derivative_order=1, mode="central"):
     if mode not in ["central", "forward", "backward"]:
         raise ValueError("Mode must be 'central', 'forward', or 'backward'.")
 
-    num_points = derivative_order + order_eps
+    num_points = derivative_order + order
 
     if mode == "central":
         if num_points % 2 == 0:
@@ -344,16 +347,144 @@ def finite_diff_coeffs(order_eps, derivative_order=1, mode="central"):
     coeffs = np.linalg.solve(A, b)  # Solve system Ax = b
     return coeffs, stencil
 
-def fin_diff(U_k, mu, dk_mu, order_eps, mode='central'):
-    coeffs, stencil = finite_diff_coeffs(order_eps=order_eps, mode=mode)
+def finite_difference_periodic(M, axis, delta, order, mode='central'):
+    coeffs, stencil = finite_diff_coeffs(order=order, mode=mode)
 
-    fd_sum = np.zeros_like(U_k)
+    fd_sum = np.zeros_like(M)
 
     for s, c in zip(stencil, coeffs):
-        fd_sum += c * np.roll(U_k, shift=-s, axis=mu)
+        fd_sum += c * np.roll(M, shift=-s, axis=axis)
 
-    v = fd_sum / (dk_mu)
+    v = fd_sum / (delta)
     return v
+
+def finite_difference(
+    M,
+    axis: int,
+    delta: float,
+    order: int,
+    *,
+    mode: str = "central",
+    periodic: bool = False,
+):
+    """
+    Finite-difference derivative along a uniformly sampled axis.
+
+    Parameters
+    ----------
+    M : np.ndarray
+        Array containing the values to differentiate.
+    axis : int
+        Axis along which the derivative is taken.
+    delta : float
+        Sample spacing along the axis.
+    order : int
+        Order (number of stencil points) used in the finite-difference scheme.
+    mode : {'central', 'forward', 'backward'}, optional
+        Stencil type. ``"central"`` is used by default.
+    periodic : bool, optional
+        If ``True``, wrap the stencil across the boundaries (cyclic parameter).
+        If ``False``, forward/backward stencils are used near the edges.
+
+    Returns
+    -------
+    np.ndarray
+        Array of the same shape (and promoted dtype) containing the derivative.
+    """
+    from numpy.lib.stride_tricks import sliding_window_view
+    if delta == 0:
+        raise ValueError("delta must be non-zero for finite differences.")
+
+    # Move the differentiation axis to the front and promote to a real dtype
+    arr = np.asarray(M)
+    dtype = np.result_type(arr.dtype, np.float64)
+    data = np.moveaxis(arr.astype(dtype, copy=False), axis, 0)
+    n = data.shape[0]
+
+    # Obtain the main stencil (length = window size) and the corresponding offset grid
+    coeff_core, stencil_core = finite_diff_coeffs(order=order, mode=mode)
+    window = len(coeff_core)
+
+    # Check that we have enough samples; otherwise explain what the maximum feasible order is
+    if periodic:
+        if n < window:
+            max_order = n - 1   # window size is order + 1 for these stencils
+            raise ValueError(
+                f"Periodic finite differences along axis {axis} need at least {window} samples "
+                f"for order {order}, but only {n} were provided. "
+                f"With {n} samples the largest admissible order is {max_order}."
+            )
+    else:
+        if mode == "central":
+            # Number of points required to cover the interior window plus the one-sided padding
+            min_needed = 2 * window - 2  # interior window plus both one-sided pads
+            if n < min_needed:
+                max_order = (n + 2) // 2 - 1
+                raise ValueError(
+                    f"Central differences of order {order} require at least {min_needed} samples "
+                    f"along axis {axis}; received {n}. "
+                    f"With {n} samples the largest central order you can request is {max_order}."
+                )
+        else:
+            # Forward/backward stencils only need the window itself
+            min_needed = window
+            if n < min_needed:
+                max_order = n - 1
+                raise ValueError(
+                    f"{mode.capitalize()} differences of order {order} need at least {min_needed} samples "
+                    f"along axis {axis}; received {n}. "
+                    f"With {n} samples the largest admissible order for this mode is {max_order}."
+                )
+            
+    # Accumulate the derivative in the re-ordered array; moveaxes will restore the layout later
+    out = np.empty_like(data)
+
+    def _apply(coeffs, values):
+        """Convenience helper: contract stencil coefficients with trailing axes."""
+        return np.tensordot(coeffs, values, axes=(0, -1))
+
+    if periodic:
+        # Apply the periodic stencil explicitly via np.roll so every sample sees the same window
+        acc = np.zeros_like(data)
+        for shift, coeff in zip(stencil_core, coeff_core):
+            acc += coeff * np.roll(data, -shift, axis=0)
+        out[...] = acc / delta
+    else:
+        if mode == "central":
+            # Apply the central stencil on the interior (where it fits completely)
+            half = window // 2
+            windows = sliding_window_view(data, window_shape=window, axis=0)
+            interior = _apply(coeff_core, windows) / delta
+            out[half:n - half] = interior
+
+            # Use one-sided forward/backward stencils near the two boundaries
+            coeff_fwd, _ = finite_diff_coeffs(order=order, mode="forward")
+            width_fwd = len(coeff_fwd)
+            for i in range(width_fwd - 1):
+                seg = data[i:i + width_fwd]
+                out[i] = np.tensordot(coeff_fwd, seg, axes=(0, 0)) / delta
+
+            coeff_bwd, _ = finite_diff_coeffs(order=order, mode="backward")
+            width_bwd = len(coeff_bwd)
+            for i in range(width_bwd - 1):
+                seg = data[n - width_bwd - i: n - i]
+                out[n - 1 - i] = np.tensordot(coeff_bwd, seg, axes=(0, 0)) / delta
+            
+        else:
+            # (Pure) forward or backward mode: slide the requested window and apply the stencil directly
+            windows = sliding_window_view(data, window_shape=window, axis=0)
+            deriv = _apply(coeff_core, windows) / delta
+            if mode == "forward":
+                out[:deriv.shape[0]] = deriv
+                out[deriv.shape[0]:] = deriv[-1]
+            else:  # 'backward'
+                out[-deriv.shape[0]:] = deriv
+                out[:-deriv.shape[0]] = deriv[0]
+
+    # Restore the original axis ordering before returning
+    return np.moveaxis(out, 0, axis)
+
+
 
 def is_Hermitian(M):
     """
@@ -447,6 +578,14 @@ def no_2pi(x, clos):
         elif clos - x < -1.0 * np.pi:
             x -= 2.0 * np.pi
     return x
+
+def _maybe_pad(arr, axis, keep):
+    """Repeat the first slice along `axis` when `keep` is True."""
+    if not keep:
+        return arr
+    first = np.take(arr, indices=0, axis=axis)
+    first = np.expand_dims(first, axis=axis)
+    return np.concatenate([arr, first], axis=axis)
 
 
 def _cart_to_red(a_vecs, cart):
