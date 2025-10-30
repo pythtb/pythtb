@@ -2198,21 +2198,36 @@ class TBModel:
         if dim_k == 0:
             if k_pts is None:
                 return None
-            if allow_none_for_finite:
+            elif allow_none_for_finite:
                 return None
             raise ValueError("k_pts should not be specified for finite (dim_k=0) models.")
 
-        if k_pts is None:
+        elif k_pts is None:
             raise ValueError("Must supply k_pts for periodic systems (dim_k > 0).")
-
+        
         k_arr = np.asarray(k_pts, dtype=float)
+        
+        # scalar -> treat as a single point in # of dimensions dim_k
+        if k_arr.ndim == 0:
+            # e.g. dim_k == 1 and user passed scalar
+            if dim_k == 1:
+                return k_arr.reshape(1, 1)
+            raise ValueError("Scalar k_pts is only valid when dim_k == 1.")
+        
         if k_arr.ndim == 1:
-            if k_arr.shape[0] != dim_k:
-                raise ValueError(f"k_pts must have shape ({dim_k},) for a single point.")
-            k_arr = k_arr.reshape(1, dim_k)
-        if k_arr.ndim != 2 or k_arr.shape[1] != dim_k:
-            raise ValueError(f"k_pts must have shape (Nk, {dim_k}).")
-        return k_arr
+            if dim_k == 1:
+                # 1D sweep, keep all entries as a column vector
+                return k_arr.reshape(-1, 1)
+            if k_arr.size == dim_k:
+                # single k-point in higher dimensions
+                return k_arr.reshape(1, dim_k)
+            raise ValueError(f"k_pts must have shape ({dim_k},) for a single point or (Nk,) only when dim_k == 1.")
+
+        if k_arr.ndim == 2 and k_arr.shape[1] == dim_k:
+            return k_arr
+
+        raise ValueError(f"k_pts must have shape (Nk, {dim_k}) or ({dim_k},).")
+
     
     def _H_to_per_gauge(self, H_flat, k_vals):
         r"""
@@ -3822,7 +3837,7 @@ class TBModel:
         lambdas : np.ndarray
             The :math:`\lambda` samples (including the closing point).
         theta : float
-            Axion angle at each :math:`\lambda` modulo :math:`2\pi` (folded into :math:`[-\pi, \pi)`).
+            Axion angle at each :math:`\lambda` modulo :math:`2\pi` (folded into :math:`[0, 2\pi)`).
         c2 : float, optional
             Second Chern number. Only returned when ``return_second_chern=True``.
 
@@ -4271,11 +4286,11 @@ class TBModel:
 
         return C_local, C_bulk_avg
     
-    def position_matrix(self, evecs: np.ndarray, dir: int):
+    def position_matrix(self, evecs: np.ndarray, pos_dir: int):
         r"""Position operator matrix elements
 
         Returns matrix elements of the position operator along
-        direction `dir` for eigenvectors `evecs` at a single k-point.
+        direction ``pos_dir`` for eigenvectors ``evecs`` at a single k-point.
         Position operator is defined in reduced coordinates.
 
         The returned object :math:`X` is
@@ -4286,7 +4301,7 @@ class TBModel:
           r^{\alpha} \vert u_{n {\bf k}} \rangle
 
         Here :math:`r^{\alpha}` is the position operator along direction
-        :math:`\alpha` that is selected by `dir`.
+        :math:`\alpha` that is selected by ``pos_dir``.
 
         Parameters
         ----------
@@ -4300,11 +4315,15 @@ class TBModel:
                 Parameter ``evec`` renamed to ``evecs`` to clarify that multiple
                 eigenvectors can be passed at once.
 
-        dir : int
+        pos_dir : int
             Direction along which we are computing the center.
             This integer must not be one of the periodic directions
             since position operator matrix element in that case is not
             well defined.
+
+            .. versionchanged:: 2.0.0
+                Parameter ``dir`` renamed to ``pos_dir`` to avoid conflict
+                with built-in function ``dir()``.
 
         Returns
         -------
@@ -4332,12 +4351,12 @@ class TBModel:
         """
 
         # make sure specified direction is not periodic!
-        if dir in self.per:
+        if pos_dir in self.periodic_dirs:
             raise ValueError(
                 "Can not compute position matrix elements along periodic direction!"
             )
         # make sure direction is not out of range
-        if dir < 0 or dir >= self.dim_r:
+        if pos_dir < 0 or pos_dir >= self.dim_r:
             raise ValueError("Direction out of range!")
 
         # check if model came from w90
@@ -4360,7 +4379,7 @@ class TBModel:
                 )
 
         # get coordinates of orbitals along the specified direction
-        pos_tmp = self.orb_vecs[:, dir]
+        pos_tmp = self.orb_vecs[:, pos_dir]
         # reshape arrays in the case of spinful calculation
         if self.spinful:
             # tile along spin direction if needed
@@ -4379,7 +4398,7 @@ class TBModel:
 
         return pos_mat
 
-    def position_expectation(self, evecs: np.ndarray, dir: int):
+    def position_expectation(self, evecs: np.ndarray, pos_dir: int):
         r"""Returns diagonal matrix elements of the position operator.
         
         These elements :math:`X_{n n}` can be interpreted as an
@@ -4398,11 +4417,15 @@ class TBModel:
                 Parameter ```evec`` renamed to ``evecs`` to clarify that multiple
                 eigenvectors can be passed at once.
 
-        dir : int
+        pos_dir : int
             Direction along which we are computing matrix
-            elements. This integer must not be one of the periodic
+            elements. This integer must *not* be one of the periodic
             directions since position operator matrix element in that
             case is not well defined.
+
+            .. versionchanged:: 2.0.0
+                Parameter ``dir`` renamed to ``pos_dir`` to avoid conflict
+                with built-in function ``dir()``.
 
         Returns
         -------
@@ -4439,13 +4462,13 @@ class TBModel:
         if not self.assume_position_operator_diagonal:
             _offdiag_approximation_warning_and_stop()
 
-        pos_exp = self.position_matrix(evecs, dir).diagonal()
+        pos_exp = self.position_matrix(evecs=evecs, pos_dir = pos_dir).diagonal()
         return np.array(np.real(pos_exp), dtype=float)
 
     def position_hwf(
             self, 
             evecs: np.ndarray, 
-            dir: int, 
+            pos_dir: int, 
             hwf_evec=False, 
             basis="orbital"
             ):
@@ -4473,11 +4496,16 @@ class TBModel:
                 Parameter ``evec`` renamed to ``evecs`` to clarify that multiple
                 eigenvectors can be passed at once.
 
-        dir : int
+        pos_dir : int
             Direction along which we are computing matrix
             elements. This integer must not be one of the periodic
             directions since position operator matrix element in that
             case is not well defined.
+
+            .. versionchanged:: 2.0.0
+                Parameter ``dir`` renamed to ``pos_dir`` to avoid conflict
+                with built-in function ``dir()``.
+
         hwf_evec : bool, optional
             Default is ``False``. If set to ``True`` this function will
             return not only eigenvalues but also eigenvectors of :math:`X`. 
@@ -4549,7 +4577,7 @@ class TBModel:
             _offdiag_approximation_warning_and_stop()
 
         # get position matrix
-        pos_mat = self.position_matrix(evecs=evecs, dir=dir)
+        pos_mat = self.position_matrix(evecs=evecs, pos_dir=pos_dir)
 
         # diagonalize
         if not hwf_evec:
