@@ -520,9 +520,9 @@ class WFArray:
         n_states = indices.shape[0]
 
         if self.nspin == 2:
-            state_ax = -2
+            state_ax = -3
         elif self.nspin == 1:
-            state_ax = -1
+            state_ax = -2
         else:
             raise ValueError(
                 "WFArray object can only handle spinless or spin-1/2 models."
@@ -585,7 +585,7 @@ class WFArray:
             A new :class:`WFArray` object with the same :class:`Lattice` and :class:`Mesh`.
         """
         # make a full copy of the WFArray
-        wf_new = WFArray(self.lattice, self.mesh, nstates=nstates, nspin=self.nspin)
+        wf_new = WFArray(self.lattice, self.mesh, nstates=nstates, spinful=self.spinful)
         return wf_new
     
 
@@ -818,38 +818,27 @@ class WFArray:
 
     def solve_model(
             self, 
-            model: TBModel = None,
+            model: TBModel,
             use_tensorflow: bool = False
             ):
-        r"""Diagonalizes the :class:`TBModel` over the :class:`Mesh` points.
+        r"""Diagonalizes ``model`` on every point of the internal :class:`Mesh`.
 
-        Populates the state array with the eigenstates and eigenenergies of the Hamiltonian generated
-        by the :class:`TBModel` on the points set in `Mesh`. 
-
-        If the :class:`Mesh` has parametric dimensions, a ``model_func`` must be provided that returns
-        the modified :class:`TBModel`. Some of the arguments in the ``model_func`` may be kept fixed by specifying 
-        their names as keys and values as the values in the ``fixed_params`` dictionary.
-        The keys of ``fixed_params`` must match parameter names of the ``model_func``.
-        Additionally, if some of the parameters are left variable, these names of the parameters in the ``model_func``
-        must also match the names of the :math:`\lambda` axes defined in the :class:`Mesh`. This will generate the 
-        Hamiltonian at the values of the parameters specified by the mesh. See examples for more details.
+        The method calls :meth:`TBModel.solve_ham` at each point in the :class:`Mesh` and populates
+        the :class:`WFArray` with the eigenstates and eigenergies of the Hamiltonian.
+        For meshes that include adiabatic :math:`\lambda`-axes, the axis names are interpreted
+        as TBModel parameter names and the name and set of values along each :math:`\lambda`-axis
+        are passed as keyword arguments to :meth:`TBModel.solve_ham`. These parameter names must
+        match those used in the model definition when using :meth:`TBModel.set_onsite`
+        and :meth:`TBModel.set_hop`.
 
         .. versionadded:: 2.0.0
             Replaces :meth:`solve_on_one_point` and :meth:`solve_on_grid`.
 
         Parameters
         ----------
-        model : TBModel, optional
+        model : TBModel
             A tight-binding model instance. If not provided, the model function
             must be used to generate the Hamiltonian.
-        model_func : callable, optional
-            A function that returns a :class:`TBModel` given a set of parameters.
-            Only should be used if the mesh has parametric dimensions.
-        fixed_params :  dict, optional
-            A dictionary of fixed parameters to be passed to the model function.
-            It has the structure ``{<param_name>: <param_value>, ...}``. 
-            ``param_name`` must match the names of the parameters expected by 
-            the model function.
         use_tensorflow : bool, optional
             If True, uses the `tf.linalg.eigh` function to diagonalize the Hamiltonian.
             This can be beneficial for large systems where GPU acceleration is available.
@@ -857,6 +846,11 @@ class WFArray:
 
         Notes
         ------
+        - The samples along each :math:`\lambda`-axis are obtained from :func:`Mesh.get_axis_range` 
+          and passed to :meth:`TBModel.solve_ham` as keyword arguments, so it is essential that the
+          mesh axis names exactly match the symbolic/callable parameter names in the
+          model.
+
         - The eigenfunctions :math:`\psi_{n {\bf k}}` are by convention
           chosen to obey a periodic gauge, i.e.,
           :math:`\psi_{n,{\bf k+G}}=\psi_{n {\bf k}}` not only up to a
@@ -867,7 +861,7 @@ class WFArray:
           section 4.4 and equation 4.18 for more detail.
 
         - This routine automatically finds the directions in the `Mesh` that include endpoints of
-          the Brillouin zone, meaning the value of one of the components of the k-vector (`k_dir`) 
+          the Brillouin zone, meaning the value of one of the components of the k-vector 
           differ at the beginning and end by a reciprocal lattice vector along that axis 
           (1 in reduced units). Periodic boundary conditions are then automatically 
           imposed. This sets the cell-periodic Bloch function at the end of the mesh in this direction
@@ -880,10 +874,13 @@ class WFArray:
 
         - When the `Mesh` grid includes endpoints in k-space, functions that compute derivatives
           with respect to k (e.g., Berry connection, Berry curvature, etc.) will automatically
-          use finite difference formulas that account for periodic boundary conditions. Explicitly, 
-          this means that the finite difference formula will include the overlap matrix element
+          use finite difference formulas that account for periodic boundary conditions. 
+          Explicitly, this means that the finite difference formula will include the overlap matrix element
           :math:`M_{mn}^{(\mathbf{b})}(\mathbf{k}) = \langle u_{m,\mathbf{k}} | u_{n,\mathbf{k}+\mathbf{b}} \rangle`
-          that connects the states at the beginning and end of the mesh along the `mesh_dir` axis.
+          that connects the states at the beginning and end of the mesh along the `mesh_dir` axis. If 
+          the edges of the BZ are included in the mesh, then these functions will automatically remove the
+          overlaps of that state with itself at the beginning of the mesh to avoid non-physical nearest neighbor
+          overlaps. 
 
         Examples
         --------
@@ -976,14 +973,30 @@ class WFArray:
         axes = self.mesh.axes
         for idx, ax in enumerate(axes):
             if ax.has_endpoint and ax.is_loop:
-                endpt_comps = ax.endpoint_components
                 if ax.winds_bz:
                     # These contain endpoints (k_i = 1 in reduced units)
-                    bz_wind_comps = ax.winds_bz_components
-                    overlap = endpt_comps and bz_wind_comps
-                    for comp in overlap:
-                        logger.debug(f"Imposing PBC in mesh direction {ax} for k-component {comp}")
-                        self._impose_pbc(idx, comp)
+                    comps = sorted(set(ax.endpoint_components) & set(ax.winds_bz_components))
+
+                    if comps:
+                        per_dirs = np.asarray(self.lattice.periodic_dirs, dtype=int)
+                        phase_total = None
+                        slc_first = slc_last = None
+                        for comp in comps:
+                            # NOTE:
+                            # `comp` is Mesh's k-component index (0, ..., dim_k-1). 
+                            #  _apply_pbc_phase expects the real-space index so it grabs correct orbital 
+                            # column to dot into k-vector. This is the `periodic_dirs` entry.
+                            # Discrepancy only arises when some lattice directions are non-periodic.
+                            # If periodic axes are [0, 2] and `comp` is 1, then we need to grab
+                            # periodic_dirs[1] = 2 to get correct real-space index.
+                            real_dir = per_dirs[comp]
+                            phase, slc_first, slc_last = self._get_pbc_phases(idx, real_dir)
+
+                            # NOTE: multiply phases for multiple components winding BZ
+                            phase_total = phase if phase_total is None else phase_total * phase
+
+                        logger.debug(f"Imposing PBC in mesh direction {ax} for k-components {comps}")
+                        self._apply_pbc_phase(idx, phase_total, slc_first, slc_last)
                 else:
                     logger.debug(f"Imposing loop in mesh direction {ax}")
                     self._impose_loop(idx)
@@ -1025,10 +1038,13 @@ class WFArray:
         nks = self.nks
         flat_k_mesh = self.k_points.reshape(-1, self.dim_k)
 
-        per_dir = list(range(flat_k_mesh.shape[-1]))
-        # slice second dimension to only keep only periodic dimensions in orb
-        per_orb = self.lattice.orb_vecs[:, per_dir]
-
+        periodic_dirs = np.asarray(self.lattice.periodic_dirs, dtype=int)
+        if periodic_dirs.size != self.dim_k:
+            raise ValueError(
+                f"WFArray expected {self.dim_k} periodic directions; got {periodic_dirs.size}."
+            )
+        
+        per_orb = self.lattice.orb_vecs[:, periodic_dirs]
         # compute a list of phase factors: exp(pm i k . tau) of shape [k_val, orbital]
         phases = np.exp(lam * 1j * 2 * np.pi * per_orb @ flat_k_mesh.T, dtype=complex).T
 
@@ -1054,30 +1070,44 @@ class WFArray:
     
     @staticmethod
     def _edge_slices(ax):
-        """Helper function to get slices for the left and right edges of an axis."""
+        """Helper function to get slices for the first and last edges of an axis."""
         # add one for Python counting and one for ellipses
         # Example ax = 2 (2 defines the axis in Python counting)
-        slc_l = [slice(None)] * (ax + 2)  # e.g., [:, :, :, :]
-        slc_r = [slice(None)] * (ax + 2)  # e.g., [:, :, :, :]
+        slc_last = [slice(None)] * (ax + 2)  # e.g., [:, :, :, :]
+        slc_first = [slice(None)] * (ax + 2)  # e.g., [:, :, :, :]
         # last element along mesh_dir axis
-        slc_l[ax] = -1 # e.g., [:, :, -1, :]
+        slc_last[ax] = -1 # e.g., [:, :, -1, :]
         # first element along mesh_dir axis
-        slc_r[ax] = 0 # e.g., [:, :, 0, :]
+        slc_first[ax] = 0 # e.g., [:, :, 0, :]
         # take all components of remaining axes with ellipses
-        slc_l[ax + 1] = Ellipsis # e.g., [:, :, -1, ...]
-        slc_r[ax + 1] = Ellipsis # e.g., [:, :, 0, ...]
-        return tuple(slc_l), tuple(slc_r)
+        slc_last[ax + 1] = Ellipsis # e.g., [:, :, -1, ...]
+        slc_first[ax + 1] = Ellipsis # e.g., [:, :, 0, ...]
+        return tuple(slc_first), tuple(slc_last)
     
-    
+    def _apply_pbc_phase(self, phase, slc_lft, slc_rt):
+        self._wfs[slc_lft] = self._wfs[slc_rt] * phase
+        if self.u_nk is not None:
+            self._u_nk[slc_lft] = self._u_nk[slc_rt] * phase
+        if self.psi_nk is not None:
+            self._psi_nk[slc_lft] = self._psi_nk[slc_rt]
+
     def _get_pbc_phases(self, mesh_dir, k_dir):
         r"""Compute phase factors for periodic boundary conditions in forward direction.
+
+        This routine computes the phase factors needed for imposing periodic
+        boundary conditions along one direction of the `WFArray`. The phase factors
+        are given by :math:`e^{-i{\bf G}\cdot{\bf r}}`. In reduced units, this is
+        :math:`e^{-2\pi i \tau_k}`, where :math:`\tau_k` is the orbital vector
+        component along the `k_dir` direction corresponding to the reciprocal lattice
+        vector :math:`{\bf G}`.
 
         Parameters
         ----------
         mesh_dir : int
-            Direction of the `WFArray` along which periodic boundary conditions are imposed.
+            Direction of the Mesh along which periodic boundary conditions are imposed.
         k_dir : int
-            Direction of the k-vector in the Brillouin zone corresponding to `mesh_dir`.
+            Component of the k-vector in the Brillouin zone corresponding to `mesh_dir`. This
+            indexes one of the orbital vectors in the lattice.
 
         Returns
         -------
@@ -1101,18 +1131,14 @@ class WFArray:
         phase = np.exp(-2j * np.pi * orb_vecs[:, k_dir])
         phase = phase if self.nspin == 1 else phase[:, np.newaxis]
     
-        # mesh_dir is the direction of the array along which we impose pbc
-        # and it is also the direction of the k-vector along which we
-        # impose pbc e.g.
-        # mesh_dir=0 corresponds to kx, mesh_dir=1 to ky, etc.
-        # mesh_dir=2 corresponds to lambda, etc.
-
-        slc_lft, slc_rt = self._edge_slices(mesh_dir)
-        return phase, slc_lft, slc_rt
+        # mesh_dir is the direction of the mesh along which we impose pbc
     
+        slc_first, slc_last = self._edge_slices(mesh_dir)
+        return phase, slc_first, slc_last
+
     @deprecated(
             "Periodic boundary conditions are "
-            "now imposed automatically when calling `solve` if the mesh includes endpoints in k-space.\n"
+            "now imposed automatically when calling `solve_model` if the mesh includes endpoints in k-space.\n"
     )
     def impose_pbc(self, mesh_dir: int, k_dir: int):
         r"""
@@ -1180,17 +1206,17 @@ class WFArray:
                 "Periodic boundary condition can be specified only along periodic directions!"
             )
 
-        phase, slc_lft, slc_rt = self._get_pbc_phases(mesh_dir, k_dir)
+        phase, slc_first, slc_last = self._get_pbc_phases(mesh_dir, k_dir)
 
         # Set the last point along mesh_dir axis equal to first
         # multiplied by the phase factor
-        self._wfs[slc_lft] = self._wfs[slc_rt] * phase
+        self._wfs[slc_last] = self._wfs[slc_first] * phase
 
         if self.u_nk is not None:
             # Set the last point along mesh_dir axis equal to first
             # multiplied by the phase factor
-            self._u_nk[slc_lft] = self._u_nk[slc_rt] * phase
-            self._psi_nk[slc_lft] = self._psi_nk[slc_rt]
+            self._u_nk[slc_last] = self._u_nk[slc_first] * phase
+            self._psi_nk[slc_last] = self._psi_nk[slc_first]
 
 
     @deprecated("Using `solve` is sufficient to set the wavefunction at the end equal to the beginning with equal phase.")    
@@ -1258,14 +1284,14 @@ class WFArray:
         if mesh_dir in self.mesh.k_axes and self.mesh.is_k_torus:
             raise ValueError("Cannot impose loop condition on periodic k-space axis.")
 
-        slc_lft, slc_rt = self._edge_slices(mesh_dir)
-        self._wfs[slc_lft] = self._wfs[slc_rt]
+        slc_first, slc_last = self._edge_slices(mesh_dir)
+        self._wfs[slc_last] = self._wfs[slc_first]
 
         if self.dim_k > 0:
             if self.u_nk is not None:
-                self._u_nk[slc_lft] = self._u_nk[slc_rt]
+                self._u_nk[slc_last] = self._u_nk[slc_first]
             if self.psi_nk is not None:
-                self._psi_nk[slc_lft] = self._psi_nk[slc_rt]
+                self._psi_nk[slc_last] = self._psi_nk[slc_first]
 
     def _unit_shift(self, axis: int):
         """Return an integer shift vector with +1 along *axis* over sampling axes."""
@@ -2243,7 +2269,9 @@ class WFArray:
             self, 
             plane = None, 
             state_idx = None, 
-            non_abelian: bool = False
+            non_abelian: bool = False,
+            *,
+            use_tensorflow: bool = False
             ):
         r"""Berry flux tensor.
 
@@ -2432,7 +2460,7 @@ class WFArray:
             plane_idxs = 2
 
             shape = (*flux_shape, n_states, n_states) if non_abelian else (*flux_shape,)
-            berry_flux = np.zeros(shape, dtype=float)
+            berry_flux = np.zeros(shape, dtype=complex)
 
         # Trim the last point along closed/non-periodic axes to avoid overcounting
         for ax in dirs:
@@ -2470,12 +2498,33 @@ class WFArray:
                 U_mu_shift_nu = np.roll(U_mu, -1, axis=axis_nu)
 
                 # Wilson loops: W = U_{mu}(k_0) U_{nu}(k_0+delta_mu) U^{-1}_{mu}(k_0+delta_mu+delta_nu) U^{-1}_{nu}(k_0)
-                U_wilson = (
-                    U_mu
-                    @ U_nu_shift_mu
-                    @ U_mu_shift_nu.conj().swapaxes(-1, -2)
-                    @ U_nu.conj().swapaxes(-1, -2)
-                )
+                if use_tensorflow:
+                    import tensorflow as tf
+                    U_mu_tf = tf.convert_to_tensor(U_mu)
+                    U_nu_shift_mu_tf = tf.convert_to_tensor(U_nu_shift_mu)
+                    U_mu_shift_nu_tf = tf.convert_to_tensor(U_mu_shift_nu)
+                    U_nu_tf = tf.convert_to_tensor(U_nu)
+
+                    U_wilson_tf = (
+                        tf.linalg.matmul(
+                            tf.linalg.matmul(
+                                tf.linalg.matmul(
+                                    U_mu_tf,
+                                    U_nu_shift_mu_tf
+                                ),
+                                tf.linalg.adjoint(U_mu_shift_nu_tf)
+                            ),
+                            tf.linalg.adjoint(U_nu_tf)
+                        )
+                    )
+                    U_wilson = U_wilson_tf.numpy()
+                else:
+                    U_wilson = (
+                        U_mu
+                        @ U_nu_shift_mu
+                        @ U_mu_shift_nu.conj().swapaxes(-1, -2)
+                        @ U_nu.conj().swapaxes(-1, -2)
+                    )
 
                 # Trim the last point along closed/non-periodic axes to avoid overcounting
                 for ax in dirs:
@@ -2496,7 +2545,15 @@ class WFArray:
                     # Non-Abelian lattice field strength: F = -i Log(U_wilson)
                     # Matrix log using eigen-decompositon
                     # Eigen-decompose U_wilson = V diag(-phi_j) V^{-1}, phi_j in (-pi, pi]
-                    eigvals, eigvecs = np.linalg.eig(U_wilson)
+
+                    if use_tensorflow:
+                        import tensorflow as tf
+                        eigvals, eigvecs = tf.linalg.eig(tf.convert_to_tensor(U_wilson))
+                        eigvals = eigvals.numpy()
+                        eigvecs = eigvecs.numpy()
+                    else:
+                        eigvals, eigvecs = np.linalg.eig(U_wilson)
+
                     phi = -np.angle(eigvals)
                     F_diag = np.einsum(
                         "...i, ij -> ...ij", phi, np.eye(phi.shape[-1])
@@ -2512,7 +2569,7 @@ class WFArray:
                     berry_flux[mu, nu] = phases_plane
                     berry_flux[nu, mu] = -phases_plane
                 else:
-                    berry_flux = phases_plane.real
+                    berry_flux = phases_plane
 
         return berry_flux
     
