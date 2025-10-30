@@ -995,10 +995,10 @@ class WFArray:
                             # NOTE: multiply phases for multiple components winding BZ
                             phase_total = phase if phase_total is None else phase_total * phase
 
-                        logger.debug(f"Imposing PBC in mesh direction {ax} for k-components {comps}")
-                        self._apply_pbc_phase(idx, phase_total, slc_first, slc_last)
+                        logger.debug(f"Imposing PBC in mesh direction {idx} ({ax}) for k-components {comps}")
+                        self._apply_pbc_phase(phase_total, slc_first, slc_last)
                 else:
-                    logger.debug(f"Imposing loop in mesh direction {ax}")
+                    logger.debug(f"Imposing loop in mesh direction {idx} ({ax}) without BZ winding.")
                     self._impose_loop(idx)
 
 
@@ -1083,13 +1083,14 @@ class WFArray:
         slc_last[ax + 1] = Ellipsis # e.g., [:, :, -1, ...]
         slc_first[ax + 1] = Ellipsis # e.g., [:, :, 0, ...]
         return tuple(slc_first), tuple(slc_last)
-    
-    def _apply_pbc_phase(self, phase, slc_lft, slc_rt):
-        self._wfs[slc_lft] = self._wfs[slc_rt] * phase
+
+    def _apply_pbc_phase(self, phase, slc_first, slc_last):
+        logger.debug(f"Setting wavefunctions at {slc_last} equal to those at {slc_first} times phase factor.")
+        self._wfs[slc_last] = self._wfs[slc_first] * phase
         if self.u_nk is not None:
-            self._u_nk[slc_lft] = self._u_nk[slc_rt] * phase
+            self._u_nk[slc_last] = self._u_nk[slc_first] * phase
         if self.psi_nk is not None:
-            self._psi_nk[slc_lft] = self._psi_nk[slc_rt]
+            self._psi_nk[slc_last] = self._psi_nk[slc_first]
 
     def _get_pbc_phases(self, mesh_dir, k_dir):
         r"""Compute phase factors for periodic boundary conditions in forward direction.
@@ -1210,6 +1211,7 @@ class WFArray:
 
         # Set the last point along mesh_dir axis equal to first
         # multiplied by the phase factor
+        logger.debug(f"Setting wavefunctions at {slc_last} equal to those at {slc_first} times phase factor.")
         self._wfs[slc_last] = self._wfs[slc_first] * phase
 
         if self.u_nk is not None:
@@ -1285,6 +1287,7 @@ class WFArray:
             raise ValueError("Cannot impose loop condition on periodic k-space axis.")
 
         slc_first, slc_last = self._edge_slices(mesh_dir)
+        logger.debug(f"Setting wavefunctions at {slc_last} equal to those at {slc_first}.")
         self._wfs[slc_last] = self._wfs[slc_first]
 
         if self.dim_k > 0:
@@ -2182,7 +2185,8 @@ class WFArray:
                 # If component is along k and wraps bz, apply phase
                 if self.mesh.is_axis_bz_winding(ax, comp):
                     logger.debug("Applying phase to state at beginning to end of open periodic axis.")
-                    phase, _, _ = self._get_pbc_phases(ax, comp)
+                    real_comp = self.lattice.periodic_dirs[comp]
+                    phase, _, _ = self._get_pbc_phases(ax, real_comp)
                     u_first = np.take(u_expanded, 0, axis=axis_idx)
                     u_last = u_first * phase
                 # No phase is applied
