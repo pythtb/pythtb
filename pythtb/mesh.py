@@ -255,11 +255,13 @@ class Mesh:
         dim_lambda: int | None = None,
         axis_names: list[str] = None
     ):
-
-        
         self._dim_k = dim_k
 
         # Naming axes
+        for kind in axis_types:
+            if kind not in ['k', 'l']:
+                raise ValueError("Axis types must be either 'k' or 'l'.")
+            
         nk_ax = sum(1 for at in axis_types if at == 'k')
         nl_ax = sum(1 for at in axis_types if at == 'l')
         if axis_names is None:
