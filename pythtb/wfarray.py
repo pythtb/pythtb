@@ -189,6 +189,7 @@ class WFArray:
                 raise ValueError("Incompatible shape for wavefunction!")
 
         self._wfs[index] = value
+        self._sync_boundary_from_index(index)
         self._invalidate_caches()
 
     def _check_index(self, index):
@@ -221,6 +222,55 @@ class WFArray:
         for attr in ("_P", "_Q", "_P_nbr", "_Q_nbr", "_Mmn"):
             if hasattr(self, attr):
                 delattr(self, attr)
+
+    def _sync_boundary_from_index(self, index):
+        """Update linked boundary points after assigning into the array."""
+        if self.naxes == 0:
+            return
+
+        if isinstance(index, np.ndarray):
+            index = index.tolist()
+        if self.naxes == 1 and not isinstance(index, (tuple, list)):
+            coords = (int(index),)
+        else:
+            coords = tuple(int(k) for k in index)
+
+        mesh_coords = []
+        for ax_idx, k in enumerate(coords):
+            size = self.shape_mesh[ax_idx]
+            mesh_coords.append(k % size)
+
+        for ax_idx, coord in enumerate(mesh_coords):
+            axis = self.mesh.axes[ax_idx]
+            if not (axis.has_endpoint and axis.is_loop):
+                continue
+
+            axis_len = self.shape_mesh[ax_idx]
+            if coord not in (0, axis_len - 1):
+                continue
+
+            if axis.winds_bz:
+                phase, slc_first, slc_last, comps = self._collect_pbc_phase_info(ax_idx)
+                if phase is None:
+                    continue
+                from_first = coord == 0
+                logger.debug(
+                    "Syncing PBC on mesh axis %d (%s) for k-components %s (%s edge).",
+                    ax_idx,
+                    axis,
+                    comps,
+                    "first" if from_first else "last",
+                )
+                self._apply_pbc_phase(phase, slc_first, slc_last, from_first=from_first)
+            else:
+                slc_first, slc_last = self._edge_slices(ax_idx)
+                if coord == 0:
+                    logger.debug("Syncing loop boundary (first → last) on mesh axis %d (%s).", ax_idx, axis)
+                    self._copy_edge(slc_first, slc_last)
+                else:
+                    logger.debug("Syncing loop boundary (last → first) on mesh axis %d (%s).", ax_idx, axis)
+                    self._copy_edge(slc_last, slc_first)
+
     @property
     def model(self):
         """The :class:`TBModel` associated with the :class:`WFArray`."""
@@ -498,9 +548,9 @@ class WFArray:
                 logger.warning("Setting non-cell-periodic wavefunctions for 0D k-space.")
             self._wfs = wfs
 
+        self._enforce_pbc()
         self._invalidate_caches()
     
-
     def remove_states(self, state_idxs):
         r"""Remove states from the *WFArray* object.
 
@@ -969,38 +1019,8 @@ class WFArray:
         else:
             self.gaps = None
             
-        # Enforce PBCs along winding k-axes
-        axes = self.mesh.axes
-        for idx, ax in enumerate(axes):
-            if ax.has_endpoint and ax.is_loop:
-                if ax.winds_bz:
-                    # These contain endpoints (k_i = 1 in reduced units)
-                    comps = sorted(set(ax.endpoint_components) & set(ax.winds_bz_components))
-
-                    if comps:
-                        per_dirs = np.asarray(self.lattice.periodic_dirs, dtype=int)
-                        phase_total = None
-                        slc_first = slc_last = None
-                        for comp in comps:
-                            # NOTE:
-                            # `comp` is Mesh's k-component index (0, ..., dim_k-1). 
-                            #  _apply_pbc_phase expects the real-space index so it grabs correct orbital 
-                            # column to dot into k-vector. This is the `periodic_dirs` entry.
-                            # Discrepancy only arises when some lattice directions are non-periodic.
-                            # If periodic axes are [0, 2] and `comp` is 1, then we need to grab
-                            # periodic_dirs[1] = 2 to get correct real-space index.
-                            real_dir = per_dirs[comp]
-                            phase, slc_first, slc_last = self._get_pbc_phases(idx, real_dir)
-
-                            # NOTE: multiply phases for multiple components winding BZ
-                            phase_total = phase if phase_total is None else phase_total * phase
-
-                        logger.debug(f"Imposing PBC in mesh direction {idx} ({ax}) for k-components {comps}")
-                        self._apply_pbc_phase(phase_total, slc_first, slc_last)
-                else:
-                    logger.debug(f"Imposing loop in mesh direction {idx} ({ax}) without BZ winding.")
-                    self._impose_loop(idx)
-
+        # Enforce PBCs along winding directions
+        self._enforce_pbc()
 
     @deprecated("Use `solve` instead.")
     def solve_on_grid(self, start_k=None):
@@ -1068,6 +1088,60 @@ class WFArray:
 
         return phases
     
+    def _enforce_pbc(self):
+        r"""Enforce periodic boundary conditions on all winding loop axes in the mesh.
+
+        This routine iterates over all axes in the mesh that are loops and wind
+        around the Brillouin zone, imposing periodic boundary conditions by
+        setting the wavefunction at the end of the mesh equal to that at the
+        beginning multiplied by the appropriate phase factor.
+        """
+        if not self.filled:
+            return
+        
+        for idx, ax in enumerate(self.mesh.axes):
+            if not (ax.has_endpoint and ax.is_loop):
+                continue
+
+            if ax.winds_bz:
+                # These contain endpoints (k_i = 1 in reduced units)
+                comps = sorted(set(ax.endpoint_components) & set(ax.winds_bz_components))
+
+                phase_total, slc_first, slc_last, comps = self._collect_pbc_phase_info(idx)
+                if phase_total is None:
+                    continue
+
+                logger.debug(f"Imposing PBC in mesh direction {idx} ({ax}) for k-components {comps}")
+                self._apply_pbc_phase(phase_total, slc_first, slc_last)
+            else:
+                logger.debug(f"Imposing loop in mesh direction {idx} ({ax}) without BZ winding.")
+                self._impose_loop(idx)
+
+    def _collect_pbc_phase_info(self, mesh_axis_idx):
+        """Gather combined phase and edge slices for a mesh axis that winds the BZ."""
+        axis = self.mesh.axes[mesh_axis_idx]
+        comps = sorted(set(axis.endpoint_components) & set(axis.winds_bz_components))
+        if not comps:
+            return None, None, None, tuple()
+
+        per_dirs = np.asarray(self.lattice.periodic_dirs, dtype=int)
+        phase_total = None
+        slc_first = slc_last = None
+        for comp in comps:
+            # NOTE:
+            # `comp` is Mesh's k-component index (0, ..., dim_k-1). 
+            #  _apply_pbc_phase expects the real-space index so it grabs correct orbital 
+            # column to dot into k-vector. This is the `periodic_dirs` entry.
+            # Discrepancy only arises when some lattice directions are non-periodic.
+            # If periodic axes are [0, 2] and `comp` is 1, then we need to grab
+            # periodic_dirs[1] = 2 to get correct real-space index.
+            real_dir = per_dirs[comp]
+            phase, slc_first, slc_last = self._get_pbc_phases(mesh_axis_idx, real_dir)
+            # NOTE: multiply phases for multiple components winding BZ
+            phase_total = phase if phase_total is None else phase_total * phase
+
+        return phase_total, slc_first, slc_last, tuple(comps)
+    
     @staticmethod
     def _edge_slices(ax):
         """Helper function to get slices for the first and last edges of an axis."""
@@ -1084,13 +1158,40 @@ class WFArray:
         slc_first[ax + 1] = Ellipsis # e.g., [:, :, 0, ...]
         return tuple(slc_first), tuple(slc_last)
 
-    def _apply_pbc_phase(self, phase, slc_first, slc_last):
-        logger.debug(f"Setting wavefunctions at {slc_last} equal to those at {slc_first} times phase factor.")
-        self._wfs[slc_last] = self._wfs[slc_first] * phase
-        if self.u_nk is not None:
-            self._u_nk[slc_last] = self._u_nk[slc_first] * phase
-        if self.psi_nk is not None:
-            self._psi_nk[slc_last] = self._psi_nk[slc_first]
+    def _apply_pbc_phase(self, phase, slc_first, slc_last, from_first: bool = True):
+        """
+        Apply the PBC phase between the first and last slice. When ``from_first`` is True the
+        last slice is overwritten using the first; otherwise the first slice is generated from the last.
+        """
+        phase_conj = np.conjugate(phase)
+        u_attr = getattr(self, "_u_nk", None)
+        psi_attr = getattr(self, "_psi_nk", None)
+
+        if from_first:
+            logger.debug(f"Setting wavefunctions at {slc_last} equal to those at {slc_first} times phase factor.")
+            self._wfs[slc_last] = self._wfs[slc_first] * phase
+            if u_attr is not None:
+                self._u_nk[slc_last] = self._u_nk[slc_first] * phase
+            if psi_attr is not None:
+                self._psi_nk[slc_last] = self._psi_nk[slc_first]
+
+        else:
+            logger.debug(f"Setting wavefunctions at {slc_first} equal to those at {slc_last} times phase factor.")
+            self._wfs[slc_first] = self._wfs[slc_last] * phase_conj
+            if u_attr is not None:
+                self._u_nk[slc_first] = self._u_nk[slc_last] * phase_conj
+            if psi_attr is not None:
+                self._psi_nk[slc_first] = self._psi_nk[slc_last]
+    
+    def _copy_edge(self, slc_src, slc_dst):
+        """Copy wavefunction data between boundary slices (used for pure loops)."""
+        self._wfs[slc_dst] = self._wfs[slc_src]
+        u_attr = getattr(self, "_u_nk", None)
+        if u_attr is not None:
+            u_attr[slc_dst] = u_attr[slc_src]
+        psi_attr = getattr(self, "_psi_nk", None)
+        if psi_attr is not None:
+            psi_attr[slc_dst] = psi_attr[slc_src]
 
     def _get_pbc_phases(self, mesh_dir, k_dir):
         r"""Compute phase factors for periodic boundary conditions in forward direction.
@@ -2542,7 +2643,6 @@ class WFArray:
                             f"Axis {ax} is closed or non-periodic. "
                             "Trimming the last point in the Wilson loop to avoid overcounting."
                             )
-                        # slice_per_axis[ax] = slice(None, -1)
                         U_wilson = np.delete(U_wilson, -1, axis=ax)
 
                 if non_abelian:
@@ -3067,10 +3167,9 @@ class WFArray:
                     "Basis must be either 'wavefunction', 'bloch', or 'orbital'"
                 )    
 
-    # TODO allow for subbands
     def _trace_metric(self):
-        P = self.tilde_states.projectors()
-        _, Q_nbr = self.tilde_states._nbr_projectors(return_Q=True)
+        P = self.projectors()
+        _, Q_nbr = self._nbr_projectors(return_Q=True)
 
         nks = Q_nbr.shape[:-3]
         num_nnbrs = Q_nbr.shape[-3]
@@ -3084,7 +3183,6 @@ class WFArray:
 
         return w_b[0] * np.sum(T_kb, axis=-1)
 
-    # TODO allow for subbands
     def _omega_til(self):
         Mmn = self._Mmn
         w_b, k_shell, idx_shell = self.get_shell_weights(n_shell=1)
@@ -3111,63 +3209,6 @@ class WFArray:
             )
         )
         return Omega_tilde
-
-    # def _interp_op(self, O_k, k_path, plaq=False):
-    #     k_mesh = np.copy(self.mesh.grid)
-    #     k_idx_arr = self.mesh.idx_arr
-    #     nks = self.mesh.shape_k
-    #     dim_k = len(nks)
-    #     Nk = np.prod([nks])
-
-    #     supercell = list(
-    #         product(
-    #             *[range(-int((nk - nk % 2) / 2), int((nk - nk % 2) / 2)) for nk in nks]
-    #         )
-    #     )
-
-    #     if plaq:
-    #         # shift by half a mesh point to get the center of the plaquette
-    #         k_mesh += np.array([(1 / nk) / 2 for nk in nks])
-
-    #     # Fourier transform to real space
-    #     O_R = np.zeros((len(supercell), *O_k.shape[dim_k:]), dtype=complex)
-    #     for idx, pos in enumerate(supercell):
-    #         for k_idx in k_idx_arr:
-    #             R_vec = np.array(pos)
-    #             phase = np.exp(-1j * 2 * np.pi * np.vdot(k_mesh[k_idx], R_vec))
-    #             O_R[idx] += O_k[k_idx] * phase / Nk
-
-    #     # interpolate to arbitrary k
-    #     O_k_interp = np.zeros((k_path.shape[0], *O_k.shape[dim_k:]), dtype=complex)
-    #     for k_idx, k in enumerate(k_path):
-    #         for idx, pos in enumerate(supercell):
-    #             R_vec = np.array(pos)
-    #             phase = np.exp(1j * 2 * np.pi * np.vdot(k, R_vec))
-    #             O_k_interp[k_idx] += O_R[idx] * phase
-
-    #     return O_k_interp
-
-    def _interp_energy(self, k_path, return_eigvecs=False):
-        H_k_proj = self.get_proj_ham()
-        H_k_interp = self.interp_op(H_k_proj, k_path)
-        if return_eigvecs:
-            u_k_interp = self.interp_op(self._u_nk, k_path)
-            eigvals_interp, eigvecs_interp = np.linalg.eigh(H_k_interp)
-            eigvecs_interp = np.einsum(
-                "...ij, ...ik -> ...jk", u_k_interp, eigvecs_interp
-            )
-            eigvecs_interp = np.transpose(eigvecs_interp, axes=[0, 2, 1])
-            return eigvals_interp, eigvecs_interp
-        else:
-            eigvals_interp = np.linalg.eigvalsh(H_k_interp)
-            return eigvals_interp
-
-    # TODO allow for subbands
-    def _get_proj_ham(self):
-        if not hasattr(self, "H_k_proj"):
-            self.set_Bloch_ham()
-        H_k_proj = self.u_nk.conj() @ self.H_k @ np.swapaxes(self.u_nk, -1, -2)
-        return H_k_proj
 
 
 def _no_2pi(phi, ref):
