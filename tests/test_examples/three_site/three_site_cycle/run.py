@@ -1,5 +1,6 @@
 import numpy as np
 from pythtb import TBModel, WFArray, Lattice, Mesh
+import pytest
 
 def three_site_chain(t, delta):
     lat = [[1.0]]

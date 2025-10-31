@@ -1,5 +1,5 @@
 import numpy as np
-from pythtb import WFArray
+from pythtb import WFArray, Mesh
 from pythtb.models import kane_mele
 
 def get_kane_mele(topological):
@@ -28,8 +28,10 @@ def run():
     for top_index in ["even", "odd"]:
 
         my_model = get_kane_mele(top_index)
-        my_array = WFArray(my_model, [41, 41])
-        my_array.solve_on_grid([-0.5, -0.5])
+        mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+        mesh.build_grid(shape=(41, 41),gamma_centered=True, k_endpoints=True)
+        my_array = WFArray(my_model.lattice, mesh, spinful=True)
+        my_array.solve_model(my_model)
         
         # [Gamma, K, M, K', Gamma] path in the BZ
         path = [
@@ -45,7 +47,7 @@ def run():
         evals = evals.T # transpose for v2
         evals_list.append(evals)
 
-        wan_cent = my_array.berry_phase([0, 1], dir=1, contin=False, berry_evals=True) 
+        wan_cent = my_array.berry_phase(state_idx=[0, 1], axis_idx=1, contin=False, berry_evals=True) 
         # NOTE: the wan_cent must be sorted to match v1 output. This is not an intedended 
         # feature, because the bands of phases switches discontinuously, instead of simply
         # shifting by 2pi.

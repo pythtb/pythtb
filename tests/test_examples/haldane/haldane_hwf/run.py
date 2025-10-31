@@ -1,12 +1,13 @@
 import numpy as np
-from pythtb import TBModel, WFArray
+from pythtb import TBModel, WFArray, Lattice, Mesh
 
 def haldane_model():
     
     lat = [[1.0, 0.0], [0.5, np.sqrt(3.0) / 2.0]]
     orb = [[1.0 / 3.0, 1.0 / 3.0], [2.0 / 3.0, 2.0 / 3.0]]
+    lattice = Lattice(lat, orb, periodic_dirs=[0, 1])
 
-    my_model = TBModel(2, 2, lat, orb)
+    my_model = TBModel(lattice)
 
     delta = -0.2
     t = -1.0
@@ -33,11 +34,13 @@ def run():
     len_0 = 100
     len_1 = 10
 
-    my_array = WFArray(my_model, [len_0, len_1])
-    my_array.solve_on_grid([0.0, 0.0])
-    phi_1 = my_array.berry_phase(occ=[0], dir=1, contin=True)
+    mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+    mesh.build_grid(shape=(len_0, len_1), k_endpoints=True)
+    my_array = WFArray(my_model.lattice, mesh)
+    my_array.solve_model(my_model)
+    phi_1 = my_array.berry_phase(state_idx=[0], axis_idx=1, contin=True)
 
-    ribbon_model = my_model.cut_piece(len_1, fin_dir=1, glue_edgs=False)
+    ribbon_model = my_model.cut_piece(len_1, periodic_dir=1, glue_edges=False)
     (k_vec, k_dist, k_node) = ribbon_model.k_path([0.0, 0.5, 1.0], len_0, report=False)
     rib_eval, rib_evec = ribbon_model.solve_ham(k_vec, return_eigvecs=True)
     rib_eval -= efermi
@@ -51,12 +54,12 @@ def run():
 
     pos_exps = []
     for i in range(rib_evec.shape[0]):
-        pos_exps.append(ribbon_model.position_expectation(rib_evec[i, :], dir=1))
+        pos_exps.append(ribbon_model.position_expectation(rib_evec[i, :], pos_dir=1))
 
     hwfcs = []
     for i in range(rib_evec.shape[0]):
         occ_evec = rib_evec[i, rib_eval[i, :] < 0.0]
-        hwfcs.append(ribbon_model.position_hwf(occ_evec, 1))
+        hwfcs.append(ribbon_model.position_hwf(occ_evec, pos_dir=1))
 
     hwfcs = np.array(hwfcs, dtype=object)
     rib_eval = rib_eval.T # transpose in v2

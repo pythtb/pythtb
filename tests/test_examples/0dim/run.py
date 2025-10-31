@@ -1,5 +1,5 @@
 import numpy as np
-from pythtb import TBModel 
+from pythtb import TBModel, Lattice
 
 def run():
     lat = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
@@ -10,7 +10,8 @@ def run():
         [(-1.0 / 3.0) * sq32, -1.0 / 2.0, 0.0],
         [0.0, 0.0, 1.0],
     ]
-    my_model = TBModel(0, 3, lat, orb)
+    lattice = Lattice(lat, orb)
+    my_model = TBModel(lattice)
 
     delta = 0.5
     t_first = 1.0

@@ -1,11 +1,12 @@
 import numpy as np
-from pythtb import TBModel
+from pythtb import TBModel, Lattice
 
 def haldane_model():
     lat = [[1.0, 0.0], [0.5, np.sqrt(3.0) / 2.0]]
     orb = [[1.0 / 3.0, 1.0 / 3.0], [2.0 / 3.0, 2.0 / 3.0]]
+    lattice = Lattice(lat, orb, periodic_dirs=[0, 1])
 
-    my_model = TBModel(2, 2, lat, orb)
+    my_model = TBModel(lattice=lattice)
 
     delta = 0.2
     t = -1.0
