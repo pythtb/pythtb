@@ -56,7 +56,7 @@ class Lattice():
     - The lattice vectors must form a right-handed system with non-zero volume.
     - Orbital positions are given in reduced coordinates, i.e., fractions of the lattice vectors.
     - Works for 0D, 1D, 2D, and 3D lattices. For 0D, use empty arrays for ``lat_vecs`` and an
-        integer for ``orb_vecs``.
+      integer for ``orb_vecs``.
     
     """
 
@@ -1373,7 +1373,11 @@ class Lattice():
         return k_vec, k_dist, k_node  
     
     @staticmethod
-    def k_uniform_mesh(mesh_size):
+    def k_uniform_mesh(
+        mesh_size, 
+        gamma_centered: bool=False, 
+        include_endpoints: bool=True
+        ):
         r"""
         Generate a uniform grid of k-points in reduced (fractional) coordinates.
 
@@ -1388,6 +1392,20 @@ class Lattice():
             Its length must equal the number of periodic dimensions of the model.
             For example, ``mesh_size = [n1, n2, n3]`` produces a 3D mesh with
             ``n1 x n2 x n3`` points.
+
+        gamma_centered : bool, optional
+            If ``True``, the mesh is centered around the Gamma point,
+            spanning the interval :math:`[-0.5, 0.5)` along each periodic direction.
+            Default is ``False``.
+
+            .. versionadded:: 2.0.0
+        
+        include_endpoints : bool, optional
+            If ``True``, the mesh includes the endpoint at 1.0 (or 0.5 if
+            ``gamma_centered=True``) along each periodic direction. 
+            Default is ``True``.
+
+            .. versionadded:: 2.0.0
 
         Returns
         -------
@@ -1405,7 +1423,7 @@ class Lattice():
 
         Examples
         --------
-        Construct a 10×20×30 mesh for a model with three periodic directions:
+        Construct a 10x20x30 mesh for a model with three periodic directions:
 
         >>> k_points = my_model.k_uniform_mesh([10, 20, 30])
         >>> k_points.shape
@@ -1420,7 +1438,12 @@ class Lattice():
         if np.min(use_mesh) <= 0:
             raise ValueError("Mesh must have positive non-zero number of elements.")
 
-        axes = [np.linspace(0, 1, n, endpoint=False) for n in use_mesh]
+        if gamma_centered:
+            start, stop = -0.5, 0.5
+        else:
+            start, stop = 0.0, 1.0
+
+        axes = [np.linspace(start, stop, n, endpoint=include_endpoints) for n in use_mesh]
         mesh = np.meshgrid(*axes, indexing="ij")
         k_points = np.stack(mesh, axis=-1).reshape(-1, len(use_mesh))
 
