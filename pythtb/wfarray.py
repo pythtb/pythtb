@@ -91,20 +91,17 @@ class WFArray:
     
     Notes
     -----
-    .. important::
-        - Some features are only defined for regular grids and/or in the energy eigenstate gauge. 
-        - If populating
-          manually, the user is responsible for ensuring that the proper periodic boundary conditions
-          are met, and that the states correspond to the points on the ``mesh``. Otherwise, the results 
-          may be inconsistent.
+    - Some features are only defined for regular grids and/or in the energy eigenstate gauge. 
+      See the documentation of individual methods for details.
+
     .. tip::
       :class:`WFArray` cooperates with :class:`Wannier` to construct smooth Wannier gauges:
-      pass the diagonalized array to ``Wannier(tb, wfarray)`` and use 
+      pass the diagonalized array to ``Wannier(wfarray)`` and use 
       :meth:`Wannier.single_shot_projection`.
 
     - Wavefunctions are always stored with mesh axes leading, followed by bands, orbital,
       and (if present) spin indices. Utility methods accept the same ordering.
-    - :meth:`solve` automatically diagonalises the model on the mesh, applies
+    - :meth:`solve_model` automatically diagonalizes the model on the mesh, applies
       periodic gauge fixes on closed k-loops, and seeds cached overlap matrices.
       When no k-axes are present the same container can still hold parameter-only
       eigenstates (useful for adiabatic/finite systems).
@@ -115,15 +112,15 @@ class WFArray:
 
     >>> mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
     >>> mesh.build_grid(shape=(20, 20), gamma_centered=True)
-    >>> wfa = WFArray(tb_model, mesh)
-    >>> wfa.solve()
+    >>> wfa = WFArray(lattice, mesh, spinful=True)
+    >>> wfa.solve_model(tb_model)
     >>> curv = wfa.berry_curvature(non_abelian=False)
 
     Store a 1D parameter sweep (no k-axes)::
 
     >>> mesh = Mesh(dim_k=0, dim_lambda=1, axis_types=['l'])
     >>> mesh.build_grid(shape=(101,), lambda_start=0.0, lambda_stop=2*np.pi)
-    >>> wfa = WFArray(tb_model, mesh, nstates=tb_model.nstate)
+    >>> wfa = WFArray(lattice, mesh)
     >>> wfa.set_states(eigenvectors_lambda, is_cell_periodic=False)
 
     Access/replace a single mesh point::
@@ -294,38 +291,55 @@ class WFArray:
 
     @property
     def wfs(self) -> np.ndarray:
-        """The (cell-periodic) wavefunctions."""
+        """The stored wavefunctions.
+        
+        Returns
+        -------
+        np.ndarray
+            The stored wavefunctions. Shape is ``(shape_mesh..., nstates, norb[, nspin])``. 
+            In the case of spinful models, the last axis corresponds to spin. When k-axes
+            are present, the wavefunctions are cell-periodic (Bloch states without the 
+            plane-wave phase factors).
+        """
         return self._wfs
 
     @property
     def u_nk(self) -> np.ndarray:
-        """The cell-periodic wavefunctions."""
+        r"""The cell-periodic wavefunctions.
+        
+        Returns
+        -------
+        np.ndarray
+            The cell-periodic wavefunctions. Shape is ``(shape_mesh..., nstates, norb[, nspin])``.
+            These are the :math:`|u_{n\mathbf{k}}\rangle` states without the plane-wave phase factors.
+
+        Notes
+        -----
+        - The cell-periodic wavefunctions are only defined when k-axes are present in the mesh.
+        """
         if not self.filled:
             raise ValueError("Wavefunctions are not initialized.")
         if self.dim_k == 0:
             raise ValueError("Cell-periodic wavefunctions are not defined for 0D k-space.")
 
         return getattr(self, "_u_nk", None)
-    
-    @property
-    def cell_periodic(self) -> np.ndarray:
-        """The cell-periodic wavefunctions."""
-        return self.u_nk
 
     @property
     def psi_nk(self) -> np.ndarray:
-        """The Bloch wavefunctions."""
+        r"""The Bloch wavefunctions.
+
+        Returns
+        -------
+        np.ndarray
+            The Bloch wavefunctions. Shape is ``(shape_mesh..., nstates, norb[, nspin])``.
+            These are the :math:`|\psi_{n\mathbf{k}}\rangle` states including the plane-wave phase factors.
+        """
         if not self.filled:
             raise ValueError("Wavefunctions are not initialized.")
         if self.dim_k == 0:
             raise ValueError("Bloch wavefunctions are not defined for 0D k-space.")
         
         return getattr(self, "_psi_nk", None)
-    
-    @property 
-    def bloch_states(self) -> np.ndarray:
-        """The Bloch wavefunctions."""
-        return self.psi_nk
     
     @property
     def Mmn(self) -> np.ndarray:
@@ -347,7 +361,6 @@ class WFArray:
         Notes
         -----
         - The overlap matrix is only defined for regular grids.
-        - The overlap matrix is not defined for 0D k-space.
         - To compute the overlap matrix using reduced neighbors, use :meth:`overlap_matrix`.
         """
         if not self.filled:
@@ -507,28 +520,20 @@ class WFArray:
         
         # Check the shape of wfs
         if is_spin_axis_flat and self.nspin == 2:
-            if wfs.shape != self.shape_mesh + (self.nstates, self.norb * self.nspin):
-                raise ValueError(
-                    f"wfs shape {wfs.shape} does not match expected shape for flattened spin: "
-                    f"{self.shape_mesh + (self.nstates, self.norb * self.nspin)}"
-                )
-            self._nstates = wfs.shape[-2]
+            expected_shape = self.shape_mesh + (self.nstates, self.norb * self.nspin)
         if not is_spin_axis_flat and self.nspin == 2:
-            if wfs.shape != self.shape_mesh + (self.nstates, self.norb, self.nspin):
-                raise ValueError(
-                    f"wfs shape {wfs.shape} does not match expected shape for non-flattened spin: "
-                    f"{self.shape_mesh + (self.nstates, self.norb, self.nspin)}"
-                )
-            self._nstates = wfs.shape[-3]
+            expected_shape = self.shape_mesh + (self.nstates, self.norb, self.nspin)
         elif self.nspin == 1:
-            if wfs.shape != self.shape_mesh + (self.nstates, self.norb):
-                raise ValueError(
-                    f"wfs shape {wfs.shape} does not match expected shape for spinless model: "
-                    f"{self.shape_mesh + (self.nstates, self.norb)}"
-                )
-            self._nstates = wfs.shape[-2]
+            expected_shape = self.shape_mesh + (self.nstates, self.norb)
+
+        if wfs.shape != expected_shape:
+            raise ValueError(
+                f"wfs shape {wfs.shape} does not match expected shape for spinless model: "
+                f"{expected_shape}"
+            )
             
         wfs = wfs.reshape(self.shape)
+        self._nstates = wfs.shape[len(self.shape_mesh)]
 
         # Compute phase factors for Bloch <-> cell-periodic transformation
         if self.dim_k > 0:
@@ -1811,20 +1816,7 @@ class WFArray:
         - In practice, after calling :meth:`links`, discard rows where the entries
           are ``np.nan`` (typically the last index along any closed or nonperiodic axis).
         """
-        wfs = self.states(flatten_spin_axis=True)
-
-        # State selection
-        if state_idx is not None:
-            if isinstance(state_idx, (list, np.ndarray)):
-                # If state_idx is a list or array, select those states
-                state_idx = np.array(state_idx, dtype=int)
-            elif isinstance(state_idx, int):
-                # If state_idx is a single integer, convert to array
-                state_idx = np.array([state_idx], dtype=int)
-            else:
-                raise TypeError("state_idx must be an integer, list, or numpy array.")
-
-            wfs = np.take(wfs, state_idx, axis=-2)
+        wfs = self.states(flatten_spin_axis=True, state_idx=state_idx)
 
         if axis_idxs is None:
             # If no specific directions are provided, compute links for all directions
