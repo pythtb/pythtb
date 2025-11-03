@@ -8,6 +8,8 @@
 
 import sys
 import pythtb
+# for autodoc to work on PythTB package
+sys.path.append("../src")
 # import logging
 # import plotly.io as pio
 # pio.renderers.default = 'sphinx_gallery'
@@ -64,8 +66,10 @@ extensions = [
     "sphinx_copybutton",
     "sphinxcontrib.programoutput",
     "sphinx_design",
-    # "sphinx_gallery"
-    # "numpydoc"
+    "numpydoc",
+    "sphinx_togglebutton",
+    "notfound.extension",     
+    # "sphinx_gallery",
 ]
 
 myst_enable_extensions = [
@@ -79,34 +83,14 @@ myst_enable_extensions = [
     "colon_fence",
     "attrs_inline"
 ]
-
 nb_execution_mode = "cache"    # instead of "auto"
 nb_execution_timeout = 600     # seconds per notebook
 nb_execution_cache_path = ".jupyter_cache"  # keep cache OUTSIDE _build so 'clean' doesn't erase it
-
-thebe_config = {
-    "binderhub_url": "https://mybinder.org",
-    "binder_options": {
-        "repo": "pythtb/pythtb",
-        "ref": "dev"
-    },
-    "kernelName": "python3",
-    # Activate on containers with class "thebe"; pair with an output container
-    # CSS selector for code cells
-    "selector": ".thebe",
-    "selector_output": ".output",
-    "codemirror-config": {"theme": "abcdef"},
-}
 
 copybutton_only_copy_prompt_lines = False
 copybutton_remove_prompts = True
 
 add_module_names = False
-
-# intersphinx_mapping = {
-#     'python': ('https://docs.python.org/3', None),
-#     'numpy': ('https://numpy.org/doc/stable/', None)
-# }
 
 # tell Sphinx to treat .md files as sources
 source_suffix = {
@@ -121,9 +105,6 @@ plot_formats=[('png',140),('pdf',140)]
 pygments_style = "sphinx"
 pygments_dark_style = "monokai"  # for dark theme compatibility
 
-# for autodoc to work on PythTB package
-sys.path.append("../src")
-
 html_theme = 'pydata_sphinx_theme' #'sphinx_book_theme' #'classic' pydata_sphinx_theme
 html_title = f"{project} Docs"
 templates_path = ['_templates']
@@ -132,14 +113,19 @@ html_js_files = [
     ("custom-icons.js", {"defer": "defer"})
 ]
 html_js_files += [
-    ("plotly-2.34.0.min.js", {"defer": "defer"}),  # update filename to what you vendored
+    ("plotly-2.34.0.min.js", {"defer": "defer"}), # needed for plotly plots
 ]
-html_extra_path = ['misc']
 html_css_files = ["custom.css"]
 html_copy_source = True
 html_show_sourcelink = False
 html_sourcelink_suffix = ""
 exclude_patterns = ['generated/*.md', 'examples_rst/*', 'examples_py/*']
+
+# Optional: controls context variables available to the 404 template
+notfound_context = {
+    "title": "Page not found",
+    "body": "This page doesn't exist in this version.",
+}
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output

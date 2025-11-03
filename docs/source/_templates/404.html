@@ -1,0 +1,48 @@
+{% extends "!notfound/404.html" %}
+
+{# 
+  RTD URLs look like: https://<project>.readthedocs.io/en/<version>/<path...>
+  This template redirects any 404 to the index of the same <version>.
+  If you prefer to try the nearest parent that exists, see the JS below.
+#}
+
+{% block meta %}
+  {{ super() }}
+  <script>
+    (function () {
+      try {
+        var loc = window.location;
+        var parts = loc.pathname.split("/").filter(Boolean);
+        // Expect path: ["en", "<version>", ...]
+        var lang = parts[0] || "en";
+        var ver  = parts[1] || "latest";
+        var target = "/" + lang + "/" + ver + "/";
+
+        // ---- Simple behavior: always go to version root
+        window.location.replace(target);
+
+        // ---- Optional smarter behavior: walk up to nearest parent that exists.
+        // Uncomment to try parents before falling back to version root.
+        /*
+        var bases = [];
+        for (var i = parts.length; i >= 2; i--) { // keep "en/<version>"
+          bases.push("/" + parts.slice(0, i).join("/") + "/");
+        }
+        bases.push(target); // ensure version root as final fallback
+
+        function tryNext() {
+          if (!bases.length) { window.location.replace(target); return; }
+          var url = bases.shift();
+          fetch(url, { method: "HEAD", mode: "no-cors" })
+            .then(function () { window.location.replace(url); })
+            .catch(tryNext);
+        }
+        tryNext();
+        */
+      } catch(e) {
+        // If anything goes wrong, send to project root
+        window.location.replace("/");
+      }
+    })();
+  </script>
+{% endblock %}
