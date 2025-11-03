@@ -34,7 +34,10 @@ docs = [
   "sphinxcontrib-programoutput",
   "nbconvert",
   "sphinx_design",
-  "sphinx_gallery"
+  "sphinx_gallery",
+  "numpydoc",
+  "sphinx-togglebutton",
+  "sphinx-notfound-page"
 ]
 tests = ["pytest"]
 dev = [
