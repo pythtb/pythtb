@@ -1,6 +1,6 @@
 # 📋 Test Status Report
 
-Last updated on **2025-10-31 at 02:57:29**
+Last updated on **2025-11-03 at 00:27:12**
 
 ---
 
@@ -84,30 +84,47 @@ Last updated on **2025-10-31 at 02:57:29**
       - ✅ `test_origin_orbs[periodic_dirs7-lat_vecs7-2-1]` — *2025-10-31 02:43:52*
       - ✅ `test_origin_orbs[periodic_dirs8-lat_vecs8-4-False]` — *2025-10-31 02:43:52*
       - ✅ `test_origin_orbs[periodic_dirs9-lat_vecs9-2-False]` — *2025-10-31 02:43:52*
-      - ✅ `test_tbmodel_initialization[periodic_dirs0-lat_vecs0-orbital_pos0-False]` — *2025-10-31 02:43:52*
-      - ✅ `test_tbmodel_initialization[periodic_dirs1-lat_vecs1-orbital_pos1-False]` — *2025-10-31 02:43:52*
-      - ✅ `test_tbmodel_initialization[periodic_dirs10-lat_vecs10-orbital_pos10-True]` — *2025-10-31 02:43:52*
-      - ✅ `test_tbmodel_initialization[periodic_dirs11-lat_vecs11-orbital_pos11-True]` — *2025-10-31 02:43:52*
-      - ✅ `test_tbmodel_initialization[periodic_dirs12-lat_vecs12-orbital_pos12-True]` — *2025-10-31 02:43:52*
-      - ✅ `test_tbmodel_initialization[periodic_dirs13-lat_vecs13-orbital_pos13-True]` — *2025-10-31 02:43:52*
-      - ✅ `test_tbmodel_initialization[periodic_dirs2-lat_vecs2-orbital_pos2-False]` — *2025-10-31 02:43:52*
-      - ✅ `test_tbmodel_initialization[periodic_dirs3-lat_vecs3-orbital_pos3-False]` — *2025-10-31 02:43:52*
-      - ✅ `test_tbmodel_initialization[periodic_dirs4-lat_vecs4-orbital_pos4-False]` — *2025-10-31 02:43:52*
-      - ✅ `test_tbmodel_initialization[periodic_dirs5-lat_vecs5-orbital_pos5-False]` — *2025-10-31 02:43:52*
-      - ✅ `test_tbmodel_initialization[periodic_dirs6-lat_vecs6-orbital_pos6-False]` — *2025-10-31 02:43:52*
-      - ✅ `test_tbmodel_initialization[periodic_dirs7-lat_vecs7-orbital_pos7-True]` — *2025-10-31 02:43:52*
-      - ✅ `test_tbmodel_initialization[periodic_dirs8-lat_vecs8-orbital_pos8-True]` — *2025-10-31 02:43:52*
-      - ✅ `test_tbmodel_initialization[periodic_dirs9-lat_vecs9-orbital_pos9-True]` — *2025-10-31 02:43:52*
+      - ✅ `test_ribbon` — *2025-11-01 15:26:49*
+      - ✅ `test_tbmodel_initialization[periodic_dirs0-lat_vecs0-orbital_pos0-False]` — *2025-11-01 15:46:11*
+      - ✅ `test_tbmodel_initialization[periodic_dirs1-lat_vecs1-orbital_pos1-False]` — *2025-11-01 15:46:11*
+      - ✅ `test_tbmodel_initialization[periodic_dirs10-lat_vecs10-orbital_pos10-True]` — *2025-11-01 15:46:11*
+      - ✅ `test_tbmodel_initialization[periodic_dirs11-lat_vecs11-orbital_pos11-True]` — *2025-11-01 15:46:11*
+      - ✅ `test_tbmodel_initialization[periodic_dirs12-lat_vecs12-orbital_pos12-True]` — *2025-11-01 15:46:11*
+      - ✅ `test_tbmodel_initialization[periodic_dirs13-lat_vecs13-orbital_pos13-True]` — *2025-11-01 15:46:11*
+      - ✅ `test_tbmodel_initialization[periodic_dirs2-lat_vecs2-orbital_pos2-False]` — *2025-11-01 15:46:11*
+      - ✅ `test_tbmodel_initialization[periodic_dirs3-lat_vecs3-orbital_pos3-False]` — *2025-11-01 15:46:11*
+      - ✅ `test_tbmodel_initialization[periodic_dirs4-lat_vecs4-orbital_pos4-False]` — *2025-11-01 15:46:11*
+      - ✅ `test_tbmodel_initialization[periodic_dirs5-lat_vecs5-orbital_pos5-False]` — *2025-11-01 15:46:11*
+      - ✅ `test_tbmodel_initialization[periodic_dirs6-lat_vecs6-orbital_pos6-False]` — *2025-11-01 15:46:11*
+      - ✅ `test_tbmodel_initialization[periodic_dirs7-lat_vecs7-orbital_pos7-True]` — *2025-11-01 15:46:11*
+      - ✅ `test_tbmodel_initialization[periodic_dirs8-lat_vecs8-orbital_pos8-True]` — *2025-11-01 15:46:11*
+      - ✅ `test_tbmodel_initialization[periodic_dirs9-lat_vecs9-orbital_pos9-True]` — *2025-11-01 15:46:11*
+    - **test_invariants/**
+      - ✅ `test_berry_curvature_second_chern` — *2025-11-01 21:43:24*
+      - ✅ `test_chern_haldane` — *2025-11-01 21:51:14*
     - **test_non_periodic/**
       - ✅ `test_centers` — *2025-10-31 02:43:52*
+    - **test_parameterize/**
+      - ✅ `test_ribbon` — *2025-11-01 15:39:42*
     - **test_set_onsite/**
       - ✅ `test_set_onsite[False]` — *2025-10-31 02:43:52*
       - ✅ `test_set_onsite[True]` — *2025-10-31 02:43:52*
     - **test_spin/**
       - ✅ `test_spin` — *2025-10-31 02:43:52*
     - **test_tbmodel_core/**
-      - ✅ `test_berry_curvature_second_chern` — *2025-10-31 02:43:52*
-      - ✅ `test_hamiltonian_spinless` — *2025-10-31 02:43:52*
+      - ✅ `test_berry_curvature_second_chern` — *2025-11-01 15:37:55*
+      - ✅ `test_hamiltonian_spinful` — *2025-11-01 22:19:10*
+      - ✅ `test_hamiltonian_spinless` — *2025-11-01 15:35:59*
       - ✅ `test_parameter_normalization` — *2025-10-31 02:43:52*
-      - ✅ `test_velocity_parametric_fkm` — *2025-10-31 02:43:52*
-      - ✅ `test_velocity_parametric_ssh` — *2025-10-31 02:43:52*
+      - ✅ `test_velocity_parametric_fkm` — *2025-11-01 22:23:11*
+      - ✅ `test_velocity_parametric_ssh` — *2025-11-01 22:15:57*
+  - **test_wfarray/**
+    - **test_invariants/**
+      - ❌ `test_chern_haldane` — *2025-11-01 21:55:28*
+    - **test_invariants_wfa/**
+      - ✅ `test_chern_haldane` — *2025-11-01 21:57:58*
+    - **test_links/**
+      - ❌ `test_links_periodic_without_endpoints` — *2025-11-01 22:28:33*
+    - **test_wfa_init/**
+      - ✅ `test_wfa_initialization` — *2025-11-01 22:04:14*
+      - ✅ `test_wfa_initialization_spinful` — *2025-11-01 22:05:34*

@@ -26,6 +26,12 @@ def test_tbmodel_initialization(periodic_dirs, lat_vecs, orbital_pos, spinful):
     lattice = Lattice(lat_vecs=lat_vecs, orb_vecs=orbital_pos, periodic_dirs=periodic_dirs)
     test_model = TBModel(lattice, spinful=spinful)
 
+    assert test_model.lattice == lattice, "Lattice should be set correctly in TBModel"
+    # Check lattice properties match
+    assert test_model.periodic_dirs == periodic_dirs, "Periodic directions should match"
+    assert test_model.lat_vecs.shape == (len(lat_vecs), len(lat_vecs[0])), "Lattice vectors shape should match"
+    assert test_model.orb_vecs.shape == (len(orbital_pos), len(orbital_pos[0])), "Orbital positions shape should match"
+
     # Check if the dimensions are set correctly
     assert test_model.dim_k == len(periodic_dirs), f"dim_k should be {len(periodic_dirs)}"
     assert test_model.dim_r == len(lat_vecs[0]), f"dim_r should be {len(lat_vecs[0])}"
@@ -38,20 +44,17 @@ def test_tbmodel_initialization(periodic_dirs, lat_vecs, orbital_pos, spinful):
     # Check if the number of orbitals is correct
     assert test_model.norb == len(orbital_pos), "norb should match the number of orbital positions"
 
-# @pytest.mark.parametrize("dim_k, dim_r, lat_vecs, nspin", [
-#     (3, 3, [[1, 0, 0], [0, 1, 0], [0, 0, 1]], 1),
-#     (3, 3, [[1, 0, 0], [0, 1, 0], [0, 0, 1]], 2),
-# ])
-# def test_bravais_lattice(dim_k, dim_r, lat_vecs, nspin):
-#     """
-#     Test the TBModel's bravais_lattice method.
-#     """
-#     # don't specify orb, should put at origin
-#     model = TBModel(dim_k, dim_r, lat=lat_vecs, nspin=nspin)
+    assert len(test_model.hoppings) == 0, "Hoppings should be empty upon initialization"
+    if not spinful:
+        np.testing.assert_array_equal(test_model.onsite, np.zeros(test_model.norb), "Onsite energies should be zero")
+    else:
+        np.testing.assert_array_equal(
+            test_model.onsite,
+            np.zeros((test_model.norb, 2, 2), dtype=complex),
+            "Site energies should be zero matrices for spinful model"
+        )
 
-#     assert model.norb == 1, "Bravais lattice should have one orbital"
-#     orb_vec = np.zeros((1, dim_r))
-#     np.testing.assert_array_equal(model.orb_vecs, orb_vec, "Bravais lattice orbital position should be zero vector")
+    assert test_model.parameters == [], "Parameters dictionary should be empty upon initialization"
 
 @pytest.mark.parametrize("periodic_dirs, lat_vecs, orbital_pos, spinful", [
     ([0,1,2], [[0, 1, 1], [1, 0, 1], [1, 1, 0]], 0, False),  # 3D

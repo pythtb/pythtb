@@ -19,7 +19,6 @@ def test_centers():
     # along the second periodic lattice vector.  Therefore
     # this nominally two-dimensional material is just an
     # infinite stack of one-dimensional wires.
-    #
     t_first = 0.8 + 0.6j
     t_second = 2.0
     delta = -0.8
