@@ -1,22 +1,69 @@
-#!/bin/bash
-set -e  # Exit immediately if any command fails
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Start a local server in the background
-python3 -m http.server 8000 --directory build/dirhtml &
+# Usage:
+#   see                 # auto: prefer dirhtml, else html
+#   see --dirhtml       # force dirhtml
+#   see --html          # force html
 
-# Give the server a moment to start
-sleep 1
-
-# Open the docs in the default browser
-if command -v open &> /dev/null; then
-  # macOS
-  open http://localhost:8000
-elif command -v xdg-open &> /dev/null; then
-  # Linux
-  xdg-open http://localhost:8000
-elif command -v start &> /dev/null; then
-  # Windows (Git Bash)
-  start http://localhost:8000
+# ---- choose docs dir ----
+CHOICE="${1:-auto}"
+DOC_DIR=""
+if [[ "$CHOICE" == "--dirhtml" ]]; then
+  DOC_DIR="build/dirhtml"
+elif [[ "$CHOICE" == "--html" ]]; then
+  DOC_DIR="build/html"
 else
-  echo "Please open http://localhost:8000 in your browser."
+  if [[ -d build/dirhtml ]]; then
+    DOC_DIR="build/dirhtml"
+  elif [[ -d build/html ]]; then
+    DOC_DIR="build/html"
+  else
+    echo "Error: no docs found. Run 'make dirhtml' or 'make html' first." >&2
+    exit 1
+  fi
 fi
+
+if [[ ! -d "$DOC_DIR" ]]; then
+  echo "Error: '$DOC_DIR' not found. Build your docs first." >&2
+  exit 1
+fi
+
+# ---- pick port (prefer 8000, else free) ----
+PORT="$(python3 - <<'PY'
+import socket
+preferred = 8000
+with socket.socket() as s:
+    try:
+        s.bind(("127.0.0.1", preferred)); port = preferred
+    except OSError:
+        with socket.socket() as s2:
+            s2.bind(("127.0.0.1", 0)); port = s2.getsockname()[1]
+print(port)
+PY
+)"
+URL="http://127.0.0.1:${PORT}/"
+
+# ---- start server in background & ensure cleanup ----
+python3 -m http.server "${PORT}" --bind 127.0.0.1 --directory "${DOC_DIR}" &
+SERVER_PID=$!
+
+cleanup() { kill "${SERVER_PID}" 2>/dev/null || true; }
+trap cleanup EXIT INT TERM
+
+# small delay for startup
+sleep 0.4
+
+# ---- open browser ----
+if command -v open >/dev/null 2>&1; then
+  open "${URL}"
+elif command -v xdg-open >/dev/null 2>&1; then
+  xdg-open "${URL}"
+elif command -v start >/dev/null 2>&1; then
+  start "${URL}"
+else
+  echo "Open ${URL} in your browser."
+fi
+
+echo "Serving ${DOC_DIR} at ${URL}  (Ctrl+C to stop)"
+wait "${SERVER_PID}"
