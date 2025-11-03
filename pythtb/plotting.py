@@ -306,7 +306,7 @@ def plot_lattice_3d(
     ----------
     model : TBModel
         The tight-binding model to use for the calculation.
-    annotate_onsite_en : bool, optional
+    annotate_onsite : bool, optional
         Whether to annotate orbitals with onsite energies.
 
     Returns
@@ -483,18 +483,18 @@ def plot_tb_model(
     proj_plane=None,
     eig_dr=None,
     draw_hoppings=True,
-    annotate_onsite_en=False,
+    annotate_onsite=False,
     ph_color="black",
-    orb_color="r",
+    orb_color="red",
 ):
-    r"""Plot the tight-binding model.
+    r"""Visualizes the tight-binding model geometry.
 
-    Function for visualizing tight-binding model geometry,
-    hopping between tight-binding orbitals, and electron eigenstates.
+    Plots the tight-binding orbitals, hopping between tight-binding orbitals, 
+    and optionally the electron eigenstates.
 
     If eigenvector is not drawn, then orbitals in home cell are drawn
     as red circles, and those in neighboring cells are drawn with
-    different shade of red. Hopping term directions are drawn with
+    a lighter shade of red. Hopping term directions are drawn with
     green lines connecting two orbitals. Origin of unit cell is
     indicated with blue dot, while real space unit vectors are drawn
     with blue lines.
@@ -503,78 +503,79 @@ def plot_tb_model(
     is drawn with a circle whose size is proportional to wavefunction
     amplitude while its color depends on the phase. There are various
     coloring schemes for the phase factor; see more details under
-    ``ph_color`` parameter. If eigenvector is drawn and coloring scheme
+    `ph_color` parameter. If eigenvector is drawn and coloring scheme
     is "red-blue" or "wheel", all other elements of the picture are
     drawn in gray or black.
 
+    .. versionchanged:: 2.0.0
+        Visualization appearance has been updated.
+
     Parameters
     ----------
-    proj_plane : array-like shape (2,)
-        The projection plane onto which the 3D model is projected.
-        This should be a 2-element array specifying the indices of the
-        Cartesian coordinates to use for the x and y axes of the
-        plot.
+    proj_plane : tuple or list of two integers
+        Cartesian coordinates to be used for plotting. For example,
+        if ``proj_plane=(0,1)`` then x-y projection of the model is
+        drawn. This only should be specified if `dim_r` > 2.
 
-    eig_dr : np.ndarray, optional
-        Eigenstate (1D array of complex numbers) to display.
+        .. versionchanged:: 2.0.0
+            Replaced previous parameters ``dir_first`` and ``dir_second``.
+
+    eig_dr : Optional parameter specifying eigenstate to
+        plot. If specified, this should be one-dimensional array of
+        complex numbers specifying wavefunction at each orbital in
         the tight-binding basis. If not specified, eigenstate is not
         drawn.
+    draw_hoppings : Optional parameter specifying whether to
+        draw all allowed hopping terms in the tight-binding
+        model. Default value is True.
+    ph_color : {"black", "red-blue", "wheel"}, optional
+        Determines the way the eigenvector phase factors are 
+        translated into color. Default value is "black".
 
-    draw_hoppings : bool, optional
-        Whether to draw hopping terms between orbitals. Default is
-        ``True``.
-
-    ph_color : str, optional
-        Optional parameter determining the way eigenvector phase
-        factors are translated into color. Default value is "black".
-        Convention of the wavefunction phase is as
-        in convention 1 in section 3.1 of :download:`notes on
-        tight-binding formalism </misc/pythtb-formalism.pdf>`.  In
-        other words, these wavefunction phases are in correspondence
-        with cell-periodic functions :math:`u_{n {\bf k}} ({\bf r})`
-        not :math:`\psi_{n {\bf k}} ({\bf r})`.
-
-        * "black" : 
-            phase of eigenvectors are ignored and wavefunction
+        - "black" -- phase of eigenvectors are ignored and wavefunction
             is always colored in black.
 
-        * "red-blue" : 
-            zero phase is drawn red, while phases or :math:`\pi` or
+        - "red-blue" -- zero phase is drawn red, while phases or :math:`\pi` or
             :math:`-\pi` are drawn blue. Phases in between are interpolated between
             red and blue. Some phase information is lost in this coloring
-            because phase of :math:`+\phi` and :math:`-\phi` have same color.
+            because phase of :math:`\pm \pi` have the same color.
 
-        * "wheel" : 
-            each phase is given unique color. In steps of :math:`\pi/3`
+        - "wheel" -- each phase is given unique color. In steps of :math:`\pi/3`
             starting from 0, colors are assigned (in increasing hue) as:
             red, yellow, green, cyan, blue, magenta, red.
 
-
     Returns
     -------
-    fig, ax : matplotlib.figure.Figure, matplotlib.axes.Axes
-        Figure and axes objects for the plot.
+        fig : matplotlib.figure.Figure
+            Figure object from matplotlib.pyplot module
+        ax : matplotlib.axes.Axes
+            Axes object from matplotlib.pyplot module
 
-    See Also
-    --------
-    :ref:`visualize-nb`
-    :ref:`haldane-edge-nb`
+    Notes
+    -----
+    - This function is intended for visualizing tight-binding models
+        in two dimensions. For three-dimensional visualizations, consider using
+        the :func:`visualize_3d` method.
+    - Convention of the wavefunction phase is as
+        in convention 1 in section 3.1 of :download:`notes on
+        tight-binding formalism  </misc/pythtb-formalism.pdf>`. In
+        other words, these wavefunction phases are in correspondence
+        with cell-periodic functions :math:`u_{n {\bf k}} ({\bf r})`
+        not :math:`\Psi_{n {\bf k}} ({\bf r})`.
 
     Examples
     --------
     Draws x-y projection of tight-binding model
     tweaks figure and saves it as a PDF.
 
-    >>> from pythtb import TBModel
-    >>> tb = TBModel(
-    ...        dim_k=1, dim_r=2,
-    ...        lat=[[1, 1/2], [0, 2]],
-    ...        orb=[[0.2, 0.3], [0.1, 0.1], [0.2, 0.2]],
-    ...        per=[1]
-    ...    )
-    >>> (fig, ax) = tb.visualize(0, 1)
-    >>> ax.set_title("Title goes here")
-    >>> fig.savefig("model.pdf")
+    >>> fig, ax = tb.visualize(0, 1)
+    >>> plt.show()
+
+    See Also
+    --------
+    :ref:`haldane-edge-nb`,
+    :ref:`visualize-nb`.
+
     """
 
     # Draw orbitals: home-cell orbitals in red
@@ -609,7 +610,7 @@ def plot_tb_model(
         orb_coords.append(p)
 
         # For spinful case, annotate orbital with onsite decomposition.
-        if model._nspin == 2 and annotate_onsite_en:
+        if model._nspin == 2 and annotate_onsite:
             onsite_str = _pauli_decompose_str(model._site_energies[i])
             ax.annotate(
                 fr"$\Delta_{{{i}}} = {onsite_str}$",
@@ -623,7 +624,7 @@ def plot_tb_model(
                 ),
                 zorder=5,
             )
-        elif model._nspin == 1 and annotate_onsite_en:
+        elif model._nspin == 1 and annotate_onsite:
             onsite_str = fr"$\Delta_{{{i}}} = {model._site_energies[i]:.2f}$"
             ax.annotate(
                 onsite_str,
@@ -806,31 +807,30 @@ def plot_tb_model_3d(
     site_colors=None,
     site_names=None,
     ph_color="black",
-):
-    """Visualize a 3D tight-binding model using Plotly.
+    ):
+    r"""Visualize a 3D tight-binding model using ``Plotly``.
 
     This function creates an interactive 3D plot of your tight-binding model,
     showing the unit-cell origin, lattice vectors (with arrowheads), orbitals,
     hopping lines, and (optionally) an eigenstate overlay with marker sizes
     proportional to amplitude and colors reflecting the phase.
 
+    .. versionadded:: 2.0.0
+
     Parameters
     ----------
-    model : TBModel
-        The tight-binding model to use for the calculation.
-    eig_dr : np.ndarray, optional
-        Eigenstate (1D array of complex numbers) to display.
+    eig_dr : 
+        Optional eigenstate (1D array of complex numbers) to display.
     draw_hoppings : bool, optional
         Whether to draw hopping lines between orbitals.
-    annotate_onsite_en : bool, optional
+    annotate_onsite: bool, optional
         Whether to annotate orbitals with onsite energies.
-    ph_color : str, optional
+    ph_color: str, optional
         Coloring scheme for eigenstate phases (e.g. "black", "red-blue", "wheel").
 
     Returns
     -------
-    fig : go.Figure
-        A Plotly Figure object.
+    plotly.graph_objs.Figure
     """
     # Import Plotly here to avoid hard dependency if function is not used.
     go = _require_plotly()
@@ -1174,48 +1174,56 @@ def plot_bands(
     ls="solid",
     cmap="plasma",
     cbar=True,
-):
-    """
+    ):
+    """Plot the band structure along a specified path in k-space.
+
+    This function allows for customization of the plot, including projection of orbitals,
+    spin projection, figure and axis objects, title, scatter size, line width,
+    line color, line style, colormap, and whether to show a color bar.
+
+    .. versionadded:: 2.0.0
 
     Parameters
     ----------
-    model : TBModel
-        The tight-binding model to use for the calculation.
-    k_path : list
-        List of high symmetry points to plot bands through
-    nk : int, optional
-        Number of k-points to sample between high symmetry points. Defaults to 101.
-    evals : np.ndarray, optional
-        Eigenvalues to plot. If None, they will be computed.
-    evecs : np.ndarray, optional
-        Eigenvectors to use for projections. If None, they will be computed.
-    k_label : list[str], optional
+    k_nodes : list[list[float]]
+        List of high symmetry points (in reduced units) to plot the bands through. 
+        For example, ``[[0,0,0], [0, 1/2, 1/2]]``.
+    k_node_labels : list[str], optional
         Labels of high symmetry points. Defaults to None.
-    band_label : str, optional
-        Label for the band structure. Defaults to None.
+    nk : int, optional
+        Total number of k-points to sample along the path. Defaults to 101.
     proj_orb_idx : list[int], optional
         List of orbital indices to project onto. Defaults to None.
+        This will give the bands a colorscale indicating the weight of 
+        the Bloch states onto the list of orbitals.
     proj_spin : bool, optional
-        Whether to project onto spin states. Defaults to False.
-    title : str, optional
-        Title of the plot. Defaults to None.
-    scat_size : int, optional
-        Size of the scatter points. Defaults to 3.
-    lw : int, optional
-        Line width for the band lines. Defaults to 2.
+        Whether to project the spin components. Defaults to ``False``.
+        If ``True``, the bands will be colored according to their spin character.
+    fig : matplotlib.figure.Figure, optional
+        Figure object to plot on. Defaults to None.
+    ax : matplotlib.axes.Axes, optional
+        Axes object to plot on. Defaults to None.
+    scat_size : float, optional
+        Size of the scatter points. Defaults to 3. Only relevant if
+        `proj_spin` is True or `proj_orb_idx` is not None.
+    lw : float, optional
+        Line width of the band lines. Defaults to 2.
     lc : str, optional
-        Line color for the band lines. Defaults to "b".
+        Line color of the band lines. Defaults to "b". Irrelevant
+        if `proj_spin` is True or `proj_orb_idx` is not None.
     ls : str, optional
-        Line style for the band lines. Defaults to "solid".
+        Line style of the band lines. Defaults to "solid".
+        Irrelevant if `proj_spin` is True or `proj_orb_idx` is not None.
     cmap : str, optional
-        Colormap for the scatter points. Defaults to "plasma".
-    show : bool, optional
-        Whether to show the plot. Defaults to False.
+        Colormap for the band plot. Defaults to "plasma". Only relevant if
+        `proj_spin` is True or `proj_orb_idx` is not None.
     cbar : bool, optional
-        Whether to show the colorbar. Defaults to True.
+        Whether to show a color bar. Defaults to True.
+        Only relevant if `proj_spin` is True or `proj_orb_idx` is not None.
 
     Returns:
-        fig, ax: matplotlib fig and ax
+        fig : matplotlib.figure.Figure
+        ax: matplotlib.axes.Axes
     """
 
     if fig is None:
@@ -1337,6 +1345,39 @@ def plot_density(
         show=False, 
         cbar=True
         ):
+    
+    """Plot the Wannier function density on the lattice in 2D.
+
+    Parameters
+    ----------
+    wan_idx : int
+        Index of the Wannier function to plot.
+    mark_home_cell : bool
+        If True, mark the home cell in the plot.
+    mark_center : bool
+        If True, mark the center of the Wannier function in the plot.
+    show_lattice : bool
+        If True, show the lattice sites in the plot.
+    dens_size : float
+        Size of the density markers in the plot.
+    lat_size : float
+        Size of the lattice site markers in the plot.
+    show : bool
+        If True, display the plot immediately.
+    fig : matplotlib.figure.Figure | None
+        Matplotlib figure object to plot on. If None, a new figure is created.
+    ax : matplotlib.axes.Axes | None
+        Matplotlib axes object to plot on. If None, new axes are created.
+    cbar : bool
+        If True, include a colorbar in the plot.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The figure object containing the plot.
+    ax : matplotlib.axes.Axes
+        The axes object containing the plot.
+    """
 
     center = wan.centers[wan_idx]
     positions = wan._get_sc_weights(wan_idx)
@@ -1385,6 +1426,26 @@ def plot_decay(
         ax=None, 
         show=False, 
         ):
+    """Plot the Wannier function density as a function of distance from center.
+
+    Parameters
+    ----------
+    wan_idx : int
+        Index of the Wannier function to plot.
+    fig : matplotlib.figure.Figure | None
+        Matplotlib figure object to plot on. If None, a new figure is created.
+    ax : matplotlib.axes.Axes | None
+        Matplotlib axes object to plot on. If None, new axes are created.
+    show : bool
+        If True, display the plot immediately.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The figure object containing the plot.
+    ax : matplotlib.axes.Axes
+        The axes object containing the plot.
+    """
     
     if fig is None:
         fig, ax = plt.subplots()
@@ -1453,8 +1514,46 @@ def plot_centers(
         lat_color = 'k',
         fig=None, ax=None
         ):
-    """Plot Wannier center positions in real space.
-    
+    """Plot the Wannier function centers in the supercell.
+
+    Parameters
+    ----------
+    center_scale : float
+        Scale factor for the size of the center markers. Scales with the spread 
+        of the Wannier functions, this is a multiplicative factor.
+    section_home_cell : bool
+        If True, delineate the home cell in the plot.
+    color_home_cell : bool
+        If True, color the home cell orbitals differently from other cells.
+    translate_centers : bool
+        If True, translate the home cell Wannier centers to neighboring cells.
+    show : bool
+        If True, display the plot immediately.
+    legend : bool
+        If True, include a legend in the plot.
+    pmx : int
+        Plus-minus range in x-direction for plotting supercell.
+    pmy : int
+        Plus-minus range in y-direction for plotting supercell.
+    center_color : str
+        Color for the Wannier center markers.
+    center_marker : str
+        Marker style for the Wannier center markers.
+    lat_home_color : str
+        Color for the home cell lattice sites.
+    lat_color : str
+        Color for the other lattice sites.
+    fig : matplotlib.figure.Figure | None
+        Matplotlib figure object to plot on. If None, a new figure is created.
+    ax : matplotlib.axes.Axes | None
+        Matplotlib axes object to plot on. If None, new axes are created.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The figure object containing the plot.
+    ax : matplotlib.axes.Axes
+        The axes object containing the plot.
     """
 
     centers = wan.centers
