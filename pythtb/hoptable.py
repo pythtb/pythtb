@@ -281,6 +281,19 @@ class HoppingTable:
         else:
             raise TypeError("ind_R is not of correct type. Should be array-type or integer.")
 
+        if periodic_dirs:
+            periodic_dirs = np.asarray(periodic_dirs, dtype=int)
+            mask = np.ones(self.dim_r, dtype=bool)
+            mask[periodic_dirs] = False
+            offending = np.nonzero(mask & (R_vec != 0))[0]
+            if offending.size:
+                vals = tuple(int(R_vec[idx]) for idx in offending)
+                raise ValueError(
+                    "ind_R may only have non-zero components along periodic directions "
+                    f"{tuple(int(d) for d in periodic_dirs)}; received offsets on axes "
+                    f"{tuple(int(idx) for idx in offending)} with values {vals}"
+                )
+
         return ind_i, ind_j, R_vec.reshape(self.dim_r)
 
     # ------------------------------------------------------------------
