@@ -15,62 +15,58 @@ _KPOINT_LABEL_PATTERN = re.compile(r"^(?P<base>[^\d]+?)(?P<suffix>\d+)?$", re.UN
 class W90:
     r"""Interface to Wannier90 
 
-    This class imports tight-binding model parameters from an output 
-    of a `Wannier90 <http://www.wannier.org>`_ code.
-    Upon instantiation, this class will read in the Wannier90 output
-    files from the specified folder. To create :class:`pythtb.TBModel`
-    object use the :meth:`model` function.
+    This class imports tight-binding model parameters from a 
+    `Wannier90 <http://www.wannier.org>`_ calculation.
+    Upon construction, it reads the relevant Wannier90 output
+    files from the specified directory. Use :meth:`model` to
+    convert the imported data into a :class:`TBModel` instance.
 
-    The `Wannier90 <http://www.wannier.org>`_ code is a
-    post-processing tool that takes as an input electron wavefunctions
-    and energies computed from first-principles using any of the
-    following codes: Quantum-Espresso (PWscf), AbInit, SIESTA, FLEUR,
-    Wien2k, VASP. As an output Wannier90 will create files that
-    contain parameters for a tight-binding model that exactly
-    reproduces the first-principles calculated electron band
-    structure.
+    `Wannier90 <http://www.wannier.org>`_ is a post-processing tool 
+    that takes as input Bloch wavefunctions and energies generated
+    by first-principles electronic structure codes such as 
+    Quantum-Espresso (PWscf), ABINIT, SIESTA, FLEUR,
+    WIEN2k, or VASP. It produces maximally localized Wannier functions
+    together with a tight-binding Hamiltonian in the Wannier basis. 
 
-    The interface from Wannier90 to PythTB will use only the following
-    files created by Wannier90:
+    The PythTB interface uses the following Wannier90 output files:
 
-    - *prefix*.win
-    - *prefix*\_hr.dat
-    - *prefix*\_centres.xyz
-    - *prefix*\_band.kpt (optional)
-    - *prefix*\_band.dat (optional)
+    - ``prefix.win``
+    - ``prefix_hr.dat``
+    - ``prefix_centres.xyz``
+    - ``prefix_band.kpt`` (optional)
+    - ``prefix_band.dat`` (optional)
 
-    The first file (*prefix*.win) is an input file to Wannier90 itself. This
-    file is needed so that PythTB can read in the unit cell vectors.
+    The ``prefix.win`` file provides general input to Wannier90 and is here 
+    primarily to obtain the lattice vectors.
 
-    To correctly create the second and the third file (*prefix*\_hr.dat and
-    *prefix*\_centres.dat) one needs to include the following flags in the win
-    file::
+    To ensure the required files ``prefix_hr.dat`` and ``prefix_centres.xyz`` 
+    are written, include the following flags in the ``prefix.win`` file::
 
        write_hr = True
        write_xyz = True
        translate_home_cell = False
 
-    These lines ensure that *prefix*\_hr.dat and *prefix*\_centres.dat
-    are written and that the centers of the Wannier functions written
-    in the *prefix*\_centres.dat file are not translated to the home
-    cell. The *prefix*\_hr.dat file contains the onsite and hopping
-    terms.
+    These directives instruct Wannier90 to output (i) the real-space
+    tight-binding Hamiltonian in ``prefix_hr.dat`` and (ii) the centers of
+    the Wannier functions in ``prefix_centres.xyz`` without translating
+    them to the home unit cell.
 
-    The final two files (*prefix*\_band.kpt and *prefix*\_band.dat)
-    are optional. Please see documentation of function
+    The optional files ``prefix_band.kpt`` and ``prefix_band.dat``
+    can be used to import the Wannier-interpolated band structures
+    computed by Wannier90. Please see documentation of function
     :meth:`bands_w90` for more detail.
 
     Parameters
     ----------
     path : str
         Relative path to the folder that contains Wannier90
-        files. These are *prefix*.win, *prefix*\_hr.dat,
-        *prefix*\_centres.dat and optionally *prefix*\_band.kpt and
-        *prefix*\_band.dat.
+        files. These are ``prefix.win``, ``prefix_hr.dat``,
+        ``prefix_centres.xyz`` and optionally ``prefix_band.kpt`` and
+        ``prefix_band.dat``.
 
     prefix : str
         This is the prefix used by `Wannier90` code.
-        Typically the input to the `Wannier90` code is name *prefix*.win.
+        Typically the input to the `Wannier90` code is name ``prefix.win``.
 
     See Also
     --------
