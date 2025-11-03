@@ -18,27 +18,26 @@ Wannier 2022 Summer School on May 19th 2022:
 Python Web Resources
 --------------------
 
-*  `Python for beginners <http://wiki.python.org/moin/BeginnersGuide>`_
-*  `Learn Python in 10 minutes <http://www.korokithakis.net/tutorials/python>`_
-*  `Dive Into Python <http://www.diveintopython.net>`_
-*  `Python Documentation <http://docs.python.org>`_
-*  `Python Regular Expressions <http://www.regular-expressions.info/python.html>`_
-*  `Code Like a Pythonista: Idiomatic Python <http://python.net/~goodger/projects/pycon/2007/idiomatic/handout.html>`_
+* `Python Documentation <http://docs.python.org>`_
+* `Python Tutorial <https://docs.python.org/3/tutorial/index.html>`_
+* `Python for Beginners <https://wiki.python.org/moin/BeginnersGuide/NonProgrammers>`_
+* `Learn Python in 10 minutes <http://www.korokithakis.net/tutorials/python>`_
 
-NumPy and MatPlotLib Documentation
+NumPy and Matplotlib Documentation
 ----------------------------------
 
-*  `NumPy Tutorial <http://www.scipy.org/Tentative_NumPy_Tutorial>`_
-*  `NumPy User Guide <http://docs.scipy.org/doc/numpy/user>`_
-*  `Matplotlib <http://matplotlib.sourceforge.net>`_
+* `NumPy User Guide <https://numpy.org/doc/stable/>`_
+* `NumPy for Beginners <https://numpy.org/doc/stable/user/absolute_beginners.html>`_
+* `Why is NumPy fast? <https://numpy.org/doc/2.0/user/whatisnumpy.html#why-is-numpy-fast>`_
+* `Matplotlib <https://matplotlib.org/stable/users/index>`_
 
 User-Contributed Extensions
 ---------------------------
 
 A website has been set up to maintain links to potentially
-useful PythTB software contributed by users.  This may included
+useful PythTB software contributed by users. This may include
 implementations of additional capabilities, useful function definitions,
-sample scripts, plotting routines, etc.  These are not necessarily
+sample scripts, plotting routines, etc. These are not necessarily
 sanctioned by the developers of PythTB, and should be tested
 carefully before use.
 

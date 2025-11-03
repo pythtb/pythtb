@@ -13,6 +13,7 @@ Methods
    :toctree: pythtb/TBModel/
 
    pythtb.TBModel.add_orb
+   pythtb.TBModel.at
    pythtb.TBModel.axion_angle
    pythtb.TBModel.berry_curvature
    pythtb.TBModel.change_nonperiodic_vector
@@ -75,12 +76,12 @@ Attributes
    pythtb.TBModel.norb
    pythtb.TBModel.nspin
    pythtb.TBModel.nstate
+   pythtb.TBModel.onsite
    pythtb.TBModel.orb_vecs
    pythtb.TBModel.parameters
    pythtb.TBModel.per
    pythtb.TBModel.periodic_dirs
    pythtb.TBModel.recip_lat_vecs
    pythtb.TBModel.recip_volume
-   pythtb.TBModel.site_energies
    pythtb.TBModel.spinful
    

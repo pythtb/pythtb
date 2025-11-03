@@ -33,40 +33,48 @@ Core functionality
       :link: generated/pythtb.TBModel
       :link-type: doc
 
-      Build tight-binding models with ``TBModel``. Define unit cells and
-      lattice geometry with ``Lattice``.
+      Define and manipulate tight-binding Hamiltonians using ``TBModel``.
+      Specify on-site terms, hoppings, spin structure, and
+      parameter-dependent contributions.
 
    .. grid-item-card:: :material-outlined:`blur_on` State sampling
-      :link: generated/pythtb.Mesh
-      :link-type: doc
-
-      Create k-space and parameter sampling-meshes with ``Mesh``.
-
-   .. grid-item-card:: :material-outlined:`image` Visualization
-      :link: usage
-      :link-type: doc
-
-      Plot bands, DOS, lattices, and TB graphs with built-in plotting helpers.
-
-   .. grid-item-card:: :material-outlined:`all_inclusive` Topology & quantum geometry
       :link: generated/pythtb.WFArray
       :link-type: doc
 
-      Evaluate Berry connections, curvature, and phases, compute Chern numbers, follow hybrid Wannier centers, 
-      and analyze adiabatic cycles with ``WFArray`` tools.
+      Build structured k-space and parameter meshes with ``Mesh``.
+      Sample Hamiltonians and store resulting states in ``WFArray`` for
+      further analysis.
+
+   .. grid-item-card:: :material-outlined:`all_inclusive` Topology & quantum geometry
+      :link: usage
+      :link-type: doc
+
+      Compute Berry phases, connections, and curvature; Chern numbers;
+      the axion angle; local Chern markers; hybrid Wannier
+      functions; and other quantum-geometric observables using
+      ``WFArray`` and ``TBModel`` methods.
 
    .. grid-item-card:: :material-outlined:`extension` Wannier90 Integration
       :link: generated/pythtb.W90
       :link-type: doc
 
-      Import Wannier90 tight-binding Hamiltonians via ``W90`` and continue analysis inside PythTB.
+      Import Wannier90 tight-binding Hamiltonians via ``W90`` 
+      for post-processing and topological/quantum-geometric analysis.
 
    .. grid-item-card:: :material-outlined:`token` Wannier workflows
       :link: generated/pythtb.Wannier
       :link-type: doc
 
-      Build maximally localized Wannier functions with ``Wannier``; do single-shot projections, evaluate spreads, and visualize centers, 
-      densities, and decay profiles.
+      Construct maximally localized Wannier functions with ``Wannier``.
+      Perform projections, disentanglement, evaluate spreads, and analyze centers
+      and localization properties.
+   
+   .. grid-item-card:: :material-outlined:`image` Visualization
+      :link: usage
+      :link-type: doc
+
+      Plot band structures, density of states, lattice geometries, and
+      hopping graphs with built-in visualization utilities.
 
 
 Get started with PythTB
@@ -77,7 +85,6 @@ plot of the resulting band structure. Here you can find :doc:`more examples <exa
 
 .. literalinclude:: get_started/graphene_bands.py
    :language: python
-   :linenos:
 
 .. list-table::
    :widths: 50 50

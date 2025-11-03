@@ -47,8 +47,6 @@ Attributes
    :toctree: pythtb/WFArray/
 
    pythtb.WFArray.Mmn
-   pythtb.WFArray.bloch_states
-   pythtb.WFArray.cell_periodic
    pythtb.WFArray.dim_k
    pythtb.WFArray.dim_lambda
    pythtb.WFArray.energies

@@ -9,7 +9,9 @@ The ``PythTB`` package was written in Python for several reasons, including
 - The flexibility with which Python can be interfaced with graphics and visualization modules
 - In general, the easy extensibility of Python programs
 
-You can get an idea of the capabilities of the package by browsing the :doc:`PythTB examples <examples>`.
+You can get an idea of the capabilities of the package by browsing :doc:`usage <usage>` 
+for an end-to-end walkthrough and :doc:`examples <examples>` for notebooks that 
+demonstrate these workflows.
 
 Tight-binding models
 ^^^^^^^^^^^^^^^^^^^^^
@@ -39,24 +41,52 @@ a future release.
 Topology and quantum geometry
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-``WFArray`` cooperates with ``Mesh`` to evaluate Berry phases, Berry connections, curvature, and Chern numbers on closed loops, 
-uniform grids, or mixed k–parameter meshes. Hybrid Wannier functions, polarization, adiabatic pumping, and related observables 
-follow naturally once the states are stored in a consistent gauge.
+:class:`~pythtb.tbmodel.TBModel` provides methods to compute quantities such as:
+
+- velocity operator, 
+- quantum geometric tensor
+- Berry curvature
+- quantum metric
+- Chern number
+- local Chern marker
+- axion angle 
+- second Chern number
+- position operator matrix elements
+- hybrid Wannier functions
+
+These quantities can be computed either at individual k-points, or on meshes of k-points in the Brillouin zone. 
+Each of these observables can also be computed on arrays of adiabatic parameters that modify the Hamiltonian. 
+
+:class:`~pythtb.wfarray.WFArray` cooperates with :class:`~pythtb.mesh.Mesh` and :class:`~pythtb.tbmodel.TBModel` 
+to store states computed on structured k-point and/or parameter meshes. This is convenient for 
+automatically managing periodic boundary conditions, and for storing states in a consistent gauge across the mesh. 
+Once states are stored in a :class:`~pythtb.wfarray.WFArray`, one can use its methods to evaluate:
+
+- Wilson loops
+- Berry phases
+- Berry connections
+- Berry curvatures
+- Chern numbers 
+- hybrid Wannier functions
+- position matrix elements
 
 Wannier functions and Wannier90 interface
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Starting with Version 1.7, ``PythTB`` provides two complementary Wannier toolchains:
+Starting with Version 1.7, ``PythTB`` provides an interface to the 
+popular `Wannier90 <http://www.wannier.org>`_ package via the :class:`~pythtb.w90.W90` class,
 
-- ``Wannier`` constructs maximally localized Wannier functions directly from PythTB wavefunctions. 
-  It supports single-shot projections, disentanglement, maximal localization, spread and center analysis, 
-  and plotting helpers such as ``plot_centers``, ``plot_decay``, and ``plot_density``.
-- ``W90`` reads tight-binding Hamiltonians from Wannier90 output files (``*.win``, ``*_hr.dat``, ``*_centres.xyz``). 
+- :class:`~pythtb.w90.W90` reads tight-binding Hamiltonians from Wannier90 output files (``*.win``, ``*_hr.dat``, ``*_centres.xyz``). 
   You can combine imported data with the broader PythTB ecosystem, run band-structure checks, or feed the states into 
-  ``WFArray`` and ``Wannier`` for further processing.
+  :class:`~pythtb.wfarray.WFArray` and :class:`~pythtb.wannier.Wannier` for further processing.
 
-See :doc:`usage <usage>` for an end-to-end walkthrough and :doc:`examples <examples>` for notebooks that demonstrate these workflows.
+Starting with Version 2.0, ``PythTB`` includes the :class:`~pythtb.wannier.Wannier` class, which constructs maximally localized Wannier 
+functions directly from :class:`~pythtb.wfarray.WFArray` wavefunctions.
 
+- :class:`~pythtb.wannier.Wannier` constructs maximally localized Wannier functions directly from PythTB wavefunctions. 
+  It supports single-shot projections, disentanglement, maximal localization, spread and center analysis, 
+  and plotting helpers such as :meth:`~pythtb.wannier.Wannier.plot_centers`, 
+  :meth:`~pythtb.wannier.Wannier.plot_decay`, and :meth:`~pythtb.wannier.Wannier.plot_density`.
 
 .. _history:
 
