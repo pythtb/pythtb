@@ -18,26 +18,41 @@ class Wannier:
     r"""Construct Wannier functions using the projection method.
 
     This class provides methods to build Wannier functions from Bloch eigenstates and to
-    evaluate their quadratic spreads. It implements (i) **single-shot projection** via SVD
-    alignment to user-specified trial orbitals, producing Bloch-like states
-    :math:`\tilde{\psi}_{n\mathbf{k}}`, and (ii) spread evaluation using the
-    Marzari–Vanderbilt (MV) discrete formalism on a **toroidal k-mesh without endpoints**.
+    evaluate their quadratic spreads. It realizes the Marzari-Vanderbilt maximal localization
+    program on a **toroidal k-mesh without endpoints** by combining
 
-    This class provides methods to compute Wannier functions from Bloch energy eigenstates
-    and minimize their spreads through disentanglement and maximal localization. 
+    - **Single-shot projection** via SVD alignment to user-specified trial orbitals, producing
+      Bloch-like states :math:`\tilde{\psi}_{n\mathbf{k}}`.
+    - **Disentanglement** of entangled bands following the Souza-Marzari-Vanderbilt [2]_ scheme,
+      where :meth:`disentangle` optimizes projectors within user-defined outer and inner windows
+      to minimize the gauge-invariant spread :math:`\Omega_I`.
+    - **Maximal localization** thorugh the Marzari-Vanderbilt scheme [1]_ using
+      :meth:`max_localize`, which iteratively rotates the
+      disentangled subspace to minimize the gauge-dependent spread
+      :math:`\widetilde{\Omega}=\Omega_{\mathrm{OD}}+\Omega_{\mathrm{D}}`.
+
+    Together these steps construct Wannier functions from Bloch energy eigenstates and minimize
+    their spreads through disentanglement and maximal localization.
 
     Parameters
     ----------
     bloch_states : WFArray
-        The Bloch wavefunctions to be Wannierized.
-        They must be computed on a toroidal k-mesh without endpoints 
-        (open k-axes).
+        The Bloch wavefunctions to be Wannierized. This should be initialiazed on a toroidal
+        k-mesh without endpoints (open k-axes). They should also have their values filled, either
+        by setting manually or by calling :meth:`WFArray.solve_model`. These can be energy eigenstates
+        or any other set of Bloch-like states on the mesh.
 
     Notes
     -----
     - The k-mesh must be a torus (no endpoints included).
-    - ``tilde_states`` must be set before calling routines that compute Wannier functions
+    - :attr:`tilde_states` must be set before calling routines that compute Wannier functions
       or spreads.
+    - **Disentanglement workflow**: :meth:`disentangle` uses outer (candidate) and inner
+      (frozen) windows to optimize projectors that define a smooth subspace with minimal
+      gauge-invariant spread.
+    - **Maximal localization**: :meth:`max_localize` performs a steepest-descent update of
+      the unitary gauge to reduce the gauge-dependent spread and produce maximally localized
+      Wannier functions.
     - **Wannier construction**: We form Wannier functions by discrete inverse Fourier transform
       of the Bloch-like states,
 
@@ -54,13 +69,13 @@ class Wannier:
            M_{mn}^{(\mathbf{b})}(\mathbf{k}) \equiv
            \langle u_{m\mathbf{k}} \mid u_{n,\mathbf{k}+\mathbf{b}}\rangle ,
 
-      using the cell-periodic parts of the Bloch-like states stored in ``tilde_states``.
+      using the cell-periodic parts of the Bloch-like states stored in :attr:`tilde_states`.
     - **Spread decomposition (MV97)**: The total spread
       :math:`\Omega=\Omega_I+\widetilde{\Omega}` is decomposed into the gauge-invariant
       part :math:`\Omega_I` and the gauge-dependent part
       :math:`\widetilde{\Omega}=\Omega_{\mathrm{OD}}+\Omega_{\mathrm{D}}`. The code computes
       these using the diagonal and full elements of :math:`M^{(\mathbf{b})}` as in
-      [marzari-vanderbilt]_.
+      [1]_.
 
     - **Centers and phases**: The Wannier-center vector for band :math:`n` is obtained from
       the phases of the diagonal overlaps,
@@ -70,14 +85,46 @@ class Wannier:
            \sum_{\mathbf{k}} \operatorname{Im}\!\left[\ln M_{nn}^{(\mathbf{b})}(\mathbf{k})\right]
            \, \mathbf{b} ,
 
-
     References
     ----------
-    .. [marzari-vanderbilt] Marzari, N., & Vanderbilt, D. Maximally localized generalized
-       Wannier functions for composite energy bands. Phys. Rev. B 56, 12847 (1997).
-    .. [souza-marzari-vanderbilt] Souza, I., Marzari, N., & Vanderbilt, D. Maximally localized
-       Wannier functions for entangled energy bands. Phys. Rev. B 65, 035109 (2001).
+    .. [1] Marzari, N., & Vanderbilt, D. Maximally localized generalized
+        Wannier functions for composite energy bands. Phys. Rev. B 56, 12847 (1997).
+    .. [2] Souza, I., Marzari, N., & Vanderbilt, D. Maximally localized
+        Wannier functions for entangled energy bands. Phys. Rev. B 65, 035109 (2001).
 
+    Examples
+    --------
+    Initialize the Bloch :class:`WFArray` on a toroidal k-mesh without endpoints
+
+    >>> from pythtb import TBModel, Lattice, Mesh, WFArray, Wannier
+    >>> lat_vecs = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+    >>> orb_vecs = [[0, 0, 0]]
+    >>> lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1, 2])
+    >>> model = TBModel(lattice=lat, spinful=False)
+    >>> model.set_onsite(0.0)
+    >>> model.set_hop(-1.0, 0, 0, [1, 0, 0]) # along with other hops...
+    >>> mesh = Mesh(dim_k=3, axis_types=['k', 'k', 'k'])
+    >>> mesh.build_grid(shape=(8, 8, 8), k_endpoints=False)
+    >>> wfa = WFArray(lattice=lat, mesh=mesh, nstates=model.nbands, spinful=False)
+    >>> wfa.solve_model(model)
+    >>> wan = Wannier(bloch_states=wfa)
+
+    Set trial wavefunctions and perform single-shot projection
+
+    >>> twf_list = [[(0, 1.0)]]  # single trial wf on orbital 0
+    >>> wan.single_shot_projection(twf_list)   
+
+    Perform maximal localization
+
+    >>> wan.max_localize(num_iter=100, conv_tol=1e-6) 
+
+    Compute and print Wannier centers and spreads
+
+    >>> wan.info(precision=6)
+
+    Plot Wannier centers
+
+    >>> wan.plot_centers(wan_idx=0)
     """
 
     def __init__(self, bloch_states: WFArray):
@@ -570,8 +617,8 @@ class Wannier:
              \tilde{\psi}_{n\mathbf{k}}
              \;=\; \sum_{m\in \texttt{band_idxs}} U_{nm}(\mathbf{k}) \, \psi_{m\mathbf{k}} .
 
-        This realizes the optimal alignment described in [marzari-vanderbilt]_ (Sec. II) and used
-        in the disentanglement initialization of [souza-marzari-vanderbilt]_.
+        This realizes the optimal alignment described in [1]_ (Sec. II) and used
+        in the disentanglement initialization of [2]_.
 
         Sets the Wannier functions in home unit cell with associated spreads, centers, trial functions
         and Bloch-like (tilde) states using the single shot projection method.
@@ -598,6 +645,13 @@ class Wannier:
         This routine does **not** perform iterative minimization of
         :math:`\Omega`; it provides a high-quality initial guess via SVD
         alignment.
+
+        References
+        ----------
+        .. [1] Marzari, N., & Vanderbilt, D. Maximally localized generalized
+            Wannier functions for composite energy bands. Phys. Rev. B 56, 12847 (1997).
+        .. [2] Souza, I., Marzari, N., & Vanderbilt, D. Maximally localized
+            Wannier functions for entangled energy bands. Phys. Rev. B 65, 035109 (2001).
         """
         if tf_list is None:
             if self.trial_wfs is None:
@@ -1346,7 +1400,7 @@ class Wannier:
         r"""Disentanglement of a subspace that minimizes gauge-independent spread.
 
         This procedure implements the Souza–Marzari–Vanderbilt (SMV) 
-        disentanglement algorithm [souza-marzari-vanderbilt]_. The goal is to 
+        disentanglement algorithm [1]_. The goal is to 
         select an ``n_wfs``-dimensional optimal subspace from a larger set of 
         Bloch eigenstates in a specified "``outer window``," such that the 
         gauge-independent part of the Wannier spread :math:`\Omega_I` is 
@@ -1412,6 +1466,11 @@ class Wannier:
 
         - After convergence, the ``.tilde_states`` attribute stores the 
           disentangled wavefunctions spanning the optimized subspace.
+
+        References
+        ----------
+        .. [1] Souza, I., Marzari, N., & Vanderbilt, D. Maximally localized
+            Wannier functions for entangled energy bands. Phys. Rev. B 65, 035109 (2001).
         """
         # if we haven't done single-shot projection yet (set tilde states)
         if not hasattr(self.tilde_states, "_u_nk"):
@@ -1451,7 +1510,7 @@ class Wannier:
         r"""Unitary transformation to minimize the gauge-dependent spread.
 
         This procedure implements the Marzari–Vanderbilt maximal localization
-        algorithm [marzari-vanderbilt]_. Given a (disentangled) subspace 
+        algorithm [1]_. Given a (disentangled) subspace 
         (``.tilde_states``), it finds the optimal unitary transformation that 
         minimizes the gauge-dependent part of the Wannier spread 
         :math:`\widetilde{\Omega}`. The algorithm proceeds iteratively, applying 
@@ -1503,6 +1562,11 @@ class Wannier:
 
         - Iteration proceeds until the gradient norm falls below ``grad_min`` and the change in spread is smaller 
           than ``tol``, or the maximum number of iterations is reached.
+
+        References
+        ----------
+        .. [1] Marzari, N., & Vanderbilt, D. Maximally localized generalized
+            Wannier functions for composite energy bands. Phys. Rev. B 56, 12847 (1997).
         """
 
         U = self._max_loc_unitary(
@@ -1874,47 +1938,6 @@ class Wannier:
             fig=None, 
             ax=None
         ):
-        """Plot the Wannier function centers in the supercell.
-
-        Parameters
-        ----------
-        center_scale : float
-            Scale factor for the size of the center markers. Scales with the spread 
-            of the Wannier functions, this is a multiplicative factor.
-        section_home_cell : bool
-            If True, delineate the home cell in the plot.
-        color_home_cell : bool
-            If True, color the home cell orbitals differently from other cells.
-        translate_centers : bool
-            If True, translate the home cell Wannier centers to neighboring cells.
-        show : bool
-            If True, display the plot immediately.
-        legend : bool
-            If True, include a legend in the plot.
-        pmx : int
-            Plus-minus range in x-direction for plotting supercell.
-        pmy : int
-            Plus-minus range in y-direction for plotting supercell.
-        center_color : str
-            Color for the Wannier center markers.
-        center_marker : str
-            Marker style for the Wannier center markers.
-        lat_home_color : str
-            Color for the home cell lattice sites.
-        lat_color : str
-            Color for the other lattice sites.
-        fig : matplotlib.figure.Figure | None
-            Matplotlib figure object to plot on. If None, a new figure is created.
-        ax : matplotlib.axes.Axes | None
-            Matplotlib axes object to plot on. If None, new axes are created.
-
-        Returns
-        -------
-        fig : matplotlib.figure.Figure
-            The figure object containing the plot.
-        ax : matplotlib.axes.Axes
-            The axes object containing the plot.
-        """
         return plot_centers(
             self, center_scale=center_scale,
             section_home_cell=section_home_cell, color_home_cell=color_home_cell,
@@ -1932,26 +1955,6 @@ class Wannier:
         ax=None, 
         show=False
         ):
-        """Plot the Wannier function density as a function of distance from center.
-
-        Parameters
-        ----------
-        wan_idx : int
-            Index of the Wannier function to plot.
-        fig : matplotlib.figure.Figure | None
-            Matplotlib figure object to plot on. If None, a new figure is created.
-        ax : matplotlib.axes.Axes | None
-            Matplotlib axes object to plot on. If None, new axes are created.
-        show : bool
-            If True, display the plot immediately.
-
-        Returns
-        -------
-        fig : matplotlib.figure.Figure
-            The figure object containing the plot.
-        ax : matplotlib.axes.Axes
-            The axes object containing the plot.
-        """
         return plot_decay(self, wan_idx=wan_idx, fig=fig, ax=ax, show=show)
 
     @copydoc(plot_density)
@@ -1967,39 +1970,6 @@ class Wannier:
         ax=None, 
         cbar=True
         ):
-        """Plot the Wannier function density on the lattice in 2D.
-
-        Parameters
-        ----------
-        wan_idx : int
-            Index of the Wannier function to plot.
-        mark_home_cell : bool
-            If True, mark the home cell in the plot.
-        mark_center : bool
-            If True, mark the center of the Wannier function in the plot.
-        show_lattice : bool
-            If True, show the lattice sites in the plot.
-        dens_size : float
-            Size of the density markers in the plot.
-        lat_size : float
-            Size of the lattice site markers in the plot.
-        show : bool
-            If True, display the plot immediately.
-        fig : matplotlib.figure.Figure | None
-            Matplotlib figure object to plot on. If None, a new figure is created.
-        ax : matplotlib.axes.Axes | None
-            Matplotlib axes object to plot on. If None, new axes are created.
-        cbar : bool
-            If True, include a colorbar in the plot.
-
-        Returns
-        -------
-        fig : matplotlib.figure.Figure
-            The figure object containing the plot.
-        ax : matplotlib.axes.Axes
-            The axes object containing the plot.
-        """
-
         return plot_density(
             self, wan_idx=wan_idx,
             mark_home_cell=mark_home_cell, mark_center=mark_center,
