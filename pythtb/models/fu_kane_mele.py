@@ -2,14 +2,11 @@ import numpy as np
 from pythtb import TBModel, Lattice
 
 
-def fu_kane_mele(t, soc, m, beta):
+def fu_kane_mele(t, soc, dt=[0,0,0,0]):
     r"""Fu-Kane-Mele tight-binding model.
 
-    .. versionadded:: 2.0.0
-
-    This function creates a Haldane tight-binding model with the specified
-    hopping parameters and on-site energy. The model is defined on a 2D honeycomb
-    lattice with two sublattices. The lattice vectors are given by,
+    This function creates a Fu-Kane-Mele tight-binding model on a diamond
+    lattice. The lattice vectors are given by,
 
     .. math::
 
@@ -28,19 +25,20 @@ def fu_kane_mele(t, soc, m, beta):
 
     .. math::
 
-        H = m \sin(\beta) \hat{e}_{111} \cdot (\sum_{i \in \text{A}} c_i^{\dagger} \vec{\sigma} c_i 
-        - \sum_{i \in \text{B}} c_i^{\dagger} \vec{\sigma} c_i) 
-        + \sum_{\langle i,j \rangle} t c_i^{\dagger} c_j 
-        + i \lambda_{SO} \sum_{\langle\langle i,j \rangle\rangle} c_i^{\dagger} 
+        H = t \sum_{\langle ij \rangle} c_i^{\dagger} c_j 
+        + i \lambda_{SO} \sum_{\langle\langle ij \rangle\rangle} c_i^{\dagger} 
         \vec{\sigma} \cdot (\mathbf{d}_{ij}^{1} \times \mathbf{d}_{ij}^{2}) c_j
 
-    where :math:`\hat{e}_{111}` is the unit vector along the [111] direction, 
-    :math:`t_{ij} = 3t + m \cos(\beta)`
-    for first-neighbor hopping along the [111] direction, and :math:`t_{ij} = t` otherwise. 
-    The vectors 
-    :math:`\mathbf{d}_{ij}^{1}` and :math:`\mathbf{d}_{ij}^{2}` are the two nearest-neighbor bond 
-    vectors connecting 
-    second-neighbor sites :math:`i` and :math:`j`.
+    where the first term is a nearest-neighbor hopping term connecting the two fcc sublattices
+    of the diamond lattice, and the second term is a spin-orbit coupling term connecting
+    second-neighbor sites within the same sublattice. Here, :math:`\mathbf{d}_{ij}^{1,2}` 
+    are the two nearest-neighbor bond vectors connecting sites :math:`i` and :math:`j`. 
+    
+    Due to inversion symmetry, each band is doubly degenerate. The degeneracy is lifted by symmetry
+    lowering perturbations of the four nearest-neighbor hoppings :math:`t \rightarrow t + \delta t_p` 
+    with :math:`p = 1, 2, 3, 4` indexing the four bonds connected to each site. 
+
+    .. versionadded:: 2.0.0
 
     Parameters
     ----------
@@ -49,11 +47,13 @@ def fu_kane_mele(t, soc, m, beta):
     soc : float
         Spin-orbit coupling strength. Modulates next-nearest neighbor
         hopping amplitudes.
-    m : float
-        Magnetic field strength.
-    beta : float
-        Adiabatic parameter which controls the strength of the staggered magnetic field
-        and the hopping amplitude along [111] direction.
+    dt : list[float, float, float, float], optional
+        Modification to the nearest-neighbor hopping amplitude along the four
+        bonds connected to each site. The default is [0, 0, 0, 0], which
+        corresponds to uniform hopping amplitudes. The first element
+        is added to the bond along :math:`(-1, 0, 0)`, the second
+        to :math:`(0, -1, 0)`, the third to :math:`(0, 0, -1)`, and the
+        fourth to :math:`(1, 1, 1)`.
 
     Returns
     -------
@@ -64,18 +64,12 @@ def fu_kane_mele(t, soc, m, beta):
     -----
     The Fu-Kane-Mele model describes a three-dimensional topological insulator with a
     non-trivial band structure. It is characterized by a strong :math:`\mathbb{Z}_2` invariant
-    and exhibits surface states that are protected by time-reversal symmetry [fu-kane-mele]_.
-        
-    See Also
-    --------
-    [fu-kane-mele]_, [Essin-Moore-Vanderbilt]_
-
+    and exhibits surface Dirac cones that are protected by time-reversal and inversion symmetry [1]_. 
+    
     References
     ----------
-    .. [fu-kane-mele] Fu, C. L. Kane, and E. J. Mele, Phys. Rev. Lett. 98, 106803
-       (2007).
-    .. [Essin-Moore-Vanderbilt] Essin, A. M. Moore, and D. Vanderbilt,
-       Phys. Rev. Lett. 102, 146805 (2009).
+    .. [1] \ L. Fu, C. L. Kane, and E. J. Mele, *Phys. Rev. Lett.*, **98**, 106803
+        (2007).
     """
 
     lat_vecs = [[0, 1, 1], [1, 0, 1], [1, 1, 0]]
@@ -84,20 +78,9 @@ def fu_kane_mele(t, soc, m, beta):
 
     model = TBModel(lattice=lat, spinful=True)
 
-    h = m * np.sin(beta) * np.array([1, 1, 1])
-    dt = m * np.cos(beta)
-
-    h0 = [0] + list(h)
-    h1 = [0] + list(-h)
-
-    model.set_onsite(h0, 0)
-    model.set_onsite(h1, 1)
-
     # spin-independent first-neighbor hops
-    for lvec in ([-1, 0, 0], [0, -1, 0], [0, 0, -1]):
-        model.set_hop(t, 0, 1, lvec)
-
-    model.set_hop(3 * t + dt, 0, 1, [0, 0, 0], mode="add")
+    for idx, lvec in enumerate([[0, 0, 0], [-1, 0, 0], [0, -1, 0], [0, 0, -1]]):
+        model.set_hop(t + dt[idx], 0, 1, lvec)
 
     # spin-dependent second-neighbor hops
     lvec_list = ([1, 0, 0], [0, 1, 0], [0, 0, 1], [-1, 1, 0], [0, -1, 1], [1, 0, -1])
