@@ -12,6 +12,7 @@ Methods
    :nosignatures:
    :toctree: pythtb/WFArray/
 
+   pythtb.WFArray.berry_connection
    pythtb.WFArray.berry_curvature
    pythtb.WFArray.berry_flux
    pythtb.WFArray.berry_phase

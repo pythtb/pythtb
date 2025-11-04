@@ -51,11 +51,5 @@ Usage
    models.kane_mele
    models.fu_kane_mele
 
-.. .. automodule:: pythtb
-..    :undoc-members:
-..    :show-inheritance:
-..    :noindex:
-..    :members:
-
 
 

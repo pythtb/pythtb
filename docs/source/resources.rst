@@ -6,9 +6,9 @@ Short Presentation
 
 Here is a short introduction to Python, Numpy, Matplotlib, and PythTB
 from a presentation given by Sinisa Coh during lectures on Sep 30th
-2010 for Vanderbilt’s Physics 681 class:
+2010 for Vanderbilt's Physics 681 class:
 
-*  :download:`Introduction to Python, Numpy, Matplotlib, PythTB <misc/pythtb-talk.pdf>`
+*  :download:`Introduction to Python, Numpy, Matplotlib, PythTB <_static/talk/pythtb-talk.pdf>`
 
 Here is a one hour lecture on PythTB given by Sinisa Coh during the
 Wannier 2022 Summer School on May 19th 2022:
@@ -46,4 +46,4 @@ carefully before use.
 Related packages
 ----------------
 
-*  `kwant, tight-binding python package for quantum transport <http://kwant-project.org>`_
+*  `kwant <http://kwant-project.org>`_: tight-binding python package for quantum transport 

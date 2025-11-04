@@ -83,17 +83,17 @@ This is a simple example showing how to define graphene tight-binding
 model with first neighbour hopping only. Below is the source code and
 plot of the resulting band structure. Here you can find :doc:`more examples <examples>`.
 
-.. literalinclude:: get_started/graphene_bands.py
+.. literalinclude:: _static/get_started/graphene_bands.py
    :language: python
 
 .. list-table::
    :widths: 50 50
 
-   * - .. figure:: get_started/graphene_lattice.png
+   * - .. figure:: _static/get_started/graphene_lattice.png
            :width: 100%
 
            Graphene lattice
-     - .. figure:: get_started/graphene_bands.png
+     - .. figure:: _static/get_started/graphene_bands.png
            :width: 100%
 
            Graphene band structure
@@ -116,6 +116,7 @@ If you find bugs, please report them on the `GitHub Issues page
    install
    usage
    examples
+   Contributing <CONTRIBUTING>
    CHANGELOG
    formalism
    resources

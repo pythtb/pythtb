@@ -143,7 +143,7 @@ License
 -------
 
 Note that the ``PythTB`` code is freely distributed under the terms of
-the :download:`GNU GPL public license <misc/LICENSE>`. You may
+the :download:`GNU GPL public license <../../LICENSE>`. You may
 use it for your own research and educational purposes, or pass it on
 to others for similar use. You may modify it, but if you do so
 you must include a prominent notice stating that you have changed the

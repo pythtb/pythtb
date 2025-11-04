@@ -3,64 +3,35 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-# -- Project information -----------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
-
+# -- Path setup --------------------------------------------------------------
+import os
 import sys
 import pythtb
-# for autodoc to work on PythTB package
-sys.path.append("../src")
-# import logging
-# import plotly.io as pio
-# pio.renderers.default = 'sphinx_gallery'
-# logging.getLogger("pythtb").setLevel(logging.WARNING)
+
+package_path = os.path.abspath("../pythtb")
+sys.path.insert(0, package_path)
+
+# -- Project information -----------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = u'PythTB'
 copyright = '2025, PythTB team'
 author = 'PythTB team'
 version = pythtb.__version__
 
-# preamble for latex formulas
-# pngmath_latex_preamble = r"\usepackage{cmbright}"
-# pngmath_dvipng_args = ['-gamma 1.5', '-D 110']
-# pngmath_use_preview = True
-
-autosummary_generate = True  
-autoclass_content = "both"           # class + __init__ docstring
-autodoc_member_order = "bysource"    # keep source order
-autodoc_typehints = "description"
-autodoc_show_inheritance = False
-autodoc_default_options = {
-    # 'members': False,
-    'undoc-members': False,
-    'private-members': False,
-    'inherited-members': False,
-    # 'show-inheritance': False,
-}
-numpydoc_show_class_members = False
-numpydoc_class_members_toctree = False
-
-# link to numpy and python
-intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
-    "numpy": ("https://numpy.org/doc/stable/", None),
-}
-
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
+# The master toctree document.
+master_doc = 'index'
 
 extensions = [
     'sphinx.ext.autodoc',
-    'sphinx.ext.napoleon',  
     'sphinx.ext.viewcode',
     "sphinx.ext.autosummary",
-    # 'myst_parser',        # <-- enable Markdown
     "myst_nb",
     'sphinx.ext.doctest',
-   # 'sphinx.ext.imgmath',
     'matplotlib.sphinxext.plot_directive',
-    # 'sphinx_thebe',
     'sphinx.ext.mathjax',
     "sphinx.ext.intersphinx",
     "sphinx_copybutton",
@@ -68,8 +39,7 @@ extensions = [
     "sphinx_design",
     "numpydoc",
     "sphinx_togglebutton",
-    "notfound.extension",     
-    # "sphinx_gallery",
+    "notfound.extension", # TODO: for 404 page, not working yet
 ]
 
 myst_enable_extensions = [
@@ -92,6 +62,25 @@ copybutton_remove_prompts = True
 
 add_module_names = False
 
+autosummary_generate = True  
+autoclass_content = "both"           # class + __init__ docstring
+autodoc_member_order = "bysource"    # keep source order
+autodoc_typehints = "none"
+autodoc_show_inheritance = False
+autodoc_default_options = {
+    'undoc-members': False,
+    'private-members': False,
+    'inherited-members': False,
+}
+numpydoc_show_class_members = False
+numpydoc_class_members_toctree = False
+
+# link to numpy and python
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+}
+
 # tell Sphinx to treat .md files as sources
 source_suffix = {
     '.rst': 'restructuredtext',
@@ -105,6 +94,9 @@ plot_formats=[('png',140),('pdf',140)]
 pygments_style = "sphinx"
 pygments_dark_style = "monokai"  # for dark theme compatibility
 
+# -- Options for HTML output -------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
+
 html_theme = 'pydata_sphinx_theme' #'sphinx_book_theme' #'classic' pydata_sphinx_theme
 html_title = f"{project} Docs"
 templates_path = ['_templates']
@@ -115,6 +107,7 @@ html_js_files = [
 html_js_files += [
     ("plotly-2.34.0.min.js", {"defer": "defer"}), # needed for plotly plots
 ]
+
 html_css_files = ["custom.css"]
 html_copy_source = True
 html_show_sourcelink = False
@@ -126,9 +119,6 @@ notfound_context = {
     "title": "Page not found",
     "body": "This page doesn't exist in this version.",
 }
-
-# -- Options for HTML output -------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_context = {
     "github_user": "pythtb",
@@ -143,11 +133,11 @@ html_sidebars = {
     "install": [],
     "getstarted": [],
     "CHANGELOG": [],
+    "CONTRIBUTING": [],
     "formalism": [],
     "resources": [],
     "citation": [],
 }
-
 
 html_theme_options = {
     "logo": {
@@ -155,13 +145,12 @@ html_theme_options = {
         "image_dark": "_static/pythtb_logo2_dark.svg",
     },
     "collapse_navigation": False,
-#     "navigation_depth": 4,
+#   "navigation_depth": 4,
     "article_header_end": ["nb-download"],
-    "header_links_before_dropdown": 6,
+    "header_links_before_dropdown": 7,
     "show_toc_level": 2,
-#     "show_nav_level": 2,
-    # "navbar_start": ["navbar-logo", "version-switcher"],
-    "navbar_start": ["navbar-logo"],
+#   "show_nav_level": 2,
+    "navbar_start": ["navbar-logo"], # ["navbar-logo", "version-switcher"],
     "navbar_center": ["navbar-nav"],
     "navbar_end": [
         "search-button",
@@ -186,50 +175,20 @@ html_theme_options = {
             "icon": "fa-custom fa-pypi",
         },
     ],
-    # "use_thebe": True
 }
-
-
-# html_js_files = [
-    # "https://unpkg.com/thebe@latest/lib/index.js"
-# ] # for executing code
-
-# documentation.
-# html_theme_options = {
-#     # "repository_url": "https://github.com/sinisacoh/pythtb",
-#     # "use_repository_button": True,
-#     # "use_issues_button": True,
-#     # "use_edit_page_button": True,
-#     # "path_to_docs": "docs/source",
-#     # "repository_branch": "main",
-#     # "use_download_button": True,
-#     # "home_page_in_toc": True,
-#     "show_toc_level": 2,
-# }
-# html_sidebars = {
-#           '**':    ['globaltoc.html', 'localtoc.html', 'searchbox.html'],
-#           'index': ['globaltoc.html', 'searchbox.html'],
-#        }
-# remove "show source" from website
-
-# The master toctree document.
-master_doc = 'index'
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
-
-# A list of ignored prefixes for module index sorting.
-#modindex_common_prefix = []
-
-# preamble for latex formulas
-pngmath_latex_preamble=r"\usepackage{cmbright}"
-pngmath_dvipng_args=['-gamma 1.5', '-D 110']
-pngmath_use_preview=True
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'PythTBdoc'
 
 # -- Options for LaTeX output --------------------------------------------------
+
+# preamble for latex formulas
+pngmath_latex_preamble=r"\usepackage{cmbright}"
+pngmath_dvipng_args=['-gamma 1.5', '-D 110']
+pngmath_use_preview=True
 
 latex_elements = {
 # The paper size ('letterpaper' or 'a4paper').
@@ -261,9 +220,7 @@ texinfo_documents = [
    'Miscellaneous'),
 ]
 
-# for autodoc so that things are ordered as in source
-autodoc_member_order = 'bysource' 
-
+# -- Custom functions --------------------------------------------------------
 
 # In order to skip some functions in documentation
 def setup(app):
