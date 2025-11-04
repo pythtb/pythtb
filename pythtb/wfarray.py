@@ -1794,7 +1794,7 @@ class WFArray:
         return M
 
     def links(
-        self, axis_idxs: int | ArrayLike = None, state_idx: int | ArrayLike = None
+        self, axis_idx: int | ArrayLike = None, state_idx: int | ArrayLike = None
     ) -> np.ndarray:
         r"""Compute the overlap links (unitary matrices) for the wavefunctions.
 
@@ -1826,7 +1826,7 @@ class WFArray:
 
         Parameters
         ----------
-        axis_idxs : int or array_like of int, optional
+        axis_idx : int or array_like of int, optional
             List of `Mesh` axes along which to compute the links.
             If not provided, links will be computed for all directions in the mesh.
         state_idx : int or array_like of int
@@ -1841,9 +1841,9 @@ class WFArray:
             where
 
             - ``dim`` is the number of dimensions of the mesh corresponding to :math:`\mu`
-              in the equations above. If ``axis_idxs`` is provided, ``dim=len(axis_idxs)``; and
+              in the equations above. If ``axis_idx`` is provided, ``dim=len(axis_idx)``; and
               the indexing of the first axis corresponds to the order of directions
-              in ``axis_idxs``.
+              in ``axis_idx``.
             - ``shape_k`` is the tuple of sizes of the mesh along each k-dimension, similarly
             - ``shape_l`` is the tuple of sizes of the mesh along each lambda-dimension,
             - The last two axes are the matrix elements of the unitary link matrices,
@@ -1880,21 +1880,21 @@ class WFArray:
               ``np.nan``-filled code path as the previous case because no physical neighbor
               exists beyond the edge. Those terminal slices should likewise be dropped.
         """
-        if axis_idxs is None:
-            axis_idxs = np.arange(self.naxes, dtype=int)
+        if axis_idx is None:
+            axis_idx = np.arange(self.naxes, dtype=int)
         else:
-            axis_idxs = np.atleast_1d(axis_idxs)
-            if not np.issubdtype(axis_idxs.dtype, np.integer):
-                raise TypeError("axis_idxs must be integer or an integer array.")
-            if (axis_idxs < 0).any() or (axis_idxs >= self.naxes).any():
-                raise IndexError("axis index in axis_idxs is out of range.")
+            axis_idx = np.atleast_1d(axis_idx)
+            if not np.issubdtype(axis_idx.dtype, np.integer):
+                raise TypeError("axis_idx must be integer or an integer array.")
+            if (axis_idx < 0).any() or (axis_idx >= self.naxes).any():
+                raise IndexError("axis index in axis_idx is out of range.")
             
         # select bands and states once 
         state_idx = self._normalize_state_indices(state_idx)
         wfs = self.states(flatten_spin_axis=True, state_idx=state_idx)
 
         # stack all shifted states along a new leading axis (n_mu, ...) 
-        shifts = [self._unit_shift(mu) for mu in axis_idxs]
+        shifts = [self._unit_shift(mu) for mu in axis_idx]
         W = np.stack(
             [np.take(self.roll_states_with_pbc(s, flatten_spin_axis=True), state_idx, axis=-2)
             for s in shifts],
@@ -1939,8 +1939,6 @@ class WFArray:
 
         where :math:`\phi_n` are the multiband Berry phases associated with each band.
 
-        .. versionadded:: 2.0.0
-
         Parameters
         ----------
         wfs_loop : np.ndarray
@@ -1960,11 +1958,6 @@ class WFArray:
         eval_pha : np.ndarray, optional
             Multiband Berry phases associated with each band.
             Returned only if ``wilson_evals=True``, otherwise not returned.
-
-        See Also
-        --------
-        :meth:`_berry_loop`
-        :meth:`links`
 
         Notes
         ------
@@ -2029,8 +2022,6 @@ class WFArray:
         unitary matrix. These multiband Berry phases correspond to the
         "maximally localized Wannier centers" or "Wilson loop eigenvalues".
 
-        .. versionadded:: 2.0.0
-
         Parameters
         ----------
         wfs_loop : np.ndarray
@@ -2047,13 +2038,6 @@ class WFArray:
         berry_evals : np.ndarray, optional
             If berry_evals is True, returns an array of multiband Berry phases
             associated with each band.
-
-        See Also
-        --------
-        :meth:`links`
-        :meth:`berry_phase`
-        :meth:`wilson_loop`
-        :ref:`formalism` : Section 4.5
 
         Notes
         -----
@@ -2223,66 +2207,106 @@ class WFArray:
     
     def berry_connection(
         self,
-        state_idx=None,
-        axis_idxs=None,
+        axis_idx: int | ArrayLike = None,
+        state_idx: int | ArrayLike = None,
         *,
-        dk: float | np.ndarray | None = None,  # step size(s) along each μ in reduced k; None -> infer uniform
         return_unitaries: bool = False,
+        cartesian: bool = False,
     ):
         r"""Compute the (non-Abelian) Berry connection from parallel-transport links.
 
-        This routine extracts a gauge-covariant discrete connection over the selected
-        subspace (bands in ``state_idx``) and the specified reciprocal-space directions
-        ``axis_idxs``. It returns the matrix-valued connection on the full mesh
-        :math:`(k_1,\dots,k_{N_k};\,\lambda_1,\dots,\lambda_{N_\lambda})`, with band
-        indices on the last two axes.
+        The gauge-covariant connection is computed from the link unitaries 
+        :math:`U_\mu(\mathbf{k})` returned by :meth:`links` with a discrete approximation:
+
+        .. math::
+            A_\mu(\mathbf{k}) = -\frac{1}{i \Delta k_\mu} \log U_\mu(\mathbf{k})
+
+        where :math:`\Delta k_\mu` is the step size in reduced coordinates along 
+        direction :math:`\mu` specified in ``axis_idx``. The matrix-valued connection 
+        is defined on the full mesh
+        :math:`(k_1,\dots,k_{\text{dim_k}};\,\lambda_1,\dots,\lambda_{\text{dim}_{\lambda}})`, 
+        with band indices on the last two axes. The band indices run over the subspace
+        specified in ``state_idx``.
 
         Parameters
         ----------
+        axis_idx : int or array_like of int or None, optional
+            Mesh directions to compute the Berry connection. If None, use all mesh axes.
         state_idx : int or array_like of int or None, optional
             Subspace (band indices) to use. If None, use all.
-        axis_idxs : int or array_like of int or None, optional
-            k-directions μ to compute. If None, use all k-axes.
-        dk : float or ndarray or None, optional
-            Step size(s) Δk_μ in reduced coordinates (no 2π).
-            If None, infer uniform Δk_μ = 1/nk[μ] for each selected μ.
-            Can be scalar (same for all μ) or array-like of length n_μ (per-axis).
-            For non-uniform meshes, pass an array broadcastable to the k-grid.
         return_unitaries : bool, optional
-            If True, also return the U_mu used internally.
+            If True, also return the ``U_mu`` used internally.
+        cartesian : bool, optional
+            If True, compute the step size :math:`\Delta k_\mu` in Cartesian space
+            (using the reciprocal lattice vectors) rather than in reduced coordinates.
+            Default is False.
 
         Returns
         -------
         A : ndarray
             Non-Abelian connection with shape:
-            (n_mu, nk1, ..., nkN, nl1, ..., nlM, nstate, nstate).
-            Anti-Hermitian: A^† = -A. Entries at invalid boundaries are NaN.
+            ``(n_mu, nk1, ..., nkN, nl1, ..., nlM, nstate, nstate)``.
         U : ndarray, optional
-            The link unitaries with same leading shape (returned if return_unitaries=True).
+            The link unitaries with same leading shape (returned if ``return_unitaries=True``).
+
+        Notes
+        -----
+        - The connection is Hermitian, :math:`A_\mu^\dagger = A_\mu`. 
+        - The logarithm is computed via eigen-decomposition of the unitary
+          :math:`U = V \, \text{diag}(e^{i\theta_n}) \, V^\dagger`, with principal phases
+          :math:`\theta_n` in :math:`(-\pi, \pi]`. 
+        - Entries of the connection at invalid boundaries (where links are NaN)
+          are left as NaN.
         """
-        # 1) Get link unitaries U_mu (n_mu, ..., nstate, nstate), with NaNs at boundaries
-        U = self.links(state_idx=state_idx, axis_idxs=axis_idxs)  # uses your batched SVD
+        # Get link unitaries U_mu (n_mu, ..., nstate, nstate), with NaNs at boundaries
+        U = self.links(state_idx=state_idx, axis_idx=axis_idx) # (n_mu, ..., nstate, nstate)
 
-        # 2) Build Δk per μ
-        if axis_idxs is None:
-            axis_idxs = np.arange(self.naxes, dtype=int)
+        # Build dk per mu
+        if axis_idx is None:
+            axis_idx = np.arange(self.naxes, dtype=int)
         else:
-            axis_idxs = np.atleast_1d(axis_idxs)
+            axis_idx = np.atleast_1d(axis_idx)
 
-        if dk is None:
-            # uniform reduced step along each μ: Δk_μ = 1 / nk[μ]
-            # (this matches nearest-neighbor shift on a uniform reduced mesh)
-            dk = 1.0 / np.asarray(self.nks, float)[axis_idxs]
-        dk = np.asarray(dk, float)
-        if dk.ndim == 0:
-            dk = np.full(len(axis_idxs), float(dk))
+        # Compute spacings
+        step_list = []
+        dim_tot = self.mesh.dim_k + self.mesh.dim_lambda
+        dim_k = self.mesh.dim_k
 
-        # 3) Compute A_mu from U_mu
-        #    We'll handle boundaries (NaNs) by masking rows; leave A as NaN there.
+        for ax in axis_idx:
+            delta_vec = []
+
+            for comp in range(dim_tot):
+                arr = self.mesh.get_axis_range(ax, comp)
+                if arr.size < 2:
+                    continue
+                diff = arr[1] - arr[0]
+                if not np.isclose(diff, 0.0):
+                    delta_vec.append(diff)
+            
+            if not delta_vec:
+                raise ValueError(
+                    f"Could not determine step size along axis {ax} for Berry connection."
+                ) 
+            
+            if cartesian and dim_k:
+                reduced = delta_vec[:dim_k]  # reduced k-step
+                cart = reduced @ self.lattice.recip_lat_vecs   # Cartesian k-step
+                combined = np.concatenate([cart, delta_vec[dim_k:]])
+                step_list.append(np.linalg.norm(combined))
+            else:
+                # reduced step (first varying component)
+                nonzero = np.flatnonzero(delta_vec)
+                step_list.append(delta_vec[nonzero[0]])
+
+        dk = np.asarray(step_list, dtype=float)
+
+        # Compute A_mu from U_mu
+        # We'll handle boundaries (NaNs) by masking rows; leave A as NaN there.
         A = np.empty_like(U, dtype=complex)
        
-        # Accurate: A = (1/(i Δk)) * log(U) via eigen-decomposition
-        # (unitary U is normal -> unitarily diagonalizable: U = V diag(e^{iθ}) V^†, log U = V diag(iθ) V^†)
+        # A = (1/(i dk)) * log(U) via eigen-decomposition
+        # (unitary U is normal -> unitarily diagonalizable: 
+        # U = V diag(e^{i theta}) V^dagger, log U = V diag(i theta) V^dagger)
         for i_mu, dki in enumerate(dk):
             Ui = U[i_mu]
             Ai = np.empty_like(Ui, dtype=complex)
@@ -2300,7 +2324,7 @@ class WFArray:
                     Ai_flat[p, :, :] = np.nan + 0j
                     continue
                 w, V = np.linalg.eig(Ui_flat[p])
-                # principal phases in (-π, π]
+                # principal phases in (-pi, pi]
                 theta = np.angle(w)
                 logU = (V * (1j * theta)) @ V.conj().T
                 Ai_flat[p] = -logU / (1j * dki)
@@ -2736,7 +2760,7 @@ class WFArray:
                     berry_flux = np.delete(berry_flux, -1, axis=ax)
 
         # U_forward: Unitary part of overlaps <u_{nk} | u_{n, k+delta k_mu}>
-        U_forward = self.links(state_idx=state_idx, axis_idxs=dirs)
+        U_forward = self.links(state_idx=state_idx, axis_idx=dirs)
 
         # Compute Berry flux for each pair of states
         for mu in range(plane_idxs):
