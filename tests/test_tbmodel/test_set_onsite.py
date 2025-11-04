@@ -39,7 +39,7 @@ def test_set_onsite(spinful):
             onsite_check[i] = np.sum(
                 [onsite_values[i][j] * SIGMAS[j] for j in range(4)], axis=0
             )
-        assert np.allclose(test_model.site_energies, onsite_check)
+        assert np.allclose(test_model.onsite, onsite_check)
 
         # Now try a list of numbers, should be proprto SIGMA_0 for each orbital
         onsite_values = [1, 2, 3]
@@ -48,5 +48,5 @@ def test_set_onsite(spinful):
         for i in range(len(onsite_values)):
             onsite_check[i] = onsite_values[i] * SIGMA_0
         
-        assert np.allclose(test_model.site_energies, onsite_check)
+        assert np.allclose(test_model.onsite, onsite_check)
 

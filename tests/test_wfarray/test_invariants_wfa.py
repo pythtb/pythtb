@@ -3,7 +3,11 @@ import pytest
 from pythtb.models import haldane
 from pythtb import WFArray, Mesh
 
-def test_chern_haldane():
+@pytest.mark.parametrize("k_endpoints", [
+    (True),   # Include BZ boundary points
+    ( False), # Exclude BZ boundary points
+])
+def test_chern_haldane(k_endpoints):
     delta = 1
     t1 = 1
     eps = 1e-1  # small number to avoid phase boundaries
@@ -20,7 +24,7 @@ def test_chern_haldane():
     model = haldane(delta=delta, t1=t1, t2=0, phi=np.pi/2)
     
     mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
-    mesh.build_grid([100, 100])
+    mesh.build_grid([100, 100], k_endpoints=k_endpoints)
     wfa = WFArray(model.lattice, mesh)
     
     for t2_val in t2:
