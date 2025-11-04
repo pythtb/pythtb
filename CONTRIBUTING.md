@@ -13,6 +13,8 @@ Document all non-obvious behavior, conventions, and edge cases. Use comments in 
 Keep interfaces minimal and intuitive. Avoid unnecessary complexity; simple, well-structured classes are easier to extend and maintain.
 ### Ambiguity
 If a function could return confusing or misleading results, prefer raising a warning or leaving the function private rather than returning something ambiguous to the user.
+### Code Reviews
+All pull requests are reviewed by maintainers. Feedback and iteration help maintain a consistent and high-quality codebase.
 
 ## How to Contribute
 1. For first-time contributors:
@@ -41,7 +43,7 @@ If a function could return confusing or misleading results, prefer raising a war
    - Make frequent commits locally as you implement changes.
    - Be sure to document any changed behavior in docstrings,
      using [numpydoc](https://numpydoc.readthedocs.io/en/latest/format.html) conventions.
-   - Add tests for new functionality in the [tests/](tests/) folder. Resolve any failing tests before pushing.
+   - Add tests for new functionality. Resolve any failing tests before pushing.
    - If the Sphinx webpage has been updated, build locally to make sure everything renders correctly and that there are no warnings or errors. 
 3. Submit your contributions:
    - Push changes back to your fork on GitHub:
@@ -60,13 +62,5 @@ If a function could return confusing or misleading results, prefer raising a war
 ## Reporting Issues
 
 If you run into bugs or have ideas for improvements:
-- Open an issue on GitHub.
+- Open an [issue on GitHub](https://github.com/pythtb/PythTB/issues).
 - Include relevant details: steps to reproduce, error messages, minimal examples, and system information.
-
-## Code Reviews
-
-All pull requests are reviewed by maintainers. Feedback and iteration help maintain a consistent and high-quality codebase.
-
-## Final Note
-
-Our goal is to make *PythTB* clear, robust, and welcoming to contributors. Thoughtful code, careful documentation, and clear communication all help the project grow in a sustainable way.
