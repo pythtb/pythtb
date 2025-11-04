@@ -5,7 +5,7 @@ __license__ = "GPL-3.0"
 # Set up logging
 import logging
 
-_LOGGER_NAME = __name__.split('.')[0]
+_LOGGER_NAME = __name__.split(".")[0]
 logger = logging.getLogger(_LOGGER_NAME)
 logger.addHandler(logging.NullHandler())
 _DEFAULT_LOG_FORMAT = "%(levelname)s %(name)s: %(message)s"
@@ -71,11 +71,11 @@ def set_log_level(level: int | str):
     become visible immediately.
     """
     configure_logging(level=level)
-    
+
 
 # Import public symbols
 from . import tbmodel, wfarray, w90, mesh, wannier, utils, lattice
-from .tbmodel import *   # relies on tbmodel.__all__
+from .tbmodel import *  # relies on tbmodel.__all__
 from .wfarray import *
 from .w90 import *
 from .mesh import *

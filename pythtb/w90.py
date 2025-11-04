@@ -12,21 +12,22 @@ __all__ = ["W90"]
 BOHRTOANG = 0.52917721092  # Bohr radius in Angstroms
 _KPOINT_LABEL_PATTERN = re.compile(r"^(?P<base>[^\d]+?)(?P<suffix>\d+)?$", re.UNICODE)
 
-class W90:
-    r"""Interface to Wannier90 
 
-    This class imports tight-binding model parameters from a 
+class W90:
+    r"""Interface to Wannier90
+
+    This class imports tight-binding model parameters from a
     `Wannier90 <http://www.wannier.org>`_ calculation.
     Upon construction, it reads the relevant Wannier90 output
     files from the specified directory. Use :meth:`model` to
     convert the imported data into a :class:`TBModel` instance.
 
-    `Wannier90 <http://www.wannier.org>`_ is a post-processing tool 
+    `Wannier90 <http://www.wannier.org>`_ is a post-processing tool
     that takes as input Bloch wavefunctions and energies generated
-    by first-principles electronic structure codes such as 
+    by first-principles electronic structure codes such as
     Quantum-Espresso (PWscf), ABINIT, SIESTA, FLEUR,
     WIEN2k, or VASP. It produces maximally localized Wannier functions
-    together with a tight-binding Hamiltonian in the Wannier basis. 
+    together with a tight-binding Hamiltonian in the Wannier basis.
 
     The PythTB interface uses the following Wannier90 output files:
 
@@ -36,10 +37,10 @@ class W90:
     - ``prefix_band.kpt`` (optional)
     - ``prefix_band.dat`` (optional)
 
-    The ``prefix.win`` file provides general input to Wannier90 and is here 
+    The ``prefix.win`` file provides general input to Wannier90 and is here
     primarily to obtain the lattice vectors.
 
-    To ensure the required files ``prefix_hr.dat`` and ``prefix_centres.xyz`` 
+    To ensure the required files ``prefix_hr.dat`` and ``prefix_centres.xyz``
     are written, include the following flags in the ``prefix.win`` file::
 
        write_hr = True
@@ -80,7 +81,7 @@ class W90:
     .. warning::
         So far we have only tested Wannier90 version 2.0.1.
 
-    .. warning:: 
+    .. warning::
         The user needs to make sure that the Wannier functions
         computed using Wannier90 code are well localized. Otherwise the
         tight-binding model may not accurately interpolate the band
@@ -96,11 +97,11 @@ class W90:
         The interpolation is only exact within the frozen energy window
         of the disentanglement procedure.
 
-    .. warning:: 
+    .. warning::
         So far PythTB assumes that the position operator is
         diagonal in the tight-binding basis. This is discussed in the
         :download:`notes on tight-binding formalism
-        </misc/pythtb-formalism.pdf>` in Eq. 2.7.,
+        </_static/formalism/pythtb-formalism.pdf>` in Eq. 2.7.,
         :math:`\langle\phi_{{\bf R} i} \vert {\bf r} \vert \phi_{{\bf
         R}' j} \rangle = ({\bf R} + {\bf t}_j) \delta_{{\bf R} {\bf R}'}
         \delta_{ij}`. However, this relation does not hold for Wannier
@@ -131,7 +132,7 @@ class W90:
         win_lines = self._load_win_lines()
         self._win_lines = win_lines
         self.lat = self._parse_unit_cell_block(win_lines)
-       
+
         # read in hamiltonian matrix, in eV
         self.num_wan, self.ham_r = self._load_hr_fast()
 
@@ -141,7 +142,7 @@ class W90:
         # read in wannier centers
         self.xyz_cen, self.red_cen = self._load_centers()
 
-        self.lattice = Lattice(self.lat, self.red_cen, periodic_dirs=[0,1,2])
+        self.lattice = Lattice(self.lat, self.red_cen, periodic_dirs=[0, 1, 2])
 
         # caches (filled lazily)
         self._vecR_cache = {}
@@ -153,8 +154,10 @@ class W90:
             with win_path.open("r") as fh:
                 return fh.readlines()
         except FileNotFoundError as exc:
-            raise FileNotFoundError(f"Unable to locate Wannier90 input file {win_path}") from exc
-        
+            raise FileNotFoundError(
+                f"Unable to locate Wannier90 input file {win_path}"
+            ) from exc
+
     def _load_hr_fast(self):
         hr_path = self.folder / f"{self.prefix}_hr.dat"
         with hr_path.open("r") as fh:
@@ -167,7 +170,9 @@ class W90:
             while len(deg_ws) < num_ws:
                 line = fh.readline()
                 if not line:
-                    raise RuntimeError("Unexpected EOF while reading Wigner–Seitz degeneracies.")
+                    raise RuntimeError(
+                        "Unexpected EOF while reading Wigner–Seitz degeneracies."
+                    )
                 deg_ws.extend(int(val) for val in line.split())
             # Truncate to expected count
             deg_ws = np.asarray(deg_ws[:num_ws], dtype=int)
@@ -199,12 +204,18 @@ class W90:
         unique_R = unique_R[order]  # reorder unique R vectors accordingly
 
         if deg_ws.size < unique_R.shape[0]:
-            raise RuntimeError("Not enough degeneracy entries for the R shells present.")
-        deg_ws = deg_ws[: unique_R.shape[0]]  # use only degeneracies actually needed (zeros get dropped)
+            raise RuntimeError(
+                "Not enough degeneracy entries for the R shells present."
+            )
+        deg_ws = deg_ws[
+            : unique_R.shape[0]
+        ]  # use only degeneracies actually needed (zeros get dropped)
 
-        remap = np.empty_like(order) 
-        remap[order] = np.arange(order.size) # permutation that maps sorted order back to original
-        inverse = remap[inverse] # remap per-row shell into new ordering
+        remap = np.empty_like(order)
+        remap[order] = np.arange(
+            order.size
+        )  # permutation that maps sorted order back to original
+        inverse = remap[inverse]  # remap per-row shell into new ordering
 
         # One (num_wan x num_wan) matrix per unique R vector
         blocks = np.zeros((unique_R.shape[0], num_wan, num_wan), dtype=complex)
@@ -216,7 +227,7 @@ class W90:
             for idx, R_vec in enumerate(unique_R)
         }
         return num_wan, ham_r
-        
+
     def _extract_win_block(self, win_lines, name):
         begin = f"begin {name}".lower()
         end = f"end {name}".lower()
@@ -233,7 +244,7 @@ class W90:
                     break
                 block.append(raw.rstrip("\n"))
         return block
-    
+
     def _parse_unit_cell_block(self, win_lines):
         block = self._extract_win_block(win_lines, "unit_cell_cart")
         if not block:
@@ -255,7 +266,7 @@ class W90:
                 raise ValueError("Each unit_cell_cart row must have three components.")
             lat[row_idx] = [float(parts[col]) * scale for col in range(3)]
         return lat
-    
+
     def _validate_hr_symmetry(self):
         R_set = set(self.ham_r.keys())
         for R in R_set:
@@ -268,14 +279,16 @@ class W90:
         # snap 1.0 → 0.0 to avoid 2π glitches
         out[np.isclose(out, 1.0, atol=1e-12)] = 0.0
         return out
-            
+
     def _load_centers(self):
         centres_path = self.folder / f"{self.prefix}_centres.xyz"
         try:
             with centres_path.open("r") as fh:
                 lines = fh.readlines()
         except FileNotFoundError as exc:
-            raise FileNotFoundError(f"Unable to locate Wannier center file {centres_path}") from exc
+            raise FileNotFoundError(
+                f"Unable to locate Wannier center file {centres_path}"
+            ) from exc
 
         coords = []
         start = 2
@@ -291,7 +304,7 @@ class W90:
         xyz_cen = np.asarray(coords, dtype=float)
         red = _cart_to_red((self.lat[0], self.lat[1], self.lat[2]), xyz_cen)
         return xyz_cen, red
-      
+
     def _kpoint_path_nodes(self, *, latex: bool = True):
         """
         Return the reduced-coordinate nodes declared in the ``kpoint_path`` block.
@@ -326,11 +339,17 @@ class W90:
                 label = tokens[offset]
                 try:
                     coords = np.array(
-                        [float(tokens[offset + 1]), float(tokens[offset + 2]), float(tokens[offset + 3])],
+                        [
+                            float(tokens[offset + 1]),
+                            float(tokens[offset + 2]),
+                            float(tokens[offset + 3]),
+                        ],
                         dtype=float,
                     )
                 except ValueError as exc:
-                    raise ValueError(f"Failed to parse coordinates for k-point '{label}'.") from exc
+                    raise ValueError(
+                        f"Failed to parse coordinates for k-point '{label}'."
+                    ) from exc
                 entries.append((label, coords))
 
         if not entries:
@@ -341,7 +360,11 @@ class W90:
         prev_label = None
         prev_coords = None
         for label, coords in entries:
-            if prev_label is not None and label == prev_label and np.allclose(coords, prev_coords):
+            if (
+                prev_label is not None
+                and label == prev_label
+                and np.allclose(coords, prev_coords)
+            ):
                 # Skip duplicated node introduced by segment chaining (e.g. P1->P2, P2->P3)
                 continue
             labels.append(label)
@@ -424,7 +447,6 @@ class W90:
         self._vecR_cache[R] = vecR
         return vecR
 
-
     def _get_dist_matrix(self, R):
         """Distance for reduced lattice vector R, cached."""
         if not hasattr(self, "_dist_cache"):
@@ -432,7 +454,9 @@ class W90:
         if R in self._dist_cache:
             return self._dist_cache[R]
         vecR = self._get_vecR(R)
-        delta = (-self.xyz_cen[:, None, :] + self.xyz_cen[None, :, :]) + vecR[None, None, :]
+        delta = (-self.xyz_cen[:, None, :] + self.xyz_cen[None, :, :]) + vecR[
+            None, None, :
+        ]
         dist = np.linalg.norm(delta, axis=2)  # (num_wan, num_wan)
         self._dist_cache[R] = dist
         return dist
@@ -451,7 +475,7 @@ class W90:
         min_hopping_norm=None,
         max_distance=None,
         ignorable_imaginary_part=None,
-        ) -> TBModel:
+    ) -> TBModel:
         r"""Get TBModel associated with this Wannier90 calculation.
 
         This function returns :class:`pythtb.TBModel` object that can
@@ -468,9 +492,9 @@ class W90:
         ----------
 
         zero_energy : float
-            Sets the zero of the energy in the band structure. 
+            Sets the zero of the energy in the band structure.
             This value is typically set to the Fermi level
-            computed by the density-functional code (or to the top of the valence band). 
+            computed by the density-functional code (or to the top of the valence band).
             Units are electron-volts.
 
         min_hopping_norm : float
@@ -497,14 +521,14 @@ class W90:
         tb : :class:`pythtb.TBModel`
             The :class:`pythtb.TBModel` that can be used to
             interpolate Wannier90 band structure to an arbitrary k-point as well
-            as to analyze the character of the wavefunctions. 
+            as to analyze the character of the wavefunctions.
 
         Notes
         -----
         The character of the maximally localized Wannier functions is
         not exactly the same as that specified by the initial
-        projections. The orbital character of the Wannier functions can be 
-        inferred either from the *projections* block in the *prefix*.win or 
+        projections. The orbital character of the Wannier functions can be
+        inferred either from the *projections* block in the *prefix*.win or
         from the *prefix*.nnkp file.
 
         One way to ensure that the Wannier functions are as close to
@@ -573,7 +597,7 @@ class W90:
             if r2 != 0:
                 return r2 > 0
             return r3 > 0
-        
+
         if max_distance is not None and not self._dist_cache:
             self._precompute_distances()
 
@@ -601,19 +625,19 @@ class W90:
 
             else:
                 keep = np.ones((num_wan, num_wan), dtype=bool)
-                # np.fill_diagonal(keep, False)  
-                np.fill_diagonal(keep, True)  
+                # np.fill_diagonal(keep, False)
+                np.fill_diagonal(keep, True)
 
             # Distance cutoff (use cached distances; compute lazily if needed)
             if max_distance is not None:
                 dist = self._get_dist_matrix(R)
-                keep &= (dist <= max_distance)
+                keep &= dist <= max_distance
                 if not np.any(keep):
                     continue
 
             # Apply min_hopping_norm filter
             if min_hopping_norm is not None:
-                keep &= (np.abs(Ham) >= min_hopping_norm)
+                keep &= np.abs(Ham) >= min_hopping_norm
                 if not np.any(keep):
                     continue
 
@@ -634,7 +658,6 @@ class W90:
                 #     tb.set_hop(a, i, j, list(R))
 
         return tb
-    
 
     def dist_hop(self):
         r"""Get distances and hopping terms of Hamiltonian in Wannier basis.
@@ -690,7 +713,6 @@ class W90:
 
         return (np.concatenate(ret_dist), np.concatenate(ret_ham))
 
-
     def shells(self, num_digits=2):
         r"""Get all shells of distances between Wannier function centers.
 
@@ -724,7 +746,7 @@ class W90:
         shells = np.sort(list(set(shells)))
 
         return shells
-    
+
     @deprecated("use .solve_ham() instead (since v2.0).", category=FutureWarning)
     def w90_bands_consistency(self):
         """
@@ -734,11 +756,11 @@ class W90:
         return self.bands_w90()
 
     def bands_w90(
-            self, 
-            return_k_cart: bool = False,
-            return_k_dist: bool = False, 
-            return_k_nodes: bool = False,
-        ):
+        self,
+        return_k_cart: bool = False,
+        return_k_dist: bool = False,
+        return_k_nodes: bool = False,
+    ):
         r"""Read interpolated band structure from Wannier90 output files.
 
         .. versionadded:: 2.0.0
@@ -818,7 +840,7 @@ class W90:
         >>> evals = my_model.solve_ham(w90_kpt)
 
         Now plot the comparison of the two
-        
+
         >>> import matplotlib.pyplot as plt
         >>> fig, ax = plt.subplots()
         >>> for i in range(evals.shape[1]):
@@ -873,10 +895,14 @@ class W90:
         bands_path = self.folder / f"{self.prefix}_bands.dat"
         # Try to grab nbnd/nks from header
         meta = {}
-        m = re.search(r"nbnd\s*=\s*(\d+).+nks\s*=\s*(\d+)", open(bands_path).read(5000), re.I|re.S)
+        m = re.search(
+            r"nbnd\s*=\s*(\d+).+nks\s*=\s*(\d+)",
+            open(bands_path).read(5000),
+            re.I | re.S,
+        )
         if m:
             meta["nbnd"] = int(m.group(1))
-            meta["nks"]  = int(m.group(2))
+            meta["nks"] = int(m.group(2))
 
         def is_k_marker(s: str) -> bool:
             # k-marker line has exactly three floats
@@ -912,11 +938,11 @@ class W90:
             energies_rows.append(ebuf)
 
         # Convert
-        E_raw = np.array(energies_rows, dtype=float) 
+        E_raw = np.array(energies_rows, dtype=float)
         k_cart = np.array(klist, dtype=float)
         # k_cart in units of 2pi/alat
         alat = np.linalg.norm(self.lattice.lat_vecs[0])
-        k_cart *= (2 * np.pi / alat)
+        k_cart *= 2 * np.pi / alat
 
         # Infer dimensions if header absent / inconsistent
         nks = meta.get("nks", E_raw.shape[0])
@@ -926,7 +952,7 @@ class W90:
         E = np.full((nks, nbnd), np.nan, dtype=float)
         for i in range(min(nks, len(E_raw))):
             row = E_raw[i]
-            E[i, :min(nbnd, len(row))] = row[:nbnd]
+            E[i, : min(nbnd, len(row))] = row[:nbnd]
 
         B = self.lattice.recip_lat_vecs
         k_frac = k_cart @ np.linalg.inv(B)

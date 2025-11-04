@@ -6,6 +6,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["Lattice"]
 
+
 def _parse_kpts(kpts, dim):
     """
     Parse special string cases for 1D and ensure array shape (n_nodes, dim).
@@ -23,17 +24,18 @@ def _parse_kpts(kpts, dim):
         arr = arr[:, None]
     return arr
 
-class Lattice():
+
+class Lattice:
     r"""Store lattice and orbital information for tight-binding models.
 
     The :class:`Lattice` class encapsulates the real-space lattice vectors, orbital
     positions, and periodicity information for tight-binding models. It provides methods
     to access and manipulate lattice properties, such as retrieving lattice vectors,
-    orbital positions, and cutting finite pieces from periodic lattices. Internally, 
+    orbital positions, and cutting finite pieces from periodic lattices. Internally,
     it also computes the reciprocal lattice vectors based on the specified periodic directions.
 
     ..  versionadded:: 2.0.0
-    
+
     Parameters
     ----------
     lat_vecs : array_like
@@ -41,14 +43,14 @@ class Lattice():
         in Cartesian coordinates.
     orb_vecs : array_like, int
         Array of shape ``(norb, dim_r)`` containing the orbital positions as rows
-        in reduced coordinates (fractions of the lattice vectors). If ``orb_vecs`` 
+        in reduced coordinates (fractions of the lattice vectors). If ``orb_vecs``
         is an integer, it specifies the number of orbitals at the origin.
     periodic_dirs : list of int, optional
         Indices of real-space lattice directions that are periodic. The indices
         refer to the ``lat_vecs`` array, e.g. ``[0]`` would indicate that the first
         lattice vector is periodic. If None (default), all directions are considered
         non-periodic (open boundary conditions).
-    
+
     Notes
     -----
     - The dimension of the real-space lattice, ``dim_r``, is inferred from the shape of ``lat_vecs``.
@@ -57,14 +59,14 @@ class Lattice():
     - Orbital positions are given in reduced coordinates, i.e., fractions of the lattice vectors.
     - Works for 0D, 1D, 2D, and 3D lattices. For 0D, use empty arrays for ``lat_vecs`` and an
       integer for ``orb_vecs``.
-    
+
     """
 
     def __init__(
         self,
         lat_vecs: np.ndarray,
-        orb_vecs: np.ndarray,        
-        periodic_dirs = None,
+        orb_vecs: np.ndarray,
+        periodic_dirs=None,
     ):
         if periodic_dirs is None:
             logger.info("All lattice directions are considered open (non-periodic).")
@@ -84,9 +86,9 @@ class Lattice():
         if not isinstance(value, Lattice):
             return False
         return (
-            np.allclose(self.lat_vecs, value.lat_vecs) and
-            np.allclose(self.orb_vecs, value.orb_vecs) and
-            self.periodic_dirs == value.periodic_dirs
+            np.allclose(self.lat_vecs, value.lat_vecs)
+            and np.allclose(self.orb_vecs, value.orb_vecs)
+            and self.periodic_dirs == value.periodic_dirs
         )
 
     def _set_orb_vecs(self, orb_vecs):
@@ -111,9 +113,8 @@ class Lattice():
 
         self._orb_vectors = orb_vecs
 
-        if hasattr(self, '_lat_vectors'):
+        if hasattr(self, "_lat_vectors"):
             self._orb_vecs_cart = orb_vecs @ self._lat_vectors
-
 
     def _set_lat_vecs(self, lat_vecs):
         if isinstance(lat_vecs, (list, np.ndarray)):
@@ -137,7 +138,7 @@ class Lattice():
                 raise ValueError("Lattice vectors need to form right handed system.")
             elif det_lat < 1e-10:
                 raise ValueError("Volume of unit cell is zero.")
-        
+
         self._lat_vectors = lat_vecs
 
         # Cell volume
@@ -152,9 +153,11 @@ class Lattice():
         if self.dim_k == 0:
             self._recip_vol = 0.0
         else:
-            self._recip_vol = np.sqrt(np.linalg.det(self._recip_lat @ self._recip_lat.T))
+            self._recip_vol = np.sqrt(
+                np.linalg.det(self._recip_lat @ self._recip_lat.T)
+            )
 
-        if hasattr(self, '_orb_vectors'):
+        if hasattr(self, "_orb_vectors"):
             # reframe fractional orbital positions into new lattice
             self.orb_vecs = self.orb_vecs @ np.linalg.inv(lat_vecs)
 
@@ -162,12 +165,12 @@ class Lattice():
     def periodic_dirs(self) -> list[int]:
         """List of periodic directions."""
         return self._periodic_dirs
-    
+
     @property
     def orb_vecs(self) -> np.ndarray:
         """Orbital vectors in reduced coordinates with shape ``(norb, dim_r)``."""
         return self._orb_vectors.copy()
-    
+
     @property
     def lat_vecs(self) -> np.ndarray:
         """Lattice vectors in Cartesian coordinates with shape ``(dim_r, dim_r)``."""
@@ -176,16 +179,20 @@ class Lattice():
     @lat_vecs.setter
     def lat_vecs(self, new_lat_vecs: np.ndarray):
         self._set_lat_vecs(new_lat_vecs)
+
     @orb_vecs.setter
     def orb_vecs(self, new_orb_vecs: np.ndarray):
         self._set_orb_vecs(new_orb_vecs)
+
     @periodic_dirs.setter
     def periodic_dirs(self, new_per: list[int]):
         if not isinstance(new_per, (list, tuple, np.ndarray)):
             raise TypeError("periodic_dirs must be a list of integers.")
         new_per = list(new_per)
         if not hasattr(self, "_lat_vectors"):
-            raise AttributeError("Lattice vectors must be defined before setting periodic_dirs.")
+            raise AttributeError(
+                "Lattice vectors must be defined before setting periodic_dirs."
+            )
 
         dim_r = self._lat_vectors.shape[0]
         validated: list[int] = []
@@ -211,14 +218,16 @@ class Lattice():
             self._recip_vol = 0.0
         else:
             self._recip_lat = self._get_recip_lat()
-            self._recip_vol = np.sqrt(np.linalg.det(self._recip_lat @ self._recip_lat.T))
+            self._recip_vol = np.sqrt(
+                np.linalg.det(self._recip_lat @ self._recip_lat.T)
+            )
 
     # Read-only properties inferred from mutable attributes
     @property
     def nsuper(self) -> list[int]:
         """List of supercell sizes along each real-space lattice vector."""
         return self._nsuper.copy()
-    
+
     @property
     def dim_r(self) -> int:
         """The dimensionality of real space."""
@@ -238,22 +247,24 @@ class Lattice():
     def recip_lat_vecs(self) -> np.ndarray:
         """Reciprocal lattice vectors in Cartesian coordinates with shape ``(dim_k, dim_r)``."""
         if self._recip_lat is None:
-            raise ValueError("Reciprocal lattice vectors are not defined for zero-dimensional k-space.")
+            raise ValueError(
+                "Reciprocal lattice vectors are not defined for zero-dimensional k-space."
+            )
         return self._recip_lat.copy()
-    
-    @property   
+
+    @property
     def recip_volume(self) -> float:
         """Volume of the reciprocal unit cell in Cartesian coordinates."""
         return self._recip_vol
-    
+
     @property
     def cell_volume(self) -> float:
         """Volume of the real-space unit cell in Cartesian coordinates."""
         return self._cell_vol
-    
+
     def __str__(self) -> str:
         return self.info(show=False)
-    
+
     def _report_list(self) -> list:
         output = []
         header = (
@@ -268,16 +279,18 @@ class Lattice():
         output.append(f"number of orbitals          = {self.norb}")
 
         formatter = {
-                "float_kind": lambda x: f"{0:6.3f}" if abs(x) < 1e-10 else f"{x:6.3f}"
-            }
-        
+            "float_kind": lambda x: f"{0:6.3f}" if abs(x) < 1e-10 else f"{x:6.3f}"
+        }
+
         output.append("\nLattice vectors (Cartesian):")
         for i, vec in enumerate(self.lat_vecs):
             output.append(
                 f"  # {i} ===> {np.array2string(vec, formatter=formatter, separator=', ')}"
             )
 
-        output.append(f"Volume of unit cell (Cartesian) = {self.cell_volume:5.3f} [A^d]\n")
+        output.append(
+            f"Volume of unit cell (Cartesian) = {self.cell_volume:5.3f} [A^d]\n"
+        )
 
         if self.dim_k > 0:
             output.append("Reciprocal lattice vectors (Cartesian):")
@@ -285,8 +298,10 @@ class Lattice():
                 output.append(
                     f"  # {i} ===> {np.array2string(vec, formatter=formatter, separator=', ')}"
                 )
-            output.append(f"Volume of reciprocal unit cell = {self.recip_volume:5.3f} [A^-d]\n")
-        
+            output.append(
+                f"Volume of reciprocal unit cell = {self.recip_volume:5.3f} [A^-d]\n"
+            )
+
         output.append("Orbital vectors (Cartesian):")
         for i, orb in enumerate(self._orb_vecs_cart):
             output.append(
@@ -300,7 +315,7 @@ class Lattice():
             )
 
         output.append("----------------------------------------")
-    
+
         return output
 
     def info(self, show: bool = True) -> str:
@@ -322,7 +337,6 @@ class Lattice():
             print("\n".join(output))
         else:
             return "\n".join(output)
-        
 
     def get_orb_vecs(self, cartesian=False):
         """Return orbital positions.
@@ -352,7 +366,7 @@ class Lattice():
             Lattice vectors, shape ``(dim_r, dim_r)``.
         """
         return self.lat_vecs
-    
+
     def get_recip_lat_vecs(self):
         """Return reciprocal lattice vectors in Cartesian coordinates.
 
@@ -374,10 +388,10 @@ class Lattice():
         Returns
         -------
         np.ndarray
-            Array of shape (dim_k, dim_r): rows are the reciprocal vectors :math:`\mathbf{b}_i` 
+            Array of shape (dim_k, dim_r): rows are the reciprocal vectors :math:`\mathbf{b}_i`
             in :math:`\mathbb{R}^{\texttt{dim_r}}`
-            satisfying :math:`\mathbf{a}_i \cdot \mathbf{b}_j = 2\pi \delta_{ij}`, 
-            where :math:`\mathbf{a}_i` are the periodic real-space lattice vectors that 
+            satisfying :math:`\mathbf{a}_i \cdot \mathbf{b}_j = 2\pi \delta_{ij}`,
+            where :math:`\mathbf{a}_i` are the periodic real-space lattice vectors that
             define k-space.
 
         Notes
@@ -386,18 +400,24 @@ class Lattice():
         - Requires the periodic real-space vectors (rows of A_sub) to be linearly independent.
         """
         if self.dim_k == 0:
-            logger.warning("Reciprocal lattice vectors are not defined for zero-dimensional k-space.")
+            logger.warning(
+                "Reciprocal lattice vectors are not defined for zero-dimensional k-space."
+            )
             return None
 
         # Select the real-space lattice vectors that generate k-space.
         # Prefer an explicit list (e.g. self.per holds indices of periodic directions).
         # Fallback: take the first dim_k lattice vectors.
-        lat = np.asarray(self.lat_vecs, dtype=float)            # shape (dim_r, dim_r) in Cartesian coords
+        lat = np.asarray(
+            self.lat_vecs, dtype=float
+        )  # shape (dim_r, dim_r) in Cartesian coords
         per = np.asarray(self.periodic_dirs, dtype=int)
         if per.size != self.dim_k:
-            raise ValueError(f"'per' must list exactly dim_k={self.dim_k} periodic directions.")
-        
-        A_sub = lat[per, :]                    # (dim_k, dim_r)
+            raise ValueError(
+                f"'per' must list exactly dim_k={self.dim_k} periodic directions."
+            )
+
+        A_sub = lat[per, :]  # (dim_k, dim_r)
 
         # Fast path: square case -> inverse transpose
         if self.dim_k == self.dim_r:
@@ -405,19 +425,23 @@ class Lattice():
             try:
                 B = (2.0 * np.pi) * np.linalg.inv(A_sub).T
             except np.linalg.LinAlgError:
-                raise ValueError("Real-space lattice vectors are linearly dependent (singular).")
+                raise ValueError(
+                    "Real-space lattice vectors are linearly dependent (singular)."
+                )
         else:
             # Rectangular case (dim_k < dim_r): minimum-norm solution
             # Check independence via Cholesky of Gram matrix (SPD iff independent)
-            G = A_sub @ A_sub.T # (dim_k, dim_k)
+            G = A_sub @ A_sub.T  # (dim_k, dim_k)
 
             try:
                 # Cholesky proves PD and is faster than matrix_rank/SVD
                 np.linalg.cholesky(G)
             except np.linalg.LinAlgError:
-                raise ValueError("Periodic real-space vectors are not linearly independent; "
-                                "cannot construct reciprocal lattice for k-subspace.")
-            
+                raise ValueError(
+                    "Periodic real-space vectors are not linearly independent; "
+                    "cannot construct reciprocal lattice for k-subspace."
+                )
+
             # Solve G X = A_sub -> A_sub @ B.T = 2pi I, with X = G^{-1} A_sub
             X = np.linalg.solve(G, A_sub)  # (dim_k, dim_r)
             # Rows b_i satisfy A_sub @ B^T = 2pi I_{dim_k}
@@ -425,17 +449,16 @@ class Lattice():
 
         return B
 
-
     def cut_piece(self, num_cells, periodic_dir) -> "Lattice":
         r"""Cut a (d-1)-dimensional piece out of a d-dimensional Lattice.
-        
+
         Constructs a (d-1)-dimensional Lattice out of a
         d-dimensional one by repeating the unit cell a given number of
         times along one of the periodic lattice vectors. The lattice
-        vector along which the cut is made is no longer considered periodic, 
+        vector along which the cut is made is no longer considered periodic,
         but otherwise remains unchanged. Orbitals are added in the new unit cells
         by translating the original orbitals by integer multiples of the lattice vectors.
-        
+
         Parameters
         ----------
         num : int
@@ -451,7 +474,7 @@ class Lattice():
             lattice.
 
         See Also
-        ---------
+        --------
         :ref:`cubic-slab-hwf-nb` : For an example
         :ref:`three-site-thouless-nb` : For an example
 
@@ -469,7 +492,7 @@ class Lattice():
             raise TypeError("Parameter `num_cells` is not an integer")
         if num_cells < 1:
             raise ValueError("Argument num_cells must be positive!")
-        
+
         new_per = copy.deepcopy(self.periodic_dirs)
         if periodic_dir not in new_per:
             raise Exception("Can not make model finite along this direction!")
@@ -490,7 +513,7 @@ class Lattice():
         fin_lat._nsuper = copy.deepcopy(self.nsuper)
         fin_lat._nsuper[periodic_dir] = num_cells
         return fin_lat
-    
+
     def add_orb(self, orb_pos):
         r"""Add an orbital to the lattice.
 
@@ -515,10 +538,10 @@ class Lattice():
             orb_pos = np.array(orb_pos, float)
         elif not isinstance(orb_pos, np.ndarray):
             raise TypeError(f"Expected array_like or float, got {type(orb_pos)}")
-        
+
         if orb_pos.ndim != 1 or orb_pos.shape[0] != self.dim_r:
             raise ValueError(f"Orbital position must be of length {self.dim_r}.")
-        
+
         self.orb_vecs = np.vstack([self.orb_vecs, orb_pos])
 
     def remove_orb(self, to_remove):
@@ -550,7 +573,7 @@ class Lattice():
                 raise TypeError("All indices in to_remove must be integers.")
             if index < 0 or index >= self.norb:
                 raise ValueError("Index out of bounds.")
-            
+
         # check that all indices are unique
         if len(indices) != len(set(indices)):
             raise ValueError("All indices in to_remove must be unique.")
@@ -563,17 +586,13 @@ class Lattice():
             # adjust variables
             self.orb_vecs = np.delete(self.orb_vecs, orb_ind, 0)
 
-    def change_nonperiodic_vector(
-        self, 
-        fin_dir: int, 
-        new_lat_vec=None
-    ):
+    def change_nonperiodic_vector(self, fin_dir: int, new_lat_vec=None):
         r"""Change non-periodic lattice vector.
 
         Returns  :class:`Lattice` in which one of the non-periodic "lattice vectors"
-        is changed. Non-periodic lattice vectors are those that are not listed as periodic 
-        with the `periodic_dirs` parameter. The returned object has modified reduced coordinates 
-        of orbitals, consistent with the new choice of lattice vector. Therefore, the actual 
+        is changed. Non-periodic lattice vectors are those that are not listed as periodic
+        with the `periodic_dirs` parameter. The returned object has modified reduced coordinates
+        of orbitals, consistent with the new choice of lattice vector. Therefore, the actual
         (Cartesian) coordinates of orbitals in original and new :class:`Lattice`
         are the same.
 
@@ -584,7 +603,7 @@ class Lattice():
 
         new_lat_vec : array_like, optional
             The new non-periodic lattice vector. If None (default), the new
-            non-periodic lattice vector is constructed to be orthogonal to all periodic 
+            non-periodic lattice vector is constructed to be orthogonal to all periodic
             vectors and to have the same length as the original non-periodic vector.
 
         See Also
@@ -609,10 +628,8 @@ class Lattice():
             np_lattice_vec = self.lat_vecs[fin_dir] - projec
 
             if np.linalg.norm(np_lattice_vec) < 1e-10:
-                raise ValueError(
-                    """New nonperiodic vector has zero length!?"""
-                )
-            
+                raise ValueError("""New nonperiodic vector has zero length!?""")
+
             # normalize new nonperiodic vector to have same length as original
             np_lattice_vec /= np.linalg.norm(np_lattice_vec)
             np_lattice_vec *= np.linalg.norm(self.lat_vecs[fin_dir])
@@ -640,9 +657,9 @@ class Lattice():
         new_lat = copy.deepcopy(self.lat_vecs)
         new_lat[fin_dir] = np_lattice_vec
 
-        # Update reduced orb vecs 
+        # Update reduced orb vecs
         new_orb = []
-        for orb_cart in og_orb_cart:  
+        for orb_cart in og_orb_cart:
             # convert to reduced coordinates
             new_orb.append(np.linalg.solve(new_lat.T, orb_cart))
 
@@ -650,7 +667,9 @@ class Lattice():
         self.lat_vecs = np.array(new_lat, dtype=float)
         self.orb_vecs = np.array(new_orb, dtype=float)
 
-        logger.info(f"Updated lattice vectors to {new_lat} and orbitals to {new_orb} after changing nonperiodic vector.")
+        logger.info(
+            f"Updated lattice vectors to {new_lat} and orbitals to {new_orb} after changing nonperiodic vector."
+        )
 
         # Are cartesian coordinates of orbitals the same in two cases?
         for idx, orb_cart in enumerate(og_orb_cart):
@@ -661,11 +680,13 @@ class Lattice():
                     """This shouldn't happen. New choice of nonperiodic vector
                         somehow changed Cartesian coordinates of orbitals."""
                 )
-            
+
     def _prepare_supercell_geometry(self, sc_red_lat):
         """Validate and build geometric data for a super-cell transformation."""
         if self.dim_r == 0:
-            raise ValueError("Must have at least one periodic direction to make a super-cell")
+            raise ValueError(
+                "Must have at least one periodic direction to make a super-cell"
+            )
 
         use_sc_red_lat = np.asarray(sc_red_lat)
         if use_sc_red_lat.shape != (self.dim_r, self.dim_r):
@@ -677,18 +698,24 @@ class Lattice():
         per_mask = np.isin(np.arange(self.dim_r), self.periodic_dirs)
         diag = np.diag(use_sc_red_lat)
         if np.any(~per_mask & (diag != 1)):
-            raise ValueError("Diagonal elements of sc_red_lat for non-periodic directions must equal 1.")
+            raise ValueError(
+                "Diagonal elements of sc_red_lat for non-periodic directions must equal 1."
+            )
 
         off_mask = ~(per_mask[:, None] & per_mask[None, :])
         off_diag = use_sc_red_lat - np.diag(diag)
         if np.any(off_mask & (off_diag != 0)):
-            raise ValueError("Off-diagonal elements of sc_red_lat for non-periodic directions must equal 0.")
+            raise ValueError(
+                "Off-diagonal elements of sc_red_lat for non-periodic directions must equal 0."
+            )
 
         vol = float(np.linalg.det(use_sc_red_lat))
         if abs(vol) < 1e-6:
             raise ValueError("Super-cell lattice vectors volume too close to zero.")
         if vol < 0:
-            raise ValueError("Super-cell lattice vectors volume is negative. Must form right-handed system.")
+            raise ValueError(
+                "Super-cell lattice vectors volume is negative. Must form right-handed system."
+            )
 
         red_transform = np.linalg.inv(use_sc_red_lat.astype(float))
         max_R = int(np.max(np.abs(use_sc_red_lat))) * self.dim_r
@@ -706,11 +733,17 @@ class Lattice():
 
         expected = int(round(abs(vol)))
         if sc_vec.shape[0] != expected:
-            raise Exception("Super-cell generation failed! Wrong number of super-cell vectors found.")
+            raise Exception(
+                "Super-cell generation failed! Wrong number of super-cell vectors found."
+            )
 
         sc_cart_lat = use_sc_red_lat @ self.lat_vecs
         orb_grid = sc_vec[:, None, :] + self.orb_vecs[None, :, :]
-        sc_orb = (orb_grid.reshape(-1, self.dim_r) @ red_transform) if orb_grid.size else np.zeros((0, self.dim_r), dtype=float)
+        sc_orb = (
+            (orb_grid.reshape(-1, self.dim_r) @ red_transform)
+            if orb_grid.size
+            else np.zeros((0, self.dim_r), dtype=float)
+        )
 
         return {
             "lat_vecs": sc_cart_lat,
@@ -723,9 +756,9 @@ class Lattice():
     def make_supercell(
         self,
         sc_red_lat,
-        return_sc_vectors: bool=False,
-        to_home: bool=True,
-        to_home_warning: bool=True,
+        return_sc_vectors: bool = False,
+        to_home: bool = True,
+        to_home_warning: bool = True,
     ):
         r"""Make lattice a super-cell.
 
@@ -733,7 +766,7 @@ class Lattice():
             Parameter `to_home_supress_warning` has been renamed to `to_home_warning`.
             Note: this change inverts the meaning of the boolean parameter.
 
-        Constructs a :class:`pythtb.TBModel` representing a super-cell 
+        Constructs a :class:`pythtb.TBModel` representing a super-cell
         of the current object. This function can be used together with :func:`cut_piece`
         in order to create slabs with arbitrary surfaces.
 
@@ -753,11 +786,11 @@ class Lattice():
 
         if return_sc_vectors:
             return geom["translations"].copy()
-      
-    def _shift_orb_to_home(self, to_home_warning: bool=True):
+
+    def _shift_orb_to_home(self, to_home_warning: bool = True):
         r"""Shifts orbital coordinates (along periodic directions) to the home
-        unit cell. 
-        
+        unit cell.
+
         After this function is called reduced coordinates
         (along periodic directions) of orbitals will be between 0 and
         1.
@@ -776,10 +809,10 @@ class Lattice():
         to_home_warning: bool, optional
             Default value is ``True``. If ``True`` prints warning messages
             about orbitals being outside the home cell (reduced coordinate larger
-            than 1 or smaller than 0 along non-periodic direction). 
+            than 1 or smaller than 0 along non-periodic direction).
 
-            Note that setting this parameter to *True* or *False* has no effect on 
-            resulting coordinates of the model. 
+            Note that setting this parameter to *True* or *False* has no effect on
+            resulting coordinates of the model.
         """
 
         orb_vecs_new = copy.deepcopy(self.orb_vecs)
@@ -794,16 +827,17 @@ class Lattice():
                 # shift only in periodic directions
                 if k in self.periodic_dirs:
                     disp_vec[k] = shift
-                elif k not in self.periodic_dirs and shift != 0 and to_home_warning:  # check for shift in non-periodic directions
+                elif (
+                    k not in self.periodic_dirs and shift != 0 and to_home_warning
+                ):  # check for shift in non-periodic directions
                     logger.warning(
                         f"Orbital {i} has reduced coordinate {self.orb_vecs[i, k]:.3f} "
                         f"along non-periodic direction {k}, which is outside the home cell."
                     )
-           
+
             orb_vecs_new[i] -= disp_vec
 
         self.orb_vecs = orb_vecs_new
-
 
     def nn_bonds(self, n_shell: int, report: bool = False):
         r"""Enumerate nearest-neighbor shells of the lattice.
@@ -864,7 +898,6 @@ class Lattice():
             raise ValueError("No orbitals in the lattice.")
         if self.dim_r == 0:
             raise ValueError("Lattice dimension is zero.")
-        
 
         lat_vecs = self.lat_vecs
         dim_r = self.dim_r
@@ -875,9 +908,9 @@ class Lattice():
         # R in Z^{dim_r} with components in [-n_shell, n_shell]
         from itertools import product as _product
 
-        d2_list = []      # squared distances
-        dr_list = []      # Cartesian displacement vectors delta_r
-        idx_list = []     # integer meta: [i, j, [R]]
+        d2_list = []  # squared distances
+        dr_list = []  # Cartesian displacement vectors delta_r
+        idx_list = []  # integer meta: [i, j, [R]]
 
         periodic_dirs = set(self.periodic_dirs)
         shift_ranges = [
@@ -897,7 +930,7 @@ class Lattice():
 
                     rj = orb_cart[j] + T_R  # Cartesian position of orbital j
                     dr = rj - ri  # delta_r (Cartesian)
-                    d2 = float(dr @ dr) # squared distance
+                    d2 = float(dr @ dr)  # squared distance
 
                     d2_list.append(d2)
                     dr_list.append(dr)
@@ -913,8 +946,8 @@ class Lattice():
             }
 
         # Convert to arrays
-        dr_arr = np.vstack(dr_list)                 # (N, dim_r)
-        idx_arr = np.vstack(idx_list).astype(int)   # (N, 2+dim_r)
+        dr_arr = np.vstack(dr_list)  # (N, dim_r)
+        idx_arr = np.vstack(idx_list).astype(int)  # (N, 2+dim_r)
         d2_arr = np.asarray(d2_list)
 
         # Numerical stability: round squared norms to cluster nearly-equal distances
@@ -939,13 +972,13 @@ class Lattice():
         unique_d2 = unique_d2[:n_take]
 
         # Build per-shell, per-orbital groupings
-        nn_shell = []   # list over shells -> list over orbitals -> (deg_i, dim_r)
+        nn_shell = []  # list over shells -> list over orbitals -> (deg_i, dim_r)
         idx_shell = []  # list over shells -> list over orbitals -> (deg_i, 2+dim_r)
 
         shell_summaries = []
         shell_radii = []
         for s, d2_target in enumerate(unique_d2):
-            mask_s = (d2_sorted == d2_target)
+            mask_s = d2_sorted == d2_target
             dr_s = dr_sorted[mask_s]
             idx_s = idx_sorted[mask_s]
 
@@ -954,7 +987,7 @@ class Lattice():
             shell_idx_by_i = []
             per_orbital = {}
             for i in range(norb):
-                m_i = (idx_s[:, 0] == i)
+                m_i = idx_s[:, 0] == i
                 dr_si = dr_s[m_i]
                 idx_si = idx_s[m_i]
 
@@ -976,37 +1009,50 @@ class Lattice():
 
             radius = float(np.sqrt(d2_target))
             total_deg = int(sum(block.shape[0] for block in shell_R_by_i))
-            shell_summaries.append({
-                "shell": s + 1,
-                "radius": radius,
-                "degeneracy_total": total_deg,
-                "orbitals": per_orbital,
-            })
+            shell_summaries.append(
+                {
+                    "shell": s + 1,
+                    "radius": radius,
+                    "degeneracy_total": total_deg,
+                    "orbitals": per_orbital,
+                }
+            )
             shell_radii.append(radius)
 
         # Optionally print a compact text report
         if report:
-            lines = []           
+            lines = []
             lines.append("nn-shell report (per-orbital)")
             lines.append("═" * 60)
             lines.append(f"dim_r: {dim_r}   norb: {norb}   shells: {len(unique_d2)}")
             for s, d2_target in enumerate(unique_d2, start=1):
                 radius = np.sqrt(d2_target)
-                total_deg = sum(Rs.shape[0] for Rs in nn_shell[s-1])
-                lines.append(f"shell {s:>2}: |Δr|={radius:.8g} (degeneracy total={total_deg})")
+                total_deg = sum(Rs.shape[0] for Rs in nn_shell[s - 1])
+                lines.append(
+                    f"shell {s:>2}: |Δr|={radius:.8g} (degeneracy total={total_deg})"
+                )
                 # Show first few for each i
                 for i in range(norb):
-                    Rs = nn_shell[s-1][i]
-                    Id = idx_shell[s-1][i]
+                    Rs = nn_shell[s - 1][i]
+                    Id = idx_shell[s - 1][i]
                     if Rs.size == 0:
                         continue
                     head = min(Rs.shape[0], 6)
                     lines.append(f"  i={i}: {Rs.shape[0]} neighbors")
                     for k in range(head):
                         j = int(Id[k, 1])
-                        Rvec = Id[k, 2:2+dim_r]
-                        dr_str = np.array2string(Rs[k], precision=6, floatmode='maxprec_equal', suppress_small=True)
-                        R_str = np.array2string(Rvec, formatter={'int': lambda x: f"{int(x):>2}"}, separator=', ')
+                        Rvec = Id[k, 2 : 2 + dim_r]
+                        dr_str = np.array2string(
+                            Rs[k],
+                            precision=6,
+                            floatmode="maxprec_equal",
+                            suppress_small=True,
+                        )
+                        R_str = np.array2string(
+                            Rvec,
+                            formatter={"int": lambda x: f"{int(x):>2}"},
+                            separator=", ",
+                        )
                         lines.append(f"     -> j={j:>2}, R={R_str}   Δr={dr_str}")
                     if Rs.shape[0] > head:
                         lines.append(f"     ... (+{Rs.shape[0]-head} more)")
@@ -1040,7 +1086,7 @@ class Lattice():
             for i in range(norb):
                 Id = idx_shell[s][i]  # shape (deg_i, 2+dim_r): [i, j, R...]
                 # [j, R...] without the leading i
-                pairs = Id[:, 1:2+dim_r].astype(int, copy=False)
+                pairs = Id[:, 1 : 2 + dim_r].astype(int, copy=False)
 
                 # Build unique bonds with a canonical orientation:
                 # keep (i, j, R) as-is, and do not add its conjugate (j, i, -R)
@@ -1059,13 +1105,12 @@ class Lattice():
 
         return shell_summaries, bonds_by_shell
 
-
     def nn_k_shell(self, nks: tuple, n_shell: int, report: bool = False):
         r"""Generates shells of k-points around the :math:`\Gamma` point.
 
         .. versionadded:: 2.0.0
 
-        Returns array of vectors connecting the origin to nearest 
+        Returns array of vectors connecting the origin to nearest
         neighboring k-points in the mesh. The functions works only
         for full k-meshes, i.e., when the number of k-points is specified
         along all periodic directions.
@@ -1085,7 +1130,7 @@ class Lattice():
             List of :math:`\mathbf{b}` vectors in inverse units of lattice vectors
             connecting nearest neighbor k-mesh points. Length is `n_shell`.
         idx_shell : list[np.ndarray[int]]
-            Each entry is an array of integer shifts that takes a k-point 
+            Each entry is an array of integer shifts that takes a k-point
             index in the mesh to its nearest neighbors.
             Length is `n_shell`.
         """
@@ -1108,7 +1153,7 @@ class Lattice():
             # s: (dim_k, ), delta_k = sum (s_mu /nks_mu) b_mu
             coeffs = s / nks.astype(float)  # (dim_k,)
             return coeffs @ B  # (dim_r,)
-        
+
         shells = []
         idx_shell = []
         seen_radii = []
@@ -1118,13 +1163,18 @@ class Lattice():
         while len(shells) < n_shell:
             # enumerate integer shifts in the hypercube [-rmax, rmax]^dim_k excluding zero
             from itertools import product
+
             ranges = [range(-rmax, rmax + 1) for _ in range(self.dim_k)]
-            cand_shifts = np.array([s for s in product(*ranges) if any(si != 0 for si in s)], dtype=int)
+            cand_shifts = np.array(
+                [s for s in product(*ranges) if any(si != 0 for si in s)], dtype=int
+            )
             if cand_shifts.size == 0:
                 rmax += 1
                 continue
 
-            dk_cart = np.array([shift_to_dk_cart(s) for s in cand_shifts])  # (Ncand, dim_r)
+            dk_cart = np.array(
+                [shift_to_dk_cart(s) for s in cand_shifts]
+            )  # (Ncand, dim_r)
             dists = np.linalg.norm(dk_cart, axis=1)
 
             order = np.argsort(dists)
@@ -1155,22 +1205,24 @@ class Lattice():
 
         if report:
             print("k-shell summary:")
-            for s, (vecs, shifts, rrep) in enumerate(zip(shells, idx_shell, seen_radii)):
+            for s, (vecs, shifts, rrep) in enumerate(
+                zip(shells, idx_shell, seen_radii)
+            ):
                 print(f"  shell {s}: M_s={len(vecs)}, |Δk|≈{rrep:.6e} (first)")
 
         return shells, idx_shell
-    
-    
+
     def k_shell_weights(
-            self, 
-            nks: tuple, 
-            n_shell : int = 1, 
-            return_shell: bool = True, 
-            report: bool = False):
+        self,
+        nks: tuple,
+        n_shell: int = 1,
+        return_shell: bool = True,
+        report: bool = False,
+    ):
         r"""Generates the finite difference weights on a k-shell.
 
-        This function uses the k-shells generated by :func:`nn_k_shell` 
-        to compute the  weights for finite difference approximations of 
+        This function uses the k-shells generated by :func:`nn_k_shell`
+        to compute the  weights for finite difference approximations of
         :math:`\nabla_{\mathbf{k}}` on a Monkhorst-Pack k-mesh. To linear
         order, the following expression must be satisfied
 
@@ -1183,7 +1235,7 @@ class Lattice():
         defining the order of nearest neighbors, :math:`M_s` is the number of
         k-points in the :math:`s`-th shell, and :math:`b_{\alpha}^{i,s}` is the
         :math:`\alpha`-th Cartesian component of :math:`i`-th vector
-        connecting k-points to their nearest neighbors in the 
+        connecting k-points to their nearest neighbors in the
         :math:`s`-th shell.
 
         Parameters
@@ -1201,7 +1253,7 @@ class Lattice():
             List of :math:`\mathbf{b}` vectors in inverse units of lattice vectors
             connecting nearest neighbor k-mesh points. Length is `n_shell`.
         idx_shell : list[np.ndarray[int]], optional
-            Each entry is an array of integer shifts that takes a k-point 
+            Each entry is an array of integer shifts that takes a k-point
             index in the mesh to its nearest neighbors.
             Length is `n_shell`.
         """
@@ -1230,14 +1282,14 @@ class Lattice():
             return w, k_shell, idx_shell
         return w
 
-    def k_path(self, k_nodes, nk: int, report: bool=False):
+    def k_path(self, k_nodes, nk: int, report: bool = False):
         r"""Interpolates a path in reciprocal space.
 
         Interpolates a path in reciprocal space between specified
         k-points. In 2D or 3D the k-path can consist of several
         straight segments connecting high-symmetry points ("nodes").
         The interpolated path is constructed so that the k-points
-        are (nearly) equidistant in Cartesian k-space. 
+        are (nearly) equidistant in Cartesian k-space.
 
         Parameters
         ----------
@@ -1280,7 +1332,7 @@ class Lattice():
         Notes
         -----
         - The distance between the points is calculated in the Cartesian frame,
-          however coordinates themselves are given in dimensionless reduced coordinates!  
+          however coordinates themselves are given in dimensionless reduced coordinates!
           This is done so that this array can be directly passed to function
           :func:`pythtb.TBModel.solve_ham`.
         - Unlike array ``k_vec``, ``k_dist`` has dimensions! Units are defined
@@ -1289,13 +1341,13 @@ class Lattice():
           :math:`2\pi/10`.
 
         Examples
-        ---------
+        --------
         Construct a path connecting four nodal points in k-space
         Path will contain 401 k-points, roughly equally spaced
 
         >>> path = [[0.0, 0.0], [0.0, 0.5], [0.5, 0.5], [0.0, 0.0]]
         >>> (k_vec, k_dist, k_node) = my_model.k_path(path,401)
-        
+
         Solve for eigenvalues on that path and plot the band structure
 
         >>> import matplotlib.pyplot as plt
@@ -1320,7 +1372,7 @@ class Lattice():
         # Extract periodic lattice and compute k-space metric
         lat_per = self.lat_vecs[self.periodic_dirs]
         B = self.recip_lat_vecs
-        k_metric = B @ B.T 
+        k_metric = B @ B.T
 
         # Compute segment vectors and lengths in Cartesian metric
         diffs = k_list[1:] - k_list[:-1]
@@ -1370,14 +1422,12 @@ class Lattice():
             print("Node indices in path:", node_index)
             print("-------------------------")
 
-        return k_vec, k_dist, k_node  
-    
+        return k_vec, k_dist, k_node
+
     @staticmethod
     def k_uniform_mesh(
-        mesh_size, 
-        gamma_centered: bool=False, 
-        include_endpoints: bool=True
-        ):
+        mesh_size, gamma_centered: bool = False, include_endpoints: bool = True
+    ):
         r"""
         Generate a uniform grid of k-points in reduced (fractional) coordinates.
 
@@ -1399,10 +1449,10 @@ class Lattice():
             Default is ``False``.
 
             .. versionadded:: 2.0.0
-        
+
         include_endpoints : bool, optional
             If ``True``, the mesh includes the endpoint at 1.0 (or 0.5 if
-            ``gamma_centered=True``) along each periodic direction. 
+            ``gamma_centered=True``) along each periodic direction.
             Default is ``True``.
 
             .. versionadded:: 2.0.0
@@ -1443,20 +1493,17 @@ class Lattice():
         else:
             start, stop = 0.0, 1.0
 
-        axes = [np.linspace(start, stop, n, endpoint=include_endpoints) for n in use_mesh]
+        axes = [
+            np.linspace(start, stop, n, endpoint=include_endpoints) for n in use_mesh
+        ]
         mesh = np.meshgrid(*axes, indexing="ij")
         k_points = np.stack(mesh, axis=-1).reshape(-1, len(use_mesh))
 
         return k_points
-    
+
     def get_kpath_distance(
-            self, 
-            kpts, 
-            k_nodes=None, 
-            labels=None, 
-            cartesian=False, 
-            tol=1e-8
-            ):
+        self, kpts, k_nodes=None, labels=None, cartesian=False, tol=1e-8
+    ):
         """Transform k-points to k-distance along a path.
 
         Parameters
@@ -1506,11 +1553,11 @@ class Lattice():
 
             # sort them
             all_indices_sorted = np.sort(all_indices)
-        
+
             # now you can index into k_dist
             node_dist = k_dist[all_indices_sorted]
 
-            if labels is not None: 
+            if labels is not None:
                 label_indices = {}
                 for i, node in enumerate(k_nodes):
                     label_indices[labels[i]] = node
@@ -1520,7 +1567,6 @@ class Lattice():
 
         else:
             return k_dist
-    
 
     def visualize(
         self,
@@ -1558,6 +1604,7 @@ class Lattice():
 
         """
         from pythtb.plotting import plot_lattice
+
         return plot_lattice(self, n_cells=n_cells, proj_plane=proj_plane)
 
     def visualize_3d(
@@ -1583,7 +1630,7 @@ class Lattice():
             List of colors for each orbital site (e.g. ``["red", "blue", "green"]``).
             Must abide by Plotly color specifications. If not provided, default colors will be used.
         site_names: list of str, optional
-            List of names for each orbital site (e.g. ``["A", "B", "C"]``). 
+            List of names for each orbital site (e.g. ``["A", "B", "C"]``).
             If provided, these names will be displayed next to the corresponding orbitals.
         show_lattice_info: bool, optional
             Whether to display lattice information (lattice vectors, orbital positions).
@@ -1593,6 +1640,7 @@ class Lattice():
         plotly.graph_objs.Figure
         """
         from pythtb.plotting import plot_lattice_3d
+
         return plot_lattice_3d(
             self,
             n_cells=n_cells,
@@ -1600,4 +1648,3 @@ class Lattice():
             site_colors=site_colors,
             site_names=site_names,
         )
-    

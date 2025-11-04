@@ -22,7 +22,9 @@ class HoppingTable:
     from_idx: np.ndarray = field(init=False)
     to_idx: np.ndarray = field(init=False)
     lattice_vecs: np.ndarray = field(init=False)
-    _index: dict[tuple[int, int, tuple[int, ...]], int] = field(init=False, default_factory=dict)
+    _index: dict[tuple[int, int, tuple[int, ...]], int] = field(
+        init=False, default_factory=dict
+    )
     _flatten_cache: dict[tuple[int, int], dict[str, np.ndarray]] = field(
         init=False, default_factory=dict
     )
@@ -78,7 +80,9 @@ class HoppingTable:
 
         if self.spinful:
             self.amplitudes = (
-                np.concatenate([self.amplitudes, amp[np.newaxis, ...]]) if len(self) else amp[np.newaxis, ...]
+                np.concatenate([self.amplitudes, amp[np.newaxis, ...]])
+                if len(self)
+                else amp[np.newaxis, ...]
             )
         else:
             scalar = np.asarray(amp, dtype=complex).reshape(())
@@ -116,12 +120,16 @@ class HoppingTable:
         # Coerce indices/lattice vectors into contiguous arrays and validate lengths
         i_arr = np.asarray(list(i_idx), dtype=int)
         j_arr = np.asarray(list(j_idx), dtype=int)
-        R_arr = np.asarray(list(lattice_vecs), dtype=int).reshape(len(i_arr), self.dim_r)
+        R_arr = np.asarray(list(lattice_vecs), dtype=int).reshape(
+            len(i_arr), self.dim_r
+        )
 
         if i_arr.size == 0:
             return
         if not (len(amplitudes) == i_arr.size == j_arr.size == R_arr.shape[0]):
-            raise ValueError("Lengths of amplitudes, i_idx, j_idx, and lattice_vecs must match.")
+            raise ValueError(
+                "Lengths of amplitudes, i_idx, j_idx, and lattice_vecs must match."
+            )
 
         start = len(self)
         if self.spinful:
@@ -141,9 +149,7 @@ class HoppingTable:
         self.from_idx = (
             np.concatenate([self.from_idx, i_arr]) if start else i_arr.copy()
         )
-        self.to_idx = (
-            np.concatenate([self.to_idx, j_arr]) if start else j_arr.copy()
-        )
+        self.to_idx = np.concatenate([self.to_idx, j_arr]) if start else j_arr.copy()
         self.lattice_vecs = (
             np.vstack([self.lattice_vecs, R_arr]) if start else R_arr.copy()
         )
@@ -157,7 +163,9 @@ class HoppingTable:
 
     def update(self, idx: int, *, amplitude=None, R=None) -> None:
         """Update the amplitude and/or lattice vector of an existing hopping."""
-        old_key = self._make_key(self.from_idx[idx], self.to_idx[idx], self.lattice_vecs[idx])
+        old_key = self._make_key(
+            self.from_idx[idx], self.to_idx[idx], self.lattice_vecs[idx]
+        )
         if amplitude is not None:
             amp = self._coerce_amplitude(amplitude)
             if self.spinful:
@@ -166,7 +174,9 @@ class HoppingTable:
                 self.amplitudes[idx] = np.asarray(amp, dtype=complex).reshape(())
         if R is not None:
             self.lattice_vecs[idx] = np.asarray(R, dtype=int).reshape(self.dim_r)
-        new_key = self._make_key(self.from_idx[idx], self.to_idx[idx], self.lattice_vecs[idx])
+        new_key = self._make_key(
+            self.from_idx[idx], self.to_idx[idx], self.lattice_vecs[idx]
+        )
         if new_key != old_key:
             self._index.pop(old_key, None)
             self._index[new_key] = idx
@@ -255,7 +265,9 @@ class HoppingTable:
 
         if dim_k == 0:
             if ind_R is not None:
-                raise ValueError("No periodic directions, so ind_R should not be specified.")
+                raise ValueError(
+                    "No periodic directions, so ind_R should not be specified."
+                )
             return ind_i, ind_j, np.zeros(self.dim_r, dtype=int)
 
         if ind_R is None:
@@ -265,21 +277,31 @@ class HoppingTable:
             if ind_R.ndim != 1:
                 raise ValueError("If ind_R is a numpy array, it must be 1-dimensional.")
             if ind_R.shape[0] != self.dim_r:
-                raise ValueError("If ind_R is a numpy array, its length must equal dim_r.")
+                raise ValueError(
+                    "If ind_R is a numpy array, its length must equal dim_r."
+                )
             if not np.issubdtype(ind_R.dtype, np.integer):
-                raise ValueError("If ind_R is a numpy array, it must be of integer type.")
+                raise ValueError(
+                    "If ind_R is a numpy array, it must be of integer type."
+                )
             R_vec = ind_R.astype(int, copy=False)
         elif isinstance(ind_R, (list, tuple)):
             if len(ind_R) != self.dim_r:
-                raise ValueError("If ind_R is a list or tuple, its length must equal dim_r.")
+                raise ValueError(
+                    "If ind_R is a list or tuple, its length must equal dim_r."
+                )
             R_vec = np.asarray(ind_R, dtype=int)
         elif isinstance(ind_R, (int, np.integer)):
             if dim_k != 1:
-                raise ValueError("If dim_k is not 1, should not use integer for ind_R. Instead use list.")
+                raise ValueError(
+                    "If dim_k is not 1, should not use integer for ind_R. Instead use list."
+                )
             R_vec = np.zeros(self.dim_r, dtype=int)
             R_vec[list(periodic_dirs)] = int(ind_R)
         else:
-            raise TypeError("ind_R is not of correct type. Should be array-type or integer.")
+            raise TypeError(
+                "ind_R is not of correct type. Should be array-type or integer."
+            )
 
         if periodic_dirs:
             periodic_dirs = np.asarray(periodic_dirs, dtype=int)
@@ -378,7 +400,9 @@ class HoppingTable:
             return arr
         return np.asarray(amp, dtype=complex).reshape(())
 
-    def _make_key(self, i: int, j: int, R: Sequence[int]) -> tuple[int, int, tuple[int, ...]]:
+    def _make_key(
+        self, i: int, j: int, R: Sequence[int]
+    ) -> tuple[int, int, tuple[int, ...]]:
         """Keys use ints exclusively so they can index dictionaries reliably."""
         R_arr = np.asarray(R, dtype=int).reshape(self.dim_r)
         return (int(i), int(j), tuple(int(x) for x in R_arr))
@@ -394,5 +418,7 @@ class HoppingTable:
         """Reconstruct the lookup dictionary after bulk edits."""
         self._index.clear()
         for idx in range(len(self)):
-            key = self._make_key(self.from_idx[idx], self.to_idx[idx], self.lattice_vecs[idx])
+            key = self._make_key(
+                self.from_idx[idx], self.to_idx[idx], self.lattice_vecs[idx]
+            )
             self._index[key] = idx

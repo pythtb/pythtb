@@ -19,14 +19,14 @@ def graphene(delta: float, t: float) -> TBModel:
 
     .. math::
 
-        \mathbf{\tau}_1 = \frac{1}{3} \mathbf{a}_1 + \frac{1}{3} \mathbf{a}_2, 
+        \mathbf{\tau}_1 = \frac{1}{3} \mathbf{a}_1 + \frac{1}{3} \mathbf{a}_2,
         \quad \mathbf{\tau}_2 = \frac{2}{3} \mathbf{a}_1 + \frac{2}{3} \mathbf{a}_2
 
     The second-quantized Hamiltonian can be written as:
 
     .. math::
 
-        H = \Delta \sum_i n_i + t \sum_{\langle i,j \rangle} (c_i^\dagger c_j + \text{h.c.}) 
+        H = \Delta \sum_i n_i + t \sum_{\langle i,j \rangle} (c_i^\dagger c_j + \text{h.c.})
 
     Parameters
     ----------
@@ -41,8 +41,8 @@ def graphene(delta: float, t: float) -> TBModel:
         An instance of the model.
     """
 
-    lat_vecs = [[1, 0], [1/2, np.sqrt(3)/2]]
-    orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
+    lat_vecs = [[1, 0], [1 / 2, np.sqrt(3) / 2]]
+    orb_vecs = [[1 / 3, 1 / 3], [2 / 3, 2 / 3]]
     lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
     my_model = TBModel(lattice=lat, spinful=False)

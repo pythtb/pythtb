@@ -4,26 +4,31 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch
 from matplotlib import cm
 import matplotlib.colors as mcolors
-from matplotlib.colors import LogNorm 
+from matplotlib.colors import LogNorm
 from .utils import pauli_decompose
+
 
 def _require_mpl():
     try:
         import matplotlib.pyplot as plt
+
         return plt
     except Exception as e:
         raise ImportError(
             "Plotting requires matplotlib. Install with `pip install matplotlib`."
         ) from e
-    
+
+
 def _require_plotly():
     try:
         import plotly.graph_objects as go
+
         return go
     except Exception as e:
         raise ImportError(
             "Plotting requires plotly. Install with `pip install plotly`."
         ) from e
+
 
 def _fmt_num(x, precision=3) -> str:
     """Format a complex number for display.
@@ -90,13 +95,13 @@ def _pauli_decompose_str(M, precision=3, use_unicode=False) -> str:
     unicode = [r"𝟙", r"σ_x", r"σ_y", r"σ_z"]
     latex_or_unicode = unicode if use_unicode else latex
     if abs(a0) > 1e-10:
-        terms.append(fr"{_fmt_num(a0, precision=precision)} {latex_or_unicode[0]}")
+        terms.append(rf"{_fmt_num(a0, precision=precision)} {latex_or_unicode[0]}")
     if abs(a1) > 1e-10:
-        terms.append(fr"{_fmt_num(a1, precision=precision)} {latex_or_unicode[1]}")
+        terms.append(rf"{_fmt_num(a1, precision=precision)} {latex_or_unicode[1]}")
     if abs(a2) > 1e-10:
-        terms.append(fr"{_fmt_num(a2, precision=precision)} {latex_or_unicode[2]}")
+        terms.append(rf"{_fmt_num(a2, precision=precision)} {latex_or_unicode[2]}")
     if abs(a3) > 1e-10:
-        terms.append(fr"{_fmt_num(a3, precision=precision)} {latex_or_unicode[3]}")
+        terms.append(rf"{_fmt_num(a3, precision=precision)} {latex_or_unicode[3]}")
 
     # If all coefficients are zero, return "0".
     if not terms:
@@ -104,35 +109,30 @@ def _pauli_decompose_str(M, precision=3, use_unicode=False) -> str:
 
     return " + ".join(terms).replace("+ -", "- ")
 
+
 def _proj(v, proj_plane=None):
-        v = np.array(v, dtype=float)
-        if v.ndim != 1:
-            raise ValueError("Input vector must be 1D.")
-        if v.shape[0] <= 1:
-            coord_x = v[0]
-            coord_y = 0
-        elif v.shape[0] == 2:
+    v = np.array(v, dtype=float)
+    if v.ndim != 1:
+        raise ValueError("Input vector must be 1D.")
+    if v.shape[0] <= 1:
+        coord_x = v[0]
+        coord_y = 0
+    elif v.shape[0] == 2:
+        coord_x = v[0]
+        coord_y = v[1]
+    elif v.shape[0] == 3:
+        if proj_plane is not None:
+            coord_x = v[proj_plane[0]]
+            coord_y = v[proj_plane[1]]
+        else:
             coord_x = v[0]
             coord_y = v[1]
-        elif v.shape[0] == 3:
-            if proj_plane is not None:
-                coord_x = v[proj_plane[0]]
-                coord_y = v[proj_plane[1]]
-            else:
-                coord_x = v[0]
-                coord_y = v[1]
-        else:
-            raise ValueError("Input vector must have 1, 2, or 3 elements.")
-        return [coord_x, coord_y]
+    else:
+        raise ValueError("Input vector must have 1, 2, or 3 elements.")
+    return [coord_x, coord_y]
 
-def plot_lattice(
-    lattice,
-    n_cells=1,
-    proj_plane=None,
-    orb_color="r",
-    fig=None,
-    ax=None
-):
+
+def plot_lattice(lattice, n_cells=1, proj_plane=None, orb_color="r", fig=None, ax=None):
     r"""Visualize the lattice geometry.
 
     Parameters
@@ -250,7 +250,7 @@ def plot_lattice(
     # Draw orbitals: home-cell orbitals in red
     orb_coords = []
     orb_cart = lattice.get_orb_vecs(cartesian=True)
-    supercell_range = range(-(n_cells-1), n_cells)
+    supercell_range = range(-(n_cells - 1), n_cells)
     repeat = 2 if lattice.dim_r > 1 else 1
     for d in product(supercell_range, repeat=repeat):
         if lattice.dim_r == 1:
@@ -260,11 +260,13 @@ def plot_lattice(
         else:
             dx, dy = d
             translation = dx * lattice.lat_vecs[0] + dy * lattice.lat_vecs[1]
-    
+
         for i in range(lattice.norb):
             pos = orb_cart[i] + translation
             p = _proj(pos, proj_plane=proj_plane)
-            ax.scatter(p[0], p[1], color=orb_color, s=20, zorder=2, label=f"Orbital {i}")
+            ax.scatter(
+                p[0], p[1], color=orb_color, s=20, zorder=2, label=f"Orbital {i}"
+            )
             orb_coords.append(p)
 
     # Adjust the axis so everything fits
@@ -282,13 +284,14 @@ def plot_lattice(
     # Final plot adjustments
     ax.set_aspect("equal")
     if proj_plane is not None:
-        ax.set_xlabel(fr"x_{proj_plane[0]}")
+        ax.set_xlabel(rf"x_{proj_plane[0]}")
         ax.set_ylabel(f"x_{proj_plane[1]}")
     else:
         ax.set_xlabel("x")
         ax.set_ylabel("y")
 
     return fig, ax
+
 
 def plot_lattice_3d(
     lattice,
@@ -391,14 +394,18 @@ def plot_lattice_3d(
     orb_marker_colors = []
     cmap_orb = cm.get_cmap("viridis", lattice.norb)
     orb_cart = lattice.get_orb_vecs(cartesian=True)
-    supercell_range = range(-(n_cells-1), n_cells)
+    supercell_range = range(-(n_cells - 1), n_cells)
     for i in range(lattice.norb):
         orb_pos = orb_cart[i].copy()
         color = site_colors[i] if site_colors is not None else cmap_orb(i)
         name = site_names[i] if site_names is not None else f"Orbital {i}"
         for dx, dy, dz in product(supercell_range, repeat=3):
             orb_text.append(f"Orbital {i}")
-            translation = dx * lattice.lat_vecs[0] + dy * lattice.lat_vecs[1] + dz * lattice.lat_vecs[2]
+            translation = (
+                dx * lattice.lat_vecs[0]
+                + dy * lattice.lat_vecs[1]
+                + dz * lattice.lat_vecs[2]
+            )
             pos = orb_pos + translation
             orb_x.append(pos[0])
             orb_y.append(pos[1])
@@ -489,7 +496,7 @@ def plot_tb_model(
 ):
     r"""Visualizes the tight-binding model geometry.
 
-    Plots the tight-binding orbitals, hopping between tight-binding orbitals, 
+    Plots the tight-binding orbitals, hopping between tight-binding orbitals,
     and optionally the electron eigenstates.
 
     If eigenvector is not drawn, then orbitals in home cell are drawn
@@ -529,7 +536,7 @@ def plot_tb_model(
         draw all allowed hopping terms in the tight-binding
         model. Default value is True.
     ph_color : {"black", "red-blue", "wheel"}, optional
-        Determines the way the eigenvector phase factors are 
+        Determines the way the eigenvector phase factors are
         translated into color. Default value is "black".
 
         - "black" -- phase of eigenvectors are ignored and wavefunction
@@ -558,7 +565,7 @@ def plot_tb_model(
         the :func:`visualize_3d` method.
     - Convention of the wavefunction phase is as
         in convention 1 in section 3.1 of :download:`notes on
-        tight-binding formalism  </misc/pythtb-formalism.pdf>`. In
+        tight-binding formalism </_static/formalism/pythtb-formalism.pdf>`. In
         other words, these wavefunction phases are in correspondence
         with cell-periodic functions :math:`u_{n {\bf k}} ({\bf r})`
         not :math:`\Psi_{n {\bf k}} ({\bf r})`.
@@ -613,7 +620,7 @@ def plot_tb_model(
         if model._nspin == 2 and annotate_onsite:
             onsite_str = _pauli_decompose_str(model._site_energies[i])
             ax.annotate(
-                fr"$\Delta_{{{i}}} = {onsite_str}$",
+                rf"$\Delta_{{{i}}} = {onsite_str}$",
                 xy=p,
                 xytext=(5, 5),
                 textcoords="offset points",
@@ -625,7 +632,7 @@ def plot_tb_model(
                 zorder=5,
             )
         elif model._nspin == 1 and annotate_onsite:
-            onsite_str = fr"$\Delta_{{{i}}} = {model._site_energies[i]:.2f}$"
+            onsite_str = rf"$\Delta_{{{i}}} = {model._site_energies[i]:.2f}$"
             ax.annotate(
                 onsite_str,
                 xy=p,
@@ -670,7 +677,7 @@ def plot_tb_model(
             for shift in range(2):  # draw both i->j+R and i-R->j hop
                 pos_i = orb_cart[i_orb].copy()
                 pos_j = orb_cart[j_orb].copy()
-                
+
                 # Determine starting and ending orbital positions
                 if r_vec is not None:
                     # Adjust pos_j with lattice translation if provided
@@ -787,7 +794,7 @@ def plot_tb_model(
     # Final plot adjustments
     ax.set_aspect("equal")
     if proj_plane is not None:
-        ax.set_xlabel(fr"x_{proj_plane[0]}")
+        ax.set_xlabel(rf"x_{proj_plane[0]}")
         ax.set_ylabel(f"x_{proj_plane[1]}")
     else:
         ax.set_xlabel("x")
@@ -807,7 +814,7 @@ def plot_tb_model_3d(
     site_colors=None,
     site_names=None,
     ph_color="black",
-    ):
+):
     r"""Visualize a 3D tight-binding model using ``Plotly``.
 
     This function creates an interactive 3D plot of your tight-binding model,
@@ -819,7 +826,7 @@ def plot_tb_model_3d(
 
     Parameters
     ----------
-    eig_dr : 
+    eig_dr :
         Optional eigenstate (1D array of complex numbers) to display.
     draw_hoppings : bool, optional
         Whether to draw hopping lines between orbitals.
@@ -1174,7 +1181,7 @@ def plot_bands(
     ls="solid",
     cmap="plasma",
     cbar=True,
-    ):
+):
     """Plot the band structure along a specified path in k-space.
 
     This function allows for customization of the plot, including projection of orbitals,
@@ -1186,7 +1193,7 @@ def plot_bands(
     Parameters
     ----------
     k_nodes : list[list[float]]
-        List of high symmetry points (in reduced units) to plot the bands through. 
+        List of high symmetry points (in reduced units) to plot the bands through.
         For example, ``[[0,0,0], [0, 1/2, 1/2]]``.
     k_node_labels : list[str], optional
         Labels of high symmetry points. Defaults to None.
@@ -1194,7 +1201,7 @@ def plot_bands(
         Total number of k-points to sample along the path. Defaults to 101.
     proj_orb_idx : list[int], optional
         List of orbital indices to project onto. Defaults to None.
-        This will give the bands a colorscale indicating the weight of 
+        This will give the bands a colorscale indicating the weight of
         the Bloch states onto the list of orbitals.
     proj_spin : bool, optional
         Whether to project the spin components. Defaults to ``False``.
@@ -1265,7 +1272,7 @@ def plot_bands(
         if cbar:
             cbar = fig.colorbar(scat, ticks=[1, 0], pad=0.01)
             cbar.ax.set_yticklabels([1, 0], size=12)
-            cbar.ax.set_title( r"$ \sum_i |\langle \psi_{nk} | \phi_i \rangle |^2$")
+            cbar.ax.set_title(r"$ \sum_i |\langle \psi_{nk} | \phi_i \rangle |^2$")
 
     elif proj_spin:
         if evals is None or evecs is None:
@@ -1334,18 +1341,18 @@ def plot_bands(
 
 
 def plot_density(
-        wan,
-        wan_idx,
-        mark_home_cell=False,
-        mark_center=False, 
-        show_lattice=False, 
-        dens_size=40, 
-        lat_size=2, 
-        fig=None, ax=None, 
-        show=False, 
-        cbar=True
-        ):
-    
+    wan,
+    wan_idx,
+    mark_home_cell=False,
+    mark_center=False,
+    show_lattice=False,
+    dens_size=40,
+    lat_size=2,
+    fig=None,
+    ax=None,
+    show=False,
+    cbar=True,
+):
     """Plot the Wannier function density on the lattice in 2D.
 
     Parameters
@@ -1383,30 +1390,52 @@ def plot_density(
     positions = wan._get_sc_weights(wan_idx)
 
     # Extract arrays for plotting or further processing
-    xs = positions['all']['xs']
-    ys = positions['all']['ys']
-    w0i_wt = positions['all']['wt']
+    xs = positions["all"]["xs"]
+    ys = positions["all"]["ys"]
+    w0i_wt = positions["all"]["wt"]
 
-    xs_home = positions['home']['xs']
-    ys_home = positions['home']['ys']
-        
+    xs_home = positions["home"]["xs"]
+    ys_home = positions["home"]["ys"]
+
     if fig is None:
         fig, ax = plt.subplots()
 
     # Weight plot
-    dens_plot = ax.scatter(xs, ys, c=w0i_wt, s=dens_size, cmap='plasma', norm=LogNorm(vmin=2e-16, vmax=1), marker='h', zorder=0)
+    dens_plot = ax.scatter(
+        xs,
+        ys,
+        c=w0i_wt,
+        s=dens_size,
+        cmap="plasma",
+        norm=LogNorm(vmin=2e-16, vmax=1),
+        marker="h",
+        zorder=0,
+    )
 
     if show_lattice:
-        ax.scatter(xs, ys, marker='o', c='k', s=lat_size, zorder=2)
+        ax.scatter(xs, ys, marker="o", c="k", s=lat_size, zorder=2)
 
     if mark_home_cell:
-        ax.scatter(xs_home, ys_home, marker='o', s=lat_size, zorder=2, facecolors='none', edgecolors='b')
+        ax.scatter(
+            xs_home,
+            ys_home,
+            marker="o",
+            s=lat_size,
+            zorder=2,
+            facecolors="none",
+            edgecolors="b",
+        )
 
     if mark_center:
-        ax.scatter(center[0], center[1],
-            marker='x', 
-            label=fr"Center $\mathbf{{r}}_c = ({center[0]: .3f}, {center[1]: .3f})$", c='g', zorder=1)
-        ax.legend(loc='upper right')
+        ax.scatter(
+            center[0],
+            center[1],
+            marker="x",
+            label=rf"Center $\mathbf{{r}}_c = ({center[0]: .3f}, {center[1]: .3f})$",
+            c="g",
+            zorder=1,
+        )
+        ax.legend(loc="upper right")
 
     if cbar:
         cbar = plt.colorbar(dens_plot, ax=ax)
@@ -1420,12 +1449,12 @@ def plot_density(
 
 
 def plot_decay(
-        wan, 
-        wan_idx: int, 
-        fig=None, 
-        ax=None, 
-        show=False, 
-        ):
+    wan,
+    wan_idx: int,
+    fig=None,
+    ax=None,
+    show=False,
+):
     """Plot the Wannier function density as a function of distance from center.
 
     Parameters
@@ -1446,15 +1475,15 @@ def plot_decay(
     ax : matplotlib.axes.Axes
         The axes object containing the plot.
     """
-    
+
     if fig is None:
         fig, ax = plt.subplots()
 
     # Extract arrays for plotting or further processing
     positions = wan._get_sc_weights(wan_idx)
 
-    r = positions['all']['r']
-    w0i_wt = positions['all']['wt']
+    r = positions["all"]["r"]
+    w0i_wt = positions["all"]["wt"]
 
     # binning data
     max_r = np.amax(r)
@@ -1475,51 +1504,62 @@ def plot_decay(
     avg_w0i_wt_bins = []
     for i in range(num_bins):
         if len(w0i_wt_bins[i]) != 0:
-            avg_w0i_wt_bins.append(sum(w0i_wt_bins[i])/len(w0i_wt_bins[i]))
+            avg_w0i_wt_bins.append(sum(w0i_wt_bins[i]) / len(w0i_wt_bins[i]))
 
     # numpify
     avg_w0i_wt_bins = np.array(avg_w0i_wt_bins)
     r_ledge = np.array(r_ledge)
     r_cntr = np.array(r_cntr)
-    cutoff = int(0.7*max_r)
-    
-    ax.scatter(r[r<cutoff], w0i_wt[r<cutoff], zorder=1, s=10, c='b')
+    cutoff = int(0.7 * max_r)
+
+    ax.scatter(r[r < cutoff], w0i_wt[r < cutoff], zorder=1, s=10, c="b")
 
     # bar of avgs
-    ax.bar(r_ledge[r_ledge<cutoff], avg_w0i_wt_bins[r_ledge<cutoff], width=1, align='edge', ec='k', zorder=0, ls='-', alpha=0.3)
+    ax.bar(
+        r_ledge[r_ledge < cutoff],
+        avg_w0i_wt_bins[r_ledge < cutoff],
+        width=1,
+        align="edge",
+        ec="k",
+        zorder=0,
+        ls="-",
+        alpha=0.3,
+    )
 
-    ax.set_xlabel(r'$|\mathbf{r} - \mathbf{{r}}_c|$', size=12)
+    ax.set_xlabel(r"$|\mathbf{r} - \mathbf{{r}}_c|$", size=12)
     ax.set_ylabel(rf"$|w_{wan_idx}(\mathbf{{r}}- \mathbf{{r}}_c)|^2$", size=12)
-    ax.set_ylim(0.8*min(w0i_wt[r<cutoff]), 1.5)
-    ax.set_yscale('log')
+    ax.set_ylim(0.8 * min(w0i_wt[r < cutoff]), 1.5)
+    ax.set_yscale("log")
 
     if show:
         plt.show()
 
     return fig, ax
 
+
 def plot_centers(
-        wan, 
-        center_scale = 15,
-        section_home_cell = True, 
-        color_home_cell = True, 
-        translate_centers = False,
-        show = False, 
-        legend = True, 
-        pmx = 4, 
-        pmy = 4,
-        center_color = 'r',
-        center_marker = '*',
-        lat_home_color = 'b',
-        lat_color = 'k',
-        fig=None, ax=None
-        ):
+    wan,
+    center_scale=15,
+    section_home_cell=True,
+    color_home_cell=True,
+    translate_centers=False,
+    show=False,
+    legend=True,
+    pmx=4,
+    pmy=4,
+    center_color="r",
+    center_marker="*",
+    lat_home_color="b",
+    lat_color="k",
+    fig=None,
+    ax=None,
+):
     """Plot the Wannier function centers in the supercell.
 
     Parameters
     ----------
     center_scale : float
-        Scale factor for the size of the center markers. Scales with the spread 
+        Scale factor for the size of the center markers. Scales with the spread
         of the Wannier functions, this is a multiplicative factor.
     section_home_cell : bool
         If True, delineate the home cell in the plot.
@@ -1561,13 +1601,13 @@ def plot_centers(
     positions_centers = wan._get_sc_centers()
 
     # All positions
-    xs_orb = positions_wt['all']['xs']
-    ys_orb = positions_wt['all']['ys']
+    xs_orb = positions_wt["all"]["xs"]
+    ys_orb = positions_wt["all"]["ys"]
 
     # Home cell site positions
-    xs_orb_home = positions_wt['home']['xs']
-    ys_orb_home = positions_wt['home']['ys']
-        
+    xs_orb_home = positions_wt["home"]["xs"]
+    ys_orb_home = positions_wt["home"]["ys"]
+
     if fig is None:
         fig, ax = plt.subplots()
 
@@ -1575,15 +1615,15 @@ def plot_centers(
     if section_home_cell:
         lat_vecs = wan.lattice.lat_vecs
 
-        c1 = np.array([0,0])
+        c1 = np.array([0, 0])
         c2 = c1 + lat_vecs[0]
         c3 = c1 + lat_vecs[1]
         c4 = c1 + lat_vecs[0] + lat_vecs[1]
 
-        ax.plot([c1[0], c2[0]], [c1[1], c2[1]], c='k', ls='--', lw=1)
-        ax.plot([c1[0], c3[0]], [c1[1], c3[1]], c='k', ls='--', lw=1)
-        ax.plot([c3[0], c4[0]], [c3[1], c4[1]], c='k', ls='--', lw=1)
-        ax.plot([c2[0], c4[0]], [c2[1], c4[1]], c='k', ls='--', lw=1)
+        ax.plot([c1[0], c2[0]], [c1[1], c2[1]], c="k", ls="--", lw=1)
+        ax.plot([c1[0], c3[0]], [c1[1], c3[1]], c="k", ls="--", lw=1)
+        ax.plot([c3[0], c4[0]], [c3[1], c4[1]], c="k", ls="--", lw=1)
+        ax.plot([c2[0], c4[0]], [c2[1], c4[1]], c="k", ls="--", lw=1)
 
     if color_home_cell:
         # Zip the home cell coordinates into tuples
@@ -1596,47 +1636,58 @@ def plot_centers(
         else:
             xs_out, ys_out = [], []  # In case no points are left
 
-        ax.scatter(xs_orb_home, ys_orb_home, zorder=1, s=20, marker='o', c=lat_home_color)
-        ax.scatter(xs_out, ys_out, zorder=1, s=20, marker='o', c=lat_color)
+        ax.scatter(
+            xs_orb_home, ys_orb_home, zorder=1, s=20, marker="o", c=lat_home_color
+        )
+        ax.scatter(xs_out, ys_out, zorder=1, s=20, marker="o", c=lat_color)
     else:
-        ax.scatter(xs_orb, ys_orb, zorder=1, s=20, marker='o', c=lat_color)
+        ax.scatter(xs_orb, ys_orb, zorder=1, s=20, marker="o", c=lat_color)
 
     # scatter centers
     for i in range(centers.shape[0]):
         if translate_centers:
-            x = positions_centers['centers all']['xs'][i]
-            y = positions_centers['centers all']['ys'][i]
+            x = positions_centers["centers all"]["xs"][i]
+            y = positions_centers["centers all"]["ys"][i]
 
-            if i==0:
+            if i == 0:
                 label = "Wannier centers"
             else:
-                label=None
+                label = None
 
             ax.scatter(
-                x, y, zorder=1, label=label, 
-                s=np.exp(11*wan.spread[i])*center_scale, 
-                marker=center_marker, c=center_color)
+                x,
+                y,
+                zorder=1,
+                label=label,
+                s=np.exp(11 * wan.spread[i]) * center_scale,
+                marker=center_marker,
+                c=center_color,
+            )
         else:
             center = centers[i]
-            if i==0:
+            if i == 0:
                 label = "Wannier centers"
             else:
-                label=None
+                label = None
             ax.scatter(
-                center[0], center[1], zorder=2, 
+                center[0],
+                center[1],
+                zorder=2,
                 c=center_color,
                 alpha=0.5,
-                s=np.exp(11*wan.spread[i])*center_scale, 
-                label=label, marker=center_marker)
+                s=np.exp(11 * wan.spread[i]) * center_scale,
+                label=label,
+                marker=center_marker,
+            )
 
     if legend:
-        ax.legend(loc='upper right')
-    
-    center_sc = (1/2) * (lat_vecs[0] + lat_vecs[1])
+        ax.legend(loc="upper right")
+
+    center_sc = (1 / 2) * (lat_vecs[0] + lat_vecs[1])
     ax.set_xlim(center_sc[0] - pmx, center_sc[0] + pmx)
     ax.set_ylim(center_sc[1] - pmy, center_sc[1] + pmy)
 
     if show:
         plt.show()
-    
+
     return fig, ax

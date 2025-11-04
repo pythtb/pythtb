@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 __all__ = ["Wannier"]
 
+
 class Wannier:
     r"""Construct Wannier functions using the projection method.
 
@@ -112,11 +113,11 @@ class Wannier:
     Set trial wavefunctions and perform single-shot projection
 
     >>> twf_list = [[(0, 1.0)]]  # single trial wf on orbital 0
-    >>> wan.single_shot_projection(twf_list)   
+    >>> wan.single_shot_projection(twf_list)
 
     Perform maximal localization
 
-    >>> wan.max_localize(num_iter=100, conv_tol=1e-6) 
+    >>> wan.max_localize(num_iter=100, conv_tol=1e-6)
 
     Compute and print Wannier centers and spreads
 
@@ -134,13 +135,13 @@ class Wannier:
             raise ValueError(
                 "Mesh is not a torus. The Wannier class requires a toroidal k-mesh."
                 "To construct a toroidal k-space mesh use `Mesh.build_grid`"
-                )
+            )
         for ax in self.mesh.k_axes:
             if ax.has_endpoint:
                 raise ValueError(
                     f"Detected a closed k-axis: {ax}. The endpoints of the Brillouin zone "
                     f"must not be included."
-                    )
+                )
 
         ranges = [np.arange(-nk // 2, nk // 2) for nk in self.nks]
         mesh = np.meshgrid(*ranges, indexing="ij")
@@ -153,7 +154,7 @@ class Wannier:
     def mesh(self) -> Mesh:
         """Mesh object associated with the Wannier functions."""
         return self.bloch_states.mesh
-    
+
     @property
     def lattice(self):
         """Lattice object associated with the Wannier functions."""
@@ -168,18 +169,19 @@ class Wannier:
     def tilde_states(self) -> WFArray:
         r"""WFArray corresponding to the Bloch-like (tilde) states.
 
-        These are the Bloch-like states that are Fourier transformed to 
+        These are the Bloch-like states that are Fourier transformed to
         form the Wannier functions. They are related to the original energy
         eigenstates via the (semi-) unitary transformation
 
         .. math::
-            |\tilde{\psi}_{n\mathbf{k}} \rangle = \sum_{m=1}^{N} 
+            |\tilde{\psi}_{n\mathbf{k}} \rangle = \sum_{m=1}^{N}
             U_{mn}^{(\mathbf{k})} |\psi_{m\mathbf{k}} \rangle
         """
         if not hasattr(self, "_tilde_states"):
             raise ValueError(
-                "Bloch-like states have not been set. " \
-                "Use `set_tilde_states` or `single_shot_projection`.")
+                "Bloch-like states have not been set. "
+                "Use `set_tilde_states` or `single_shot_projection`."
+            )
         return getattr(self, "_tilde_states", None)
 
     @property
@@ -195,7 +197,7 @@ class Wannier:
         Bloch-like states :math:`\tilde{\psi}`
 
         .. math::
-            w_{n\mathbf{R}} = \frac{1}{\sqrt{N_k}} \sum_{\mathbf{k}} e^{i\mathbf{k} \cdot \mathbf{R}} 
+            w_{n\mathbf{R}} = \frac{1}{\sqrt{N_k}} \sum_{\mathbf{k}} e^{i\mathbf{k} \cdot \mathbf{R}}
             \tilde{\psi}_{n\mathbf{k}}
 
         where :math:`N_k` is the number of k-points, :math:`\mathbf{R}` is a
@@ -210,7 +212,7 @@ class Wannier:
         r"""Quadratic spread for each Wannier function.
 
         .. math::
-            \Omega_n = \langle \mathbf{0} n | r^2 | \mathbf{0} n \rangle 
+            \Omega_n = \langle \mathbf{0} n | r^2 | \mathbf{0} n \rangle
             - \langle \mathbf{0} n | \mathbf{r} | \mathbf{0} n \rangle^2
 
         where :math:`|\mathbf{0} n\rangle` are the Wannier functions in the home unit cell
@@ -252,7 +254,7 @@ class Wannier:
             \Omega = \widetilde{\Omega} + \Omega_I = \Omega_{\rm OD} + \Omega_{\rm D}
             + \Omega_I
 
-        The diagonal part :math:`\Omega_{\rm D}` is computed via 
+        The diagonal part :math:`\Omega_{\rm D}` is computed via
 
         .. math::
             \Omega_{\rm D} = \frac{1}{N_k} \sum_{\mathbf{k}, \mathbf{b}} w_b
@@ -273,18 +275,18 @@ class Wannier:
         .. math::
             \Omega = \widetilde{\Omega} + \Omega_I = \Omega_{\rm OD} + \Omega_{\rm D} + \Omega_I
 
-        The gauge-invariant part :math:`\Omega_I` is independent of the choice of Wannier gauge. It is 
+        The gauge-invariant part :math:`\Omega_I` is independent of the choice of Wannier gauge. It is
         computed via
 
         .. math::
             \Omega_I = \frac{1}{N_k} \sum_{\mathbf{k}, \mathbf{b}} w_b
             \left( N_{\rm bands} - \sum_{m,n} |M_{mn}^{(\mathbf{b})}(\mathbf{k})|^2 \right)
-        
+
         """
         if not self.tilde_states.filled:
             raise ValueError("Tilde states are not initialized.")
         return getattr(self, "_omega_i", None)
-    
+
     @property
     def centers(self) -> np.ndarray:
         r"""Centers of the Wannier functions in Cartesian coordinates.
@@ -300,7 +302,7 @@ class Wannier:
         if not self.tilde_states.filled:
             raise ValueError("Tilde states are not set.")
         return getattr(self, "_centers", None)
-    
+
     @property
     def trial_wfs(self) -> np.ndarray:
         """Trial wavefunctions to project onto."""
@@ -312,7 +314,7 @@ class Wannier:
         if self.trial_wfs is None:
             raise ValueError("Trial wavefunctions are not set.")
         return self.trial_wfs.shape[0]
-    
+
     @property
     def Amn(self) -> np.ndarray:
         r"""Overlap matrix between energy eigenstates and trial wavefunctions.
@@ -327,7 +329,6 @@ class Wannier:
         :math:`|t_j\rangle` are the trial wavefunctions.
         """
         return getattr(self, "_A", None)
-
 
     def info(self, precision=8):
         """Report of Wannier centers and spreads.
@@ -359,8 +360,8 @@ class Wannier:
         lines.append(f"Sum : center = [{sum_c_str}]  Omega tot = {sum_s:.{precision}f}")
 
         # Omegas
-        Omega_I  = float(getattr(self, "Omega_I",  np.nan))
-        Omega_D  = float(getattr(self, "Omega_D",  np.nan))
+        Omega_I = float(getattr(self, "Omega_I", np.nan))
+        Omega_D = float(getattr(self, "Omega_D", np.nan))
         Omega_OD = float(getattr(self, "Omega_OD", np.nan))
         Omega_tot = Omega_I + Omega_D + Omega_OD
 
@@ -371,7 +372,7 @@ class Wannier:
             f"Omega tot = {Omega_tot:.{precision}f}",
         ]
 
-         # determine longest line
+        # determine longest line
         maxlen = max(len(l) for l in lines)
         divider = "=" * maxlen
         sub_div = "-" * maxlen
@@ -381,8 +382,7 @@ class Wannier:
         lines.insert(len(lines) - 4, sub_div)
 
         out = "\n".join(lines)
-        print(out) 
-
+        print(out)
 
     def get_centers(self, cartesian=False):
         """Get the centers of the Wannier functions.
@@ -402,15 +402,17 @@ class Wannier:
             return self.centers
         else:
             return self.centers @ np.linalg.inv(self.lattice.lat_vecs)
-        
+
     def _get_trial_wfs(self, twf_list=None):
         if twf_list is None:
             return self._trial_wfs
-        
+
         # number of trial functions to define
         num_tf = len(twf_list)
         if self.bloch_states.spinful:
-            tfs = np.zeros([num_tf, self.lattice.norb, self.bloch_states.nspin], dtype=complex)
+            tfs = np.zeros(
+                [num_tf, self.lattice.norb, self.bloch_states.nspin], dtype=complex
+            )
             for j, tf in enumerate(twf_list):
                 assert isinstance(
                     tf, (list, np.ndarray)
@@ -433,7 +435,7 @@ class Wannier:
 
     def set_trial_wfs(self, tf_list):
         r"""Set trial wavefunctions for Wannierization.
-        
+
         Parameters
         ----------
         tf_list: list[list[tuple]]
@@ -455,20 +457,21 @@ class Wannier:
         minus sign.
         """
         self._trial_wfs = self._get_trial_wfs(tf_list)
-        self._tilde_states: WFArray = WFArray(self.lattice, self.mesh, nstates=self.num_twfs)
-
+        self._tilde_states: WFArray = WFArray(
+            self.lattice, self.mesh, nstates=self.num_twfs
+        )
 
     def set_tilde_states(self, states, is_cell_periodic=True, is_spin_axis_flat=False):
         r"""Set the Bloch-like states for the Wannier functions.
 
-        These states are Fourier transformed to form the Wannier functions. 
+        These states are Fourier transformed to form the Wannier functions.
         They are related to the original energy eigenstates via the (semi-) unitary transformation
 
         .. math::
 
-            |\tilde{\psi} \rangle = \sum_{m=1}^{N} 
+            |\tilde{\psi} \rangle = \sum_{m=1}^{N}
             U_{mn}^{(\mathbf{k})} |\psi_{m\mathbf{k}} \rangle
-            
+
         Parameters
         ----------
         states : np.ndarray
@@ -500,7 +503,7 @@ class Wannier:
         if not isinstance(states, np.ndarray):
             raise ValueError("Bloch-like states must be a numpy array.")
 
-        if states.ndim != self.mesh.num_k_axes + 2 + (self.bloch_states.nspin-1):
+        if states.ndim != self.mesh.num_k_axes + 2 + (self.bloch_states.nspin - 1):
             raise ValueError(
                 f"Bloch-like states must have shape (nk1, ..., nstates, n_orbs[, n_spins]), "
                 f"but got {states.shape}."
@@ -511,8 +514,9 @@ class Wannier:
 
         logger.info("Setting Bloch-like states...")
         self.tilde_states.set_states(
-            states, is_cell_periodic=is_cell_periodic, 
-            is_spin_axis_flat=is_spin_axis_flat
+            states,
+            is_cell_periodic=is_cell_periodic,
+            is_spin_axis_flat=is_spin_axis_flat,
         )
 
         # Fourier transform Bloch-like states to set WFs
@@ -520,7 +524,9 @@ class Wannier:
         num_k_axes = self.mesh.num_k_axes
 
         # FFT NOTE: A non-repeating grid is required for consistent inverse FFTs.
-        self._wannier = self.WFs = np.fft.ifftn(psi_nk, axes=[i for i in range(num_k_axes)], norm=None)
+        self._wannier = self.WFs = np.fft.ifftn(
+            psi_nk, axes=[i for i in range(num_k_axes)], norm=None
+        )
 
         # set spreads
         spread = self._spread_recip(decomp=True)
@@ -530,36 +536,37 @@ class Wannier:
         self._omega_od = spread[0][3]
         self._centers = spread[1]
 
-
     def _compute_Amn(self, psi_nk, twfs, band_idxs):
         r"""Overlap matrix between Bloch states and trial wavefunctions.
 
-        The overlap matrix is defined as
+         The overlap matrix is defined as
 
-        .. math::
+         .. math::
 
-            A_{k, n, j} = <psi_{n,k} | t_{j}> 
+             A_{k, n, j} = <psi_{n,k} | t_{j}>
 
-        where :math:`|\psi_{n\mathbf{k}}\rangle` are the Bloch energy eigenstates and
-        :math:`|t_j\rangle` are the trial wavefunctions.
+         where :math:`|\psi_{n\mathbf{k}}\rangle` are the Bloch energy eigenstates and
+         :math:`|t_j\rangle` are the trial wavefunctions.
 
-       Parameters
-       -----------
-        band_idxs : list
-            Band indices to take from the Bloch states. May choose a subset of bands.
-        psi_nk : np.ndarray, optional
-            The Bloch states to form the overlap matrix with. By default this will
-            choose the energy eigenstates.
+        Parameters
+        -----------
+         band_idxs : list
+             Band indices to take from the Bloch states. May choose a subset of bands.
+         psi_nk : np.ndarray, optional
+             The Bloch states to form the overlap matrix with. By default this will
+             choose the energy eigenstates.
 
-        Returns
-        --------
-        A : np.ndarray
-            Overlap matrix with shape ``(*shape_mesh, n_bands, n_trial_wfs)``
+         Returns
+         --------
+         A : np.ndarray
+             Overlap matrix with shape ``(*shape_mesh, n_bands, n_trial_wfs)``
         """
-        
+
         if psi_nk is None:
             # get Bloch psi_nk energy eigenstates
-            _, psi_nk = self.bloch_states.states(flatten_spin_axis=True, return_psi=True)
+            _, psi_nk = self.bloch_states.states(
+                flatten_spin_axis=True, return_psi=True
+            )
 
         # only keep band_idxs
         psi_nk = np.take(psi_nk, band_idxs, axis=-2)
@@ -584,7 +591,7 @@ class Wannier:
 
         # take only state_idxs
         psi_nk = np.take(psi_nk, state_idx, axis=-2)
-        
+
         # optimal alignment
         psi_tilde = np.einsum(
             "...mn, ...mj -> ...nj", V_k @ Wh_k, psi_nk
@@ -593,10 +600,7 @@ class Wannier:
         return psi_tilde
 
     def single_shot_projection(
-        self, 
-        tf_list: list = None, 
-        band_idxs: list = None, 
-        use_tilde=False
+        self, tf_list: list = None, band_idxs: list = None, use_tilde=False
     ):
         r"""Perform Wannierization via optimal alignment with trial functions (single-shot SVD).
 
@@ -655,10 +659,12 @@ class Wannier:
         """
         if tf_list is None:
             if self.trial_wfs is None:
-                raise ValueError("Trial wavefunctions must be set before Wannierization.")
+                raise ValueError(
+                    "Trial wavefunctions must be set before Wannierization."
+                )
         else:
             self.set_trial_wfs(tf_list)
-        
+
         twfs = self.trial_wfs
 
         if use_tilde:
@@ -669,7 +675,9 @@ class Wannier:
             psi_til_til = self._single_shot_project(
                 self.tilde_states.psi_nk, twfs, state_idx=band_idxs
             )
-            self.set_tilde_states(psi_til_til, is_cell_periodic=False, is_spin_axis_flat=True)
+            self.set_tilde_states(
+                psi_til_til, is_cell_periodic=False, is_spin_axis_flat=True
+            )
 
         else:
             # projecting onto Bloch energy eigenstates
@@ -681,8 +689,9 @@ class Wannier:
             psi_tilde = self._single_shot_project(
                 self.bloch_states.psi_nk, twfs, state_idx=band_idxs
             )
-            self.set_tilde_states(psi_tilde, is_cell_periodic=False, is_spin_axis_flat=True)
-
+            self.set_tilde_states(
+                psi_tilde, is_cell_periodic=False, is_spin_axis_flat=True
+            )
 
     def _spread_recip(self, decomp=False):
         r"""Compute quadratic spreads and their MV97 decomposition on a discrete k-shell.
@@ -740,21 +749,10 @@ class Wannier:
             )
 
             Omega_d = (
-                (1 / Nk)
-                * w_b
-                * (
-                    np.sum((-log_diag_M_imag - k_shell @ r_n.T) ** 2)
-                )
+                (1 / Nk) * w_b * (np.sum((-log_diag_M_imag - k_shell @ r_n.T) ** 2))
             )
 
-            Omega_od = (
-                (1 / Nk)
-                * w_b
-                * (
-                    + np.sum(abs(M) ** 2)
-                    - np.sum(abs_diag_M_sq)
-                )
-            )
+            Omega_od = (1 / Nk) * w_b * (+np.sum(abs(M) ** 2) - np.sum(abs_diag_M_sq))
             return [spread_n, Omega_i, Omega_d, Omega_od], r_n, rsq_n
 
         else:
@@ -781,7 +779,7 @@ class Wannier:
             )
         )
         return Omega_tilde
-    
+
     def _get_omega_d(self, Mmn, wb, k_shell):
         nks = self.nks
         Nk = np.prod(nks)
@@ -791,31 +789,17 @@ class Wannier:
         log_diag_M_imag = np.log(diag_M).imag
         r_n = -(1 / Nk) * wb * np.sum(log_diag_M_imag, axis=k_axes).T @ k_shell
 
-        Omega_d = (
-            (1 / Nk)
-            * wb
-            * (
-                np.sum((-log_diag_M_imag - k_shell @ r_n.T) ** 2)
-            )
-        )
+        Omega_d = (1 / Nk) * wb * (np.sum((-log_diag_M_imag - k_shell @ r_n.T) ** 2))
         return Omega_d
-
 
     def _get_omega_od(self, Mmn, wb):
         Nk = np.prod(self.nks)
         diag_M = np.diagonal(Mmn, axis1=-1, axis2=-2)
         abs_diag_M_sq = abs(diag_M) ** 2
 
-        Omega_od = (
-            (1 / Nk)
-            * wb
-            * (
-                + np.sum(abs(Mmn) ** 2)
-                - np.sum(abs_diag_M_sq)
-            )
-        )
+        Omega_od = (1 / Nk) * wb * (+np.sum(abs(Mmn) ** 2) - np.sum(abs_diag_M_sq))
         return Omega_od
-    
+
     def _get_omega_i(self, Mmn, wb, k_shell):
         Nk = np.prod(self.tilde_states.mesh.shape_k)
         n_states = self.tilde_states.nstates
@@ -850,66 +834,79 @@ class Wannier:
     ####### Maximally Localized WF #######
 
     def _optimal_subspace(
-        self, 
-        n_wfs = None, 
-        inner_window = "occupied", 
-        outer_window = "all", 
-        iter_num = 1000, 
-        verbose = True, 
-        tol = 1e-10, 
-        beta = 1,
-        tf_speedup = False
+        self,
+        n_wfs=None,
+        inner_window="occupied",
+        outer_window="all",
+        iter_num=1000,
+        verbose=True,
+        tol=1e-10,
+        beta=1,
+        tf_speedup=False,
     ):
         # useful constants
-        nks = self.nks 
+        nks = self.nks
         Nk = np.prod(nks)
         n_orb = self.bloch_states.norb
         n_states = self.bloch_states.nstates
-        n_occ = int(n_states/2)
+        n_occ = int(n_states / 2)
 
         # eigenenergies and eigenstates for inner/outer window
         energies = self.bloch_states.energies
         u_nk = self.bloch_states.states(flatten_spin_axis=True)
 
-        # number of states in target manifold 
+        # number of states in target manifold
         if n_wfs is None:
             n_wfs = self.tilde_states.nstates
-      
+
         ########### Setting energy windows ############
 
         #### outer window ####
         if isinstance(outer_window, str):
             if outer_window.lower() != "occupied" and outer_window.lower() != "all":
-                raise ValueError("If outer_window is a string, it must be 'occupied' or 'all'.")
-            
+                raise ValueError(
+                    "If outer_window is a string, it must be 'occupied' or 'all'."
+                )
+
             outer_window_type = "bands"
-            
+
             if outer_window.lower() == "all":
                 outer_band_idxs = list(range(n_states))
                 outer_energy_range = [np.min(energies), np.max(energies)]
             elif outer_window.lower() == "occupied":
                 outer_band_idxs = list(range(n_occ))
                 outer_band_energies = energies[..., outer_band_idxs]
-                outer_energy_range = [np.min(outer_band_energies), np.max(outer_band_energies)]
+                outer_energy_range = [
+                    np.min(outer_band_energies),
+                    np.max(outer_band_energies),
+                ]
 
         elif isinstance(outer_window, dict):
-            if list(outer_window.keys())[0].lower() not in ['bands', 'energy']:
-                raise ValueError("If outer_window is a dict, it must have keys 'bands' or 'energy'.")
-            
+            if list(outer_window.keys())[0].lower() not in ["bands", "energy"]:
+                raise ValueError(
+                    "If outer_window is a dict, it must have keys 'bands' or 'energy'."
+                )
+
             outer_window_type = list(outer_window.keys())[0].lower()
 
             if outer_window_type == "bands":
                 outer_band_idxs = list(outer_window.values())[0]
                 outer_band_energies = energies[..., outer_band_idxs]
-                outer_energy_range = [np.min(outer_band_energies), np.max(outer_band_energies)]
+                outer_energy_range = [
+                    np.min(outer_band_energies),
+                    np.max(outer_band_energies),
+                ]
             elif outer_window_type == "energy":
                 outer_energy_range = np.sort(list(outer_window.values())[0])
 
-        elif isinstance(outer_window, (list, tuple)) and len(outer_window) == 2 and all(isinstance(x, (int, float, np.floating)) for x in outer_window):
+        elif (
+            isinstance(outer_window, (list, tuple))
+            and len(outer_window) == 2
+            and all(isinstance(x, (int, float, np.floating)) for x in outer_window)
+        ):
             outer_window_type = "energy"
             outer_energy_range = [float(outer_window[0]), float(outer_window[1])]
 
-            
         ######## inner window ########
         if inner_window is None:
             N_inner = 0
@@ -928,31 +925,49 @@ class Wannier:
             inner_energies = [np.min(inner_band_energies), np.max(inner_band_energies)]
 
         elif isinstance(inner_window, dict):
-            if list(inner_window.keys())[0].lower() not in ['bands', 'energy']:
-                raise ValueError("If inner_window is a dict, it must have keys 'bands' or 'energy'.")
+            if list(inner_window.keys())[0].lower() not in ["bands", "energy"]:
+                raise ValueError(
+                    "If inner_window is a dict, it must have keys 'bands' or 'energy'."
+                )
 
             inner_window_type = list(inner_window.keys())[0].lower()
 
             if inner_window_type == "bands":
                 inner_band_idxs = list(inner_window.values())[0]
                 inner_band_energies = energies[..., inner_band_idxs]
-                inner_energies = [np.min(inner_band_energies), np.max(inner_band_energies)] 
+                inner_energies = [
+                    np.min(inner_band_energies),
+                    np.max(inner_band_energies),
+                ]
 
             elif inner_window_type == "energy":
                 inner_energies = np.sort(list(inner_window.values())[0])
-                
-        elif isinstance(inner_window, (list, tuple)) and len(inner_window) == 2 and all(isinstance(x, (int, float, np.floating)) for x in inner_window):
+
+        elif (
+            isinstance(inner_window, (list, tuple))
+            and len(inner_window) == 2
+            and all(isinstance(x, (int, float, np.floating)) for x in inner_window)
+        ):
             inner_window_type = "energy"
             inner_energies = [float(inner_window[0]), float(inner_window[1])]
 
         if inner_window_type == outer_window_type == "bands":
-            logger.debug("Both inner and outer windows specified via band indices. " \
-                "Using the faster optimal_subspace_bands method instead.")
+            logger.debug(
+                "Both inner and outer windows specified via band indices. "
+                "Using the faster optimal_subspace_bands method instead."
+            )
             # defer to the faster function
             return self._optimal_subspace_bands(
-                n_wfs=n_wfs, frozen_bands=inner_band_idxs, disentang_bands=outer_band_idxs, 
-                iter_num=iter_num, verbose=verbose, tol=tol, beta=beta, tf_speedup=tf_speedup)
-        
+                n_wfs=n_wfs,
+                frozen_bands=inner_band_idxs,
+                disentang_bands=outer_band_idxs,
+                iter_num=iter_num,
+                verbose=verbose,
+                tol=tol,
+                beta=beta,
+                tf_speedup=tf_speedup,
+            )
+
         # create array of nans for masking
         nan = np.empty(u_nk.shape)
         nan.fill(np.nan)
@@ -960,20 +975,24 @@ class Wannier:
         # mask out states outside outer window
         states_sliced = np.where(
             np.logical_and(
-                energies[..., np.newaxis] >= outer_energy_range[0], 
-                energies[..., np.newaxis] <= outer_energy_range[1]
-                ), 
-                u_nk, nan)
+                energies[..., np.newaxis] >= outer_energy_range[0],
+                energies[..., np.newaxis] <= outer_energy_range[1],
+            ),
+            u_nk,
+            nan,
+        )
         mask_outer = np.isnan(states_sliced)
         masked_outer_states = np.ma.masked_array(states_sliced, mask=mask_outer)
 
         # mask out states outside inner window
         states_sliced = np.where(
             np.logical_and(
-                energies[..., np.newaxis] >= inner_energies[0], 
-                energies[..., np.newaxis] <= inner_energies[1]), 
-                u_nk, nan
-                )
+                energies[..., np.newaxis] >= inner_energies[0],
+                energies[..., np.newaxis] <= inner_energies[1],
+            ),
+            u_nk,
+            nan,
+        )
         mask_inner = np.isnan(states_sliced)
         masked_inner_states = np.ma.masked_array(states_sliced, mask=mask_inner)
 
@@ -984,16 +1003,20 @@ class Wannier:
             min_states = np.ma.masked_array(u_nk, mask=min_mask)
             min_states = np.ma.filled(min_states, fill_value=0)
 
-            N_inner = (~masked_inner_states.mask).sum(axis=(-1,-2))//n_orb
+            N_inner = (~masked_inner_states.mask).sum(axis=(-1, -2)) // n_orb
             if np.any(N_inner > n_wfs):
                 mesh = self.mesh
                 bad_kpts = np.where(N_inner > n_wfs)
                 bad_kpts = [mesh.grid[idx] for idx in zip(*bad_kpts)]
-                raise ValueError(f"Number of states in inner window exceeds n_wfs at k-points {bad_kpts}.")
-            
-            num_keep = n_wfs - N_inner # matrix of integers
+                raise ValueError(
+                    f"Number of states in inner window exceeds n_wfs at k-points {bad_kpts}."
+                )
 
-            keep_mask = (np.arange(min_states.shape[-2]) >= (num_keep[:, :, np.newaxis, np.newaxis]))
+            num_keep = n_wfs - N_inner  # matrix of integers
+
+            keep_mask = np.arange(min_states.shape[-2]) >= (
+                num_keep[:, :, np.newaxis, np.newaxis]
+            )
             keep_mask = keep_mask.repeat(min_states.shape[-2], axis=-2)
             keep_mask = np.swapaxes(keep_mask, axis1=-1, axis2=-2)
         else:
@@ -1001,14 +1024,13 @@ class Wannier:
 
             # keep all the states from minimization manifold
             num_keep = np.full(min_states.shape, n_wfs)
-            keep_mask = (np.arange(min_states.shape[-2]) >= num_keep)
+            keep_mask = np.arange(min_states.shape[-2]) >= num_keep
             keep_mask = np.swapaxes(keep_mask, axis1=-1, axis2=-2)
-
 
         # Assumes only one shell for now
         w_b, _, _ = self.bloch_states.get_shell_weights(n_shell=1)
         w_b = w_b[0]  # Assume only one shell for now
-        
+
         # Projector of initial tilde subspace at each k-point
         init_states = self.tilde_states
         P = init_states.projectors(return_Q=False)
@@ -1023,48 +1045,59 @@ class Wannier:
         P_min = np.copy(P)  # for start of iteration
         P_nbr_min = np.copy(P_nbr)  # for start of iteration
         Q_nbr_min = np.copy(Q_nbr)  # for start of iteration
-        
+
         if tf_speedup:
             try:
                 from tensorflow import convert_to_tensor
                 from tensorflow import complex64 as tfcomplex64
                 from tensorflow.linalg import eigh as tfeigh
             except ImportError:
-                raise ImportError("TensorFlow must be installed to use tf_speedup option.")
+                raise ImportError(
+                    "TensorFlow must be installed to use tf_speedup option."
+                )
 
         #### Start of minimization iteration ####
         for i in range(iter_num):
             P_avg = np.sum(w_b * P_nbr_min, axis=-3)
-            Z = min_states.conj() @ P_avg @ np.transpose(min_states, axes=(0,1,3,2))
+            Z = min_states.conj() @ P_avg @ np.transpose(min_states, axes=(0, 1, 3, 2))
 
             if tf_speedup:
                 Z_tf = convert_to_tensor(Z, dtype=tfcomplex64)
-                eigvals, eigvecs = tfeigh(Z_tf) # [..., val, idx]
+                eigvals, eigvecs = tfeigh(Z_tf)  # [..., val, idx]
                 eigvals = eigvals.numpy()
                 eigvecs = eigvecs.numpy()
-                eigvecs = np.swapaxes(eigvecs, axis1=-1, axis2=-2) # [..., idx, val]
+                eigvecs = np.swapaxes(eigvecs, axis1=-1, axis2=-2)  # [..., idx, val]
             else:
-                eigvals, eigvecs = np.linalg.eigh(Z) # [..., val, idx]
-                eigvecs = np.swapaxes(eigvecs, axis1=-1, axis2=-2) # [..., idx, val]
+                eigvals, eigvecs = np.linalg.eigh(Z)  # [..., val, idx]
+                eigvecs = np.swapaxes(eigvecs, axis1=-1, axis2=-2)  # [..., idx, val]
 
             # eigvals = 0 correspond to states outside the minimization manifold. Mask these out.
             zero_mask = eigvals.round(10) == 0
             non_zero_eigvals = np.ma.masked_array(eigvals, mask=zero_mask)
-            non_zero_eigvecs = np.ma.masked_array(eigvecs, mask=np.repeat(zero_mask[..., np.newaxis], repeats=eigvals.shape[-1], axis=-1))
+            non_zero_eigvecs = np.ma.masked_array(
+                eigvecs,
+                mask=np.repeat(
+                    zero_mask[..., np.newaxis], repeats=eigvals.shape[-1], axis=-1
+                ),
+            )
 
             # sort eigvals and eigvecs by eigenvalues in descending order excluding eigvals=0
             sorted_eigvals_idxs = np.argsort(-non_zero_eigvals, axis=-1)
             # sorted_eigvals = np.take_along_axis(non_zero_eigvals, sorted_eigvals_idxs, axis=-1)
-            sorted_eigvecs = np.take_along_axis(non_zero_eigvecs, sorted_eigvals_idxs[..., np.newaxis], axis=-2)
+            sorted_eigvecs = np.take_along_axis(
+                non_zero_eigvecs, sorted_eigvals_idxs[..., np.newaxis], axis=-2
+            )
             sorted_eigvecs = np.ma.filled(sorted_eigvecs, fill_value=0)
 
-            states_min = np.einsum('...ji, ...ik->...jk', sorted_eigvecs, min_states)
+            states_min = np.einsum("...ji, ...ik->...jk", sorted_eigvecs, min_states)
             keep_states_ma = np.ma.masked_array(states_min, mask=keep_mask)
             # keep_states_np = np.ma.filled(keep_states_ma, fill_value=0)
 
             # need to concatenate with frozen states
             if inner_window is not None:
-                min_states_ma = np.ma.concatenate((keep_states_ma, masked_inner_states), axis=-2)
+                min_states_ma = np.ma.concatenate(
+                    (keep_states_ma, masked_inner_states), axis=-2
+                )
                 min_states_sliced = min_states_ma[np.where(~min_states_ma.mask)]
                 min_states_sliced = min_states_sliced.reshape((*nks, n_wfs, n_orb))
                 states_min = np.array(min_states_sliced)
@@ -1074,8 +1107,15 @@ class Wannier:
                 states_min = np.array(min_states_sliced)
 
             # update projectors
-            min_wfa = WFArray(self.lattice, self.mesh, nstates=states_min.shape[-2], spinful=self.bloch_states.spinful)
-            min_wfa.set_states(states_min, is_cell_periodic=True, is_spin_axis_flat=True)
+            min_wfa = WFArray(
+                self.lattice,
+                self.mesh,
+                nstates=states_min.shape[-2],
+                spinful=self.bloch_states.spinful,
+            )
+            min_wfa.set_states(
+                states_min, is_cell_periodic=True, is_spin_axis_flat=True
+            )
             P_new = min_wfa.projectors()
             P_nbr_new = min_wfa._nbr_projectors(return_Q=False)
 
@@ -1092,15 +1132,23 @@ class Wannier:
             T_kb = np.einsum("...ij, ...kji -> ...k", P_min, Q_nbr_min)
             omega_I_new = (1 / Nk) * w_b * np.sum(T_kb)
             delta = omega_I_new - omega_I_prev
-            logger.info(f"iter {i:4d} | Ω_I = {omega_I_new.real:12.9e} | ΔΩ = {delta.real:10.5e}")
+            logger.info(
+                f"iter {i:4d} | Ω_I = {omega_I_new.real:12.9e} | ΔΩ = {delta.real:10.5e}"
+            )
 
             if verbose:
-                print(f"iter {i:4d} | Ω_I = {omega_I_new.real:12.9e} | ΔΩ = {delta.real:10.5e}")
+                print(
+                    f"iter {i:4d} | Ω_I = {omega_I_new.real:12.9e} | ΔΩ = {delta.real:10.5e}"
+                )
 
             if abs(delta) <= tol:
-                logger.info(f"Converged within tolerance in {i} iterations. Breaking the loop.")
+                logger.info(
+                    f"Converged within tolerance in {i} iterations. Breaking the loop."
+                )
                 if verbose:
-                    print(f"Converged within tolerance in {i} iterations. Breaking the loop.")
+                    print(
+                        f"Converged within tolerance in {i} iterations. Breaking the loop."
+                    )
                 break
 
             if omega_I_new > omega_I_prev:
@@ -1115,31 +1163,31 @@ class Wannier:
 
     def _optimal_subspace_bands(
         self,
-        n_wfs : int | None = None,
+        n_wfs: int | None = None,
         frozen_bands: list | None = None,
-        disentang_bands: list | str ="occupied",
+        disentang_bands: list | str = "occupied",
         iter_num: int = 1000,
         tol: float = 1e-10,
         beta: float = 1,
         verbose: bool = True,
-        tf_speedup: bool = False
+        tf_speedup: bool = False,
     ):
         r"""Obtain the subspace that minimizes the gauge-independent spread.
 
-        This function utilizes the 'disentanglement' technique to find the subspaces 
-        throughout the BZ that minimizes the gauge-independent spread. 
+        This function utilizes the 'disentanglement' technique to find the subspaces
+        throughout the BZ that minimizes the gauge-independent spread.
 
         Parameters
         ----------
         n_wfs : int | None
             Number of states in the optimal subspace. If ``None``, the number
-            of trial wavefunctions is used. 
+            of trial wavefunctions is used.
         frozen_bands : list | None, optional
             List of band indices defining the 'frozen window', specifying
-            the states totally included within the optimized subspace. 
+            the states totally included within the optimized subspace.
             Defaults to `None`, in which case no bands are frozen.
         disentang_bands : list | str, optional
-            List of band indices defining 'disentanglement window' where 
+            List of band indices defining 'disentanglement window' where
             states are borrowed in order to minimize the gauge independent spread.
             If "occupied", all occupied bands are disentangled. Defaults to "occupied".
         iter_num : int, optional
@@ -1147,7 +1195,7 @@ class Wannier:
         tol : float, optional
             Convergence tolerance for the optimization. Defaults to 1e-10.
         beta : float, optional
-            Mixing parameter for the optimization. If 1, the current step is taken fully. 
+            Mixing parameter for the optimization. If 1, the current step is taken fully.
             Lower values result in a percentage ``beta`` of the previous step being mixed into
             the result. Defaults to 1.
         verbose : bool, optional
@@ -1184,7 +1232,7 @@ class Wannier:
         if frozen_bands is None:
             N_inner = 0
             init_states = self.tilde_states
-            
+
             # manifold from which we borrow states to minimize omega_i
             comp_states = u_nk.take(disentang_bands, axis=-2)
         else:
@@ -1201,12 +1249,18 @@ class Wannier:
             eigvecs = np.swapaxes(eigvecs, -1, -2)
 
             init_evecs = eigvecs[..., -(n_wfs - N_inner) :, :]
-            init_states = WFArray(self.lattice, self.mesh, nstates=init_evecs.shape[-2], spinful=self.bloch_states.spinful)
-            init_states.set_states(init_evecs, is_cell_periodic=False, is_spin_axis_flat=True)
+            init_states = WFArray(
+                self.lattice,
+                self.mesh,
+                nstates=init_evecs.shape[-2],
+                spinful=self.bloch_states.spinful,
+            )
+            init_states.set_states(
+                init_evecs, is_cell_periodic=False, is_spin_axis_flat=True
+            )
 
             comp_bands = list(np.setdiff1d(disentang_bands, frozen_bands))
             comp_states = u_nk.take(comp_bands, axis=-2)
-
 
         P = init_states.projectors(return_Q=False)
         P_nbr, Q_nbr = init_states._nbr_projectors(return_Q=True)
@@ -1229,7 +1283,7 @@ class Wannier:
             # states spanning optimal subspace minimizing gauge invariant spread
             P_avg = w_b * np.sum(P_nbr_min, axis=-3)
             Z = comp_states.conj() @ P_avg @ np.swapaxes(comp_states, -1, -2)
-            
+
             if tf_speedup:
                 Z_tf = convert_to_tensor(Z, dtype=tfcomplex64)
                 _, eigvecs_tf = tfeigh(Z_tf)
@@ -1245,8 +1299,15 @@ class Wannier:
             else:
                 states_min = comp_min
 
-            min_wfa = WFArray(self.lattice, self.mesh, nstates=states_min.shape[-2], spinful=self.bloch_states.spinful)
-            min_wfa.set_states(states_min, is_cell_periodic=True, is_spin_axis_flat=True)
+            min_wfa = WFArray(
+                self.lattice,
+                self.mesh,
+                nstates=states_min.shape[-2],
+                spinful=self.bloch_states.spinful,
+            )
+            min_wfa.set_states(
+                states_min, is_cell_periodic=True, is_spin_axis_flat=True
+            )
             P_new = min_wfa.projectors()
             P_nbr_new = min_wfa._nbr_projectors(return_Q=False)
 
@@ -1263,20 +1324,30 @@ class Wannier:
             T_kb = np.einsum("...ij, ...kji -> ...k", P_min, Q_nbr_min)
             omega_I_new = (1 / Nk) * w_b * np.sum(T_kb)
             delta = omega_I_new - omega_I_prev
-            logger.info(f"iter {i:4d} | Ω_I = {omega_I_new.real:12.9e} | ΔΩ = {delta.real:10.5e}")
+            logger.info(
+                f"iter {i:4d} | Ω_I = {omega_I_new.real:12.9e} | ΔΩ = {delta.real:10.5e}"
+            )
 
             if verbose:
-                print(f"iter {i:4d} | Ω_I = {omega_I_new.real:12.9e} | ΔΩ = {delta.real:10.5e}")
+                print(
+                    f"iter {i:4d} | Ω_I = {omega_I_new.real:12.9e} | ΔΩ = {delta.real:10.5e}"
+                )
 
             if abs(delta) <= tol:
-                logger.info(f"Converged within tolerance in {i} iterations. Breaking the loop.")
+                logger.info(
+                    f"Converged within tolerance in {i} iterations. Breaking the loop."
+                )
                 if verbose:
-                    print(f"Converged within tolerance in {i} iterations. Breaking the loop.")
+                    print(
+                        f"Converged within tolerance in {i} iterations. Breaking the loop."
+                    )
                 break
 
             if omega_I_new > omega_I_prev:
                 beta = max(beta - 0.01, 0)
-                logger.warning(f"Warning: Ω_I is increasing. Reducing beta from {beta + 0.01} to {beta}.")
+                logger.warning(
+                    f"Warning: Ω_I is increasing. Reducing beta from {beta + 0.01} to {beta}."
+                )
                 if verbose:
                     print(f"Warning: Ω_I is increasing. Reducing beta to {beta}.")
 
@@ -1285,7 +1356,7 @@ class Wannier:
         return states_min
 
     def _max_loc_unitary(
-        self, alpha=1/2, iter_num=100, verbose=False, tol=1e-10, grad_min=1e-3
+        self, alpha=1 / 2, iter_num=100, verbose=False, tol=1e-10, grad_min=1e-3
     ):
         r"""
         Finds the unitary that minimizes the gauge dependent part of the spread.
@@ -1298,14 +1369,14 @@ class Wannier:
             Number of iterations
         verbose : bool
             Whether to print the spread at each iteration
-        tol : float 
+        tol : float
             If difference of spread is lower that tol for consecutive iterations,
             the loop breaks
 
         Returns
         ---------
         U : np.ndarray
-            The unitary matrix that rotates the tilde states to minimize 
+            The unitary matrix that rotates the tilde states to minimize
             the gauge-dependent spread.
         """
         M = self.tilde_states.Mmn
@@ -1350,28 +1421,42 @@ class Wannier:
             A_R = (R - np.swapaxes(R, axis1=-1, axis2=-2).conj()) / 2
             S_T = (T + np.swapaxes(T, axis1=-1, axis2=-2).conj()) / (2j)
             G = 4 * w_b * np.sum(A_R - S_T, axis=-3)
-            U = np.einsum("...ij, ...jk -> ...ik", U, mat_exp((alpha/(4*k_shell.shape[0]*w_b)) * G))
+            U = np.einsum(
+                "...ij, ...jk -> ...ik",
+                U,
+                mat_exp((alpha / (4 * k_shell.shape[0] * w_b)) * G),
+            )
 
             for idx, idx_vec in enumerate(idx_shell):
                 M[..., idx, :, :] = (
                     np.swapaxes(U, -1, -2).conj()
                     @ M0[..., idx, :, :]
-                    @ np.roll(U, shift=tuple(-idx_vec), axis=tuple(self.mesh.k_axis_indices))
+                    @ np.roll(
+                        U, shift=tuple(-idx_vec), axis=tuple(self.mesh.k_axis_indices)
+                    )
                 )
 
             grad_mag = np.linalg.norm(np.sum(G, axis=tuple(self.mesh.k_axis_indices)))
             omega_tilde_new = self._get_omega_til(M, w_b, k_shell)
             delta = omega_tilde_new - omega_tilde_prev
-            logger.info(f"iter {i:4d} | Ω_tilde = {omega_tilde_new.real:12.9e} | ΔΩ = {delta.real:12.5e} | ‖∇‖ = {grad_mag:10.5e}")
+            logger.info(
+                f"iter {i:4d} | Ω_tilde = {omega_tilde_new.real:12.9e} | ΔΩ = {delta.real:12.5e} | ‖∇‖ = {grad_mag:10.5e}"
+            )
 
             if verbose:
-                print(f"iter {i:4d} | Ω_tilde = {omega_tilde_new.real:12.9e} | ΔΩ = {delta.real:12.5e} | ‖∇‖ = {grad_mag:10.5e}")
+                print(
+                    f"iter {i:4d} | Ω_tilde = {omega_tilde_new.real:12.9e} | ΔΩ = {delta.real:12.5e} | ‖∇‖ = {grad_mag:10.5e}"
+                )
 
             # Check for convergence
-            if (abs(grad_mag) <= grad_min and abs(delta) <= tol):
-                logger.info(f"Converged within tolerance in {i} iterations. Breaking the loop.")
+            if abs(grad_mag) <= grad_min and abs(delta) <= tol:
+                logger.info(
+                    f"Converged within tolerance in {i} iterations. Breaking the loop."
+                )
                 if verbose:
-                    print(f"Converged within tolerance in {i} iterations. Breaking the loop.")
+                    print(
+                        f"Converged within tolerance in {i} iterations. Breaking the loop."
+                    )
                 break
 
             if grad_mag_prev < grad_mag and i != 0:
@@ -1399,12 +1484,12 @@ class Wannier:
     ):
         r"""Disentanglement of a subspace that minimizes gauge-independent spread.
 
-        This procedure implements the Souza–Marzari–Vanderbilt (SMV) 
-        disentanglement algorithm [1]_. The goal is to 
-        select an ``n_wfs``-dimensional optimal subspace from a larger set of 
-        Bloch eigenstates in a specified "``outer window``," such that the 
-        gauge-independent part of the Wannier spread :math:`\Omega_I` is 
-        minimized. The procedure is iterative, updating the subspace at each 
+        This procedure implements the Souza–Marzari–Vanderbilt (SMV)
+        disentanglement algorithm [1]_. The goal is to
+        select an ``n_wfs``-dimensional optimal subspace from a larger set of
+        Bloch eigenstates in a specified "``outer window``," such that the
+        gauge-independent part of the Wannier spread :math:`\Omega_I` is
+        minimized. The procedure is iterative, updating the subspace at each
         k-point until self-consistency is achieved.
 
         Parameters
@@ -1413,58 +1498,58 @@ class Wannier:
             Number of states in the optimal subspace. If ``None``, the number
             of trial wavefunctions is used.
         outer_window : str | tuple | list | dict, optional
-            Defines the "disentanglement window," i.e. the set of candidate 
-            states from which the optimal subspace is chosen. States outside 
+            Defines the "disentanglement window," i.e. the set of candidate
+            states from which the optimal subspace is chosen. States outside
             this window are ignored. Options:
-            
-            - ``"occupied"``: All states below the Fermi level.  
-            - ``"all"``: All available states.  
-            - ``(Emin, Emax)``: Energy range in eV.  
-            - ``{"bands": [i1, i2, ...]}``: Explicit band indices.  
-            - ``{"energy": (Emin, Emax)}``: Energy window.  
+
+            - ``"occupied"``: All states below the Fermi level.
+            - ``"all"``: All available states.
+            - ``(Emin, Emax)``: Energy range in eV.
+            - ``{"bands": [i1, i2, ...]}``: Explicit band indices.
+            - ``{"energy": (Emin, Emax)}``: Energy window.
 
             Defaults to ``"all"``.
         frozen_window : str | tuple | list | dict | None, optional
-            Defines the "frozen window," i.e. states that must be exactly 
-            included in the subspace. This ensures that, for example, the 
-            occupied manifold is preserved while disentangling higher states. 
-            Options follow the same conventions as ``outer_window``. If 
+            Defines the "frozen window," i.e. states that must be exactly
+            included in the subspace. This ensures that, for example, the
+            occupied manifold is preserved while disentangling higher states.
+            Options follow the same conventions as ``outer_window``. If
             ``None``, no states are frozen. Defaults to ``None``.
         max_iter : int, optional
             Maximum number of optimization iterations. Defaults to 1000.
         tol : float, optional
             Convergence tolerance for the optimization. Defaults to 1e-10.
         mix : float, optional
-            Mixing parameter for iterative updates. ``mix=1`` uses the new step 
-            fully, while smaller values blend the new and old projectors. 
+            Mixing parameter for iterative updates. ``mix=1`` uses the new step
+            fully, while smaller values blend the new and old projectors.
             Defaults to 1.
         tf_speedup : bool, optional
-            If True, use the ``tensorflow`` package for accelerated linear 
+            If True, use the ``tensorflow`` package for accelerated linear
             algebra. Defaults to False.
         verbose : bool, optional
             If True, print detailed iteration to the logger. Defaults to True.
 
         Notes
-        ------
-        - The disentanglement algorithm iteratively refines the projectors 
+        -----
+        - The disentanglement algorithm iteratively refines the projectors
           onto the optimal subspace by solving the eigenvalue problem
 
           .. math::
               \left[\sum_{\mathbf{b}} w_b \,\hat{\mathcal{P}}_{\mathbf{k}+\mathbf{b}}^{(i)}\right]
-              | u_{m\mathbf{k}}^{(i)} \rangle 
+              | u_{m\mathbf{k}}^{(i)} \rangle
               = \lambda_{m\mathbf{k}}^{(i)} | u_{m\mathbf{k}}^{(i)} \rangle,
 
-          where :math:`\hat{\mathcal{P}}_{\mathbf{k}+\mathbf{b}}^{(i)}` is the 
-          projector from the previous iteration. The states with the largest 
+          where :math:`\hat{\mathcal{P}}_{\mathbf{k}+\mathbf{b}}^{(i)}` is the
+          projector from the previous iteration. The states with the largest
           :math:`n_\text{wfs}` eigenvalues are selected to form the new subspace.
 
-        - The role of the **outer window** is to provide flexibility: states 
-          above or below the frozen region can be borrowed to reduce 
-          :math:`\Omega_I`. The **frozen window** ensures that crucial states 
-          (e.g. fully occupied bands) are exactly included regardless of the 
+        - The role of the **outer window** is to provide flexibility: states
+          above or below the frozen region can be borrowed to reduce
+          :math:`\Omega_I`. The **frozen window** ensures that crucial states
+          (e.g. fully occupied bands) are exactly included regardless of the
           optimization outcome.
 
-        - After convergence, the ``.tilde_states`` attribute stores the 
+        - After convergence, the ``.tilde_states`` attribute stores the
           disentangled wavefunctions spanning the optimized subspace.
 
         References
@@ -1477,13 +1562,18 @@ class Wannier:
             # check if we have trial wavefunctions
             if not hasattr(self, "_trial_wfs"):
                 # we use energy eigenstates tilde states
-                self.set_tilde_states(self.bloch_states.states(flatten_spin_axis=True), is_cell_periodic=True)
+                self.set_tilde_states(
+                    self.bloch_states.states(flatten_spin_axis=True),
+                    is_cell_periodic=True,
+                )
             else:
                 # we initialize tilde states with previous trial wavefunctions
                 n_occ = int(self.bloch_states.nstates / 2)  # assuming half filled
                 band_idxs = list(range(0, n_occ))  # project onto occ manifold
 
-                self._single_shot_project(self.bloch_states.psi_nk, self._twfs, state_idx=band_idxs)
+                self._single_shot_project(
+                    self.bloch_states.psi_nk, self._twfs, state_idx=band_idxs
+                )
 
         # Minimizing Omega_I via disentanglement
         util_min = self._optimal_subspace(
@@ -1500,21 +1590,16 @@ class Wannier:
         self.set_tilde_states(util_min, is_cell_periodic=True, is_spin_axis_flat=True)
 
     def max_localize(
-            self, 
-            alpha=1/2, 
-            max_iter=1000, 
-            tol=1e-5, 
-            grad_min=1e-3, 
-            verbose=False
-            ):
+        self, alpha=1 / 2, max_iter=1000, tol=1e-5, grad_min=1e-3, verbose=False
+    ):
         r"""Unitary transformation to minimize the gauge-dependent spread.
 
         This procedure implements the Marzari–Vanderbilt maximal localization
-        algorithm [1]_. Given a (disentangled) subspace 
-        (``.tilde_states``), it finds the optimal unitary transformation that 
-        minimizes the gauge-dependent part of the Wannier spread 
-        :math:`\widetilde{\Omega}`. The algorithm proceeds iteratively, applying 
-        gradient-descent updates to the unitary matrices at each k-point until 
+        algorithm [1]_. Given a (disentangled) subspace
+        (``.tilde_states``), it finds the optimal unitary transformation that
+        minimizes the gauge-dependent part of the Wannier spread
+        :math:`\widetilde{\Omega}`. The algorithm proceeds iteratively, applying
+        gradient-descent updates to the unitary matrices at each k-point until
         convergence.
 
         Parameters
@@ -1537,8 +1622,8 @@ class Wannier:
           .. math::
               \widetilde{\Omega} = \Omega - \Omega_I,
 
-          where :math:`\Omega` is the total quadratic spread functional and 
-          :math:`\Omega_I` is the gauge-invariant part obtained during the 
+          where :math:`\Omega` is the total quadratic spread functional and
+          :math:`\Omega_I` is the gauge-invariant part obtained during the
           disentanglement step.
 
         - The minimization is achieved by unitary rotations of the form
@@ -1548,11 +1633,11 @@ class Wannier:
               = \sum_{n} U_{nm}(\mathbf{k}) \,
                 | u_{n\mathbf{k}}^{\text{old}} \rangle,
 
-          with :math:`U(\mathbf{k}) \in U(N)`, where :math:`N` is the dimension 
+          with :math:`U(\mathbf{k}) \in U(N)`, where :math:`N` is the dimension
           of the disentangled subspace at each k-point.
 
-        - The gradient of :math:`\widetilde{\Omega}` with respect to an infinitesimal 
-          anti-Hermitian generator :math:`A(\mathbf{k})` is computed, and the unitary 
+        - The gradient of :math:`\widetilde{\Omega}` with respect to an infinitesimal
+          anti-Hermitian generator :math:`A(\mathbf{k})` is computed, and the unitary
           matrices are updated via
 
           .. math::
@@ -1560,7 +1645,7 @@ class Wannier:
 
           where :math:`\epsilon = \alpha/4 \sum_{\mathbf{b}}w_b` is the step size (given ``alpha``).
 
-        - Iteration proceeds until the gradient norm falls below ``grad_min`` and the change in spread is smaller 
+        - Iteration proceeds until the gradient norm falls below ``grad_min`` and the change in spread is smaller
           than ``tol``, or the maximum number of iterations is reached.
 
         References
@@ -1576,7 +1661,9 @@ class Wannier:
         u_tilde_wfs = self.tilde_states.states(flatten_spin_axis=True)
         util_max_loc = np.einsum("...ji, ...jm -> ...im", U, u_tilde_wfs)
 
-        self.set_tilde_states(util_max_loc, is_cell_periodic=True, is_spin_axis_flat=True)
+        self.set_tilde_states(
+            util_max_loc, is_cell_periodic=True, is_spin_axis_flat=True
+        )
 
     def min_spread(
         self,
@@ -1586,7 +1673,7 @@ class Wannier:
         n_wfs=None,
         max_iter=1000,
         max_iter_dis=1000,
-        alpha=1/2,
+        alpha=1 / 2,
         tol_max_loc=1e-5,
         tol_dis=1e-10,
         grad_min=1e-3,
@@ -1601,7 +1688,7 @@ class Wannier:
 
         2. Applies a second projection using ``twfs_2`` if provided, or the original trial wavefunctions otherwise,
            to refine the states within the optimal subspace. This step ensures that the states are well-aligned
-           with the desired chemical character before localization. It uses the :meth:`single_shot_projection` method 
+           with the desired chemical character before localization. It uses the :meth:`single_shot_projection` method
            for this projection.
 
         3. Calls :meth:`max_localize` to find the unitary transformation that minimizes the gauge-dependent spread,
@@ -1612,12 +1699,12 @@ class Wannier:
         outer_window : str | tuple | list | dict, optional
             Defines the "disentanglement window," i.e. the set of candidate
             states from which the optimal subspace is chosen. States outside
-            this window are ignored. Options:   
+            this window are ignored. Options:
 
-            - ``"occupied"``: All states below the Fermi level.  
-            - ``"all"``: All available states.  
-            - ``(Emin, Emax)``: Energy range in eV.  
-            - ``{"bands": [i1, i2, ...]}``: Explicit band indices.  
+            - ``"occupied"``: All states below the Fermi level.
+            - ``"all"``: All available states.
+            - ``(Emin, Emax)``: Energy range in eV.
+            - ``{"bands": [i1, i2, ...]}``: Explicit band indices.
             - ``{"energy": (Emin, Emax)}``: Energy window.
 
             Defaults to ``"all"``.
@@ -1696,7 +1783,9 @@ class Wannier:
                 state_idx=list(range(self.tilde_states.nstates)),
             )
 
-        self.set_tilde_states(psi_til_til, is_cell_periodic=False, is_spin_axis_flat=True)
+        self.set_tilde_states(
+            psi_til_til, is_cell_periodic=False, is_spin_axis_flat=True
+        )
 
         ### Finding optimal gauge with maxloc ###
         self.max_localize(
@@ -1707,14 +1796,15 @@ class Wannier:
             verbose=verbose,
         )
 
-
-    def interp_bands(self, k_nodes, n_interp: int = 20, wan_idxs=None, ret_eigvecs=False):
+    def interp_bands(
+        self, k_nodes, n_interp: int = 20, wan_idxs=None, ret_eigvecs=False
+    ):
         r"""Wannier interpolate the band structure along a k-path.
 
         This method uses the Wannier functions to interpolate the band structure
         along a specified k-path. It constructs a tight-binding Hamiltonian in the
         Wannier basis, diagonalizes it, and Fourier transforms back to k-space
-        along the k-path defined by ``k_nodes``. 
+        along the k-path defined by ``k_nodes``.
 
         Parameters
         ----------
@@ -1738,14 +1828,17 @@ class Wannier:
         H_k = self.bloch_states.model.hamiltonian(k_flat)
         H_k = H_k.reshape(k_mesh.shape[:-1] + H_k.shape[1:])
         if self.bloch_states.spinful:
-            new_shape = H_k.shape[:-4] + (self.bloch_states.nstates, self.bloch_states.nstates)
+            new_shape = H_k.shape[:-4] + (
+                self.bloch_states.nstates,
+                self.bloch_states.nstates,
+            )
             H_k = H_k.reshape(*new_shape)
 
         H_rot_k = u_tilde.conj() @ H_k @ np.swapaxes(u_tilde, -1, -2)
         eigvals, eigvecs = np.linalg.eigh(H_rot_k)
         eigvecs = np.einsum("...ij, ...ik->...kj", u_tilde, eigvecs)
         # eigvecs = np.swapaxes(eigvecs, -1, -2)
-        
+
         nks = self.nks
         idx_grid = np.indices(nks, dtype=int)
         k_idx_arr = idx_grid.reshape(len(nks), -1).T
@@ -1811,7 +1904,7 @@ class Wannier:
         This method computes the positions of the Wannier function centers
         in the supercell defined by ``self.supercell``. It returns a dictionary
         containing the x and y coordinates of the Wannier function centers for
-        all sites and home cell sites.  
+        all sites and home cell sites.
 
         Returns
         -------
@@ -1825,19 +1918,22 @@ class Wannier:
 
         # Initialize arrays to store positions and weights
         positions = {
-            'centers all': {'xs': [[] for _ in range(centers.shape[0])], 'ys':[[] for _ in range(centers.shape[0])]},
-            'centers home': {'xs': [], 'ys': []},
+            "centers all": {
+                "xs": [[] for _ in range(centers.shape[0])],
+                "ys": [[] for _ in range(centers.shape[0])],
+            },
+            "centers home": {"xs": [], "ys": []},
         }
 
         for j in range(centers.shape[0]):
             for tx, ty in self.supercell:
                 center = centers[j] + tx * lat_vecs[0] + ty * lat_vecs[1]
-                positions['centers all']['xs'][j].append(center[0])
-                positions['centers all']['ys'][j].append(center[1])
+                positions["centers all"]["xs"][j].append(center[0])
+                positions["centers all"]["ys"][j].append(center[1])
 
                 if tx == ty == 0:
-                    positions['centers home']['xs'].append(center[0])
-                    positions['centers home']['ys'].append(center[1])
+                    positions["centers home"]["xs"].append(center[0])
+                    positions["centers home"]["ys"].append(center[1])
 
         # Convert lists to numpy arrays (batch processing for cleanliness)
         for key, data in positions.items():
@@ -1869,7 +1965,7 @@ class Wannier:
             for x-coordinates, y-coordinates, radial distances, and weights,
             respectively.
         """
-        w0 = self.WFs 
+        w0 = self.WFs
         center = self.centers[wan_idx]
         orbs = self.lattice.orb_vecs
         lat_vecs = self.lattice.lat_vecs
@@ -1922,59 +2018,68 @@ class Wannier:
 
     @copydoc(plot_centers)
     def plot_centers(
-            self, 
-            center_scale = 200,
-            section_home_cell = True, 
-            color_home_cell = True,
-            translate_centers = False,
-            show = False, 
-            legend = False, 
-            pmx = 4, 
-            pmy = 4,
-            center_color = 'r',
-            center_marker = '*',
-            lat_home_color = 'b',
-            lat_color = 'k',
-            fig=None, 
-            ax=None
-        ):
+        self,
+        center_scale=200,
+        section_home_cell=True,
+        color_home_cell=True,
+        translate_centers=False,
+        show=False,
+        legend=False,
+        pmx=4,
+        pmy=4,
+        center_color="r",
+        center_marker="*",
+        lat_home_color="b",
+        lat_color="k",
+        fig=None,
+        ax=None,
+    ):
         return plot_centers(
-            self, center_scale=center_scale,
-            section_home_cell=section_home_cell, color_home_cell=color_home_cell,
+            self,
+            center_scale=center_scale,
+            section_home_cell=section_home_cell,
+            color_home_cell=color_home_cell,
             translate_centers=translate_centers,
-            show=show, legend=legend, pmx=pmx, pmy=pmy, center_color=center_color,
+            show=show,
+            legend=legend,
+            pmx=pmx,
+            pmy=pmy,
+            center_color=center_color,
             center_marker=center_marker,
-            lat_home_color=lat_home_color, lat_color=lat_color, fig=fig, ax=ax
+            lat_home_color=lat_home_color,
+            lat_color=lat_color,
+            fig=fig,
+            ax=ax,
         )
 
     @copydoc(plot_decay)
-    def plot_decay(
-        self, 
-        wan_idx, 
-        fig=None, 
-        ax=None, 
-        show=False
-        ):
+    def plot_decay(self, wan_idx, fig=None, ax=None, show=False):
         return plot_decay(self, wan_idx=wan_idx, fig=fig, ax=ax, show=show)
 
     @copydoc(plot_density)
     def plot_density(
-        self, wan_idx,
+        self,
+        wan_idx,
         mark_home_cell=False,
-        mark_center=False, 
+        mark_center=False,
         show_lattice=False,
-        dens_size=40, 
-        lat_size=2, 
+        dens_size=40,
+        lat_size=2,
         show=False,
-        fig=None, 
-        ax=None, 
-        cbar=True
-        ):
+        fig=None,
+        ax=None,
+        cbar=True,
+    ):
         return plot_density(
-            self, wan_idx=wan_idx,
-            mark_home_cell=mark_home_cell, mark_center=mark_center,
+            self,
+            wan_idx=wan_idx,
+            mark_home_cell=mark_home_cell,
+            mark_center=mark_center,
             show_lattice=show_lattice,
-            show=show, dens_size=dens_size, 
-            lat_size=lat_size, fig=fig, ax=ax, cbar=cbar
+            show=show,
+            dens_size=dens_size,
+            lat_size=lat_size,
+            fig=fig,
+            ax=ax,
+            cbar=cbar,
         )
-    

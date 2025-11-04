@@ -17,6 +17,7 @@ __all__ = [
 
 _TF_CACHE = None  # module-level cache so we import once
 
+
 def get_tensorflow():
     """Return the TensorFlow routines we need, importing lazily on demand."""
     global _TF_CACHE
@@ -40,6 +41,7 @@ def get_tensorflow():
     }
     return _TF_CACHE
 
+
 # deprecation decorator
 def deprecated(message: str, category=FutureWarning):
     """
@@ -61,10 +63,12 @@ def deprecated(message: str, category=FutureWarning):
 
     return decorator
 
+
 def copydoc(src):
     def deco(dst):
         dst.__doc__ = src.__doc__
         return dst
+
     return deco
 
 
@@ -139,6 +143,7 @@ def detect_degeneracies(eigenvalues, tol=1e-8):
 
     return degenerate_groups
 
+
 def mat_exp(M):
     eigvals, eigvecs = np.linalg.eig(M)
     U = eigvecs
@@ -162,7 +167,7 @@ def levi_civita(n, d):
     areas of physics and mathematics, particularly in the context of
     cross products and determinants. It is defined such that its components
     are +1 for even permutations of indices, -1 for odd permutations,
-    and 0 if any indices are repeated. 
+    and 0 if any indices are repeated.
 
     Parameters
     ----------
@@ -189,11 +194,10 @@ def levi_civita(n, d):
 
     return epsilon
 
+
 def kpath_distance(
-        k_frac: np.ndarray, 
-        b1: np.ndarray, 
-        b2: np.ndarray, 
-        b3: np.ndarray) -> np.ndarray:
+    k_frac: np.ndarray, b1: np.ndarray, b2: np.ndarray, b3: np.ndarray
+) -> np.ndarray:
     """
     Build 1D cumulative k-path distance (in 1/Å) from fractional k-points.
 
@@ -209,12 +213,13 @@ def kpath_distance(
     x : (nks,)
         Cumulative distance along the path.
     """
-    B = np.vstack([b1, b2, b3]).T     # 3x3, columns are basis vectors
-    k_cart = (k_frac @ B.T)           # (nks,3) Cartesian k
+    B = np.vstack([b1, b2, b3]).T  # 3x3, columns are basis vectors
+    k_cart = k_frac @ B.T  # (nks,3) Cartesian k
     dk = np.linalg.norm(np.diff(k_cart, axis=0), axis=1)
     x = np.zeros(len(k_cart), dtype=float)
     x[1:] = np.cumsum(dk)
     return x
+
 
 def get_k_shell(model, nks, N_sh: int, report: bool = False):
     """Generates shells of k-points around the Gamma point.
@@ -232,7 +237,7 @@ def get_k_shell(model, nks, N_sh: int, report: bool = False):
     Returns
     -------
         k_shell : list[np.ndarray[float]]
-            List of arrays of vectors in inverse units of lattice vectors 
+            List of arrays of vectors in inverse units of lattice vectors
             connecting nearest neighbor k-mesh points.
         idx_shell : list[np.ndarray[int]]
             List of arrays of vectors of integers used for indexing the nearest
@@ -249,9 +254,7 @@ def get_k_shell(model, nks, N_sh: int, report: bool = False):
     # vectors connecting k-points near Gamma point (in inverse lattice vector units)
     b_vecs = np.array([nnbr_idx[i] @ dk for i in range(nnbr_idx.shape[0])])
     # distances to points around Gamma
-    dists = np.array(
-        [np.vdot(b_vecs[i], b_vecs[i]) for i in range(b_vecs.shape[0])]
-    )
+    dists = np.array([np.vdot(b_vecs[i], b_vecs[i]) for i in range(b_vecs.shape[0])])
     # remove numerical noise
     dists = dists.round(10)
 
@@ -347,7 +350,8 @@ def finite_diff_coeffs(order, derivative_order=1, mode="central"):
     coeffs = np.linalg.solve(A, b)  # Solve system Ax = b
     return coeffs, stencil
 
-def finite_difference_periodic(M, axis, delta, order, mode='central'):
+
+def finite_difference_periodic(M, axis, delta, order, mode="central"):
     coeffs, stencil = finite_diff_coeffs(order=order, mode=mode)
 
     fd_sum = np.zeros_like(M)
@@ -357,6 +361,7 @@ def finite_difference_periodic(M, axis, delta, order, mode='central'):
 
     v = fd_sum / (delta)
     return v
+
 
 def finite_difference(
     M,
@@ -392,6 +397,7 @@ def finite_difference(
         Array of the same shape (and promoted dtype) containing the derivative.
     """
     from numpy.lib.stride_tricks import sliding_window_view
+
     if delta == 0:
         raise ValueError("delta must be non-zero for finite differences.")
 
@@ -408,7 +414,7 @@ def finite_difference(
     # Check that we have enough samples; otherwise explain what the maximum feasible order is
     if periodic:
         if n < window:
-            max_order = n - 1   # window size is order + 1 for these stencils
+            max_order = n - 1  # window size is order + 1 for these stencils
             raise ValueError(
                 f"Periodic finite differences along axis {axis} need at least {window} samples "
                 f"for order {order}, but only {n} were provided. "
@@ -435,7 +441,7 @@ def finite_difference(
                     f"along axis {axis}; received {n}. "
                     f"With {n} samples the largest admissible order for this mode is {max_order}."
                 )
-            
+
     # Accumulate the derivative in the re-ordered array; moveaxes will restore the layout later
     out = np.empty_like(data)
 
@@ -455,35 +461,34 @@ def finite_difference(
             half = window // 2
             windows = sliding_window_view(data, window_shape=window, axis=0)
             interior = _apply(coeff_core, windows) / delta
-            out[half:n - half] = interior
+            out[half : n - half] = interior
 
             # Use one-sided forward/backward stencils near the two boundaries
             coeff_fwd, _ = finite_diff_coeffs(order=order, mode="forward")
             width_fwd = len(coeff_fwd)
             for i in range(width_fwd - 1):
-                seg = data[i:i + width_fwd]
+                seg = data[i : i + width_fwd]
                 out[i] = np.tensordot(coeff_fwd, seg, axes=(0, 0)) / delta
 
             coeff_bwd, _ = finite_diff_coeffs(order=order, mode="backward")
             width_bwd = len(coeff_bwd)
             for i in range(width_bwd - 1):
-                seg = data[n - width_bwd - i: n - i]
+                seg = data[n - width_bwd - i : n - i]
                 out[n - 1 - i] = np.tensordot(coeff_bwd, seg, axes=(0, 0)) / delta
-            
+
         else:
             # (Pure) forward or backward mode: slide the requested window and apply the stencil directly
             windows = sliding_window_view(data, window_shape=window, axis=0)
             deriv = _apply(coeff_core, windows) / delta
             if mode == "forward":
-                out[:deriv.shape[0]] = deriv
-                out[deriv.shape[0]:] = deriv[-1]
+                out[: deriv.shape[0]] = deriv
+                out[deriv.shape[0] :] = deriv[-1]
             else:  # 'backward'
-                out[-deriv.shape[0]:] = deriv
-                out[:-deriv.shape[0]] = deriv[0]
+                out[-deriv.shape[0] :] = deriv
+                out[: -deriv.shape[0]] = deriv[0]
 
     # Restore the original axis ordering before returning
     return np.moveaxis(out, 0, axis)
-
 
 
 def is_Hermitian(M):
@@ -543,7 +548,7 @@ def pauli_decompose(M):
 
 
 def twf_generator(model, twf_list):
-    
+
     # number of trial functions to define
     num_tf = len(twf_list)
     if model.nspin == 2:
@@ -578,6 +583,7 @@ def no_2pi(x, clos):
         elif clos - x < -1.0 * np.pi:
             x -= 2.0 * np.pi
     return x
+
 
 def _maybe_pad(arr, axis, keep):
     """Repeat the first slice along `axis` when `keep` is True."""
@@ -617,10 +623,6 @@ def _red_to_cart(a_vecs, red):
     # print(np.allclose(cart, cart2))  # should be True
 
     return cart
-
-
-def _is_int(a):
-    return np.issubdtype(type(a), np.integer)
 
 
 class PositionOperatorApproximationError(Exception):

@@ -1,5 +1,6 @@
 from pythtb import TBModel, Lattice
 
+
 def ssh(v, w):
     r"""Su-Schrieffer-Heeger (SSH) model.
 
@@ -27,7 +28,7 @@ def ssh(v, w):
         The tight-binding model for the SSH lattice.
     """
     lat_vecs = [[1]]
-    orb_vecs = [[0], [1/2]]
+    orb_vecs = [[0], [1 / 2]]
     lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0])
 
     my_model = TBModel(lattice=lat, spinful=False)

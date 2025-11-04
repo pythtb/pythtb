@@ -59,9 +59,9 @@ def kane_mele(delta, t, soc, rashba) -> TBModel:
     """
 
     # define lattice vectors
-    lat_vecs = [[1, 0], [1/2, np.sqrt(3)/2]]
+    lat_vecs = [[1, 0], [1 / 2, np.sqrt(3) / 2]]
     # define coordinates of orbitals
-    orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
+    orb_vecs = [[1 / 3, 1 / 3], [2 / 3, 2 / 3]]
 
     lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
