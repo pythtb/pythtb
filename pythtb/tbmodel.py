@@ -310,19 +310,6 @@ class TBModel:
         return self._nspin == 2
 
     @property
-    def per(self) -> list[int]:
-        """Alias of :attr:`periodic_dirs`.
-
-        .. versionadded:: 2.0.0
-
-        Returns
-        -------
-        list[int]
-            Indices of periodic directions.
-        """
-        return copy.copy(self.periodic_dirs)
-
-    @property
     def periodic_dirs(self) -> list[int]:
         """Periodic directions as indices into the lattice vectors.
 
@@ -2401,7 +2388,7 @@ class TBModel:
             disp_vec = np.zeros(self.dim_r, dtype=int)
             for k in range(self.dim_r):
                 shift = int(np.floor(self.orb_vecs[i, k]))
-                if k in self.per:
+                if k in self.periodic_dirs:
                     disp_vec[k] = shift
                 elif shift != 0:
                     logger.warning(
@@ -2509,7 +2496,7 @@ class TBModel:
 
         orb_vecs = self._orb_vecs  # reduced units
         orb_vec_diff = orb_vecs[:, None, :] - orb_vecs[None, :, :]
-        orb_vec_diff = orb_vec_diff[..., self.per]
+        orb_vec_diff = orb_vec_diff[..., self.periodic_dirs]
         orb_phase = np.exp(
             1j * 2 * np.pi * np.matmul(orb_vec_diff, k_vals.T)
         ).transpose(2, 0, 1)
@@ -2578,7 +2565,7 @@ class TBModel:
         flatten_spin: bool,
     ):
         norb = self.norb
-        per = np.asarray(self.per)
+        per = np.asarray(self.periodic_dirs)
         orb_red = np.asarray(self.orb_vecs)
 
         n_kpts = k_vecs.shape[0]
@@ -3105,7 +3092,7 @@ class TBModel:
         R_vecs = R_vecs.astype(float)
 
         n_hops = i_indices.size
-        per = np.asarray(self.per)
+        per = np.asarray(self.periodic_dirs)
         orb_red = np.asarray(self.orb_vecs)
         orb_i = orb_red[i_indices]
         orb_j = orb_red[j_indices]
@@ -3119,7 +3106,7 @@ class TBModel:
             phases = np.zeros((k_arr.shape[0], 0), dtype=complex)
 
         if cartesian:
-            lattice = self.get_lat_vecs()[self.per, :]
+            lattice = self.get_lat_vecs()[self.periodic_dirs, :]
             coeff = (1j * delta_r_per @ lattice).T[:, None, :]
         else:
             coeff = (1j * 2 * np.pi * delta_r_per).T[:, None, :]
