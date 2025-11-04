@@ -79,7 +79,6 @@ Attributes
    pythtb.TBModel.onsite
    pythtb.TBModel.orb_vecs
    pythtb.TBModel.parameters
-   pythtb.TBModel.per
    pythtb.TBModel.periodic_dirs
    pythtb.TBModel.recip_lat_vecs
    pythtb.TBModel.recip_volume

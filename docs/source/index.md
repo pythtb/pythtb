@@ -1,31 +1,31 @@
-.. _pythtb_mainpage:
+---
+myst:
+  html_meta:
+    "description lang=en": "PythTB is a Python package for constructing and analyzing tight-binding models with a focus on topology and quantum geometry."
+    "keywords": "PythTB, PyTB, Python, tight binding, Wannier, Berry,
+                topological insulator, Chern, Haldane, Kane-Mele, Z2, graphene,
+                band structure, wavefunction, bloch, periodic insulator,
+                wannier90, wannier function, density functional theory,
+                DFT, first-principles"
+    "property=og:locale": "en_US"
+---
 
-.. meta::
-   :keywords: PythTB, PyTB, python, tight binding, Wannier, Berry,
-              topological insulator, Chern, Haldane, Kane-Mele, Z2, graphene,
-              band structure, wavefunction, bloch, periodic insulator,
-              wannier90, wannier function, density functional theory,
-              DFT, first-principles
+(_pythtb_mainpage)=
+# Python Tight Binding (PythTB)
 
-=============================
-Python Tight Binding (PythTB)
-=============================
+PythTB is a pure-Python toolbox for building and analyzing tight-binding models. With a few lines of code, you can define lattices, assign hopping parameters, diagonalize the Hamiltonians on custom meshes, plot band structures, and evaluate quantum-geometry objects such as Berry phases, curvatures, and Chern numbers. The package also reads Wannier90 output so you can work directly with Wannierized models coming from first-principles calculations.
 
-PythTB is a pure-Python toolbox for building and analyzing tight-binding models. With a few lines of code, you can define lattices, 
-assign hopping parameters, diagonalize the Hamiltonians on custom meshes, plot band structures, and evaluate quantum-geometry objects
-such as Berry phases, curvatures, and Chern numbers. The package also reads Wannier90 output so you can work directly with Wannierized 
-models coming from first-principles calculations.
+```{admonition} Quick Links
+:class: seealso
 
-.. admonition:: Quick Links
-    :class: seealso
+- {doc}`Installation <install>` - install instructions and dependencies
+- {doc}`Usage guide <usage>` - APIs, workflows, and tips
+- {doc}`Examples <examples>` - example scripts and notebooks
+```
 
-    - :doc:`Installation <install>` - install instructions and dependencies
-    - :doc:`Usage guide <usage>` - APIs, workflows, and tips
-    - :doc:`Examples <examples>` - example scripts and notebooks
+## Core functionality
 
-Core functionality
-------------------
-
+```{eval-rst}
 .. grid:: 1 2 2 3
    :gutter: 2
 
@@ -75,17 +75,19 @@ Core functionality
 
       Plot band structures, density of states, lattice geometries, and
       hopping graphs with built-in visualization utilities.
+```
 
+## Get started with PythTB
 
-Get started with PythTB
------------------------
 This is a simple example showing how to define graphene tight-binding
 model with first neighbour hopping only. Below is the source code and
-plot of the resulting band structure. Here you can find :doc:`more examples <examples>`.
+plot of the resulting band structure. Here you can find {doc}`more examples <examples>`.
 
-.. literalinclude:: _static/get_started/graphene_bands.py
-   :language: python
+```{literalinclude} _static/get_started/graphene_bands.py
+:language: python
+```
 
+```{eval-rst}
 .. list-table::
    :widths: 50 50
 
@@ -97,27 +99,24 @@ plot of the resulting band structure. Here you can find :doc:`more examples <exa
            :width: 100%
 
            Graphene band structure
+```
 
+## Feedback
 
-Feedback
---------
+Please send comments or suggestions for improvement to [these email addresses](mailto:trey@treycole.me;dhv@physics.rutgers.edu;sinisacoh@gmail.com). If you find bugs, please report them on the [GitHub Issues page](https://github.com/pythtb/PythTB/issues). 
 
-Please send comments or suggestions for improvement to `these email
-addresses <mailto: trey@treycole.me, dhv@physics.rutgers.edu, sinisacoh@gmail.com>`_.
-If you find bugs, please report them on the `GitHub Issues page
-<https://github.com/pythtb/PythTB/issues>`_. 
+```{toctree}
+:maxdepth: 1
+:hidden:
 
-.. toctree::
-   :maxdepth: 1
-   :hidden:
-
-   Home <self>
-   About <about>
-   install
-   usage
-   examples
-   Contributing <CONTRIBUTING>
-   CHANGELOG
-   formalism
-   resources
-   citation
+Home <self>
+About <about>
+install
+usage
+examples
+Contributing <CONTRIBUTING>
+CHANGELOG
+formalism
+resources
+citation
+```

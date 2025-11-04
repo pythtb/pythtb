@@ -1,6 +1,4 @@
-
 (installation)=
-
 # Install
 
 **PythTB ≥ 2.0.0** supports **Python ≥ 3.12** (see [SPEC-0](https://scientific-python.org/specs/spec-0000/#support-window)).  
@@ -111,7 +109,9 @@ Conda-Forge allows installing specific versions using:
 conda install -c conda-forge pythtb=X.Y.Z
 ```
 
-Currently only versions >= 1.8.0 are available on Conda-Forge. 
+:::{note}
+Currently only PythTB >= 1.8.0 are available on Conda-Forge. 
+:::
 
 Using pip, you can install all older versions from PyPI:
 

@@ -53,6 +53,15 @@ myst_enable_extensions = [
     "colon_fence",
     "attrs_inline"
 ]
+myst_html_meta = {
+    "description lang=en": "PythTB is a Python package for constructing and analyzing "
+    "tight-binding models with a focus on topology and quantum geometry.",
+    "keywords": "PythTB, PyTB, Python, tight binding, Wannier, Berry, topological insulator, Chern, Haldane, "
+    "Kane-Mele, Z2, graphene, band structure, wavefunction, bloch, periodic insulator, "
+    "wannier90, wannier function, density functional theory, DFT, first-principles",
+    "property=og:locale": "en_US"
+}
+
 nb_execution_mode = "cache"    # instead of "auto"
 nb_execution_timeout = 600     # seconds per notebook
 nb_execution_cache_path = ".jupyter_cache"  # keep cache OUTSIDE _build so 'clean' doesn't erase it
@@ -222,13 +231,14 @@ texinfo_documents = [
 
 # -- Custom functions --------------------------------------------------------
 
-# In order to skip some functions in documentation
-def setup(app):
-    app.connect('autodoc-skip-member', _maybe_skip_member)
-    app.connect("builder-inited", _export_ipynb_to_py)
+def _skip_deprecated(app, what, name, obj, skip, options):
+    doc = getattr(obj, "__doc__", "") or ""
+    if ".. deprecated::" in doc:
+        return True
+    return skip
 
 def _export_ipynb_to_py(app):
-    import os, nbformat
+    import nbformat
     from nbconvert import ScriptExporter
 
     srcdir = app.srcdir
@@ -255,3 +265,9 @@ def _maybe_skip_member(app, what, name, obj, skip, options):
         return True
     else:
         return skip
+    
+# In order to skip some functions in documentation
+def setup(app):
+    app.connect('autodoc-skip-member', _maybe_skip_member)
+    app.connect("builder-inited", _export_ipynb_to_py)
+    app.connect("autodoc-skip-member", _skip_deprecated)
