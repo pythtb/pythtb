@@ -6,7 +6,7 @@ from datetime import datetime
 from copy import deepcopy
 import re
 import numpy as np
-from pythtb import TBModel, Lattice
+from pythtb import TBModel, Lattice, Mesh, WFArray
 
 results = defaultdict(list)
 
@@ -163,3 +163,4 @@ def fkm_model():
         tb.set_hop(-1j * soc * spin, 1, 1, lvec_list[j])
 
     return tb
+
