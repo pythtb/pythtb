@@ -48,7 +48,7 @@ def test_berry_connection(delta):
     wfa.solve_model(model)
 
     # Berry connection along kx only (axis 0)
-    A_kx = wfa.berry_connection(state_idx=[0], axis_idxs=(0,))
+    A_kx = wfa.berry_connection(state_idx=[0], axis_idx=0)
     A_kx = np.squeeze(A_kx[0]) # shape: (nkx, nky)
 
     dkx = 1.0 / nkx
@@ -80,7 +80,7 @@ def test_berry_connection_hermiticity():
     wfa = WFArray(model.lattice, mesh=mesh, spinful=True)
     wfa.solve_model(model)
 
-    A = wfa.berry_connection(state_idx=[0,1], axis_idxs=(0,1))  # shape: (2, nkx, nky, 2, 2)
+    A = wfa.berry_connection(state_idx=[0,1], axis_idx=(0,1))  # shape: (2, nkx, nky, 2, 2)
 
     np.testing.assert_allclose(A, np.conj(np.swapaxes(A, -2, -1)))
 
@@ -95,7 +95,7 @@ def test_berry_connection_invalid_state_idx():
     wfa.solve_model(model)
 
     with pytest.raises(IndexError):
-        wfa.berry_connection(state_idx=[100], axis_idxs=(0,))
+        wfa.berry_connection(state_idx=[100], axis_idx=(0,))
 
 @pytest.mark.parametrize("delta", np.linspace(-2, 2, 5))
 def test_berry_connection_finite_diff(delta):
@@ -127,7 +127,7 @@ def test_berry_connection_finite_diff(delta):
     # build a finite-difference estimate for comparison
     dk = [1.0/nkx, 1.0/nky]
     state = 0
-    A_kx = wfa.berry_connection(state_idx=[state], axis_idxs=(0,))  # shape: (1, nkx, nky, 1, 1)
+    A_kx = wfa.berry_connection(state_idx=[state], axis_idx=(0,))  # shape: (1, nkx, nky, 1, 1)
     A_kx = np.squeeze(A_kx)  # shape: (nkx, nky)
     psi = wfa.states(state_idx=state, flatten_spin_axis=True)
     psi_shift_x = wfa.roll_states_with_pbc(
@@ -139,3 +139,26 @@ def test_berry_connection_finite_diff(delta):
     mask = ~np.isnan(A_kx[..., 0, 0])
     print("A_x diag match:",
         np.nanmax(np.abs(A_kx[..., 0, 0][mask] - fd_Ax[mask])))
+    
+
+def test_berry_connection_cartesian_step():
+    lattice = Lattice(lat_vecs=[[1, 0], [0, 1]], orb_vecs=[[0, 0]], periodic_dirs=[0, 1])
+    mesh = Mesh(dim_k=2, axis_types=["k"])
+    points = np.linspace([0, 0], [1, 1], 6, endpoint=False)
+    mesh.build_custom(points)
+    wfa = WFArray(lattice, mesh)
+    gradient = np.array([0.3, 0.1])  # phase ramp in reduced k
+    phases = np.exp(2j * np.pi * (points @ gradient))
+    wfa.set_states(phases[:, None, None])
+
+    A_red = wfa.berry_connection(axis_idx=(0,), cartesian=False)[0, :-1, 0, 0].real
+    A_cart = wfa.berry_connection(axis_idx=(0,), cartesian=True)[0, :-1, 0, 0].real
+
+    step = points[1] - points[0]
+    phase_step = 2 * np.pi * (gradient @ step)
+
+    expected_red = -phase_step / step[0]
+    expected_cart = -phase_step / np.linalg.norm(step @ lattice.recip_lat_vecs)
+
+    np.testing.assert_allclose(A_red, expected_red, rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(A_cart, expected_cart, rtol=1e-12, atol=1e-12)
