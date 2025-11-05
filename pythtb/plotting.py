@@ -137,13 +137,24 @@ def plot_lattice(lattice, n_cells=1, proj_plane=None, orb_color="r", fig=None, a
 
     Parameters
     ----------
-    proj_plane : array-like shape (2,)
+    lattice : Lattice
+        The lattice to visualize.
+    n_cells : int, optional
+        Number of unit cells to display in each direction. Default is 1.
+    proj_plane : tuple or list of two integers, optional
         The projection plane onto which the 3D model is projected.
         This should be a 2-element array specifying the indices of the
         Cartesian coordinates to use for the x and y axes of the
-        plot.
+        plot. For example, if ``proj_plane=(0,2)``, then the x-z plane is used.
+        This parameter is only relevant for 3D lattices (i.e., when
+        ``lattice.dim_r == 3``). If not specified, the default is 
+        to use the x-y plane.
     orb_color : str, optional
         Color to use for the orbitals. Default is "r" (red).
+    fig : matplotlib.figure.Figure, optional
+        Figure object to plot on. If not provided, a new figure is created.
+    ax : matplotlib.axes.Axes, optional
+        Axes object to plot on. If not provided, new axes are created.
 
     Returns
     -------
@@ -154,22 +165,6 @@ def plot_lattice(lattice, n_cells=1, proj_plane=None, orb_color="r", fig=None, a
     --------
     :ref:`visualize-nb`
     :ref:`haldane-edge-nb`
-
-    Examples
-    --------
-    Draws x-y projection of tight-binding model
-    tweaks figure and saves it as a PDF.
-
-    >>> from pythtb import TBModel
-    >>> tb = TBModel(
-    ...        dim_k=1, dim_r=2,
-    ...        lat=[[1, 1/2], [0, 2]],
-    ...        orb=[[0.2, 0.3], [0.1, 0.1], [0.2, 0.2]],
-    ...        per=[1]
-    ...    )
-    >>> (fig, ax) = tb.visualize(0, 1)
-    >>> ax.set_title("Title goes here")
-    >>> fig.savefig("model.pdf")
     """
     if fig is None or ax is None:
         fig, ax = plt.subplots(figsize=(8, 8))
@@ -493,6 +488,7 @@ def plot_tb_model(
     annotate_onsite=False,
     ph_color="black",
     orb_color="red",
+    show: bool | str = True
 ):
     r"""Visualizes the tight-binding model geometry.
 
@@ -808,12 +804,11 @@ def plot_tb_model(
 
 def plot_tb_model_3d(
     model,
-    eig_dr=None,
     draw_hoppings=True,
     show_model_info=True,
     site_colors=None,
     site_names=None,
-    ph_color="black",
+    show=True,
 ):
     r"""Visualize a 3D tight-binding model using ``Plotly``.
 
@@ -826,18 +821,23 @@ def plot_tb_model_3d(
 
     Parameters
     ----------
-    eig_dr :
-        Optional eigenstate (1D array of complex numbers) to display.
     draw_hoppings : bool, optional
         Whether to draw hopping lines between orbitals.
-    annotate_onsite: bool, optional
-        Whether to annotate orbitals with onsite energies.
-    ph_color: str, optional
-        Coloring scheme for eigenstate phases (e.g. "black", "red-blue", "wheel").
+    show_model_info : bool, optional
+        Whether to display model information as an annotation.
+    site_colors : list of str, optional
+        List of colors (e.g. hex strings) for each orbital. If not provided,
+        a colormap is used.
+    site_names : list of str, optional
+        List of names for each orbital. If not provided, orbitals are named
+        "Orbital 0", "Orbital 1", etc.
+    show : bool or str, optional
+        Whether to display the plot immediately. 
 
     Returns
     -------
-    plotly.graph_objs.Figure
+    plotly.graph_objs._figure.Figure, optional
+        A Plotly Figure object. Returned only if `show` is False.
     """
     # Import Plotly here to avoid hard dependency if function is not used.
     go = _require_plotly()
@@ -855,9 +855,8 @@ def plot_tb_model_3d(
     all_coords.append(origin)
 
     # --- Draw Lattice Vectors ---
-    # We assume model.per is an iterable of indices for lattice vectors.
     lattice_traces = []
-    for i in model.per:
+    for i in model.periodic_dirs:
         start = origin
         end = np.array(model.lat_vecs[i])
         # Line for the lattice vector.
@@ -1068,39 +1067,6 @@ def plot_tb_model_3d(
                 all_coords.append(pos_j)
         traces.extend(hopping_traces)
 
-    # Overlay eigenstate if provided
-    if eig_dr is not None:
-        eigen_x, eigen_y, eigen_z = [], [], []
-        eigen_marker_sizes = []
-        eigen_marker_colors = []
-        cmap_phase = cm.get_cmap("hsv")
-        for i in range(model.norb):
-            pos = orb_cart[i].copy()
-            eigen_x.append(pos[0])
-            eigen_y.append(pos[1])
-            eigen_z.append(pos[2])
-            amp = np.abs(eig_dr[i]) ** 2  # amplitude propto probability density.
-            eigen_marker_sizes.append(10 * amp)  # Scale factor for magnitude.
-            phase = np.angle(eig_dr[i])
-            eigen_marker_colors.append(
-                mcolors.to_hex(cmap_phase((phase + np.pi) / (2 * np.pi)))
-            )
-        traces.append(
-            go.Scatter3d(
-                x=eigen_x,
-                y=eigen_y,
-                z=eigen_z,
-                mode="markers",
-                marker=dict(
-                    color=eigen_marker_colors,
-                    size=eigen_marker_sizes,
-                    symbol="circle",
-                    line=dict(color="black", width=1),
-                ),
-                name="Eigenstate",
-            )
-        )
-
     # --- Determine Axis Limits ---
     all_coords = np.array(all_coords)
     min_x, max_x = np.min(all_coords[:, 0]), np.max(all_coords[:, 0])
@@ -1160,7 +1126,27 @@ def plot_tb_model_3d(
             bgcolor="white",
         )
 
-    return fig
+    def _in_ipython() -> bool:
+        try:
+            from IPython import get_ipython  # type: ignore
+            return get_ipython() is not None
+        except Exception:
+            return False
+        
+    def _display_plotly_html(fig) -> None:
+        # Safe for myst-nb + Jupyter; keeps MathJax intact
+        from IPython.display import HTML, display  # type: ignore
+        html = fig.to_html(include_plotlyjs="cdn", full_html=False)
+        display(HTML(html))
+
+    if show is True:
+        if _in_ipython():
+            _display_plotly_html(fig)
+        else:
+            # Plain Python script: fall back to renderer’s show (may open a browser)
+            fig.show()
+    else:
+        return fig
 
 
 def plot_bands(
