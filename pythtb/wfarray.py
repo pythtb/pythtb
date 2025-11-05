@@ -994,45 +994,41 @@ class WFArray:
         --------
         Say we have a parametric model function defined as follows:
 
-        >>> def model_func(param1, param2):
-        ...     lat_vecs = [[1, 0], [0, 1]]
-        ...     orb_vecs = [[0,0], [0.5, 0.5]]
-        ...     lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
-        ...     model = TBModel(lattice=lat, nspin=1)
-        ...     # Set model hoppings and onsite energies with parameters
-        ...     return model
+        >>> model = TBModel(lattice=lat, spinful=False)
+        >>> model.set_onsite(['param_1'], mode='set')
 
-        The returned model will be 2D in k-space for this example.
-        We want to vary ``param2``, and store the Hamiltonian for each value of ``param2``.
-        First, we construct the ``Mesh`` by specifying the dimensions and axis types/names:
+        The model will be 2D in k-space for this example.
+        We want to vary ``param_1``, and store the energy eigenvalues and eigenstates
+        on a 3D mesh: 2 dimensions in k-space and 1 dimension for the parameter ``param_1``.
+        This means we will have a :class:`Mesh` with 2 k-axes and 1 lambda-axis 
+        corresponding to ``param_1``. We can create the mesh as follows:
 
-        >>> mesh = Mesh(dim_k=2, dim_lambda=1, axis_types=['k','k','l'], axis_names=['k1', 'k2', 'param2'])
+        >>> mesh = Mesh(
+        ... dim_k=2, 
+        ... dim_lambda=1, 
+        ... axis_types=['k','k','l'], 
+        ... axis_names=['k1', 'k2', 'param_1']
+        ... )
 
-        Note that we must name the last axis as ``param2`` to follow the name we set in the model function.
+        Note that we must name the last axis as ``param_1`` to follow the name we set in the model function.
         We build the mesh values by using ``build_grid``. We will construct a uniform 2D grid in k-space of shape
-        ``(20, 20)`` and a uniform 1D grid for ``param2`` with 5 points going from 0 to :math:`2\pi`.
+        ``(20, 20)`` and a uniform 1D grid for ``param_1`` with 5 points going from 0 to :math:`2\pi`.
 
         >>> mesh.build_grid(shape=(20, 20, 5), lambda_start=0, lambda_end=2*np.pi)
 
-        To initialize the ``WFArray``, we generate a reference model with some set of parameters fixed. This
-        is so that we can infer the lattice structure and orbital information from the model. We pass the reference
-        model and mesh to the ``WFArray`` constructor.
+        To initialize the *WFArray*, we specify the same lattice as the model, and the mesh we just created.
+        If the model were spinful, we would need to set ``spinful=True``.
 
-        >>> ref_model = model_func(0, 0)
-        >>> wfa = WFArray(ref_model, mesh)
+        >>> wfa = WFArray(model.lattice, mesh)
 
-        Now say we want to keep ``param_1`` fixed to be 1. We can do this by setting the `fixed_params` argument
-        when calling `solve`.
+        Now, the parameter values are stored in the mesh, and we can diagonalize the model
+        on the mesh using :meth:`solve_model`:
 
-        >>> wfa.solve(model_func=model_func, fixed_params={'param1': 1})
+        >>> wfa.solve(model=model)
 
-        The Hamiltonian now has the correct form with respect to the fixed parameters. The model is
-        spinless and has 2 orbitals, so the shape of the Hamiltonian is:
-
-        >>> wfa.hamiltonian.shape
-        (20, 20, 5, 2, 2)
-
-        The eigenvalues and eigenstates are stored in the ``.energies`` and ``.wfs`` attributes, respectively.
+        The eigenvalues and eigenstates are stored in the 
+        ``.energies`` and ``.wfs`` attributes, respectively.
+        They can be accessed as follows:
 
         >>> wfa.energies.shape
         (20, 20, 5, 2)
@@ -2562,40 +2558,29 @@ class WFArray:
 
     def berry_flux(
         self,
-        plane=None,
-        state_idx=None,
+        plane: ArrayLike | None = None,
+        state_idx: int | ArrayLike | None =None,
         non_abelian: bool = False,
         *,
         use_tensorflow: bool = False,
     ):
-        r"""Berry flux tensor.
+        r"""Berry flux tensor using the Fukui-Hatsugai-Suzuki formalism.
 
-        The Berry flux tensor quantifies the geometric phase acquired by
-        Bloch states as they are adiabatically transported around a closed
-        loop in parameter space (e.g., in momentum space or along adiabatic
-        dimensions). In the discretized Fukui–Hatsugai–Suzuki (FHS) formalism, 
-        the closed loop is taken around each **4-point plaquette** of the 
-        parameter mesh.
-        
-        
-        The Abelian Berry flux is defined as the trace over the band indices of the non-Abelian
-        Berry flux tensor.
-
-        .. math::
-
-            \mathcal{F}_{\mu\nu}(\mathbf{k}) = \sum_{n} (\mathcal{F}_{\mu\nu}(\mathbf{k}))_{n, n}.
-
-        In the case of a 2-dimensional *WFArray* array calculates the
-        Berry curvature over the entire plane.  In higher dimensional case
-        it will compute flux over all 2-dimensional slices of a 
-        higher-dimensional *WFArray*.
+        The Berry flux tensor :math:`\mathcal{F}_{\mu\nu}(\boldsymbol{\kappa})`
+        is computed using a discretized formula based on the
+        Fukui-Hatsugai-Suzuki (FHS) method [1]_. This method involves 
+        calculating the Berry flux through closed loops around
+        each plaquette of the parameter mesh. The tensor is either defined
+        as a matrix-valued quantity (non-Abelian case) or as a scalar quantity
+        obtained by tracing over the band indices (Abelian case). See Notes
+        section below for details.
 
         .. versionremoved:: 2.0.0
             The `individual_phases` parameter has been removed.
 
         Parameters
         ----------
-        plane : array_like of shape (2,), optional
+        plane : (2,) array_like, optional
             Array or tuple of two indices defining the axes in the
             WFArray mesh which the Berry flux is computed over. By default,
             all directions are considered, and the full Berry flux tensor is
@@ -2604,8 +2589,8 @@ class WFArray:
             .. versionchanged:: 2.0.0
                 Renamed from ``dirs``.
 
-        state_idx : array_like, optional
-            Optional array of indices of states to be included
+        state_idx : int or array_like of int, optional
+            Optional index or array of indices defining the states to be included
             in the subsequent calculations, typically the indices of
             bands considered occupied. If not specified, or None, all bands are
             included.
@@ -2616,92 +2601,122 @@ class WFArray:
                 and the ``"all"`` option has been removed.
 
         non_abelian : bool, optional
-            If *True* then the non-Abelian Berry flux tensor is computed.
-            If *False* then the Berry flux is computed using the abelian formula,
-            which corresponds to the band-traced non-Abelian Berry curvature.
-            Default value is *False*.
+            If *True* then the non-Abelian Berry flux tensor is computed defined 
+            as a matrix-valued quantity.
+            If *False* (default) then the Berry flux is computed as a scalar quantity
+            by tracing over the band indices.
 
             .. versionadded:: 2.0.0
 
         Returns
         -------
         flux : ndarray
-            The Berry flux tensor, which is an array of general shape
-            `[ndims, ndims, *flux_shape, n_states, n_states]`. The
-            shape will depend on the parameters passed to the function.
-
-            If plane is `None` (default), then the first two axes
-            `(ndims, ndims)` correspond to the plane directions, otherwise,
-            these axes are absent.
-
-            If `abelian` is `False` then the last two axes are the band indices
-            running over the selected `state_idx` indices.
-            If `abelian` is `True` (default) then the last two axes are absent, and
-            the returned flux is a scalar value, not a matrix.
+            The Berry flux tensor, which is an array of shape
+            
+            - ``non_abelian=True``, ``plane=None``: ``(naxes, naxes, *mesh_shape, n_states, n_states)``,
+            - ``non_abelian=False``, ``plane=None``: ``(naxes, naxes, *mesh_shape)``,
+            - ``non_abelian=False``, ``plane=(mu, nu)``: ``(*mesh_shape,)``,
+            - ``non_abelian=True``, ``plane=(mu, nu)``: ``(*mesh_shape, n_states, n_states)``,
 
         Notes
         -----
-        For a given pair of mesh directions :math:`(\mu, \nu)`, the plaquette
-        is formed by the points:
+        - For a given :math:`(\mathbf{k}, \boldsymbol{\lambda})`-point :math:`\boldsymbol{\kappa}` 
+          and pair of mesh directions :math:`(\mu, \nu)`, the plaquette is formed by the points:
 
-        .. math::
+          .. math::
 
             \begin{pmatrix}
-            \mathbf{k} + \hat{\mu} + \hat{\nu} \\
-            \mathbf{k} + \hat{\mu} - \hat{\nu} \\
-            \mathbf{k} - \hat{\mu} - \hat{\nu} \\
-            \mathbf{k} - \hat{\mu} + \hat{\nu}
+            \boldsymbol{\kappa} \\
+            \boldsymbol{\kappa} + \hat{\mu} \\
+            \boldsymbol{\kappa} + \hat{\mu} + \hat{\nu} \\
+            \boldsymbol{\kappa} + \hat{\nu}
             \end{pmatrix}
 
-        Let :math:`U_{\mu}(\mathbf{k})` denote the unitary **link matrix**
-        (unitary part of overlap matrix between states) from
-        :math:`\mathbf{k}` to :math:`\mathbf{k} + \hat{\mu}`:
+          where :math:`\hat{\mu}` and :math:`\hat{\nu}` are the vectors
+          connecting neighboring points along directions :math:`\mu` and :math:`\nu`
+          in the reduced mesh.
 
-        .. math::
+        - Let :math:`U_{\mu}(\boldsymbol{\kappa})` denote the unitary **link matrix**
+          (unitary part of overlap matrix between states) from
+          :math:`\boldsymbol{\kappa}` to :math:`\boldsymbol{\kappa} + \hat{\mu}`:
 
-            \big[ U_{\mu}(\mathbf{k}) \big]_{mn} =
-                \langle u_{m}(\mathbf{k}) \,|\, u_{n}(\mathbf{k} + \hat{\mu}) \rangle
+          .. math::
 
-        where :math:`m,n` run over specified band indices.
+            U_{\mu}(\boldsymbol{\kappa}) \equiv
+                \mathcal{U} \,\Big[ M_\mu (\boldsymbol{\kappa}) \Big]
+              
 
-        The (Abelian) Berry flux tensor is computed by taking the imaginary part of the logarithm 
-        of the determinant of the product of the link matrices around the plaquettes.
-        It is defined as,
+          where :math:`\mathcal{U}` denotes the unitary part of (polar decomposition, 
+          see :meth:`links`), and 
+          :math:`M_\mu (\boldsymbol{\kappa})_{mn} = \langle u_{m}(\boldsymbol{\kappa}) 
+          \,|\, u_{n}(\boldsymbol{\kappa} + \hat{\mu}) \rangle` is the overlap matrix
+          of the states in the subspace defined by ``state_idx``.
 
-        .. math::
+          When ``non_abelian=True``, the (non-Abelian) Berry flux tensor is computed by taking the 
+          imaginary part of the matrix logarithm of the product of the link matrices
+          around the plaquettes. It is defined as,
 
-            \mathcal{F}_{\mu\nu}(\mathbf{k}) = 
-            -\mathrm{Im}\ln\det[U_{\mu}(\mathbf{k}) U_{\nu}(\mathbf{k} + \hat{\mu}) 
-            U_{\mu}^{-1}(\mathbf{k} + \hat{\nu}) U_{\nu}^{-1}(\mathbf{k})].
-
-        The (non-Abelian) Berry flux tensor is computed by taking the 
-        imaginary part of the matrix logarithm of the product of the link matrices
-        around the plaquettes. It is defined as
-
-        .. math::
-
-            \mathcal{F}_{\mu\nu}(\mathbf{k}) =
+          .. math::
+            \mathcal{F}_{\mu\nu}(\boldsymbol{\kappa}) =
             -\mathrm{Im} \,\ln \Big[
-                U_{\mu}(\mathbf{k}) \;
-                U_{\nu}(\mathbf{k} + \hat{\mu}) \;
-                U_{\mu}^\dagger(\mathbf{k} + \hat{\nu}) \;
-                U_{\nu}^\dagger(\mathbf{k})
-            \Big]
+                    U_{\mu}(\boldsymbol{\kappa}) \;
+                    U_{\nu}(\boldsymbol{\kappa} + \hat{\mu}) \;
+                    U_{\mu}^\dagger(\boldsymbol{\kappa} + \hat{\nu}) \;
+                    U_{\nu}^\dagger(\boldsymbol{\kappa})
+            \Big].
 
-        This definition holds for multi-band subspaces, where the link
-        matrices are square and unitary in the occupied-band space.
+          This definition holds for multi-band subspaces, where the link
+          matrices are square and unitary in the occupied-band space.
+
+          When ``non_abelian=False``, the (Abelian) Berry flux tensor is computed by taking 
+          the imaginary part of the logarithm of the determinant of the product 
+          of the link matrices around the plaquettes. This is 
+          equivalently the band-trace of the non-Abelian Berry flux tensor.
+          It is defined as,
+
+          .. math::
+
+              \mathcal{F}_{\mu\nu}(\boldsymbol{\kappa}) = 
+              -\mathrm{Im} \,\ln \,\det \Big[ 
+              U_{\mu}(\boldsymbol{\kappa}) 
+              U_{\nu}(\boldsymbol{\kappa} + \hat{\mu}) 
+              U_{\mu}^{\dagger}(\boldsymbol{\kappa} + \hat{\nu}) 
+              U_{\nu}^{\dagger}(\boldsymbol{\kappa}) \Big].
+
+        - This method requires at least a two-dimensional mesh in the
+          combined adiabatic space (momentum + adiabatic parameters). Thus,
+          ``WFArray.naxes >= 2``.
+        - The last point along closed or non-periodic axes is trimmed from the flux
+          array to avoid overcounting, since it is equivalent to the first point.
 
         Examples
         --------
-        Computes Berry curvature of first three bands in 2D model
+        Consider the case where we have a mesh with ``naxes`` axes in the combined
+        adiabatic space (momentum + adiabatic parameters). The Berry flux can be
+        computed over all 2D planes of the mesh, 
 
-        >>> flux = wf.berry_flux([0, 1, 2]) # shape: (dim1, dim2, nk1, nk2)
-        >>> flux = wf.berry_flux([0, 1, 2], plane=(0, 1)) # shape: (nk1, nk2)
-        >>> flux = wf.berry_flux([0, 1, 2], plane=(0, 1), abelian=False) # shape: (nk1, nk2, n_states, n_states)
+        >>> flux = wf.berry_flux(
+        ... state_idx = [0, 1, 2]
+        ... ) # shape: (naxes, naxes, *nks, *nlams) 
 
-        3D model example
+        or over a specific plane,
 
-        >>> flux = wf.berry_flux([0, 1, 2], plane=(0, 1)) # shape: (nk1, nk2, nk3)
+        >>> flux = wf.berry_flux(
+        ... plane = (0, 1), 
+        ... state_idx = [0, 1, 2]
+        ... ) # shape: (*nks, *nlams)
+
+        We can also compute the non-Abelian Berry flux tensor over a specific plane:
+
+        >>> flux = wf.berry_flux(
+        ... plane = (0,1), 
+        ... state_idx = [0, 1, 2], 
+        ... non_abelian = True
+        ... ) # shape: (*nks, *nlams, n_states, n_states)
+
+        References
+        ----------
+        .. [1] \ T. Fukui, Y. Hatsugai, and H. Suzuki, *J. Phys. Soc. Jpn.* **74**, 1674 (2005).
         """
         if (self.naxes) < 2:
             raise ValueError(
@@ -2847,42 +2862,44 @@ class WFArray:
 
     def berry_curvature(
         self,
-        plane=None,
-        state_idx=None,
+        plane: ArrayLike = None,
+        state_idx: ArrayLike | int = None,
         non_abelian: bool = False,
         return_flux: bool = False,
     ):
-        r"""Berry curvature tensor.
+        r"""Berry curvature tensor using the Fukui-Hatsugai-Suzuki formalism.
 
-        The difference between this function and :meth:`berry_flux` is that this function computes a dimensionful
-        Berry curvature tensor, while :meth:`berry_flux` is dimensionless. Effectively, this function divides by
-        the area of the plaquette. The area is set by the mesh spacing along each direction.
-
-        The Berry curvature can be approximated by the flux by simply dividing by the
-        area of the plaquette, approximating the flux as a constant over the small loop.
-
-        .. math::
-
-            \Omega_{\mu\nu}(\mathbf{k}) \approx \frac{\mathcal{F}_{\mu\nu}(\mathbf{k})}{A_{\mu\nu}},
-
-        where :math:`A_{\mu\nu}` is the area (in Cartesian units) of the plaquette in parameter space.
+        The Berry curvature tensor :math:`\Omega_{\mu\nu}(\mathbf{k})`
+        is computed using a discretized formula based on the
+        Fukui-Hatsugai-Suzuki (FHS) method [1]_. This method involves 
+        calculating the Berry flux through closed loops around
+        each plaquette of the parameter mesh. The tensor is either defined
+        as a matrix-valued quantity (non-Abelian case) or as a scalar quantity
+        obtained by tracing over the band indices (Abelian case). 
 
         .. versionadded:: 2.0.0
 
         Parameters
         ----------
-        state_idx : int or list of int, optional
-            Index or indices of the states to compute the Berry curvature for.
-            By default None, which computes for all states.
-        plane : array_like, optional
+        plane : (2,) array_like, optional
             Array or tuple of two indices defining the axes in the
             WFArray mesh which the Berry flux is computed over. By default,
             all directions are considered, and the full Berry flux tensor is
             returned.
+        state_idx : int or array_like of int, optional
+            Optional index or array of indices defining the states to be included
+            in the subsequent calculations, typically the indices of
+            bands considered occupied. If not specified, or None, all bands are
+            included.
         non_abelian : bool, optional
-            Whether to compute the non-Abelian Berry curvature. By default False.
+            If *True* then the non-Abelian Berry flux tensor is computed defined 
+            as a matrix-valued quantity.
+            If *False* (default) then the Berry flux is computed as a scalar quantity
+            by tracing over the band indices.
         return_flux : bool, optional
-            Whether to return the Berry flux alongside the curvature. By default False.
+            If *True*, the function returns a tuple containing both the Berry
+            curvature and the Berry flux tensors. If *False* (default), only the
+            Berry curvature tensor is returned.
 
         Returns
         -------
@@ -2890,13 +2907,34 @@ class WFArray:
             Berry curvature tensor with shape depending on input parameters.
         berry_flux : np.ndarray, optional
             Berry flux tensor with shape depending on input parameters.
-        """
-        n_lambda = list(self.nlams)  # Number of adiabatic parameters
-        nks = list(self.nks)
-        dim_k = self.dim_k  # Number of k-space dimensions
-        dim_lam = self.dim_lambda  # Number of adiabatic dimensions
-        dim_total = dim_k + dim_lam  # Total number of dimensions
 
+        See Also
+        --------
+        :meth:`berry_flux` : For details and formalism on the Berry flux tensor.
+
+        Notes
+        -----
+        - The curvature is approximated from the Berry flux (computed in :meth:`berry_flux`) 
+          by dividing the flux by the (presumed uniform) area of the plaquette in parameter space. 
+          Specifically,
+
+          .. math::
+            \Omega_{\mu\nu}(\mathbf{k}) \approx \frac{\mathcal{F}_{\mu\nu}(\mathbf{k})}{A_{\mu\nu}},
+
+          where :math:`A_{\mu\nu}` is the area (in Cartesian units) of the 
+          plaquette in parameter space. The approximation arises from assuming
+          that the Berry curvature is constant over the plaquette area.
+          This approximation becomes exact in the limit of an infinitely dense mesh.
+        - The method requires at least a two-dimensional mesh in the
+          combined adiabatic space (momentum + adiabatic parameters). Thus,
+          ``WFArray.naxes >= 2``.
+        - The last point along closed or non-periodic axes is trimmed from the curvature
+          array to avoid overcounting, since it is equivalent to the first point.
+        
+        References
+        ----------
+        .. [1] \ T. Fukui, Y. Hatsugai, and H. Suzuki, *J. Phys. Soc. Jpn.* **74**, 1674 (2005).
+        """
         ndims = self.naxes  # Total dimensionality of adiabatic space: d
         if plane is None:
             dirs = list(range(ndims))
@@ -2904,56 +2942,55 @@ class WFArray:
             p, q = plane  # Unpack plane directions
             dirs = [p, q]
 
-        for ax in dirs:
-            if self.mesh.is_axis_closed(ax) or (
-                not self.mesh.is_axis_looped(ax)
-                and not self.mesh.is_axis_bz_winding(ax)
-            ):
-                if ax < len(nks):
-                    nks[ax] -= 1
-                else:
-                    n_lambda[ax - len(nks)] -= 1
+        berry_flux = self.berry_flux(state_idx=state_idx, non_abelian=non_abelian)
+        berry_curv = np.zeros_like(berry_flux, dtype=complex)
 
-        Berry_flux = self.berry_flux(state_idx=state_idx, non_abelian=non_abelian)
-        Berry_curv = np.zeros_like(Berry_flux, dtype=complex)
+        coords = self.mesh.grid # (..., dim_k + dim_lam)
+        dim_total = coords.shape[-1]
+        dim_k = self.lattice.dim_k
+        recip = np.asarray(self.lattice.recip_lat_vecs, float) if dim_k else None 
 
-        # Get delta vectors for each dimension in parameter space
-        recip_lat_vecs = (
-            self.lattice.recip_lat_vecs
-        )  # Expressed in inverse cartesian (x,y,z) coordinates
-        dks = np.zeros((dim_total, dim_total))
-        dks[:dim_k, :dim_k] = (
-            recip_lat_vecs / np.array([nk for nk in self.nks])[:, None]
-        )
+        # Collect the physical step vectors for each sampling axis
+        axis_vecs = []
+        for ax in range(ndims):
+            delta = np.zeros(dim_total, dtype=float)
 
-        # set delta lambda to be the difference between the first and last points along
-        # each adiabatic axis (param_points has shape (*nl, dim_total))
-        if dim_lam != 0:
-            for i, param_ax in enumerate(self.mesh.lambda_axis_indices):
-                component = self.mesh.lambda_component_indices[i]
-                param_points = self.mesh.get_axis_range(
-                    param_ax, component_index=component
+            for comp in range(dim_total):
+                arr = self.mesh.get_axis_range(ax, comp)
+                if arr.size >= 2:
+                    diff = arr[1] - arr[0]
+                    if not np.isclose(diff, 0.0):
+                        delta[comp] = diff
+
+        if not np.any(delta):
+                raise ValueError(
+                    f"Cannot compute Berry curvature: "
+                    f"Mesh axis {ax} has zero length in all parameter directions."
                 )
-                diff = param_points[-1] - param_points[0]
-                dlam = diff / n_lambda[i]
-                dks[dim_k + i, dim_k + i] = dlam
+        
+        if dim_k:
+            k_cart = delta[:dim_k] @ recip
+            vec = np.concatenate([k_cart, delta[dim_k:]])
+        else:
+            vec = delta[dim_k:]
+        axis_vecs.append(vec)
 
         # Divide by area elements for the (mu, nu)-plane
-        for mu in range(len(dirs)):
-            for nu in range(mu + 1, len(dirs)):
-                A = np.vstack([dks[dirs[mu]], dks[dirs[nu]]])
-                area_element = np.sqrt(np.linalg.det(A @ A.T))
+        for i, mu in enumerate(dirs):
+            for j in range(i+1, len(dirs)):
+                nu = dirs[j]
+                A = np.vstack([axis_vecs[mu], axis_vecs[nu]])
+                area = np.sqrt(np.linalg.det(A @ A.T))
 
                 # Divide flux by the area element to get approx curvature
-                Berry_curv[mu, nu] = Berry_flux[mu, nu] / area_element
-                Berry_curv[nu, mu] = Berry_flux[nu, mu] / area_element
+                berry_curv[mu, nu] = berry_flux[mu, nu] / area
+                berry_curv[nu, mu] = berry_flux[nu, mu] / area
 
         if plane is not None:
-            Berry_curv, Berry_flux = Berry_curv[plane], Berry_flux[plane]
-        if return_flux:
-            return Berry_curv, Berry_flux
-        else:
-            return Berry_curv
+            berry_curv = berry_curv[plane]
+            berry_flux = berry_flux[plane]
+       
+        return (berry_curv, berry_flux) if return_flux else berry_curv
 
     def chern_number(self, plane=(0, 1), state_idx=None):
         r"""Computes the Chern number in the specified plane.
