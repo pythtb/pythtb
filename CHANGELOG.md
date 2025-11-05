@@ -42,15 +42,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Replaced `mesh_arr` parameter with a `Mesh` instance
   - Replaced `model` parameter with a `Lattice` instance
   - Renamed `nsta_arr` parameter to integer `nstates` for clarity
-- `W90.w90_bands_consistency()` renamed to `bands_w90()`
+- `W90.w90_bands_consistency()` (deprecated and renamed to `bands_w90()`)
   - Returned energy array shape changed from `(band, kpts)` to `(kpts, band)`
-    - Now consistent with eigenvalue shape from `TBModel.solve_ham()`
-    - Aligns with NumPy convention of putting k-points in first axis
+  - Now consistent with eigenvalue shape from `TBModel.solve_ham()`
+  - Aligns with NumPy convention of putting k-points in first axis
 - `TBModel.solve_ham()` (replaces `solve_one()` and `solve_all()`)
-  - Changed eigenvalue/eigenvector indexing for vectorized workflows:
-    - Eigenvalues: shape `(nk, nstate)` (matrix elements last for NumPy compatibility)
-    - Eigenvectors for spinless (`nspin=1`): shape `(nk, nstate, nstate)`
-    - Eigenvectors for spinful (`nspin=2`): shape `(nk, nstate, norb, 2)`
+  - Changed eigenvalue/eigenvector indexing for vectorized workflows
+  - Eigenvalues: shape `(nk, nstate)` (matrix elements last for NumPy compatibility)
+  - Eigenvectors for spinless (`nspin=1`): shape `(nk, nstate, nstate)`
+  - Eigenvectors for spinful (`nspin=2`): shape `(nk, nstate, norb, 2)`
 - `TBModel.position_expectation()` parameter renaming
   - Renamed parameter `evec` to `evecs` for clarity
   - Renamed parameter `dir` to `pos_dir` to avoid conflict with built-in Python function `dir()`
@@ -161,6 +161,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `WFArray.roll_states_with_pbc()`: Rolls states along a given mesh axis with periodic boundary conditions.
   - Added parameter `non_abelian` to `WFArray.berry_flux()` to compute non-Abelian Berry flux for a manifold of states
 
+- `W90` methods:
+  - `W90.bands_w90()`: Replaces `w90_bands_consistency()` for clarity
+    - Returns energy array with shape `(kpts, band)` consistent with `TBModel.solve_ham()`
+  - `W90.bands_qe()`: Reads band structure from Quantum ESPRESSO `prefix_bands.out` output files
+
 ### Deprecated
 
 The following methods are deprecated but still functional with backward compatibility wrappers.
@@ -179,6 +184,7 @@ These will be removed in a future release.
 - `WFArray.impose_loop()` (deprecated). Periodic boundary conditions are handled automatically by `Mesh`. Will raise `NotImplementedError` if called. 
 - `WFArray.solve_on_grid()` (deprecated). Use `WFArray.solve_model()` instead. Will raise `NotImplementedError` if called. 
 - `WFArray.solve_on_one_point()` (deprecated). Use `WFArray.solve_model()` instead. Will raise `NotImplementedError` if called.
+- `W90.w90_bands_consistency()` (deprecated) renamed to `W90.bands_w90()` for clarity
 
 ### Removed 
 
