@@ -1000,36 +1000,13 @@ class WFArray:
           and passed to :meth:`TBModel.solve_ham` as keyword arguments, so it is essential that the
           mesh axis names exactly match the symbolic/callable parameter names in the
           model.
-
-        - The eigenfunctions :math:`\psi_{n {\bf k}}` are by convention
-          chosen to obey a periodic gauge, i.e.,
-          :math:`\psi_{n,{\bf k+G}}=\psi_{n {\bf k}}` not only up to a
-          phase, but they are also equal in phase. It follows that
-          the cell-periodic Bloch functions are related by
+        - Eigenstates stored by ``solve_model`` are chosen to obey a periodic gauge 
+          :math:`\psi_{n,{\bf k+G}}=\psi_{n {\bf k}}`, so the cell-periodic states satisfy 
           :math:`u_{n,{\bf k_0+G}}=e^{-i{\bf G}\cdot{\bf r}} u_{n {\bf k_0}}`.
           See :ref:`formalism` section 4.4 and equation 4.18 for more detail.
-
-        - This routine automatically finds the directions in the `Mesh` that include endpoints of
-          the Brillouin zone, meaning the value of one of the components of the k-vector
-          differ at the beginning and end by a reciprocal lattice vector along that axis
-          (1 in reduced units). Periodic boundary conditions are then automatically
-          imposed. This sets the cell-periodic Bloch function at the end of the mesh in this direction
-          equal to the first, multiplied by a phase factor. Explicitly, this means we set
-          :math:`u_{n,{\bf k_0+G}}=e^{-i{\bf G}\cdot{\bf r}} u_{n {\bf k_0}}`
-          for the corresponding reciprocal lattice vector :math:`\mathbf{G} = \mathbf{b}_{\texttt{k_dir}}`,
-          where :math:`\mathbf{b}_{\texttt{k_dir}}` is the reciprocal lattice basis vector corresponding to the
-          direction `k_dir`. The state :math:`u_{n{\bf k_0}}` is the state populated in the first element
-          of the mesh along the `mesh_dir` axis.
-
-        - When the `Mesh` grid includes endpoints in k-space, functions that compute derivatives
-          with respect to k (e.g., Berry connection, Berry curvature, etc.) will automatically
-          use finite difference formulas that account for periodic boundary conditions.
-          Explicitly, this means that the finite difference formula will include the overlap matrix element
-          :math:`M_{mn}^{(\mathbf{b})}(\mathbf{k}) = \langle u_{m,\mathbf{k}} | u_{n,\mathbf{k}+\mathbf{b}} \rangle`
-          that connects the states at the beginning and end of the mesh along the `mesh_dir` axis. If
-          the edges of the BZ are included in the mesh, then these functions will automatically remove the
-          overlaps of that state with itself at the beginning of the mesh to avoid non-physical nearest neighbor
-          overlaps.
+        - If the mesh includes Brillouin zone boundary points along any k-axis, or an axis
+          is marked as both Brillouin zone winding and closed, ``solve_model`` applies the 
+          periodic-gauge phase to the states along that axis. 
 
         Examples
         --------
@@ -1218,7 +1195,7 @@ class WFArray:
         for comp in comps:
             # NOTE:
             # `comp` is Mesh's k-component index (0, ..., dim_k-1).
-            #  _apply_pbc_phase expects the real-space index so it grabs correct orbital
+            #  _get_pbc_phases expects the real-space index so it grabs correct orbital
             # column to dot into k-vector. This is the `periodic_dirs` entry.
             # Discrepancy only arises when some lattice directions are non-periodic.
             # If periodic axes are [0, 2] and `comp` is 1, then we need to grab
