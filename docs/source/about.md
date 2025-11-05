@@ -96,9 +96,9 @@ Below is a list of the current maintainers and contributors, along with their af
 We apologize for any omissions, and welcome feedback and corrections. 
 
 ## Maintainers
-- `Trey Cole <mailto: trey@treycole.me>`_ - Rutgers University
-- `David Vanderbilt <mailto: dhv@physics.rutgers.edu>`_ - Rutgers University
-- `Sinisa Coh <mailto: sinisacoh@gmail.com>`_ - University of California at Riverside (formerly Rutgers University)
+- [Trey Cole](mailto:trey@treycole.me) - Rutgers University
+- [David Vanderbilt](mailto:dhv@physics.rutgers.edu) - Rutgers University
+- [Sinisa Coh](mailto:sinisacoh@gmail.com) - University of California at Riverside (formerly Rutgers University)
 
 ## Contributors
 We gratefully acknowledge additional contributions to PythTB from:
@@ -114,4 +114,4 @@ This Web page is based in part upon work supported by the US National Science Fo
 
 # License
 
-Note that the ``PythTB`` code is freely distributed under the terms of the [GNU public license](../../LICENSE). A copy of the license is included with the code distribution, and is also available online. You are free to use it for your own research and educational purposes, or pass it on to others for similar use. You may modify it, but if you do so you must include a prominent notice stating that you have changed the code and include a copy of this license.
+``PythTB`` is freely distributed under the terms of the [GNU public license](../../LICENSE). A copy of the license is included with the code distribution, and is also available online. You are free to use it for your own research and educational purposes, or pass it on to others for similar use. You may modify it, but if you do so you must include a prominent notice stating that you have changed the code and include a copy of this license.

@@ -42,8 +42,8 @@ PythTB is a pure-Python toolbox for building and analyzing tight-binding models.
       :link-type: doc
 
       Build structured k-space and parameter meshes with ``Mesh``.
-      Sample Hamiltonians and store resulting states in ``WFArray`` for
-      further analysis.
+      Sample Hamiltonians and store resulting states defined on the ``Mesh``
+      in ``WFArray`` for further analysis.
 
    .. grid-item-card:: :material-outlined:`all_inclusive` Topology & quantum geometry
       :link: usage

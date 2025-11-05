@@ -116,6 +116,8 @@ html_js_files = [
 html_js_files += [
     ("plotly-2.34.0.min.js", {"defer": "defer"}), # needed for plotly plots
 ]
+# For plotly
+html_js_files += ["https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"]
 
 html_css_files = ["custom.css"]
 html_copy_source = True
