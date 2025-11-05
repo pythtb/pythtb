@@ -1,6 +1,8 @@
 import numpy as np
 import logging
 import copy
+from typing import Iterable, Literal
+from types import EllipsisType
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,7 @@ def _parse_kpts(kpts, dim):
 
 
 class Lattice:
-    r"""Store lattice and orbital information for tight-binding models.
+    r"""Store lattice and orbital information.
 
     The :class:`Lattice` class encapsulates the real-space lattice vectors, orbital
     positions, and periodicity information for tight-binding models. It provides methods
@@ -45,11 +47,12 @@ class Lattice:
         Array of shape ``(norb, dim_r)`` containing the orbital positions as rows
         in reduced coordinates (fractions of the lattice vectors). If ``orb_vecs``
         is an integer, it specifies the number of orbitals at the origin.
-    periodic_dirs : list of int, optional
-        Indices of real-space lattice directions that are periodic. The indices
+    periodic_dirs : iterable of int or {'all'} or Ellipsis, optional
+        Real-space lattice directions that treated as periodic. The indices
         refer to the ``lat_vecs`` array, e.g. ``[0]`` would indicate that the first
-        lattice vector is periodic. If None (default), all directions are considered
-        non-periodic (open boundary conditions).
+        lattice vector is periodic. Use "all" or `...` to indicate that all directions 
+        are periodic. If an empty list (default) or None, all directions are considered
+        finite (open boundary conditions).
 
     Notes
     -----
@@ -66,19 +69,22 @@ class Lattice:
         self,
         lat_vecs: np.ndarray,
         orb_vecs: np.ndarray,
-        periodic_dirs=None,
+        periodic_dirs: Iterable[int] | Literal['all'] | EllipsisType = [],
     ):
-        if periodic_dirs is None:
+        self._periodic_dirs = []  # temporary placeholder for lat_vecs setter
+        self.lat_vecs = lat_vecs
+
+        if periodic_dirs in ("all", Ellipsis):
+            periodic_dirs = list(range(self.dim_r))
+        elif periodic_dirs is None:
             logger.info("All lattice directions are considered open (non-periodic).")
             periodic_dirs = []
         elif isinstance(periodic_dirs, (list, tuple, np.ndarray)):
             periodic_dirs = list(periodic_dirs)
         else:
-            raise TypeError("periodic_dirs must be a list of integers.")
-
-        self._periodic_dirs = []
-        self.lat_vecs = lat_vecs
-        self.periodic_dirs = periodic_dirs
+            raise TypeError("periodic_dirs must be a list of integers, 'all', or Ellipsis.")
+        
+        self.periodic_dirs = periodic_dirs  # set only after lat_vecs are set
         self.orb_vecs = orb_vecs
         self._nsuper = [1 for _ in range(self.dim_r)]  # default supercell sizes
 
