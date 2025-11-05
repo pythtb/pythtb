@@ -1,6 +1,6 @@
 # 📋 Test Status Report
 
-Last updated on **2025-11-05 at 04:00:10**
+Last updated on **2025-11-05 at 12:51:01**
 
 ---
 
@@ -70,8 +70,8 @@ Last updated on **2025-11-05 at 04:00:10**
         - ✅ `test_example` — *2025-11-04 04:10:07*
   - **test_lattice/**
     - **test_lattice_init/**
-      - ✅ `test_all_shortcuts[all]` — *2025-11-05 03:47:20*
-      - ✅ `test_all_shortcuts[shortcut0]` — *2025-11-05 03:47:20*
+      - ✅ `test_all_shortcuts[all]` — *2025-11-05 12:50:58*
+      - ✅ `test_all_shortcuts[shortcut0]` — *2025-11-05 12:50:58*
       - ✅ `test_default_is_finite` — *2025-11-05 03:44:54*
       - ✅ `test_explicit_empty_list_is_allowed` — *2025-11-05 03:47:31*
       - ✅ `test_invalid_periodic_index_raises` — *2025-11-05 03:47:48*

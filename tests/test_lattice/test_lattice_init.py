@@ -11,7 +11,7 @@ def test_default_is_finite():
     assert lat.dim_k == 0
 
 
-@pytest.mark.parametrize("shortcut", (Ellipsis, "all"))
+@pytest.mark.parametrize("shortcut", (..., "all"))
 def test_all_shortcuts(shortcut):
     lat = Lattice(
         lat_vecs=[[1.0, 0.0], [0.0, 1.0]],
