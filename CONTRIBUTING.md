@@ -21,11 +21,11 @@ All pull requests are reviewed by maintainers. Feedback and iteration help maint
    - Click the "fork" button to create your own copy of the project.
    - Clone the project to your local computer:
      ```bash
-     git clone git@github.com:pythtb/pythtb.git
+     git clone https://github.com/your-username/pythtb.git
      ```
     - Add the upstream repository:
       ```bash
-      git remote add upstream git@github.com:pythtb/pythtb.git
+      git remote add upstream https://github.com/pythtb/pythtb.git
       ```
     - Now, `git remote -v` will show two remote repositories named:
       - `upstream` referring to the `pythtb` repository
