@@ -307,6 +307,8 @@ class Lattice:
             output.append(
                 f"  # {i} ===> {np.array2string(orb, formatter=formatter, separator=', ')}"
             )
+        
+        output.append("")
 
         output.append("Orbital vectors (fractional):")
         for i, orb in enumerate(self.orb_vecs):
