@@ -65,16 +65,17 @@ PythTB is a pure-Python toolbox for building and analyzing tight-binding models.
       :link: generated/pythtb.Wannier
       :link-type: doc
 
-      Construct maximally localized Wannier functions with ``Wannier``.
-      Perform projections, disentanglement, evaluate spreads, and analyze centers
-      and localization properties.
+      Construct maximally localized Wannier functions with ``Wannier``
+      from a ``WFArray``. Perform projections, disentanglement, 
+      evaluate spreads, and analyze centers and localization properties.
    
    .. grid-item-card:: :material-outlined:`image` Visualization
       :link: usage
       :link-type: doc
 
-      Plot band structures, density of states, lattice geometries, and
-      hopping graphs with built-in visualization utilities.
+      Plot band structures, density of states, lattice geometries,
+      hopping graphs, and interactive 3D models with built-in 
+      visualization utilities.
 ```
 
 ## Get started with PythTB
