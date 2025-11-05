@@ -445,8 +445,8 @@ class Wannier:
             orbital. If spin is included, then the form is ``[(orb, spin, amp), ...]``.
             The states are normalized internally, only the relative weights matter.
 
-        Example
-        -------
+        Examples
+        --------
         For a system with 4 orbitals and no spin, the following defines two trial wavefunctions:
 
         >>> twf_list = [[(0, 1.0), (2, 1.0)], [(1, 1.0), (3, -1.0)]]
