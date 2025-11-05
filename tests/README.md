@@ -1,6 +1,6 @@
 # 📋 Test Status Report
 
-Last updated on **2025-11-05 at 01:18:20**
+Last updated on **2025-11-05 at 03:48:36**
 
 ---
 
@@ -68,6 +68,14 @@ Last updated on **2025-11-05 at 01:18:20**
     - **trestle/**
       - **test_trestle/**
         - ✅ `test_example` — *2025-11-04 04:10:07*
+  - **test_lattice/**
+    - **test_lattice_init/**
+      - ✅ `test_all_shortcuts[all]` — *2025-11-05 03:47:20*
+      - ✅ `test_all_shortcuts[shortcut0]` — *2025-11-05 03:47:20*
+      - ✅ `test_default_is_finite` — *2025-11-05 03:44:54*
+      - ✅ `test_explicit_empty_list_is_allowed` — *2025-11-05 03:47:31*
+      - ✅ `test_invalid_periodic_index_raises` — *2025-11-05 03:47:48*
+      - ✅ `test_periodic_dirs_setter_recomputes_reciprocal` — *2025-11-05 03:48:34*
   - **test_tbmodel/**
     - **test_different_modes/**
       - ✅ `test_modes` — *2025-11-04 04:10:07*
