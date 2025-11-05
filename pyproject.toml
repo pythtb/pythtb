@@ -42,11 +42,10 @@ docs = [
 tests = ["pytest"]
 dev = [
   "pytest",
-  "black",
-  "pre-commit"
+  "black"
 ] 
 plotting = [
-  "plotly"
+  "plotly",
 ]
 speedup = [
   "tensorflow"
@@ -54,7 +53,7 @@ speedup = [
 notebooks = [
   "jupyter",
   "jupyterlab",
-  "notebook",
+  "notebook>=7.0",
   "ipykernel",
   "ipython>=8.17",
 ]
