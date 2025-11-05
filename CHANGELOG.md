@@ -357,7 +357,7 @@ The following methods are deprecated but still functional with backward compatib
 ### Added
 - Added support for python 3.x in addition to 2.x
 
-## [1.7.0] - 2916-06-07
+## [1.7.0] - 2016-06-07
 
 ### Changed
 - Cleaned up period boundary condition in the `wf_array` class
