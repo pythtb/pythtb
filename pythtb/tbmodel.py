@@ -623,7 +623,7 @@ class TBModel:
                 onsite_param_term = onsite_params.get(i)
                 if onsite_param_term:
                     output.append(
-                        f"  # {i:<3} ===> {_describe_provider(onsite_param_term)}"
+                        f"  <{i:^3}| H |{i:^3}> = {_describe_provider(onsite_param_term)}"
                     )
                     continue
 
@@ -632,7 +632,7 @@ class TBModel:
                 else:
                     energy_str = str(site).replace("\n", " ")
 
-                output.append(f"  # {i:<3} ===> {energy_str}")
+                output.append(f"  <{i:^3}| H |{i:^3}> = {energy_str}")
 
             amps, i_idx, j_idx, R_vecs = self._hoptable.components()
 
@@ -644,7 +644,7 @@ class TBModel:
 
                 coords = ", ".join(f"{value:^5.1f}" for value in R_vec)
                 disp = f" + [{coords}] " if self.dim_k else ""
-                out_str = f"  <{hop_from:^3}| H |{hop_to:^3}{disp}>  ===> "
+                out_str = f"  <{hop_from:^3}| H |{hop_to:^3}{disp}> = "
 
                 amp = amps[hop_idx]
                 if self.spinful:
@@ -665,7 +665,7 @@ class TBModel:
                     )
                     disp = f" + [{coords}] " if (coords and self.dim_k) else ""
                     output.append(
-                        f"  <{hop_from:^3}| H |{hop_to:^3}{disp}>  ===> {_describe_provider(provider)}"
+                        f"  <{hop_from:^3}| H |{hop_to:^3}{disp}> = {_describe_provider(provider)}"
                     )
 
             output.append("Hopping distances:")
@@ -3622,6 +3622,156 @@ class TBModel:
             diff_order=diff_order,
             **params,
         )
+    
+    def _quantum_geometric_tensor(
+        self,
+        v: np.ndarray,
+        eigvals: np.ndarray,
+        eigvecs: np.ndarray,
+        plane: tuple[int, int] = None,
+        occ_idxs: np.ndarray | None = None,
+        non_abelian: bool = False,
+        use_tensorflow: bool = False,
+    ) -> np.ndarray:
+        r"""Compute the quantum geometric tensor Q from the velocity operator.
+
+        This function computes the quantum geometric tensor (QGT) from the velocity operator
+        and the eigenvalues and eigenvectors of the Hamiltonian. 
+        """
+        if self.dim_k != 0:
+            # if only one k_point, remove that redundant axis
+            if eigvals.shape[0] == 1:
+                eigvals = eigvals[0]
+                eigvecs = eigvecs[0]
+
+        # Identify occupied bands
+        n_eigs = eigvecs.shape[-2]
+        if occ_idxs is None:
+            occ_idxs = np.arange(n_eigs // 2)
+        else:
+            occ_idxs = np.array(occ_idxs)
+        # Identify conduction bands as remainder of band indices (assumes gapped)
+        cond_idxs = np.setdiff1d(np.arange(n_eigs), occ_idxs)
+
+        if use_tensorflow:
+            # tensorflow optimization
+            import tensorflow as tf
+            from tensorflow import constant as const
+
+            v_tf = const(v, dtype=tf.complex64)
+            evals_tf, evecs_tf = const(eigvals, dtype=tf.complex64), const(
+                eigvecs, dtype=tf.complex64
+            )
+
+            # Transpose eigenvectors for matmul
+            r = tf.rank(evecs_tf)  # number of axes
+            # swap last two axes
+            evecs_T_tf = tf.transpose(
+                evecs_tf, tf.concat([tf.range(r - 2), [r - 1, r - 2]], 0)
+            )
+            evecs_conj_tf = tf.math.conj(evecs_tf)
+
+            # All pairwise energy differences
+            delta_E_tf = evals_tf[..., None, :] - evals_tf[..., :, None]
+
+            # Extract occupied <-> conduction band energy differences
+            delta_E_occ_cond_tf = tf.gather(
+                tf.gather(delta_E_tf, occ_idxs, axis=-2), cond_idxs, axis=-1
+            )
+            delta_E_cond_occ_tf = tf.gather(
+                tf.gather(delta_E_tf, cond_idxs, axis=-2), occ_idxs, axis=-1
+            )
+
+            # Degeneracy guard: abort if any denominator is (near) zero
+            tol = tf.constant(1e-12, dtype=delta_E_tf.dtype.real_dtype)
+            if tf.reduce_any(tf.math.abs(delta_E_occ_cond_tf) < tol).numpy():
+                raise ZeroDivisionError(
+                    "Degenerate occupied/conduction bands encountered."
+                )
+
+            # Inverse energy differences
+            inv_delta_E_occ_cond_tf = 1 / delta_E_occ_cond_tf
+            inv_delta_E_cond_occ_tf = 1 / delta_E_cond_occ_tf
+
+            # Rotate velocity operators to energy eigenbasis
+            v_rot_tf = tf.matmul(
+                evecs_conj_tf[None, ...],  # (1, n_kpts, n_beta, n_state, n_state)
+                tf.matmul(
+                    v_tf,  # (dim_k+n_param, n_kpts, n_beta, n_state, n_state)
+                    evecs_T_tf[None, ...],  # (1, n_kpts, n_beta, n_state, n_state)
+                ),
+            )  # (dim_k+n_param, n_kpts, n_beta, n_state, n_state)
+
+            # Extract relevant submatrices
+            v_occ_cond_tf = tf.gather(
+                tf.gather(v_rot_tf, occ_idxs, axis=-2), cond_idxs, axis=-1
+            )
+            v_cond_occ_tf = tf.gather(
+                tf.gather(v_rot_tf, cond_idxs, axis=-2), occ_idxs, axis=-1
+            )
+            # premultiply by energy denominators
+            v_occ_cond_tf = v_occ_cond_tf * inv_delta_E_occ_cond_tf
+            v_cond_occ_tf = v_cond_occ_tf * -inv_delta_E_cond_occ_tf
+
+            # Compute Berry curvature
+            # newaxis for Cartesian direction
+            # shape (dim_k+n_param, dim_k+n_param, nk, *shape_sweeps, n_occ, n_occ)
+            Q = tf.matmul(v_occ_cond_tf[:, None], v_cond_occ_tf[None, :])
+
+            # Convert final result to NumPy
+            Q = Q.numpy()
+        else:
+            # All pairs of energy differences
+            delta_E = (
+                eigvals[..., np.newaxis, :] - eigvals[..., :, np.newaxis]
+            )  # shape (Nk, *params, nstate, nstate)
+            # Energy differences between occupied and conduction bands
+            delta_occ_cond = np.take(
+                np.take(delta_E, occ_idxs, axis=-2), cond_idxs, axis=-1
+            )
+            delta_cond_occ = np.take(
+                np.take(delta_E, cond_idxs, axis=-2), occ_idxs, axis=-1
+            )
+            if np.any(np.isclose(delta_occ_cond, 0.0)):
+                raise ZeroDivisionError(
+                    "Degenerate occupied/conduction bands encountered."
+                )
+            inv_delta_occ_cond = np.divide(1.0, delta_occ_cond)
+            inv_delta_cond_occ = np.divide(1.0, delta_cond_occ)
+
+            # newaxis for Cartesian direction
+            evecs_conj = eigvecs.conj()[np.newaxis, ...]
+            # transpose for matmul
+            evecs_T = eigvecs.swapaxes(-2, -1)[np.newaxis, ...]
+            v_evecT = np.matmul(v, evecs_T)  # intermediate array
+            # Project vk into energy eigenbasis
+            v_rot = np.matmul(
+                evecs_conj, v_evecT
+            )  # (dim_k, n_kpts, n_states, n_states)
+
+            # Extract relevant submatrices
+            v_occ_cond = v_rot[..., occ_idxs, :][
+                ..., :, cond_idxs
+            ]  # shape (dim_k, Nk, n_occ, n_con)
+            v_cond_occ = v_rot[..., cond_idxs, :][
+                ..., :, occ_idxs
+            ]  # shape (dim_k, Nk, n_con, n_occ)
+
+            # premultiply by energy denominators
+            v_occ_cond *= inv_delta_occ_cond
+            v_cond_occ *= -inv_delta_cond_occ
+
+            Q = np.matmul(v_occ_cond[:, None], v_cond_occ[None, :])
+
+        if not non_abelian:
+            Q = np.trace(Q, axis1=-1, axis2=-2)
+        if plane is None:
+            return Q
+        else:
+            if not (isinstance(plane, tuple) and len(plane) == 2):
+                raise ValueError("plane must be a tuple of length 2.")
+            return Q[plane]
+
 
     def quantum_geometric_tensor(
         self,
@@ -3740,7 +3890,7 @@ class TBModel:
               set with lists of values.
 
         """
-        v_k, ham = self._velocity(
+        v, ham = self._velocity(
             k_pts,
             cartesian=cartesian,
             flatten_spin_axis=True,
@@ -3751,7 +3901,7 @@ class TBModel:
             **params,
         )  # (dim_k + dim_lam , Nk, *lam_shape, nstate, nstate)
 
-        if v_k.shape[0] < 2:
+        if v.shape[0] < 2:
             raise ValueError(
                 "Quantum geometric tensor requires at least two independent "
                 "coordinates (crystal momenta and/or varying parameters)."
@@ -3761,139 +3911,15 @@ class TBModel:
             ham, return_eigvecs=True, flatten_spin_axis=True, tf_speedup=use_tensorflow
         )
 
-        if self.dim_k != 0:
-            # if only one k_point, remove that redundant axis
-            if eigvals.shape[0] == 1:
-                eigvals = eigvals[0]
-                eigvecs = eigvecs[0]
-
-        # Identify occupied bands
-        n_eigs = eigvecs.shape[-2]
-        if occ_idxs is None:
-            occ_idxs = np.arange(n_eigs // 2)
-        else:
-            occ_idxs = np.array(occ_idxs)
-        # Identify conduction bands as remainder of band indices (assumes gapped)
-        cond_idxs = np.setdiff1d(np.arange(n_eigs), occ_idxs)
-
-        if use_tensorflow:
-            # tensorflow optimization
-            import tensorflow as tf
-            from tensorflow import constant as const
-
-            v_k_tf = const(v_k, dtype=tf.complex64)
-            evals_tf, evecs_tf = const(eigvals, dtype=tf.complex64), const(
-                eigvecs, dtype=tf.complex64
-            )
-
-            # Transpose eigenvectors for matmul
-            r = tf.rank(evecs_tf)  # number of axes
-            # swap last two axes
-            evecs_T_tf = tf.transpose(
-                evecs_tf, tf.concat([tf.range(r - 2), [r - 1, r - 2]], 0)
-            )
-            evecs_conj_tf = tf.math.conj(evecs_tf)
-
-            # All pairwise energy differences
-            delta_E_tf = evals_tf[..., None, :] - evals_tf[..., :, None]
-
-            # Extract occupied <-> conduction band energy differences
-            delta_E_occ_cond_tf = tf.gather(
-                tf.gather(delta_E_tf, occ_idxs, axis=-2), cond_idxs, axis=-1
-            )
-            delta_E_cond_occ_tf = tf.gather(
-                tf.gather(delta_E_tf, cond_idxs, axis=-2), occ_idxs, axis=-1
-            )
-
-            # Degeneracy guard: abort if any denominator is (near) zero
-            tol = tf.constant(1e-12, dtype=delta_E_tf.dtype.real_dtype)
-            if tf.reduce_any(tf.math.abs(delta_E_occ_cond_tf) < tol).numpy():
-                raise ZeroDivisionError(
-                    "Degenerate occupied/conduction bands encountered."
-                )
-
-            # Inverse energy differences
-            inv_delta_E_occ_cond_tf = 1 / delta_E_occ_cond_tf
-            inv_delta_E_cond_occ_tf = 1 / delta_E_cond_occ_tf
-
-            # Rotate velocity operators to energy eigenbasis
-            v_k_rot_tf = tf.matmul(
-                evecs_conj_tf[None, ...],  # (1, n_kpts, n_beta, n_state, n_state)
-                tf.matmul(
-                    v_k_tf,  # (dim_k+n_param, n_kpts, n_beta, n_state, n_state)
-                    evecs_T_tf[None, ...],  # (1, n_kpts, n_beta, n_state, n_state)
-                ),
-            )  # (dim_k+n_param, n_kpts, n_beta, n_state, n_state)
-
-            # Extract relevant submatrices
-            v_occ_cond_tf = tf.gather(
-                tf.gather(v_k_rot_tf, occ_idxs, axis=-2), cond_idxs, axis=-1
-            )
-            v_cond_occ_tf = tf.gather(
-                tf.gather(v_k_rot_tf, cond_idxs, axis=-2), occ_idxs, axis=-1
-            )
-            # premultiply by energy denominators
-            v_occ_cond_tf = v_occ_cond_tf * inv_delta_E_occ_cond_tf
-            v_cond_occ_tf = v_cond_occ_tf * -inv_delta_E_cond_occ_tf
-
-            # Compute Berry curvature
-            # newaxis for Cartesian direction
-            # shape (dim_k+n_param, dim_k+n_param, nk, *shape_sweeps, n_occ, n_occ)
-            Q = tf.matmul(v_occ_cond_tf[:, None], v_cond_occ_tf[None, :])
-
-            # Convert final result to NumPy
-            Q = Q.numpy()
-        else:
-            # All pairs of energy differences
-            delta_E = (
-                eigvals[..., np.newaxis, :] - eigvals[..., :, np.newaxis]
-            )  # shape (Nk, *params, nstate, nstate)
-            # Energy differences between occupied and conduction bands
-            delta_occ_cond = np.take(
-                np.take(delta_E, occ_idxs, axis=-2), cond_idxs, axis=-1
-            )
-            delta_cond_occ = np.take(
-                np.take(delta_E, cond_idxs, axis=-2), occ_idxs, axis=-1
-            )
-            if np.any(np.isclose(delta_occ_cond, 0.0)):
-                raise ZeroDivisionError(
-                    "Degenerate occupied/conduction bands encountered."
-                )
-            inv_delta_occ_cond = np.divide(1.0, delta_occ_cond)
-            inv_delta_cond_occ = np.divide(1.0, delta_cond_occ)
-
-            # newaxis for Cartesian direction
-            evecs_conj = eigvecs.conj()[np.newaxis, ...]
-            # transpose for matmul
-            evecs_T = eigvecs.swapaxes(-2, -1)[np.newaxis, ...]
-            vk_evecT = np.matmul(v_k, evecs_T)  # intermediate array
-            # Project vk into energy eigenbasis
-            v_k_rot = np.matmul(
-                evecs_conj, vk_evecT
-            )  # (dim_k, n_kpts, n_states, n_states)
-
-            # Extract relevant submatrices
-            v_occ_cond = v_k_rot[..., occ_idxs, :][
-                ..., :, cond_idxs
-            ]  # shape (dim_k, Nk, n_occ, n_con)
-            v_cond_occ = v_k_rot[..., cond_idxs, :][
-                ..., :, occ_idxs
-            ]  # shape (dim_k, Nk, n_con, n_occ)
-
-            # premultiply by energy denominators
-            v_occ_cond *= inv_delta_occ_cond
-            v_cond_occ *= -inv_delta_cond_occ
-
-            Q = np.matmul(v_occ_cond[:, None], v_cond_occ[None, :])
-
-        if not non_abelian:
-            Q = np.trace(Q, axis1=-1, axis2=-2)
-        if plane is None:
-            return Q
-        else:
-            if not (isinstance(plane, tuple) and len(plane) == 2):
-                raise ValueError("plane must be a tuple of length 2.")
-            return Q[plane]
+        return self._quantum_geometric_tensor(
+            v,
+            eigvals,
+            eigvecs,
+            plane=plane,
+            occ_idxs=occ_idxs,
+            non_abelian=non_abelian,
+            use_tensorflow=use_tensorflow,
+        )
 
     def berry_curvature(
         self,
@@ -5100,21 +5126,19 @@ class TBModel:
     @copydoc(plot_tb_model_3d)
     def visualize_3d(
         self,
-        eig_dr=None,
         draw_hoppings=True,
+        show_model_info=True,
         site_colors=None,
         site_names=None,
-        show_model_info=True,
-        ph_color="black",
+        show=True
     ):
         return plot_tb_model_3d(
             self,
-            eig_dr=eig_dr,
             draw_hoppings=draw_hoppings,
             show_model_info=show_model_info,
-            ph_color=ph_color,
             site_colors=site_colors,
             site_names=site_names,
+            show=show
         )
 
     @copydoc(plot_bands)
