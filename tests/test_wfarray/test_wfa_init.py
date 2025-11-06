@@ -1,5 +1,5 @@
 from pythtb import TBModel, Mesh, WFArray, Lattice
-import numpy as np
+
 
 def test_wfa_initialization():
     # define lattice vectors
@@ -14,37 +14,59 @@ def test_wfa_initialization():
     numk = 10  # number of k-points along each direction
 
     # create mesh
-    mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+    mesh = Mesh(dim_k=2, axis_types=["k", "k"])
     mesh.build_grid([numk, numk])
 
     # initialize WFArray
     bulk_array = WFArray(bulk_model.lattice, mesh, spinful=bulk_model.spinful)
 
     # Check properties of the WFArray
-    assert bulk_array.lattice == bulk_model.lattice, "Lattice should be set correctly in WFArray"
+    assert bulk_array.lattice == bulk_model.lattice, (
+        "Lattice should be set correctly in WFArray"
+    )
     assert bulk_array.mesh == mesh, "Mesh should be set correctly in WFArray"
-    assert bulk_array.spinful == bulk_model.spinful, "Spinful property should match the TBModel"
-    assert bulk_array.nks == (numk, numk), "Number of k-points should match the mesh grid size"
+    assert bulk_array.spinful == bulk_model.spinful, (
+        "Spinful property should match the TBModel"
+    )
+    assert bulk_array.nks == (numk, numk), (
+        "Number of k-points should match the mesh grid size"
+    )
     assert bulk_array.naxes == 2, "Number of k-space axes should be 2"
-    assert bulk_array.norb == bulk_model.norb, "Number of orbitals should match the TBModel"
+    assert bulk_array.norb == bulk_model.norb, (
+        "Number of orbitals should match the TBModel"
+    )
 
     # Check that the wavefunction array is initialized correctly
     expected_shape = (numk, numk, bulk_model.norb, bulk_model.norb)
-    assert bulk_array.shape == expected_shape, f"Wavefunction array shape should be {expected_shape}"
+    assert bulk_array.shape == expected_shape, (
+        f"Wavefunction array shape should be {expected_shape}"
+    )
 
-    mesh_param = Mesh(dim_k=2, dim_lambda=1, axis_types=['k', 'k', 'l'])
+    mesh_param = Mesh(dim_k=2, dim_lambda=1, axis_types=["k", "k", "l"])
     mesh_param.build_grid([numk, numk, 5])  # 5 points along the lambda direction
-    param_array = WFArray(bulk_model.lattice, mesh_param, spinful=bulk_model.spinful)  
+    param_array = WFArray(bulk_model.lattice, mesh_param, spinful=bulk_model.spinful)
 
     # Check properties of the parameterized WFArray
-    assert param_array.lattice == bulk_model.lattice, "Lattice should be set correctly in parameterized WFArray"
-    assert param_array.mesh == mesh_param, "Mesh should be set correctly in parameterized WFArray"
-    assert param_array.spinful == bulk_model.spinful, "Spinful property should match the TBModel"
-    assert param_array.nks == (numk, numk), "Number of k-points should match the mesh grid size"
+    assert param_array.lattice == bulk_model.lattice, (
+        "Lattice should be set correctly in parameterized WFArray"
+    )
+    assert param_array.mesh == mesh_param, (
+        "Mesh should be set correctly in parameterized WFArray"
+    )
+    assert param_array.spinful == bulk_model.spinful, (
+        "Spinful property should match the TBModel"
+    )
+    assert param_array.nks == (numk, numk), (
+        "Number of k-points should match the mesh grid size"
+    )
     assert param_array.naxes == 3, "Number of k-space axes should be 2"
-    assert param_array.norb == bulk_model.norb, "Number of orbitals should match the TBModel"
+    assert param_array.norb == bulk_model.norb, (
+        "Number of orbitals should match the TBModel"
+    )
     expected_shape_param = (numk, numk, 5, bulk_model.norb, bulk_model.norb)
-    assert param_array.shape == expected_shape_param, f"Wavefunction array shape should be {expected_shape_param}"
+    assert param_array.shape == expected_shape_param, (
+        f"Wavefunction array shape should be {expected_shape_param}"
+    )
 
 
 def test_wfa_initialization_spinful():
@@ -60,20 +82,30 @@ def test_wfa_initialization_spinful():
     numk = 10  # number of k-points along each direction
 
     # create mesh
-    mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+    mesh = Mesh(dim_k=2, axis_types=["k", "k"])
     mesh.build_grid([numk, numk])
 
     # initialize WFArray
     bulk_array = WFArray(bulk_model.lattice, mesh, spinful=bulk_model.spinful)
 
     # Check properties of the WFArray
-    assert bulk_array.lattice == bulk_model.lattice, "Lattice should be set correctly in WFArray"
+    assert bulk_array.lattice == bulk_model.lattice, (
+        "Lattice should be set correctly in WFArray"
+    )
     assert bulk_array.mesh == mesh, "Mesh should be set correctly in WFArray"
-    assert bulk_array.spinful == bulk_model.spinful, "Spinful property should match the TBModel"
-    assert bulk_array.nks == (numk, numk), "Number of k-points should match the mesh grid size"
+    assert bulk_array.spinful == bulk_model.spinful, (
+        "Spinful property should match the TBModel"
+    )
+    assert bulk_array.nks == (numk, numk), (
+        "Number of k-points should match the mesh grid size"
+    )
     assert bulk_array.naxes == 2, "Number of k-space axes should be 2"
-    assert bulk_array.norb == bulk_model.norb, "Number of orbitals should match the TBModel"
+    assert bulk_array.norb == bulk_model.norb, (
+        "Number of orbitals should match the TBModel"
+    )
 
     # Check that the wavefunction array is initialized correctly
-    expected_shape = (numk, numk, bulk_model.norb*2, bulk_model.norb, 2)
-    assert bulk_array.shape == expected_shape, f"Wavefunction array shape should be {expected_shape}"
+    expected_shape = (numk, numk, bulk_model.norb * 2, bulk_model.norb, 2)
+    assert bulk_array.shape == expected_shape, (
+        f"Wavefunction array shape should be {expected_shape}"
+    )
