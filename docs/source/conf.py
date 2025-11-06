@@ -152,7 +152,6 @@ html_sidebars = {
     "install": [],
     "getstarted": [],
     "CHANGELOG": [],
-    "CONTRIBUTING": [],
     "formalism": [],
     "resources": [],
     "citation": [],

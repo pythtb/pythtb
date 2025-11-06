@@ -116,6 +116,7 @@ install
 usage
 examples
 Contributing <CONTRIBUTING>
+release
 CHANGELOG
 formalism
 resources
