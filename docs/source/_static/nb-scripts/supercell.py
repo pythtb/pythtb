@@ -3,7 +3,7 @@
 
 # (supercell-nb)=
 # # Supercell construction
-# 
+#
 # In this example, we explore the construction of a supercell for a graphene model using the `make_supercell` method.
 
 # In[1]:
@@ -18,9 +18,9 @@ import matplotlib.pyplot as plt
 
 
 # define lattice vectors
-lat_vecs = [[1, 0], [1/2, np.sqrt(3)/2]]
+lat_vecs = [[1, 0], [1 / 2, np.sqrt(3) / 2]]
 # define coordinates of orbitals
-orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
+orb_vecs = [[1 / 3, 1 / 3], [2 / 3, 2 / 3]]
 
 lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
@@ -81,4 +81,3 @@ ax.set_xlabel("k parallel to edge")
 ax.set_ylabel("Band energy")
 ax.xaxis.set_ticks(k_node)
 ax.set_xticklabels((r"$0$", r"$\pi$", r"$2\pi$"))
-

@@ -9,7 +9,6 @@
 
 from pythtb import TBModel  # import TB model class
 import numpy as np
-import matplotlib.pyplot as plt
 
 
 # ## Graphene model
@@ -17,8 +16,8 @@ import matplotlib.pyplot as plt
 # In[3]:
 
 
-lat = [[1, 0], [1/2, np.sqrt(3)/2]]
-orb = [[1/3, 1/3], [2/3, 2/3]]
+lat = [[1, 0], [1 / 2, np.sqrt(3) / 2]]
+orb = [[1 / 3, 1 / 3], [2 / 3, 2 / 3]]
 
 # make two dimensional tight-binding graphene model
 my_model = TBModel(2, 2, lat, orb)
@@ -73,4 +72,3 @@ fig, ax = cut_two.visualize()
 ax.set_title("Graphene, finite")
 ax.set_xlabel("x coordinate")
 ax.set_ylabel("y coordinate")
-

@@ -3,7 +3,7 @@
 
 # (haldane-hwf-nb)=
 # # Hybrid Wannier functions in the Haldane model
-# 
+#
 # Calculates Berry phases for the Haldane model and compares it to the hybrid Wannier centers for a ribbon of the Haldane model.
 
 # In[1]:
@@ -20,8 +20,8 @@ import matplotlib.pyplot as plt
 
 
 # define lattice vectors and orbitals and make model
-lat_vecs = [[1, 0], [1/2, np.sqrt(3)/2]]
-orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
+lat_vecs = [[1, 0], [1 / 2, np.sqrt(3) / 2]]
+orb_vecs = [[1 / 3, 1 / 3], [2 / 3, 2 / 3]]
 lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
 my_model = TBModel(lat)
@@ -54,7 +54,7 @@ my_model.set_hop(t2c, 0, 0, [0, 1])
 nk0 = 300
 nk1 = 100
 
-mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+mesh = Mesh(dim_k=2, axis_types=["k", "k"])
 mesh.build_grid(shape=(nk0, nk1))
 print(mesh)
 
@@ -117,11 +117,11 @@ for i in range(rib_eval.shape[0] - 1):
 
 
 # Finally, we will plot the bands and hybrid Wannier function centers. Each are color-coded according to the position operator expectation value in the $\mathbf{a}_1$ direction. Red indicates the top of the ribbon, while blue indicates the bottom.
-# 
+#
 # :::{note}
-# 
+#
 # In the bottom plot of the Wannier center flow, the black lines indicate bulk Wannier centers while colored dots indicate finite-ribbon Wannier centers.
-# 
+#
 # :::{seealso}
 # Fig. 3 in _Phys. Rev. Lett. 102, 107603 (2009)_.
 # :::
@@ -148,16 +148,22 @@ ax1.plot(k_dist, rib_eval, c="k", zorder=2, alpha=0.7, lw=1)
 # plot band structure with position expec. coloring
 for band in range(rib_eval.shape[1]):
     sc = ax1.scatter(
-        k_dist, rib_eval[:, band],
-        c=pos_exps[:, band], cmap='coolwarm',
-        vmin=0, vmax=float(n_layers), s=2, marker="o", zorder=1
+        k_dist,
+        rib_eval[:, band],
+        c=pos_exps[:, band],
+        cmap="coolwarm",
+        vmin=0,
+        vmax=float(n_layers),
+        s=2,
+        marker="o",
+        zorder=1,
     )
 
 # color scale
 fig.colorbar(sc, ax=ax1, ticks=[0.0, float(n_layers)])
 
 # plot Fermi energy
-ax1.axhline(0.0, c="k", ls="--", lw=1,zorder=-200)
+ax1.axhline(0.0, c="k", ls="--", lw=1, zorder=-200)
 
 # vertical lines show crossings of surface bands with Fermi energy
 for ax in [ax1, ax2]:
@@ -207,4 +213,3 @@ for ax in [ax1, ax2]:
     ax.set_xlim(k_node[0], k_node[-1])
     ax.set_xticks(k_node)
     ax.set_xticklabels(k_label)
-

@@ -17,17 +17,17 @@ import matplotlib.pyplot as plt
 
 def set_model(t, delta, lmbd):
     lat = [[1]]
-    orb = [[0], [1/3], [2/3]]
+    orb = [[0], [1 / 3], [2 / 3]]
     lat = Lattice(lat, orb, periodic_dirs=[0])
     model = TBModel(lat)
     model.set_hop(t, 0, 1, [0])
     model.set_hop(t, 1, 2, [0])
     model.set_hop(t, 2, 0, [1])
-    onsite_0 = delta * -np.cos(2*np.pi * (lmbd - 0/3))
-    onsite_1 = delta * -np.cos(2*np.pi * (lmbd - 1/3))
-    onsite_2 = delta * -np.cos(2*np.pi * (lmbd - 2/3))
+    onsite_0 = delta * -np.cos(2 * np.pi * (lmbd - 0 / 3))
+    onsite_1 = delta * -np.cos(2 * np.pi * (lmbd - 1 / 3))
+    onsite_2 = delta * -np.cos(2 * np.pi * (lmbd - 2 / 3))
     model.set_onsite([onsite_0, onsite_1, onsite_2])
-    return model 
+    return model
 
 
 # In[3]:
@@ -41,9 +41,7 @@ t = -1.0
 # In[4]:
 
 
-mesh = Mesh(
-    dim_k=1, dim_lambda=1, axis_types=["k", "l"], axis_names=["kx", "lmbd"]
-    )
+mesh = Mesh(dim_k=1, dim_lambda=1, axis_types=["k", "l"], axis_names=["kx", "lmbd"])
 mesh.build_grid(shape=(31, 21), gamma_centered=True)
 mesh.close_lambda_axis(lambda_axis=1, lambda_component=1)
 print(mesh)
@@ -51,8 +49,8 @@ print(mesh)
 
 # Evolve tight-binding parameters along some path by performing a change of onsite terms
 
-# Two-dimensional `WFArray` in which we will store wavefunctions for all k-points and all values of $\lambda$.  
-# 
+# Two-dimensional `WFArray` in which we will store wavefunctions for all k-points and all values of $\lambda$.
+#
 # :::{note}
 # The index order `[k,lambda]` is important for interpreting the sign.
 # :::
@@ -61,13 +59,13 @@ print(mesh)
 
 
 # Used for initializing the Mesh,
-ref_model = set_model(0,0,0)
+ref_model = set_model(0, 0, 0)
 
 wf_kpt_lambda = WFArray(ref_model, mesh)
 
 
 # Populate the `WFArray` with wavefunctions for all k-points and all values of $\lambda$.
-# 
+#
 # :::{note}
 # `solve_mesh` imposes periodic boundary conditions along periodic k-space direction so that $|\psi_{n,k}\rangle$ at $k=0$ and $k=1$ have the same phase.
 # :::
@@ -91,7 +89,7 @@ phase = wf_kpt_lambda.berry_phase(0, [0])
 # In[8]:
 
 
-wann_center = phase / (2*np.pi)
+wann_center = phase / (2 * np.pi)
 
 
 # Chern number of bottom band
@@ -99,7 +97,7 @@ wann_center = phase / (2*np.pi)
 # In[9]:
 
 
-chern = wf_kpt_lambda.chern_num(state_idx=[0], plane=(0,1))
+chern = wf_kpt_lambda.chern_num(state_idx=[0], plane=(0, 1))
 print("Chern number in k-lambda space: ", chern)
 
 
@@ -108,8 +106,8 @@ print("Chern number in k-lambda space: ", chern)
 # In[10]:
 
 
-all_lambda = mesh.get_param_points()[:, 0] 
-k_dist = mesh.get_k_points()[:, 0] 
+all_lambda = mesh.get_param_points()[:, 0]
+k_dist = mesh.get_k_points()[:, 0]
 eval_lam = wf_kpt_lambda.energies
 
 
@@ -149,4 +147,3 @@ ax_wann.set_title("Center of Wannier function")
 ax_wann.set_xlabel("Lambda parameter")
 ax_wann.set_ylabel("Center (reduced coordinate)")
 ax_wann.set_xlim(0, 1)
-

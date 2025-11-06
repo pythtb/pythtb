@@ -7,7 +7,7 @@
 # In[2]:
 
 
-from pythtb.tb_model import TBModel, Lattice 
+from pythtb.tb_model import TBModel, Lattice
 import matplotlib.pyplot as plt
 
 
@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 # define lattice vectors
 lat_vecs = [[2, 0], [0, 1]]
 # define coordinates of orbitals
-orb_vecs = [[0, 0], [1/2, 1]]
+orb_vecs = [[0, 0], [1 / 2, 1]]
 
 lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0])
 
@@ -43,7 +43,7 @@ my_model.visualize()
 
 
 # ## Band structure calculation
-# 
+#
 # We will calculate the band structure of the model by solving the tight-binding Hamiltonian on a grid of k-points in the Brillouin zone. To do so, we will call the `k_path` method with `"fullc"` to generate a path centered at the Gamma point.
 
 # In[4]:
@@ -82,4 +82,3 @@ ax.plot(k_dist, evals)
 ax.set_title("Trestle band structure")
 ax.set_xlabel("Path in k-space")
 ax.set_ylabel("Band energy")
-

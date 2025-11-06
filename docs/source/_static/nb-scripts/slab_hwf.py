@@ -3,7 +3,7 @@
 
 # (cubic-slab-hwf-nb)=
 # # Hybrid Wannier functions in slab
-# 
+#
 # Construct and compute Berry phases of hybrid Wannier functions.
 
 # In[1]:
@@ -21,9 +21,9 @@ import numpy as np
 
 def set_model(delta, ta, tb):
     lat_vecs = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
-    orb_vecs = [[0, 0, 0], [1/2, 1/2, 1/2]]
+    orb_vecs = [[0, 0, 0], [1 / 2, 1 / 2, 1 / 2]]
 
-    model = TBModel(Lattice(lat_vecs, orb_vecs, periodic_dirs=[0,1,2]))
+    model = TBModel(Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1, 2]))
 
     model.set_onsite([-delta, delta])
     for lvec in ([-1, 0, 0], [0, 0, -1], [-1, -1, 0], [0, -1, -1]):
@@ -53,7 +53,7 @@ bulk_model.visualize()
 
 # make slab model
 num_layers = 9  # number of layers
-slab_model = bulk_model.cut_piece(num_layers, 2, glue_edges=False) 
+slab_model = bulk_model.cut_piece(num_layers, 2, glue_edges=False)
 
 # remove top orbital so top and bottom have the same termination
 slab_model.remove_orb(2 * num_layers - 1)
@@ -85,7 +85,7 @@ print(f"CB min, max = {np.min(en_conduction):6.3f} , {np.max(en_conduction):6.3f
 
 
 nk = 9
-mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+mesh = Mesh(dim_k=2, axis_types=["k", "k"])
 mesh.build_grid(shape=(nk, nk))
 print(mesh)
 
@@ -131,8 +131,8 @@ print("  Std Dev" + num_layers * "%8.4f" % tuple(np.std(hwfc, axis=(0, 1))))
 px = np.zeros((num_layers, nk))
 py = np.zeros((num_layers, nk))
 for n in range(num_layers):
-    px[n, :] = hwf_arr.berry_phase(mu=0, state_idx=[n]) / (2*np.pi)
-    py[n, :] = hwf_arr.berry_phase(mu=1, state_idx=[n]) / (2*np.pi)
+    px[n, :] = hwf_arr.berry_phase(mu=0, state_idx=[n]) / (2 * np.pi)
+    py[n, :] = hwf_arr.berry_phase(mu=1, state_idx=[n]) / (2 * np.pi)
 
 print("\nBerry phases along x (rows correspond to k_y points):\n")
 print("  Layer      " + num_layers * "  %2d    " % tuple(range(num_layers)))
@@ -156,7 +156,7 @@ print("\n  Surface sums: Top, Bottom = %8.4f , %8.4f\n" % (sum_top, sum_bot))
 
 
 # These quantities are essentially the "surface polarizations" of the model as defined within the hybrid Wannier gauge.
-# 
+#
 # :::{seealso}
 # _S. Ren, I. Souza, and D. Vanderbilt, "Quadrupole moments, edge polarizations, and corner charges in the Wannier representation,"
 # Phys. Rev. B 103, 035147 (2021)_.
@@ -171,4 +171,3 @@ plt.axhline(0.0, linewidth=0.8, color="k")
 plt.xticks(range(num_layers))
 plt.xlabel("Layer index of hybrid Wannier band")
 plt.ylabel(r"Contribution to $P_x$")
-

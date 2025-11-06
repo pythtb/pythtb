@@ -27,14 +27,14 @@ model = haldane(delta, t1, t2).make_supercell([[n_super_cell, 0], [0, n_super_ce
 
 
 # ## `Wannier` class
-# 
+#
 # The `Wannier`class contains the functions relevant for subspace selection, maximal-localization, and Wannier interpolation. We initialize it by passing the reference `Model` and number of k-points along each dimension in the mesh.
 
 # In[3]:
 
 
-nks = 20, 20 # number of k points along each dimension
-mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+nks = 20, 20  # number of k points along each dimension
+mesh = Mesh(dim_k=2, axis_types=["k", "k"])
 mesh.build_grid(shape=nks)
 print(mesh)
 
@@ -52,15 +52,15 @@ wfa.solve_mesh()
 WF = Wannier(model, wfa)
 
 
-# ## Setting up trial wavefunctions 
-# 
-# Now we must choose trial wavefunctions to construct our Bloch-like states. A natural choice is delta functions on the low-energy sublattice in the home cell. 
-# 
-# The trial wavefunctions are defined by lists of tuples specifying the trial wavefunction's probability amplitude over the orbitals `[(n, c_n), ...]`. 
-# 
+# ## Setting up trial wavefunctions
+#
+# Now we must choose trial wavefunctions to construct our Bloch-like states. A natural choice is delta functions on the low-energy sublattice in the home cell.
+#
+# The trial wavefunctions are defined by lists of tuples specifying the trial wavefunction's probability amplitude over the orbitals `[(n, c_n), ...]`.
+#
 # $$ |t_i \ \rangle = \sum_n c_n |\phi_n\rangle $$
-# 
-# 
+#
+#
 # _Note_: Normalization is handled internally so the square of the amplitudes do not need to sum to $1$. Any orbitals not specified are taken to have zero amplitude.
 
 # In[6]:
@@ -68,17 +68,19 @@ WF = Wannier(model, wfa)
 
 # model specific constants
 n_orb = model.norb  # number of orbitals
-n_occ = int(n_orb/2)  # number of occupied bands (assume half-filling)
-low_E_sites = np.arange(0, n_orb, 2)  # low-energy sites defined to be indexed by even numbers
+n_occ = int(n_orb / 2)  # number of occupied bands (assume half-filling)
+low_E_sites = np.arange(
+    0, n_orb, 2
+)  # low-energy sites defined to be indexed by even numbers
 
 # defining the trial wavefunctions
-tf_list = [ [(orb, 1)] for orb in low_E_sites] 
+tf_list = [[(orb, 1)] for orb in low_E_sites]
 n_tfs = len(tf_list)
 
 print(f"Trial wavefunctions: {tf_list}")
 print(f"# of Wannier functions: {n_tfs}")
 print(f"# of occupied bands: {n_occ}")
-print(f"Wannier fraction: {n_tfs/n_occ}")
+print(f"Wannier fraction: {n_tfs / n_occ}")
 
 
 # In[7]:
@@ -136,14 +138,14 @@ omega_tilde_ss = WF.Omega_OD + WF.Omega_D
 
 
 WF.plot_density(wan_idx=1)
-WF.plot_decay(wan_idx=1, fit_rng=[5,20])
+WF.plot_decay(wan_idx=1, fit_rng=[5, 20])
 WF.plot_centers()
 
 
 # ## Maximal Localization
-# 
-# _Maximal localization_ finds the optimal unitary rotation that minimizes the gauge dependent spread $\widetilde{\Omega}$ using the Marzari-Vanderbilt algorithm from PhysRevB.56.12847. 
-# 
+#
+# _Maximal localization_ finds the optimal unitary rotation that minimizes the gauge dependent spread $\widetilde{\Omega}$ using the Marzari-Vanderbilt algorithm from PhysRevB.56.12847.
+#
 # To do so we call the `max_loc` function, specifying the following
 # - `eps` is the step size for gradient descent
 # - `iter_num` is the number of iterations before the calculation stops
@@ -167,5 +169,4 @@ WF.report()
 
 omega_tilde_ml = WF.Omega_OD + WF.Omega_D
 print()
-print(f"Spread lowered by: {omega_tilde_ss-omega_tilde_ml}")
-
+print(f"Spread lowered by: {omega_tilde_ss - omega_tilde_ml}")

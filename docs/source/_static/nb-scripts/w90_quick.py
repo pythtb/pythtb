@@ -3,17 +3,17 @@
 
 # (w90-quick-nb)=
 # # Wannier90 quick example
-# 
+#
 # In this example, we will demonstrate how to use the PythTB package to read the output from Wannier90 and plot the band structure of a silicon supercell.
-# 
+#
 # To run the interface with Wannier90, you must first download the
-# following :download:`wannier90 output example <../misc/wannier90_example.tar.gz>` 
+# following :download:`wannier90 output example <../misc/wannier90_example.tar.gz>`
 # and unpack it with the following command in unix command
-# 
+#
 # .. code-block:: bash
-# 
+#
 #         tar -zxf wannier90_example.tar.gz
-# 
+#
 # The example below will read the tight-binding model from the Wannier90
 # calculation, create a simplified model in which some small hopping
 # terms are ignored, and finally plot the interpolated band structure.
@@ -21,7 +21,7 @@
 # In[1]:
 
 
-from pythtb import W90  
+from pythtb import W90
 import matplotlib.pyplot as plt
 
 
@@ -80,4 +80,3 @@ ax.set_ylabel("Band energy (eV)")
 ax.set_xlim(k_dist[0], k_dist[-1])
 ax.set_xticks(k_node)
 ax.set_xticklabels(k_label)
-

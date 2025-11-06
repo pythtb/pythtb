@@ -3,7 +3,7 @@
 
 # (haldane-fin-nb)=
 # # Finite Haldane model DOS
-# 
+#
 # The density of states (DOS) for the finite Haldane model can be calculated using the eigenvalues obtained from the diagonalization of the Hamiltonian. The DOS is a measure of the number of available states at each energy level and can provide insights into the electronic properties of the system.
 
 # In[1]:
@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 
 # For ease of use, we will import the Haldane model from the `pythtb.models` library.
-# 
+#
 # :::{versionadded} 2.0.0
 # :::
 
@@ -28,7 +28,7 @@ from pythtb.models import haldane
 
 delta = 0.0
 t = -1.0
-t2 = 0.15 
+t2 = 0.15
 
 my_model = haldane(delta, t, t2)
 print(my_model)
@@ -38,7 +38,7 @@ print(my_model)
 
 
 fin_model_false = my_model.make_finite([0, 1], [20, 20], glue_edges=[False, False])
-fin_model_true = my_model.make_finite([0,1], [20, 20], glue_edges=[True, True])
+fin_model_true = my_model.make_finite([0, 1], [20, 20], glue_edges=[True, True])
 
 
 # In[6]:
@@ -69,4 +69,3 @@ ax[1].set_ylim(0.0, 80.0)
 ax[1].set_title("Finite Haldane model with PBC")
 ax[1].set_xlabel("Band energy")
 ax[1].set_ylabel("Number of states")
-

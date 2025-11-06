@@ -5,7 +5,7 @@
 # # Plotting Bands with `TBModel.plot_bands`
 
 # ## Importing graphene model with `pythtb.models`
-# 
+#
 # ::: {versionadded} 2.0.0
 # :::
 
@@ -26,7 +26,7 @@ my_model = graphene(delta=delta, t=t)
 # In[2]:
 
 
-path = [[0, 0], [2/3, 1/3], [1/2, 1/2], [0, 0]]
+path = [[0, 0], [2 / 3, 1 / 3], [1 / 2, 1 / 2], [0, 0]]
 # labels of the nodes
 label = (r"$\Gamma $", r"$K$", r"$M$", r"$\Gamma $")
 # total number of interpolated k-points along the path
@@ -35,7 +35,5 @@ nk = 200
 proj_orb_idx = [0]
 
 my_model.plot_bands(
-    k_path=path, k_label=label, nk=nk, show=True, 
-    proj_orb_idx=proj_orb_idx
-    )
-
+    k_path=path, k_label=label, nk=nk, show=True, proj_orb_idx=proj_orb_idx
+)

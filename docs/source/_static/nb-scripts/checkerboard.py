@@ -3,7 +3,7 @@
 
 # (checkerboard-nb)=
 # # Checkerboard tight-binding model
-# 
+#
 # This example shows how to define a simple two-dimensional checkerboard
 # tight-binding model with first neighbour hopping only.
 
@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 
 
 # ## Setting up the `Lattice`
-# 
+#
 # We start by defining the lattice vectors and the coordinates of the orbitals in fractional units. These are passed to the `Lattice` class to create a lattice object, along with a list of periodic directions which will be treated with periodic boundary conditions.
 
 # In[2]:
@@ -24,13 +24,13 @@ import matplotlib.pyplot as plt
 # define lattice vectors
 lat_vecs = [[1, 0], [0, 1]]
 # define coordinates of orbitals
-orb_vecs = [[0, 0], [1/2, 1/2]]
+orb_vecs = [[0, 0], [1 / 2, 1 / 2]]
 
 lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
 
 # ## Building the `TBModel`
-# 
+#
 # The tight-binding model is created by passing the lattice object to the `TBModel` constructor. Next, the on-site energies and hopping parameters are then set using the `set_onsite` and `set_hop` methods.
 
 # In[3]:
@@ -55,7 +55,7 @@ print(my_model)
 
 
 # ## Band structure calculation
-# 
+#
 # We will now calculate the band structure of the checkerboard model by solving the tight-binding Hamiltonian on a grid of k-points in the Brillouin zone.
 
 # In[4]:
@@ -75,7 +75,7 @@ evals = my_model.solve_ham(k_vec)
 
 
 # Plot the band structure
-# 
+#
 # :::{tip}
 # You can use the [TBModel.plot_band_structure](#pythtb.TBModel.plot_band_structure) method to visualize the band structure to avoid re-implementing the matplotlib code. This method takes the k-point mesh as an argument and produces a plot of the energy bands.
 # :::
@@ -96,4 +96,3 @@ ax.plot(k_dist, evals)
 ax.set_title("Checkerboard band structure")
 ax.set_xlabel("Path in k-space")
 ax.set_ylabel("Band energy")
-

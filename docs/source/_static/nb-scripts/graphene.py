@@ -3,7 +3,7 @@
 
 # (graphene-nb)=
 # # Graphene band structure
-# 
+#
 # This is a toy model of a two-dimensional graphene sheet.
 
 # In[1]:
@@ -18,9 +18,9 @@ import matplotlib.pyplot as plt
 
 
 # define lattice vectors
-lat_vecs = [[1, 0], [1/2, np.sqrt(3)/2]]
+lat_vecs = [[1, 0], [1 / 2, np.sqrt(3) / 2]]
 # define coordinates of orbitals
-orb_vecs = [[1/3, 1/3], [2/3, 2/3]]
+orb_vecs = [[1 / 3, 1 / 3], [2 / 3, 2 / 3]]
 lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1])
 
 # make two dimensional tight-binding graphene model
@@ -42,9 +42,9 @@ print(my_model)
 
 
 # ## Generating k-points from `TBModel`
-# 
+#
 # Generate list of k-points following a segmented path in the BZ list of nodes (high-symmetry points) using `TBModel.k_path`.
-# 
+#
 # Outputs:
 # - k_vec: list of interpolated k-points
 # - k_dist: horizontal axis position of each k-point in the list
@@ -53,7 +53,7 @@ print(my_model)
 # In[3]:
 
 
-path = [[0, 0], [2/3, 1/3], [1/2, 1/2], [0, 0]]
+path = [[0, 0], [2 / 3, 1 / 3], [1 / 2, 1 / 2], [0, 0]]
 label = (r"$\Gamma $", r"$K$", r"$M$", r"$\Gamma $")
 nk = 121
 
@@ -61,7 +61,7 @@ k_vec, k_dist, k_node = my_model.k_path(path, nk)
 
 
 # ## Band structure
-# 
+#
 # We compute the band structure by solving the Hamiltonian at each k-point along the specified path.
 
 # In[4]:
@@ -87,5 +87,4 @@ ax.set_xlabel("Path in k-space")
 ax.set_ylabel("Band energy")
 
 # plot bands
-ax.plot(k_dist, evals, c='b')
-
+ax.plot(k_dist, evals, c="b")

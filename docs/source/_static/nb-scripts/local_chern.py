@@ -2,9 +2,9 @@
 # coding: utf-8
 
 # # Local Chern marker (Bianco–Resta)
-# 
+#
 # We compute the Bianco–Resta local Chern marker for a finite Haldane patch: first verify the bulk Chern number in momentum space, then build an open-boundary supercell and map the real-space marker, trimming the boundary to recover the bulk value.
-# 
+#
 # :::{admonition} What you will learn
 # :class: tip
 # - Instantiate the Haldane model and verify its bulk Chern number on a Brillouin-zone mesh.
@@ -16,15 +16,14 @@
 # In[1]:
 
 
-from pythtb import TBModel, Mesh, WFArray
+from pythtb import Mesh, WFArray
 
-import numpy as np
 import matplotlib.pyplot as plt
 from pythtb.models import haldane
 
 
 # ## Periodic benchmark
-# 
+#
 # Construct the topological Haldane model ($\Delta=0$, $t=1$, $t_2=0.15$), check its built-in Chern number, and reproduce it via `WFArray` on a $50\times 50$ Monkhorst–Pack mesh.
 
 # In[2]:
@@ -37,7 +36,7 @@ print(model)
 # In[3]:
 
 
-mesh = Mesh(dim_k=2, axis_types=['k','k'])
+mesh = Mesh(dim_k=2, axis_types=["k", "k"])
 mesh.build_grid(shape=(50, 50))
 wfa = WFArray(model.lattice, mesh)
 wfa.solve_model(model)
@@ -48,7 +47,7 @@ print(f"Chern number (valence band): {chern_band0:+.3f}")
 
 
 # ## Open-boundary patch
-# 
+#
 # Cut a large rectangular patch by repeating the unit cell $(L_x, L_y)$ times with `model.make_finite`. This returns a purely real-space `TBModel` (no k-axes) ready for local-marker evaluation.
 
 # In[6]:
@@ -56,11 +55,11 @@ print(f"Chern number (valence band): {chern_band0:+.3f}")
 
 # Finite OBC patch: (Lx, Ly) supercell
 Lx, Ly = 40, 24
-finite_model = model.make_finite(periodic_dirs=[0,1], num_cells=[Lx, Ly])
+finite_model = model.make_finite(periodic_dirs=[0, 1], num_cells=[Lx, Ly])
 
 
 # ## Site-resolved marker
-# 
+#
 # `TBModel.local_chern_marker()` yields the Bianco–Resta marker per orbital. We reshape it into unit-cell sums, trim a margin in the real-space coordinates, and average what remains to approximate the bulk value.
 
 # In[9]:
@@ -75,7 +74,9 @@ C_r = finite_model.local_chern_marker()
 num_orb = finite_model.norb // (Lx * Ly)
 marker_cell = C_r.reshape(Lx * Ly, num_orb).sum(axis=1)
 
-positions = finite_model.get_orb_vecs(cartesian=True).reshape(Lx * Ly, num_orb, 2).mean(axis=1)
+positions = (
+    finite_model.get_orb_vecs(cartesian=True).reshape(Lx * Ly, num_orb, 2).mean(axis=1)
+)
 x, y = positions[:, 0], positions[:, 1]
 
 trim = 8.0  # tune as needed
@@ -90,7 +91,7 @@ print(f"Trimmed bulk marker (trim={trim:.1f}): {bulk_estimate:+.3f}")
 
 
 # ## Visualise edge vs bulk
-# 
+#
 # Color the orbitals by their marker value to show bulk plateaus (≈ Chern number) and boundary oscillations.
 
 # In[33]:

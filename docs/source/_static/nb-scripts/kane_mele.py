@@ -3,14 +3,14 @@
 
 # (kane-mele-nb)=
 # # Kane-Mele model HWFs
-# 
+#
 # This example uses the Kane-Mele model, a two-dimensional
 # topological insulator that exhibits spin-orbit coupling and
 # non-trivial topological properties. The examples demonstrate
-# how to define the model, compute its band structure, and compute 
+# how to define the model, compute its band structure, and compute
 # the 1D Wannier centers along $x$ as a function of $k_y$,
 # illustrating the determination of the $\mathbb{Z}_2$ invariant.
-# 
+#
 
 # In[1]:
 
@@ -60,9 +60,9 @@ fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
 # list of nodes (high-symmetry points) that will be connected
 k_nodes = [
     [0, 0],
-    [2/3, 1/3],
-    [1/2, 1/2],
-    [1/3, 2/3],
+    [2 / 3, 1 / 3],
+    [1 / 2, 1 / 2],
+    [1 / 3, 2 / 3],
     [0, 0],
 ]
 
@@ -70,8 +70,12 @@ k_nodes = [
 label = (r"$\Gamma $", r"$K$", r"$M$", r"$K^\prime$", r"$\Gamma $")
 
 # solve for eigenenergies of hamiltonian on k_path and plot bands
-model_triv.plot_bands(k_path=k_nodes, nk=201, ktick_labels=label, fig=fig, ax=ax1, proj_orb_idx=[0])
-model_topo.plot_bands(k_path=k_nodes, nk=201, ktick_labels=label, fig=fig, ax=ax2, proj_orb_idx=[0])
+model_triv.plot_bands(
+    k_path=k_nodes, nk=201, ktick_labels=label, fig=fig, ax=ax1, proj_orb_idx=[0]
+)
+model_topo.plot_bands(
+    k_path=k_nodes, nk=201, ktick_labels=label, fig=fig, ax=ax2, proj_orb_idx=[0]
+)
 
 ax1.set_title("Kane-Mele: trivial phase")
 ax2.set_title("Kane-Mele: topological phase")
@@ -82,7 +86,7 @@ ax2.set_title("Kane-Mele: topological phase")
 # In[5]:
 
 
-mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+mesh = Mesh(dim_k=2, axis_types=["k", "k"])
 mesh.build_grid(shape=(41, 41), gamma_centered=True)
 print(mesh)
 
@@ -102,10 +106,14 @@ wf_array_triv.solve_mesh()
 # In[7]:
 
 
-wan_cent_topo = wf_array_topo.berry_phase(mu=1, state_idx=[0, 1], contin=True, berry_evals=True)
+wan_cent_topo = wf_array_topo.berry_phase(
+    mu=1, state_idx=[0, 1], contin=True, berry_evals=True
+)
 wan_cent_topo /= 2 * np.pi
 
-wan_cent_triv = wf_array_triv.berry_phase(mu=1, state_idx=[0, 1], contin=True, berry_evals=True)
+wan_cent_triv = wf_array_triv.berry_phase(
+    mu=1, state_idx=[0, 1], contin=True, berry_evals=True
+)
 wan_cent_triv /= 2 * np.pi
 
 
@@ -137,7 +145,7 @@ ky = np.linspace(0, 1, nky)
 
 # draw shifted Wannier center positions
 for shift in range(-2, 3):
-    ax[1].plot(ky, wan_cent_topo[:,0] + float(shift), "k")
+    ax[1].plot(ky, wan_cent_topo[:, 0] + float(shift), "k")
     ax[1].plot(ky, wan_cent_topo[:, 1] + float(shift), "k")
 
 ax[1].set_ylabel("Wannier center along x")
@@ -149,4 +157,3 @@ ax[1].set_xticklabels([r"$0$", r"$\pi$", r"$2\pi$"])
 ax[1].axvline(x=0.5, linewidth=0.5, color="k")
 
 ax[1].set_title("1D Wannier centers: topological phase")
-
