@@ -50,7 +50,7 @@ class Lattice:
     periodic_dirs : iterable of int or {'all'} or Ellipsis, optional
         Real-space lattice directions that treated as periodic. The indices
         refer to the ``lat_vecs`` array, e.g. ``[0]`` would indicate that the first
-        lattice vector is periodic. Use "all" or `...` to indicate that all directions 
+        lattice vector is periodic. Use "all" or `...` to indicate that all directions
         are periodic. If an empty list (default) or None, all directions are considered
         finite (open boundary conditions).
 
@@ -69,7 +69,7 @@ class Lattice:
         self,
         lat_vecs: np.ndarray,
         orb_vecs: np.ndarray,
-        periodic_dirs: Iterable[int] | Literal['all'] | EllipsisType = [],
+        periodic_dirs: Iterable[int] | Literal["all"] | EllipsisType = [],
     ):
         self._periodic_dirs = []  # temporary placeholder for lat_vecs setter
         self.lat_vecs = lat_vecs
@@ -82,8 +82,10 @@ class Lattice:
         elif isinstance(periodic_dirs, (list, tuple, np.ndarray)):
             periodic_dirs = list(periodic_dirs)
         else:
-            raise TypeError("periodic_dirs must be a list of integers, 'all', or Ellipsis.")
-        
+            raise TypeError(
+                "periodic_dirs must be a list of integers, 'all', or Ellipsis."
+            )
+
         self.periodic_dirs = periodic_dirs  # set only after lat_vecs are set
         self.orb_vecs = orb_vecs
         self._nsuper = [1 for _ in range(self.dim_r)]  # default supercell sizes
@@ -98,7 +100,6 @@ class Lattice:
         )
 
     def _set_orb_vecs(self, orb_vecs):
-
         if isinstance(orb_vecs, int):
             if orb_vecs < 0:
                 raise ValueError("Number of orbitals must be positive.")
@@ -313,7 +314,7 @@ class Lattice:
             output.append(
                 f"  # {i} ===> {np.array2string(orb, formatter=formatter, separator=', ')}"
             )
-        
+
         output.append("")
 
         output.append("Orbital vectors (fractional):")
@@ -1063,7 +1064,7 @@ class Lattice:
                         )
                         lines.append(f"     -> j={j:>2}, R={R_str}   Δr={dr_str}")
                     if Rs.shape[0] > head:
-                        lines.append(f"     ... (+{Rs.shape[0]-head} more)")
+                        lines.append(f"     ... (+{Rs.shape[0] - head} more)")
             print("\n".join(lines))
 
         S = len(nn_shell)
@@ -1422,7 +1423,7 @@ class Lattice:
             for n in range(1, len(k_node)):
                 length = k_node[n] - k_node[n - 1]
                 print(
-                    f"  Node {n-1} {k_list[n-1]} to Node {n} {k_list[n]}: "
+                    f"  Node {n - 1} {k_list[n - 1]} to Node {n} {k_list[n]}: "
                     f"distance = {length:.5f}"
                 )
 

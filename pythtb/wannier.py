@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from .tbmodel import TBModel
+    pass
 
 __all__ = ["Wannier"]
 
@@ -373,7 +373,7 @@ class Wannier:
         ]
 
         # determine longest line
-        maxlen = max(len(l) for l in lines)
+        maxlen = max(len(line) for line in lines)
         divider = "=" * maxlen
         sub_div = "-" * maxlen
 
@@ -414,9 +414,9 @@ class Wannier:
                 [num_tf, self.lattice.norb, self.bloch_states.nspin], dtype=complex
             )
             for j, tf in enumerate(twf_list):
-                assert isinstance(
-                    tf, (list, np.ndarray)
-                ), "Trial function must be a list of tuples"
+                assert isinstance(tf, (list, np.ndarray)), (
+                    "Trial function must be a list of tuples"
+                )
                 for orb, spin, amp in tf:
                     tfs[j, orb, spin] = amp
                 tfs[j] /= np.linalg.norm(tfs[j])
@@ -424,9 +424,9 @@ class Wannier:
             # initialize array containing tfs = "trial functions"
             tfs = np.zeros([num_tf, self.lattice.norb], dtype=complex)
             for j, tf in enumerate(twf_list):
-                assert isinstance(
-                    tf, (list, np.ndarray)
-                ), "Trial function must be a list of tuples"
+                assert isinstance(tf, (list, np.ndarray)), (
+                    "Trial function must be a list of tuples"
+                )
                 for site, amp in tf:
                     tfs[j, site] = amp
                 tfs[j] /= np.linalg.norm(tfs[j])
@@ -1014,8 +1014,9 @@ class Wannier:
 
             num_keep = n_wfs - N_inner  # matrix of integers
 
-            keep_mask = np.arange(min_states.shape[-2]) >= (
-                num_keep[:, :, np.newaxis, np.newaxis]
+            keep_mask = (
+                np.arange(min_states.shape[-2])
+                >= (num_keep[:, :, np.newaxis, np.newaxis])
             )
             keep_mask = keep_mask.repeat(min_states.shape[-2], axis=-2)
             keep_mask = np.swapaxes(keep_mask, axis1=-1, axis2=-2)
@@ -1400,7 +1401,6 @@ class Wannier:
         omega_tilde_prev = self._get_omega_til(M, w_b, k_shell)
         grad_mag_prev = 0
         for i in range(iter_num):
-
             r_n = (
                 -(1 / Nk)
                 * w_b

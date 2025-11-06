@@ -91,9 +91,9 @@ def get_trial_wfs(tf_list, norb, nspin=1):
     if nspin == 2:
         tfs = np.zeros([num_tf, norb, 2], dtype=complex)
         for j, tf in enumerate(tf_list):
-            assert isinstance(
-                tf, (list, np.ndarray)
-            ), "Trial function must be a list of tuples"
+            assert isinstance(tf, (list, np.ndarray)), (
+                "Trial function must be a list of tuples"
+            )
             for orb, spin, amp in tf:
                 tfs[j, orb, spin] = amp
             tfs[j] /= np.linalg.norm(tfs[j])
@@ -102,9 +102,9 @@ def get_trial_wfs(tf_list, norb, nspin=1):
         # initialize array containing tfs = "trial functions"
         tfs = np.zeros([num_tf, norb], dtype=complex)
         for j, tf in enumerate(tf_list):
-            assert isinstance(
-                tf, (list, np.ndarray)
-            ), "Trial function must be a list of tuples"
+            assert isinstance(tf, (list, np.ndarray)), (
+                "Trial function must be a list of tuples"
+            )
             for site, amp in tf:
                 tfs[j, site] = amp
             tfs[j] /= np.linalg.norm(tfs[j])
@@ -548,15 +548,14 @@ def pauli_decompose(M):
 
 
 def twf_generator(model, twf_list):
-
     # number of trial functions to define
     num_tf = len(twf_list)
     if model.nspin == 2:
         tfs = np.zeros([num_tf, model.norb, 2], dtype=complex)
         for j, tf in enumerate(twf_list):
-            assert isinstance(
-                tf, (list, np.ndarray)
-            ), "Trial function must be a list of tuples"
+            assert isinstance(tf, (list, np.ndarray)), (
+                "Trial function must be a list of tuples"
+            )
             for orb, spin, amp in tf:
                 tfs[j, orb, spin] = amp
             tfs[j] /= np.linalg.norm(tfs[j])
@@ -565,9 +564,9 @@ def twf_generator(model, twf_list):
         # initialize array containing tfs = "trial functions"
         tfs = np.zeros([num_tf, model.norb], dtype=complex)
         for j, tf in enumerate(twf_list):
-            assert isinstance(
-                tf, (list, np.ndarray)
-            ), "Trial function must be a list of tuples"
+            assert isinstance(tf, (list, np.ndarray)), (
+                "Trial function must be a list of tuples"
+            )
             for site, amp in tf:
                 tfs[j, site] = amp
             tfs[j] /= np.linalg.norm(tfs[j])
@@ -804,8 +803,6 @@ def _one_flux_plane(wfs2d):
     # size of the mesh
     nk0 = wfs2d.shape[0]
     nk1 = wfs2d.shape[1]
-    # number of bands (will compute flux of all bands taken together)
-    nbnd = wfs2d.shape[2]
 
     # here store flux through each plaquette of the mesh
     all_phases = np.zeros((nk0 - 1, nk1 - 1), dtype=float)

@@ -14,7 +14,6 @@ from .utils import (
     copydoc,
     finite_difference,
     levi_civita,
-    _maybe_pad,
 )
 from .lattice import Lattice
 from .hoptable import HoppingTable
@@ -1408,9 +1407,9 @@ class TBModel:
         """Partition parameters into scalars and sweeps."""
         # Partition params into scalars vs sweeps (1D arrays/lists)
         sweep_names: list[str] = []
-        sweep_values: list[list[object]] = (
-            []
-        )  # list of per-parameter lists of scalar values
+        sweep_values: list[
+            list[object]
+        ] = []  # list of per-parameter lists of scalar values
         scalars: dict[str, object] = {}
 
         for name, raw in params.items():
@@ -2392,7 +2391,7 @@ class TBModel:
                     disp_vec[k] = shift
                 elif shift != 0:
                     logger.warning(
-                        f"Orbital {i} has reduced coordinate {self.orb_vecs[i,k]:.4f} along non-periodic direction {k}. "
+                        f"Orbital {i} has reduced coordinate {self.orb_vecs[i, k]:.4f} along non-periodic direction {k}. "
                         "This orbital will not be shifted to the home cell along this direction."
                     )
 
@@ -3622,7 +3621,7 @@ class TBModel:
             diff_order=diff_order,
             **params,
         )
-    
+
     def _quantum_geometric_tensor(
         self,
         v: np.ndarray,
@@ -3636,7 +3635,7 @@ class TBModel:
         r"""Compute the quantum geometric tensor Q from the velocity operator.
 
         This function computes the quantum geometric tensor (QGT) from the velocity operator
-        and the eigenvalues and eigenvectors of the Hamiltonian. 
+        and the eigenvalues and eigenvectors of the Hamiltonian.
         """
         if self.dim_k != 0:
             # if only one k_point, remove that redundant axis
@@ -3659,8 +3658,9 @@ class TBModel:
             from tensorflow import constant as const
 
             v_tf = const(v, dtype=tf.complex64)
-            evals_tf, evecs_tf = const(eigvals, dtype=tf.complex64), const(
-                eigvecs, dtype=tf.complex64
+            evals_tf, evecs_tf = (
+                const(eigvals, dtype=tf.complex64),
+                const(eigvecs, dtype=tf.complex64),
             )
 
             # Transpose eigenvectors for matmul
@@ -3771,7 +3771,6 @@ class TBModel:
             if not (isinstance(plane, tuple) and len(plane) == 2):
                 raise ValueError("plane must be a tuple of length 2.")
             return Q[plane]
-
 
     def quantum_geometric_tensor(
         self,
@@ -4736,10 +4735,9 @@ class TBModel:
         # number of orbitals per Bravais cell (handles spin implicitly via N)
         if N % (Lx * Ly) != 0:
             raise ValueError(
-                f"N={N} not divisible by Lx*Ly={Lx*Ly}; "
+                f"N={N} not divisible by Lx*Ly={Lx * Ly}; "
                 "cannot aggregate per-cell markers."
             )
-        norb_cell = self.norb // (Lx * Ly)
 
         # Per-cell marker by summing orbitals belonging to the same cell
         # (use fractional positions to infer integer cell index robustly)
@@ -5130,7 +5128,7 @@ class TBModel:
         show_model_info=True,
         site_colors=None,
         site_names=None,
-        show=True
+        show=True,
     ):
         return plot_tb_model_3d(
             self,
@@ -5138,7 +5136,7 @@ class TBModel:
             show_model_info=show_model_info,
             site_colors=site_colors,
             site_names=site_names,
-            show=show
+            show=show,
         )
 
     @copydoc(plot_bands)

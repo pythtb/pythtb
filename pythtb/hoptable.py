@@ -120,9 +120,7 @@ class HoppingTable:
         # Coerce indices/lattice vectors into contiguous arrays and validate lengths
         i_arr = np.asarray(i_idx, dtype=int)
         j_arr = np.asarray(j_idx, dtype=int)
-        R_arr = np.asarray(lattice_vecs, dtype=int).reshape(
-            len(i_arr), self.dim_r
-        )
+        R_arr = np.asarray(lattice_vecs, dtype=int).reshape(len(i_arr), self.dim_r)
 
         if i_arr.size == 0:
             return

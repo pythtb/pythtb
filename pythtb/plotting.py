@@ -147,7 +147,7 @@ def plot_lattice(lattice, n_cells=1, proj_plane=None, orb_color="r", fig=None, a
         Cartesian coordinates to use for the x and y axes of the
         plot. For example, if ``proj_plane=(0,2)``, then the x-z plane is used.
         This parameter is only relevant for 3D lattices (i.e., when
-        ``lattice.dim_r == 3``). If not specified, the default is 
+        ``lattice.dim_r == 3``). If not specified, the default is
         to use the x-y plane.
     orb_color : str, optional
         Color to use for the orbitals. Default is "r" (red).
@@ -386,7 +386,6 @@ def plot_lattice_3d(
     # --- Draw Orbitals ---
     orb_x, orb_y, orb_z = [], [], []
     orb_text = []
-    orb_marker_colors = []
     cmap_orb = cm.get_cmap("viridis", lattice.norb)
     orb_cart = lattice.get_orb_vecs(cartesian=True)
     supercell_range = range(-(n_cells - 1), n_cells)
@@ -488,7 +487,7 @@ def plot_tb_model(
     annotate_onsite=False,
     ph_color="black",
     orb_color="red",
-    show: bool | str = True
+    show: bool | str = True,
 ):
     r"""Visualizes the tight-binding model geometry.
 
@@ -832,7 +831,7 @@ def plot_tb_model_3d(
         List of names for each orbital. If not provided, orbitals are named
         "Orbital 0", "Orbital 1", etc.
     show : bool or str, optional
-        Whether to display the plot immediately. 
+        Whether to display the plot immediately.
 
     Returns
     -------
@@ -1129,13 +1128,15 @@ def plot_tb_model_3d(
     def _in_ipython() -> bool:
         try:
             from IPython import get_ipython  # type: ignore
+
             return get_ipython() is not None
         except Exception:
             return False
-        
+
     def _display_plotly_html(fig) -> None:
         # Safe for myst-nb + Jupyter; keeps MathJax intact
         from IPython.display import HTML, display  # type: ignore
+
         html = fig.to_html(include_plotlyjs="cdn", full_html=False)
         display(HTML(html))
 
