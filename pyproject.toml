@@ -78,3 +78,11 @@ include = ["pythtb*"]
 minversion = "7.0"
 testpaths = ["tests"]
 
+[tool.ruff]
+extend-exclude = ["docs/v1.8.0/**", "docs/source/_static/nb-scripts/**"]
+
+[tool.ruff.lint.extend-per-file-ignores]
+"pythtb/__init__.py" = ["E402", "F403"]
+"tests/test_examples/**.py" = ["F403", "F405"]
+"tests/test_visualize/**.py" = ["F403", "F405"]
+"tests/test_w90/**.py" = ["F403", "F405"]
