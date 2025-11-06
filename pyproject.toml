@@ -79,7 +79,11 @@ minversion = "7.0"
 testpaths = ["tests"]
 
 [tool.ruff]
-extend-exclude = ["docs/v1.8.0/**", "docs/source/_static/nb-scripts/**"]
+extend-exclude = [
+  "docs/v1.8.0/**",
+  "docs/source/_static/nb-scripts/**",
+  "docs/source/examples/**",
+]
 
 [tool.ruff.lint.extend-per-file-ignores]
 "pythtb/__init__.py" = ["E402", "F403"]
