@@ -48,12 +48,18 @@ def fu_kane_mele(t, soc, dt=[0, 0, 0, 0]):
         Spin-orbit coupling strength. Modulates next-nearest neighbor
         hopping amplitudes.
     dt : list[float, float, float, float], optional
-        Modification to the nearest-neighbor hopping amplitude along the four
-        bonds connected to each site. The default is [0, 0, 0, 0], which
-        corresponds to uniform hopping amplitudes. The first element
-        is added to the bond along :math:`(-1, 0, 0)`, the second
-        to :math:`(0, -1, 0)`, the third to :math:`(0, 0, -1)`, and the
-        fourth to :math:`(1, 1, 1)`.
+        Offsets added to the four nearest-neighbor hoppings along the
+        bonds connected to each site. The entries are applied in the
+        following order:
+
+        - `dt[0]` : bond along ``R = [0, 0, 0]``
+        - `dt[1]` : bond along ``R = [-1, 0, 0]``
+        - `dt[2]` : bond along ``R = [0, -1, 0]``
+        - `dt[3]` : bond along ``R = [0, 0, -1]``
+
+        The default is ``[0, 0, 0, 0]``, which corresponds to uniform
+        hopping amplitudes. This parameter allows for symmetry-lowering
+        perturbations to the nearest-neighbor hoppings.
 
     Returns
     -------
@@ -62,9 +68,10 @@ def fu_kane_mele(t, soc, dt=[0, 0, 0, 0]):
 
     Notes
     -----
-    The Fu-Kane-Mele model describes a three-dimensional topological insulator with a
-    non-trivial band structure. It is characterized by a strong :math:`\mathbb{Z}_2` invariant
-    and exhibits surface Dirac cones that are protected by time-reversal and inversion symmetry [1]_.
+    - The Fu-Kane-Mele model describes a three-dimensional topological insulator with a
+      non-trivial band structure. It is characterized by a strong :math:`\mathbb{Z}_2` invariant
+      and exhibits surface Dirac cones that are protected by time-reversal and inversion
+      symmetry [1]_.
 
     References
     ----------
