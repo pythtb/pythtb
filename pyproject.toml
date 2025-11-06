@@ -42,7 +42,10 @@ docs = [
 tests = ["pytest"]
 dev = [
   "pytest",
-  "black"
+  "black",
+  "pre-commit",
+  "ruff",
+  "nbstripout",
 ] 
 plotting = [
   "plotly",
