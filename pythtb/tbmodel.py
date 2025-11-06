@@ -6,7 +6,7 @@ import numpy as np
 import inspect
 from itertools import product
 from typing import Callable
-from .plotting import plot_bands, plot_tb_model, plot_tb_model_3d
+from .visualization import plot_bands, plot_tbmodel, plot_tbmodel_3d
 from .utils import (
     _offdiag_approximation_warning_and_stop,
     is_Hermitian,
@@ -5108,7 +5108,7 @@ class TBModel:
     ##### Plotting functions #####
     # These plotting functions are wrappers to the functions in plotting.py
 
-    @copydoc(plot_tb_model)
+    @copydoc(plot_tbmodel)
     def visualize(
         self,
         proj_plane=None,
@@ -5117,11 +5117,11 @@ class TBModel:
         annotate_onsite=False,
         ph_color="black",
     ):
-        return plot_tb_model(
+        return plot_tbmodel(
             self, proj_plane, eig_dr, draw_hoppings, annotate_onsite, ph_color
         )
 
-    @copydoc(plot_tb_model_3d)
+    @copydoc(plot_tbmodel_3d)
     def visualize_3d(
         self,
         draw_hoppings=True,
@@ -5130,7 +5130,7 @@ class TBModel:
         site_names=None,
         show=True,
     ):
-        return plot_tb_model_3d(
+        return plot_tbmodel_3d(
             self,
             draw_hoppings=draw_hoppings,
             show_model_info=show_model_info,

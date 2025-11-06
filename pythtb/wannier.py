@@ -1,7 +1,7 @@
 import numpy as np
 import logging
 from .wfarray import WFArray
-from .plotting import plot_centers, plot_decay, plot_density
+from .visualization import plot_centers, plot_decay, plot_density
 from .mesh import Mesh
 from .utils import mat_exp, copydoc
 from itertools import product

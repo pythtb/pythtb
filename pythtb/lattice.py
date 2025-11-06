@@ -1612,7 +1612,7 @@ class Lattice:
           the :func:`visualize_3d` method.
 
         """
-        from pythtb.plotting import plot_lattice
+        from pythtb.visualization import plot_lattice
 
         return plot_lattice(self, n_cells=n_cells, proj_plane=proj_plane)
 
@@ -1648,7 +1648,7 @@ class Lattice:
         -------
         plotly.graph_objs.Figure
         """
-        from pythtb.plotting import plot_lattice_3d
+        from pythtb.visualization import plot_lattice_3d
 
         return plot_lattice_3d(
             self,
