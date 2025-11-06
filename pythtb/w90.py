@@ -4,30 +4,30 @@ from pathlib import Path
 import numpy as np
 
 from .tbmodel import TBModel
+from .io.wannier90 import load_w90_dataset, read_kpoint_path, read_bands_w90
+from .io.quantum_espresso import read_bands_qe
 from .lattice import Lattice
 from .utils import _cart_to_red, _red_to_cart, deprecated, kpath_distance
 
 __all__ = ["W90"]
 
 BOHRTOANG = 0.52917721092  # Bohr radius in Angstroms
-_KPOINT_LABEL_PATTERN = re.compile(r"^(?P<base>[^\d]+?)(?P<suffix>\d+)?$", re.UNICODE)
-
 
 class W90:
     r"""Interface to Wannier90
-
-    This class imports tight-binding model parameters from a
-    `Wannier90 <http://www.wannier.org>`_ calculation.
-    Upon construction, it reads the relevant Wannier90 output
-    files from the specified directory. Use :meth:`model` to
-    convert the imported data into a :class:`TBModel` instance.
 
     `Wannier90 <http://www.wannier.org>`_ is a post-processing tool
     that takes as input Bloch wavefunctions and energies generated
     by first-principles electronic structure codes such as
     Quantum-Espresso (PWscf), ABINIT, SIESTA, FLEUR,
     WIEN2k, or VASP. It produces maximally localized Wannier functions
-    together with a tight-binding Hamiltonian in the Wannier basis.
+    together with a tight-binding Hamiltonian in the Wannier basis [1]_.
+
+    This class imports tight-binding model parameters from a
+    Wannier90 calculation and makes them available in PythTB.
+    Upon construction, it reads the relevant Wannier90 output
+    files from the specified directory. Use :meth:`model` to
+    convert the imported data into a :class:`TBModel` instance.
 
     The PythTB interface uses the following Wannier90 output files:
 
@@ -79,7 +79,8 @@ class W90:
     electron-volts (eV) and Angstroms.
 
     .. warning::
-        So far we have only tested Wannier90 version 2.0.1.
+        This class has been tested on Wannier90 v3.1.0. Compatibility
+        with other versions is not guaranteed.
 
     .. warning::
         The user needs to make sure that the Wannier functions
@@ -120,6 +121,11 @@ class W90:
     This assumes that that folder contains files "silicon.win" (and so on)
 
     >>> silicon = w90("example_a", "silicon")
+
+    References
+    ----------
+    .. [1] "Wannier90 as a community code: new features and applications",  
+            G. Pizzi et al., J. Phys. Cond. Matt. 32,  165902 (2020). 
     """
 
     def __init__(self, path, prefix):
@@ -129,149 +135,31 @@ class W90:
         self.path = str(self.folder)
         self.prefix = prefix
 
-        win_lines = self._load_win_lines()
-        self._win_lines = win_lines
-        self.lat = self._parse_unit_cell_block(win_lines)
+        ds = load_w90_dataset(self.path, self.prefix)
 
-        # read in hamiltonian matrix, in eV
-        self.num_wan, self.ham_r = self._load_hr_fast()
+        # stash raw win lines if you still need them for blocks
+        self._win_lines = open(self.folder / f"{self.prefix}.win", "r", encoding="utf-8", errors="ignore").readlines()
+        
+        # adopt dataset fields (preserve your attribute names)
+        self.lat = ds.lat_cart
+        self.num_wan = ds.num_wan
+        self.ham_r = {R: {"h": blk.h, "deg": blk.degeneracy} for R, blk in ds.ham_r.items()}
+        self.xyz_cen = ds.centres_xyz
+        self.red_cen = ds.centres_red
+        self.lattice = Lattice(self.lat, self.red_cen, periodic_dirs=...)
 
         # check if for every non-zero R there is also -R
         self._validate_hr_symmetry()
-
-        # read in wannier centers
-        self.xyz_cen, self.red_cen = self._load_centers()
-
-        self.lattice = Lattice(self.lat, self.red_cen, periodic_dirs=[0, 1, 2])
 
         # caches (filled lazily)
         self._vecR_cache = {}
         self._dist_cache = {}
 
-    def _load_win_lines(self):
-        win_path = self.folder / f"{self.prefix}.win"
-        try:
-            with win_path.open("r") as fh:
-                return fh.readlines()
-        except FileNotFoundError as exc:
-            raise FileNotFoundError(
-                f"Unable to locate Wannier90 input file {win_path}"
-            ) from exc
-
-    def _load_hr_fast(self):
-        hr_path = self.folder / f"{self.prefix}_hr.dat"
-        with hr_path.open("r") as fh:
-            fh.readline()  # skip first Wannier90 comment/header
-            num_wan = int(fh.readline())  # read number of Wannier functions
-            num_ws = int(fh.readline())  # read number of Wigner-Seitz cells
-
-            # Read degeneracies of Wigner-Seitz cells
-            deg_ws = []
-            while len(deg_ws) < num_ws:
-                line = fh.readline()
-                if not line:
-                    raise RuntimeError(
-                        "Unexpected EOF while reading Wigner–Seitz degeneracies."
-                    )
-                deg_ws.extend(int(val) for val in line.split())
-            # Truncate to expected count
-            deg_ws = np.asarray(deg_ws[:num_ws], dtype=int)
-
-            # Load remaining numeric table (R vectors, indices, real/imaginary parts)
-            data = np.loadtxt(fh)
-
-        # Check if data is empty
-        if data.size == 0:
-            return num_wan, {}
-
-        # Promote single row to shape (1, 7)
-        if data.ndim == 1:
-            data = data[None, :]
-        if data.shape[1] != 7:
-            raise RuntimeError("Wannier90 _hr.dat must have seven columns per row.")
-
-        R_vecs = data[:, :3].astype(np.int64)  # Triplets (R1, R2, R3)
-        i_idx = data[:, 3].astype(np.int64) - 1  # Wannier function index i
-        j_idx = data[:, 4].astype(np.int64) - 1  # Wannier function index j
-        hop_vals = data[:, 5] + 1j * data[:, 6]  # Hopping values
-
-        # Find unique R vectors and their indices (unique_R), remember first line each
-        # appears (first_idx), and how each row maps back (inverse)
-        unique_R, first_idx, inverse = np.unique(
-            R_vecs, axis=0, return_inverse=True, return_index=True
-        )
-        order = np.argsort(first_idx)  # sort shells by first occurrence
-        unique_R = unique_R[order]  # reorder unique R vectors accordingly
-
-        if deg_ws.size < unique_R.shape[0]:
-            raise RuntimeError(
-                "Not enough degeneracy entries for the R shells present."
-            )
-        deg_ws = deg_ws[
-            : unique_R.shape[0]
-        ]  # use only degeneracies actually needed (zeros get dropped)
-
-        remap = np.empty_like(order)
-        remap[order] = np.arange(
-            order.size
-        )  # permutation that maps sorted order back to original
-        inverse = remap[inverse]  # remap per-row shell into new ordering
-
-        # One (num_wan x num_wan) matrix per unique R vector
-        blocks = np.zeros((unique_R.shape[0], num_wan, num_wan), dtype=complex)
-        # Scatter-add every hopping into proper (R, i, j) block
-        np.add.at(blocks, (inverse, i_idx, j_idx), hop_vals)
-
-        ham_r = {
-            tuple(int(v) for v in R_vec): {"h": blocks[idx], "deg": int(deg_ws[idx])}
-            for idx, R_vec in enumerate(unique_R)
-        }
-        return num_wan, ham_r
-
-    def _extract_win_block(self, win_lines, name):
-        begin = f"begin {name}".lower()
-        end = f"end {name}".lower()
-        inside = False
-        block = []
-        for raw in win_lines:
-            stripped = raw.strip()
-            lower = stripped.lower()
-            if not inside and lower.startswith(begin):
-                inside = True
-                continue
-            if inside:
-                if lower.startswith(end):
-                    break
-                block.append(raw.rstrip("\n"))
-        return block
-
-    def _parse_unit_cell_block(self, win_lines):
-        block = self._extract_win_block(win_lines, "unit_cell_cart")
-        if not block:
-            raise Exception("Unable to find unit_cell_cart block in the .win file.")
-
-        scale = 1.0
-        first = block[0].strip().lower()
-        if first in {"bohr", "ang", "angstrom"}:
-            if first == "bohr":
-                scale = BOHRTOANG
-            block = block[1:]
-        if len(block) < 3:
-            raise ValueError("unit_cell_cart block must contain three lattice vectors.")
-
-        lat = np.zeros((3, 3), dtype=float)
-        for row_idx in range(3):
-            parts = block[row_idx].split()
-            if len(parts) < 3:
-                raise ValueError("Each unit_cell_cart row must have three components.")
-            lat[row_idx] = [float(parts[col]) * scale for col in range(3)]
-        return lat
-
     def _validate_hr_symmetry(self):
         R_set = set(self.ham_r.keys())
         for R in R_set:
             if R != (0, 0, 0) and (-R[0], -R[1], -R[2]) not in R_set:
-                raise Exception(f"Did not find negative R for R = {R}!")
+                raise ValueError(f"Did not find negative R for R = {R}!")
 
     @staticmethod
     def _wrap01(x: np.ndarray) -> np.ndarray:
@@ -279,163 +167,6 @@ class W90:
         # snap 1.0 → 0.0 to avoid 2π glitches
         out[np.isclose(out, 1.0, atol=1e-12)] = 0.0
         return out
-
-    def _load_centers(self):
-        centres_path = self.folder / f"{self.prefix}_centres.xyz"
-        try:
-            with centres_path.open("r") as fh:
-                lines = fh.readlines()
-        except FileNotFoundError as exc:
-            raise FileNotFoundError(
-                f"Unable to locate Wannier center file {centres_path}"
-            ) from exc
-
-        coords = []
-        start = 2
-        for idx in range(self.num_wan):
-            try:
-                fields = lines[start + idx].split()
-            except IndexError as exc:
-                raise Exception("Centres file shorter than expected.") from exc
-            if not fields or fields[0] != "X":
-                raise Exception("Inconsistency in the centres file.")
-            coords.append([float(value) for value in fields[1:4]])
-
-        xyz_cen = np.asarray(coords, dtype=float)
-        red = _cart_to_red((self.lat[0], self.lat[1], self.lat[2]), xyz_cen)
-        return xyz_cen, red
-
-    def _kpoint_path_nodes(self, *, latex: bool = True):
-        """
-        Return the reduced-coordinate nodes declared in the ``kpoint_path`` block.
-
-        Parameters
-        ----------
-        latex : bool, optional
-            When True (default) convert labels into LaTeX-friendly strings,
-            e.g. ``"G" -> r"$\\Gamma$"``.
-
-        Returns
-        -------
-        coords : numpy.ndarray
-            Array with shape ``(n_nodes, 3)`` containing the reduced coordinates.
-        labels : list[str]
-            Labels for each node, optionally formatted for LaTeX rendering.
-        """
-        block = self._extract_win_block(self._win_lines, "kpoint_path")
-        if not block:
-            raise ValueError("No kpoint_path block present in the .win file.")
-
-        entries: list[tuple[str, np.ndarray]] = []
-        for line in block:
-            tokens = line.split()
-            if not tokens:
-                continue
-            if len(tokens) % 4:
-                raise ValueError(
-                    "Each kpoint_path entry must be a label followed by three coordinates."
-                )
-            for offset in range(0, len(tokens), 4):
-                label = tokens[offset]
-                try:
-                    coords = np.array(
-                        [
-                            float(tokens[offset + 1]),
-                            float(tokens[offset + 2]),
-                            float(tokens[offset + 3]),
-                        ],
-                        dtype=float,
-                    )
-                except ValueError as exc:
-                    raise ValueError(
-                        f"Failed to parse coordinates for k-point '{label}'."
-                    ) from exc
-                entries.append((label, coords))
-
-        if not entries:
-            raise ValueError("kpoint_path block is empty.")
-
-        labels: list[str] = []
-        coords_list: list[np.ndarray] = []
-        prev_label = None
-        prev_coords = None
-        for label, coords in entries:
-            if (
-                prev_label is not None
-                and label == prev_label
-                and np.allclose(coords, prev_coords)
-            ):
-                # Skip duplicated node introduced by segment chaining (e.g. P1->P2, P2->P3)
-                continue
-            labels.append(label)
-            coords_list.append(coords)
-            prev_label = label
-            prev_coords = coords
-
-        coords_arr = np.vstack(coords_list)
-        if latex:
-            labels = [self._format_k_label(lbl) for lbl in labels]
-
-        return coords_arr, labels
-
-    def _format_k_label(self, label: str) -> str:
-        special = {
-            "g": r"\Gamma",
-            "gamma": r"\Gamma",
-            "Γ": r"\Gamma",
-            "delta": r"\Delta",
-            "Δ": r"\Delta",
-            "theta": r"\Theta",
-            "Θ": r"\Theta",
-            "lambda": r"\Lambda",
-            "λ": r"\Lambda",
-            "xi": r"\Xi",
-            "ξ": r"\Xi",
-            "pi": r"\Pi",
-            "π": r"\Pi",
-            "sigma": r"\Sigma",
-            "σ": r"\Sigma",
-            "upsilon": r"\Upsilon",
-            "υ": r"\Upsilon",
-            "phi": r"\Phi",
-            "ϕ": r"\Phi",
-            "psi": r"\Psi",
-            "ψ": r"\Psi",
-            "omega": r"\Omega",
-            "ω": r"\Omega",
-        }
-
-        raw = label.strip()
-        if not raw:
-            return "$$"
-
-        match = _KPOINT_LABEL_PATTERN.match(raw)
-        if match:
-            base = match.group("base").strip()
-            suffix = match.group("suffix")
-
-            key = base.lower()
-            latex_base = special.get(key)
-            if latex_base is None:
-                latex_base = special.get(base)
-
-            if latex_base is None:
-                if len(base) == 1 and base.isalpha():
-                    latex_base = base
-                else:
-                    latex_base = rf"\mathrm{{{base}}}"
-        else:
-            latex_base = rf"\mathrm{{{raw}}}"
-            suffix = None
-
-        if match:
-            suffix = match.group("suffix")
-        else:
-            suffix = None
-
-        if suffix:
-            return rf"${latex_base}_{{{suffix}}}$"
-        return rf"${latex_base}$"
 
     def _get_vecR(self, R):
         """Cartesian vector for reduced lattice vector R, cached."""
@@ -475,6 +206,9 @@ class W90:
         min_hopping_norm=None,
         max_distance=None,
         ignorable_imaginary_part=None,
+        *,
+        onsite_imag_tol: float = 1e-9,
+        fill_hermitian: bool = False
     ) -> TBModel:
         r"""Get TBModel associated with this Wannier90 calculation.
 
@@ -525,30 +259,30 @@ class W90:
 
         Notes
         -----
-        The character of the maximally localized Wannier functions is
-        not exactly the same as that specified by the initial
-        projections. The orbital character of the Wannier functions can be
-        inferred either from the *projections* block in the *prefix*.win or
-        from the *prefix*.nnkp file.
+        - The character of the maximally localized Wannier functions is
+          not exactly the same as that specified by the initial
+          projections. The orbital character of the Wannier functions can be
+          inferred either from the *projections* block in the *prefix*.win or
+          from the *prefix*.nnkp file.
 
-        One way to ensure that the Wannier functions are as close to
-        the initial projections as possible is to first choose a good set
-        of initial projections (for these initial and final spread should
-        not differ more than 20%) and then perform another Wannier90 run
-        setting *num_iter=0* in the *prefix*.win file.
+        - One way to ensure that the Wannier functions are as close to
+          the initial projections as possible is to first choose a good set
+          of initial projections (for these initial and final spread should
+          not differ more than 20%) and then perform another Wannier90 run
+          setting *num_iter=0* in the *prefix*.win file.
 
-        The tight-binding model returned by this function is only as good as
-        the input from Wannier90. In particular, the choice of initial
-        projections can have a significant impact on the quality of the
-        resulting Wannier functions. It is recommended to experiment with
-        different sets of initial projections and to carefully analyze the
-        resulting Wannier functions to ensure that they are physically
-        meaningful.
+        - The tight-binding model returned by this function is only as good as
+          the input from Wannier90. In particular, the choice of initial
+          projections can have a significant impact on the quality of the
+          resulting Wannier functions. It is recommended to experiment with
+          different sets of initial projections and to carefully analyze the
+          resulting Wannier functions to ensure that they are physically
+          meaningful.
 
-        The number of spin components is always set to 1, even if the
-        underlying DFT calculation includes spin.  Please refer to the
-        *projections* block or the *prefix*.nnkp file to see which
-        orbitals correspond to which spin.
+        - The number of spin components is always set to 1, even if the
+          underlying DFT calculation includes spin.  Please refer to the
+          *projections* block or the *prefix*.nnkp file to see which
+          orbitals correspond to which spin.
 
         Examples
         --------
@@ -562,37 +296,28 @@ class W90:
         >>> my_model_simple.display()
 
         """
-        # make the model object
-        tb = TBModel(self.lattice)
+        tb = TBModel(self.lattice) # initialize the model object
 
         # remember that this model was computed from w90
         tb._from_w90 = True
         tb._assume_position_operator_diagonal = False
 
-        # -------------------------
-        # Onsites (vectorized)
-        # -------------------------
-        # Divide by degeneracy only once and assert onsite is (numerically) real
+        # Onsites 
         hr0 = self.ham_r[(0, 0, 0)]
-        deg0 = float(hr0["deg"])  # scalar
-        onsite = (hr0["h"].diagonal() / deg0).real
+        deg0 = float(hr0["deg"]) 
+        # Divide by degeneracy only once and assert onsite is (numerically) real
+        diag = np.diag(hr0["h"]) / deg0
         # sanity check: imaginary part should be tiny
-        if np.max(np.abs(np.imag(np.diag(hr0["h"]) / deg0))) > 1e-9:
-            raise Exception("Onsite terms should be real!")
-        tb.set_onsite(onsite - zero_energy)
+        if np.max(np.abs(diag.imag)) > 1e-9:
+            raise ValueError(f"Onsite terms should be real (|Im|>{onsite_imag_tol})")
+        tb.set_onsite(diag.real - zero_energy)
 
-        # -------------------------
-        # Hoppings (vectorized per R)
-        # -------------------------
-        # Precompute for speed
-        # xyz_cen = self.xyz_cen  # (num_wan, 3), Cartesian Angstroms
-        num_wan = self.num_wan
-        # lat_tuple = (self.lat[0], self.lat[1], self.lat[2])
+        # Hoppings 
 
         # Helper to decide if we should process an R (to avoid double counting)
         def _use_R(R):
             r1, r2, r3 = R
-            if r1 != 0:
+            if r1 != 0: 
                 return r1 > 0
             if r2 != 0:
                 return r2 > 0
@@ -601,32 +326,33 @@ class W90:
         if max_distance is not None and not self._dist_cache:
             self._precompute_distances()
 
-        for R, blk in self.ham_r.items():
-            Hr = blk["h"]
-            deg = float(blk["deg"])  # scalar
+        amps_all, ii_all, jj_all, R_all = [], [], [], []
+        num_wan = self.num_wan
 
+        for R, blk in self.ham_r.items():
+            
             # Onsite block already handled; keep only off-diagonal pairs here.
             if R == (0, 0, 0):
                 use_this_R = True
             else:
                 use_this_R = _use_R(R)
-
             if not use_this_R:
                 continue
-
-            # Divide by degeneracy once per block
-            Ham = Hr / deg  # (num_wan, num_wan)
 
             # Start from allowed entries and avoid double counting
             if R == (0, 0, 0):
                 keep = np.zeros((num_wan, num_wan), dtype=bool)
                 iu = np.triu_indices(num_wan, k=1)
                 keep[iu] = True
-
             else:
                 keep = np.ones((num_wan, num_wan), dtype=bool)
-                # np.fill_diagonal(keep, False)
-                np.fill_diagonal(keep, True)
+
+            Hr = blk["h"]
+            deg = float(blk["deg"])  # scalar
+
+            # Divide by degeneracy once per block
+            inv_deg = 1.0 / deg  # multiplying inverse is faster than dividing
+            H = Hr * inv_deg  # (num_wan, num_wan)
 
             # Distance cutoff (use cached distances; compute lazily if needed)
             if max_distance is not None:
@@ -637,25 +363,44 @@ class W90:
 
             # Apply min_hopping_norm filter
             if min_hopping_norm is not None:
-                keep &= np.abs(Ham) >= min_hopping_norm
+                keep &= np.abs(H) >= min_hopping_norm
                 if not np.any(keep):
                     continue
 
             # Optionally zero-out tiny imaginary parts before insertion
             if ignorable_imaginary_part is not None:
-                sel = keep & (np.abs(Ham.imag) < ignorable_imaginary_part)
+                sel = keep & (np.abs(H.imag) < ignorable_imaginary_part)
                 if np.any(sel):
-                    Ham = Ham.copy()
-                    Ham.imag[sel] = 0.0
-
-            # Emit kept hoppings in bulk to minimize Python overhead
+                    H = H.copy()
+                    H.imag[sel] = 0.0
+            
             ii, jj = np.nonzero(keep)
             if ii.size:
-                amps = Ham[ii, jj]
-                R_arr = np.repeat(np.array(R)[None, :], ii.size, axis=0)
-                tb._append_hops(amps, ii, jj, R_arr)
-                # for i, j, a in zip(ii.tolist(), jj.tolist(), amps.tolist()):
-                #     tb.set_hop(a, i, j, list(R))
+                amps = H[ii, jj]
+                R_arr = np.repeat(np.array(R, dtype=int)[None, :], ii.size, axis=0)
+                amps_all.append(amps)
+                ii_all.append(ii)
+                jj_all.append(jj)
+                R_all.append(R_arr)
+
+            if fill_hermitian and R != (0, 0, 0):
+                # explicitly add the conjugate partners at -R
+                Hc = H.conj().T
+                ii2, jj2 = np.nonzero(keep.T)
+                if ii2.size:
+                    amps2 = Hc[ii2, jj2]
+                    Rm = np.repeat((-np.array(R, dtype=int))[None, :], ii2.size, axis=0)
+                    amps_all.append(amps2)
+                    ii_all.append(ii2)
+                    jj_all.append(jj2)
+                    R_all.append(Rm)
+
+        if amps_all:
+            amps = np.concatenate(amps_all)
+            ii = np.concatenate(ii_all)
+            jj = np.concatenate(jj_all)
+            R_arr = np.concatenate(R_all)
+            tb._append_hops(amps, ii, jj, R_arr)
 
         return tb
 
@@ -762,12 +507,10 @@ class W90:
         return_k_nodes: bool = False,
     ):
         r"""Read interpolated band structure from Wannier90 output files.
-
-        This function reads in band structure as interpolated by
-        Wannier90. Please note that this is not the same as the band
-        structure calculated by the underlying DFT code. The two will
-        agree only on the coarse set of k-points that were used in
-        Wannier90 generation.
+        
+        The purpose of this function is to compare the interpolation
+        in Wannier90 with that in PythTB. This function reads in band 
+        structure as interpolated by Wannier90. 
 
         The code assumes that the following files were generated by
         Wannier90,
@@ -814,15 +557,16 @@ class W90:
 
         Notes
         -----
-        The purpose of this function is to compare the interpolation
-        in Wannier90 with that in PythTB. If no terms were ignored in
-        the call to :func:`pythtb.w90.model` then the two should
-        be exactly the same (up to numerical precision). Otherwise
-        one should expect deviations. However, if one carefully
-        chooses the cutoff parameters in :func:`pythtb.w90.model`
-        it is likely that one could reproduce the full band-structure
-        with only few dominant hopping terms. Please note that this
-        tests only the eigenenergies, not eigenvalues (wavefunctions).
+        - The bands returned here are not the same as the band
+          structure calculated by the underlying DFT code. The two will
+          agree only on the coarse set of k-points that were used in
+          Wannier90 generation. 
+        - If no terms were ignored in the call to :func:`pythtb.w90.model` 
+          then the two should be exactly the same (up to numerical precision). 
+          Otherwise one should expect deviations. 
+        - If one carefully chooses the cutoff parameters in :func:`pythtb.w90.model`
+          it is likely that one could reproduce the full band-structure
+          with only few dominant hopping terms. 
 
         Examples
         --------
@@ -849,26 +593,19 @@ class W90:
         >>>     ax.plot(range(w90_evals.shape[1]), w90_evals[i], "k-", zorder=-100)
         >>> fig.savefig("comparison.pdf")
         """
-        kpts_path = self.folder / f"{self.prefix}_band.kpt"
-        ene_path = self.folder / f"{self.prefix}_band.dat"
-
-        # read in kpoints in reduced coordinates
-        kpts = np.loadtxt(kpts_path, skiprows=1)[:, :3]
-        # read in energies
-        ene_raw = np.loadtxt(ene_path)
-        ene = ene_raw[:, 1].reshape((self.num_wan, kpts.shape[0])).T
+        kpts, ene = read_bands_w90(self.folder, self.prefix, self.num_wan)
 
         B = self.lattice.recip_lat_vecs
-        k_dist = kpath_distance(kpts, b1=B[0], b2=B[1], b3=B[2])
-
         results = (kpts, ene)
+
         if return_k_dist:
+            k_dist = kpath_distance(kpts, b1=B[0], b2=B[1], b3=B[2])
             results += (k_dist,)
         if return_k_cart:
             k_cart = kpts @ B
             results += (k_cart,)
         if return_k_nodes:
-            k_nodes, k_labels = self._kpoint_path_nodes(latex=True)
+            k_nodes, k_labels = read_kpoint_path(self._win_lines, latex=True)
             results += (k_nodes, k_labels)
         return results
 
@@ -919,81 +656,36 @@ class W90:
         - Ensure that the k-point paths used in Quantum ESPRESSO
           and Wannier90 are consistent for meaningful comparisons.
         """
-        bands_path = self.folder / f"{self.prefix}_bands.dat"
-        # Try to grab nbnd/nks from header
-        meta = {}
-        m = re.search(
-            r"nbnd\s*=\s*(\d+).+nks\s*=\s*(\d+)",
-            open(bands_path).read(5000),
-            re.I | re.S,
-        )
-        if m:
-            meta["nbnd"] = int(m.group(1))
-            meta["nks"] = int(m.group(2))
+        k_markers, energies_rows, meta = read_bands_qe(self.folder, self.prefix)
 
-        def is_k_marker(s: str) -> bool:
-            # k-marker line has exactly three floats
-            try:
-                vals = [float(x) for x in s.split()]
-                return len(vals) == 3
-            except ValueError:
-                return False
+        # Shape energies into (nks, nbnd)
+        nks = meta.get("nks", len(energies_rows))
+        nbnd = meta.get("nbnd", max(len(r) for r in energies_rows) if energies_rows else 0)
 
-        klist, energies_rows, ebuf = [], [], []
-        with bands_path.open("r") as f:
-            for line in f:
-                s = line.strip()
-                if not s:
-                    continue
-                if is_k_marker(s):
-                    # starting a new k-point: flush previous energies if any
-                    if ebuf:
-                        energies_rows.append(ebuf)
-                        ebuf = []
-                    kx, ky, kz = (float(x) for x in s.split())
-                    klist.append([kx, ky, kz])
-                else:
-                    # energy values (possibly many per line)
-                    try:
-                        vals = [float(x) for x in s.split()]
-                    except ValueError:
-                        continue
-                    ebuf.extend(vals)
+        E = np.full((nks, nbnd), np.nan, dtype=float)
+        for i in range(min(nks, len(energies_rows))):
+            row = energies_rows[i]
+            ncopy = min(nbnd, len(row))
+            if ncopy:
+                E[i, :ncopy] = row[:ncopy]
 
-        # flush last k
-        if ebuf:
-            energies_rows.append(ebuf)
-
-        # Convert
-        E_raw = np.array(energies_rows, dtype=float)
-        k_cart = np.array(klist, dtype=float)
-        # k_cart in units of 2pi/alat
+        # QE k markers are in units of (2π / alat); scale as your previous method
+        k_cart = np.asarray(k_markers, float)
         alat = np.linalg.norm(self.lattice.lat_vecs[0])
         k_cart *= 2 * np.pi / alat
 
-        # Infer dimensions if header absent / inconsistent
-        nks = meta.get("nks", E_raw.shape[0])
-        nbnd = meta.get("nbnd", int(max(len(row) for row in E_raw)))
-
-        # Normalize to (nks, nbnd)
-        E = np.full((nks, nbnd), np.nan, dtype=float)
-        for i in range(min(nks, len(E_raw))):
-            row = E_raw[i]
-            E[i, : min(nbnd, len(row))] = row[:nbnd]
-
+        # Convert to reduced coords using your reciprocal lattice
         B = self.lattice.recip_lat_vecs
         k_frac = k_cart @ np.linalg.inv(B)
 
-        k_dist = None
+        results = [k_frac, E]
+
         if return_kdist:
             k_dist = kpath_distance(k_frac, b1=B[0], b2=B[1], b3=B[2])
-
-        result = [k_frac, E]
-        if return_kdist:
-            result.append(k_dist)
+            results.append(k_dist)
         if return_k_cart:
-            result.append(k_cart)
+            results.append(k_cart)
         if return_meta:
-            result.append(meta)
+            results.append(meta)
 
-        return tuple(result)
+        return tuple(results)
