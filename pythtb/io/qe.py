@@ -1,4 +1,5 @@
-# pythtb/io/wannier90.py
+"""IO utilities for Quantum ESPRESSO output files."""
+
 from __future__ import annotations
 import re
 from pathlib import Path
@@ -7,10 +8,24 @@ import numpy as np
 
 BOHRTOANG = 0.52917721092
 
-class QEParseError(RuntimeError): ...
-class QEConsistencyError(RuntimeError): ...
+
+class QEParseError(RuntimeError):
+    """Raised when a Quantum ESPRESSO bands file cannot be parsed."""
+
+
+class QEConsistencyError(RuntimeError):
+    """Raised when Quantum ESPRESSO band data fail internal sanity checks."""
+
 
 _QE_HDR_RE = re.compile(r"nbnd\s*=\s*(\d+).+nks\s*=\s*(\d+)", re.I | re.S)
+
+__all__ = [
+    "BOHRTOANG",
+    "QEParseError",
+    "QEConsistencyError",
+    "read_bands_qe",
+]
+
 
 def _qe_is_k_marker(s: str) -> bool:
     # line with exactly three floats → k marker
@@ -20,15 +35,37 @@ def _qe_is_k_marker(s: str) -> bool:
     except ValueError:
         return False
 
-def read_bands_qe(root: Path | str, prefix: str) -> Tuple[np.ndarray, List[List[float]], Dict[str, int]]:
-    """
-    Read raw QE bands file lines, returning unscaled k-markers and ragged energy rows.
+
+def read_bands_qe(
+    root: Path | str, prefix: str
+) -> Tuple[np.ndarray, List[List[float]], Dict[str, int]]:
+    """Read QE bands file lines, returning the raw (unscaled) k-markers and energies.
+
+    Parameters
+    ----------
+    root : Path or str
+        Directory containing the QE bands file.
+    prefix : str
+        Prefix used in the QE bands file name: "{prefix}_bands.dat".
 
     Returns
     -------
-    k_markers : (N_k, 3) floats as written by QE (units handled by caller)
-    energies_rows : list[list[float]] energies per k (ragged OK)
+    k_markers : (N_k, 3)
+        Cartesian k-vectors exactly as printed by `bands.x`, i.e. in
+        units of ``2π/alat``. Callers may rescale them after the fact
+        if they want k in reciprocal-lattice or Cartesian Å⁻¹ units.
+    energies_rows : list[list[float]]
+        energies per k-point
     meta : dict with possible keys 'nbnd', 'nks'
+
+    Notes
+    -----
+    - Quantum ESPRESSO's `bands.x` module writes k-points in units of
+      ``2pi/alat``, where `alat` is the lattice parameter specified in
+      the QE input file. This function does not perform any rescaling
+      of the k-points; it is the caller's responsibility to do so if
+      needed. The :class:`pythtb.W90` class provides utilities for
+      rescaling k-points to reciprocal-lattice or Cartesian units.
     """
     root = Path(root).expanduser()
     bands_path = root / f"{prefix}_bands.dat"

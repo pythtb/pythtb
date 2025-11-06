@@ -1,3 +1,5 @@
+"""Collection of tight-binding models."""
+
 from .checkerboard import checkerboard
 from .fu_kane_mele import fu_kane_mele
 from .graphene import graphene
