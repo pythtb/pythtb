@@ -118,9 +118,9 @@ class HoppingTable:
             return
 
         # Coerce indices/lattice vectors into contiguous arrays and validate lengths
-        i_arr = np.asarray(list(i_idx), dtype=int)
-        j_arr = np.asarray(list(j_idx), dtype=int)
-        R_arr = np.asarray(list(lattice_vecs), dtype=int).reshape(
+        i_arr = np.asarray(i_idx, dtype=int)
+        j_arr = np.asarray(j_idx, dtype=int)
+        R_arr = np.asarray(lattice_vecs, dtype=int).reshape(
             len(i_arr), self.dim_r
         )
 
@@ -154,10 +154,11 @@ class HoppingTable:
             np.vstack([self.lattice_vecs, R_arr]) if start else R_arr.copy()
         )
 
-        # freshly inserted entries start at `start`; update lookup index
-        for offset, (i, j, R_vec) in enumerate(zip(i_arr, j_arr, R_arr, strict=True)):
-            key = self._make_key(i, j, R_vec)
-            self._index[key] = start + offset
+        keys = [
+            (int(i), int(j), tuple(int(x) for x in R_vec))
+            for i, j, R_vec in zip(i_arr, j_arr, R_arr, strict=True)
+        ]
+        self._index.update(zip(keys, range(start, start + len(keys))))
 
         self._flatten_cache.clear()
 
