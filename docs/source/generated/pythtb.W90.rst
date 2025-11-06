@@ -6,6 +6,87 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Methods
 -------
 .. autosummary::
@@ -22,10 +103,15 @@ Methods
 
 
 
-Attributes
-----------
-.. autosummary::
-   :nosignatures:
-   :toctree: pythtb/W90/
 
-   
+
+
+
+
+
+
+
+
+
+
+

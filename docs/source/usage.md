@@ -1,34 +1,37 @@
 # Usage
 
-- {py:class}`pythtb.TBModel` 
-   Class for constructing tight-binding models and their Hamiltonians. It provides methods to compute band structures,
-   density of states, quantum geometric tensors, local Chern markers, axion angles, and other related quantities.
-- {py:class}`pythtb.WFArray` 
-   Class for storing wavefunctions on a parameter mesh, and computing Wilson loops, Berry phases, Berry connections, Berry curvatures, Chern numbers, and other related quantities.
-- {py:class}`pythtb.Mesh` 
-   Class for constructing meshes or paths of k-points and parameter points. This class 
-   stores information about grid topology, such as periodic boundary conditions, which get
-   passed on to the {py:class}`pythtb.WFArray` class for wavefunction storage and manipulation.
-- {py:class}`pythtb.Lattice`
-   Class for storing information about the lattice structure of the tight-binding model, including
-   lattice vectors, reciprocal lattice vectors, and nearest neighbor vectors. This class is used
-   by the {py:class}`pythtb.TBModel` and {py:class}`pythtb.WFArray` classes.
-- {py:class}`pythtb.W90` 
-   Class for interfacing `PythTB` with [Wannier90](http://www.wannier.org) allowing for the construction
-   of tight-binding models based on first-principles density functional theory calculations.
-- {py:class}`pythtb.Wannier` 
-   Class for constructing Wannier functions from Bloch wavefunctions defined on a full k-mesh with 
-   the help of the {py:class}`pythtb.WFArray` class. The quadratic spread can then be minimized using the disentanglement and maximal localization algorithms.
-- {py:mod}`pythtb.models` 
-   A collection of predefined tight-binding models. Import and use these models
-   using the following syntax:
-   ```python
-   from pythtb.models import haldane, graphene, ssh
-   ```
-
 ```{eval-rst}
 .. currentmodule:: pythtb
+.. module:: pythtb
 ```
+
+## Core Classes
+PythTB centers on a small set of core classes for constructing and analyzing tight-binding models. This page highlights what each component is for and links to the API reference in the tables below.
+
+- {py:class}`pythtb.TBModel` 
+   Tight-binding Hamiltonians on arbitrary lattices. Use it to set hoppings, sweep parameters, compute spectra, and evaluate derived quantities such as Berry curvature, quantum geometric tensors, axion angles, or local Chern markers.
+- {py:class}`pythtb.WFArray` 
+   Mesh-aware wavefunction storage. Solve a model across $k$/$\lambda$ grids, then evaluate Wilson loops, Berry phases, Chern numbers, and other objects with consistent periodic boundary conditions.
+- {py:class}`pythtb.W90` 
+   Interface with [Wannier90](http://www.wannier.org) and export a Wannierized tight-binding model in the form of a {py:class}`TBModel`. 
+
+:::{versionadded} 2.0.0
+These classes were introduced in PythTB version 2.0.0.
+:::
+
+- {py:class}`pythtb.Mesh` 
+   Describes k-space grids, paths, and parameter sweeps. Encodes topology 
+   (loops, endpoints, adiabatic cycles) so both {py:class}`TBModel` and 
+   {py:class}`WFArray` interpret the sampling in the same way.
+- {py:class}`pythtb.Lattice`
+   Holds real- and reciprocal-space geometry, orbital positions, and nearest-neighbour shells. 
+   Every model and wavefunction array references the same lattice instance to ensure consistent coordinates.
+- {py:class}`pythtb.Wannier` 
+   Build Wannier gauges directly inside PythTB from a {py:class}WFArray, 
+   perform projections, disentanglement and maximal localization, and analyze 
+   spreads and centers.
+
+The class-level autosummary below links to detailed API pages.
 
 ```{eval-rst}
 .. autosummary::
@@ -43,17 +46,33 @@
    W90
    Wannier
 ```
+
+## Predefined Models
+PythTB also provides a collection of predefined tight-binding models. Import and use these models
+using the following syntax:
+```python
+from pythtb.models import haldane, graphene, ssh
+```
+
 ```{eval-rst}
 .. autosummary::
    :toctree: generated/
    :caption: PythTB Models
+   :recursive:
 
-   models.ssh
-   models.checkerboard
-   models.graphene
-   models.haldane
-   models.kane_mele
-   models.fu_kane_mele
+   models
 ```
 
+## I/O Utilities
 
+PythTB ships with lightweight readers for importing data from external software packages such as Wannier90 and Quantum ESPRESSO.
+
+```{eval-rst}
+.. autosummary::
+   :toctree: generated/
+   :caption: I/O Utilities
+   :template: autosummary/public_module.rst
+
+   io.w90
+   io.qe
+```

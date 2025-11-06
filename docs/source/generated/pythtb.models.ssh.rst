@@ -1,4 +1,4 @@
-﻿pythtb.models.ssh
+pythtb.models.ssh
 =================
 
 .. currentmodule:: pythtb.models
