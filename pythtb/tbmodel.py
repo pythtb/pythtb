@@ -67,43 +67,18 @@ def _describe_provider(provider):
 
 
 class TBModel:
-    r"""Builds and solves tight-binding models.
+    r"""Build, parametrize, and solve tight-binding Hamiltonians.
 
-    This class is the primary interface for constructing, modifying, and analyzing
-    tight-binding Hamiltonians. A *tight-binding model* describes electrons (or other
-    single-particle degrees of freedom) in a discrete basis of localized orbitals
-    (e.g. Wannier functions, atomic-like orbitals) placed on sites of a lattice.
-    The Hamiltonian is represented by onsite terms and hopping amplitudes between
-    orbitals, and may describe
+    A tight-binding (TB) model describes single-particle dynamics in a discrete
+    orbital basis (e.g., Wannier functions, atomic-like orbitals) placed on sites
+    of a lattice. The Hamiltonian is specified by on-site and hopping terms between
+    orbitals.
 
-    - **Periodic systems** (Bloch-periodic in one or more directions),
-    - **Finite real-space systems** (open boundary conditions), or
-    - **Mixed geometries** where only a subset of directions is periodic.
+    This class supports
 
-    The lattice geometry (primitive vectors, orbital positions, and periodic
-    directions) is specified through a :class:`Lattice` object. Non-periodic
-    directions correspond to real-space sites without Bloch momentum; periodic
-    directions are treated in reciprocal space. This class also provides methods
-    for constructing a finite model from a periodic one (e.g. ribbons, slabs, etc.)
-
-    Both spinless and spinful models are supported; spin-orbit effects may be encoded
-    directly in the hopping matrices.
-
-    Beyond constructing and diagonalizing the Hamiltonian, this class provides
-    methods for computing topological and quantum-geometric observables, including:
-
-    - Quantum geometric tensor (QGT)
-    - Berry curvature and quantum metric
-    - Chern number
-    - Axion angle (Chern-Simons contribution)
-    - Bianco-Resta local Chern marker (real-space topology)
-
-    Hamiltonians may depend on external parameters (e.g. strain, adiabatic
-    parameters), and can be registered by setting onsite or hopping terms
-    with strings or callable functions that take parameter names as keyword
-    arguments. Supply these values as keyword arguments when calling downstream
-    methods and the class will automatically evaluate the Hamiltonian with the
-    specified parameters.
+    - **Periodic systems** (one or more reciprocal-space dimensions),
+    - **Finite real-space systems** (open boundaries), or
+    - **Mixed geometries** (some periodic, some open; e.g. ribbons or slabs).
 
     .. versionremoved:: 2.0.0
         Parameters ``dim_r`` and ``dim_k`` were removed. Real- and reciprocal-space
@@ -136,6 +111,33 @@ class TBModel:
             Renamed from ``nspin`` to ``spinful`` and changed type to ``bool``.
             Instead of specifying the number of spin components (1 or 2), now
             specify whether the model is spinful (True) or spinless (False).
+
+    Notes
+    -----
+    - The lattice geometry (primitive vectors, orbital positions, and periodic
+      directions) is specified through a :class:`Lattice` object. Periodic
+      directions are treated in reciprocal space. :class:`Lattice` also provides
+      methods for constructing a finite model from a periodic one
+      (e.g. ribbons, slabs, etc.).
+
+    - Both spinless and spinful models are supported; spin-orbit effects may be encoded
+      directly in the hopping matrices.
+
+    - Beyond constructing and diagonalizing the Hamiltonian, this class provides
+      methods for computing topological and quantum-geometric observables, including:
+
+      - Quantum geometric tensor (QGT)
+      - Berry curvature and quantum metric
+      - Chern number
+      - Axion angle (Chern-Simons contribution)
+      - Bianco-Resta local Chern marker (real-space topology)
+
+    - Hamiltonians may depend on external parameters (e.g. strain, adiabatic
+      parameters), and can be registered by setting onsite or hopping terms
+      with strings or callable functions that take parameter names as keyword
+      arguments. Supply these values as keyword arguments when calling downstream
+      methods and the class will automatically evaluate the Hamiltonian with the
+      specified parameters.
 
     Examples
     --------
@@ -820,55 +822,61 @@ class TBModel:
     ):
         r"""Define on-site energies for tight-binding orbitals.
 
-        You can set the energy for a single orbital (by specifying ``ind_i``),
-        or for all orbitals at once by passing ``onsite_en`` as a list/array 
-        of length :attr:`norb`.
+        This assigns on-site matrix elements
+
+        .. math::
+            H_{ii}(\mathbf{0}) = \langle \phi_{\mathbf{0}i} | H | \phi_{\mathbf{0}i} \rangle 
+            
+        for orbital :math:`i` in the home unit cell. 
 
         Parameters
         ----------
         onsite_en : float, array_like, (2, 2) numpy.ndarray, str, callable
+            The on-site energy or parameter provider to set.
+
             .. versionadded:: 2.0.0
                 Symbolic expressions and callables for onsite energies.
 
-            On-site energy value(s) to set. When specifying a single orbital
-            with ``ind_i``, this may be one of the following:
-            
-            **Symbolic (spinless or spinful)**
+            Valid formats depend on whether ``spinful`` is True or False, and
+            whether a single orbital index ``ind_i`` is specified or all orbitals
+            are being set at once.
 
-            - String: A symbolic expression for the onsite energy.
-            - Callable: A function of a single parameter that returns the onsite energy
-              in one of the formats listed below.
-            
-            **Spinless**  (``spinful=False``)
+            - **Spinless models**  (``spinful=False``)
 
-            - Real scalar.
+              - Real scalar.
 
-            **Spinful**  (``spinful=True``)
+            - **Spinful models**  (``spinful=True``)
 
-            - **Scalar** ``a``: interpreted as :math:`a I` (same value for both spins).
-            - **4-vector** ``[a, b, c, d]``:
+              - **Scalar** ``a`` -> :math:`a I_2` (same value for both spins).
+              - **4-vector** ``[a, b, c, d]`` -> :math:`a I_2 + b \sigma_x + c \sigma_y + d \sigma_z`
               
-              .. math::
-                a I + b\,\sigma_x + c\,\sigma_y + d\,\sigma_z =
-                \begin{bmatrix}
-                a + d & b - i c \\
-                b + i c & a - d
-                \end{bmatrix}
+                Explicitly, a 4-vector produces
 
-            - **Full matrix**: a 2 x 2 Hermitian ndarray.
+                .. math::
+                  \begin{pmatrix}
+                  a+d & b - i c \\
+                  b + i c & a-d
+                  \end{pmatrix}.
 
-            When specifying all orbitals at once (``ind_i=None``), this should be
-            a list or array of length :attr:`norb`, where each entry is one of the
-            above types.
+              - **2x2 matrix** (Hermitian ndarray).
+            
+            - **Symbolic definitions**
+
+              - String: symbolic expression in user-defined parameters.
+              - Callable: ``f(param)`` returning any of the above forms.
+
+            If ``ind_i is None``, this must be a length-:attr:`norb` sequence of
+            values, one per orbital.
 
         ind_i : int, optional
-            Orbital index to update. If unspecified, all orbitals are updated and
-            ``onsite_en`` must be a sequence of length :attr:`norb`.
+            Orbital index to update. 
+            If omitted, update *all* orbitals; in that case ``onsite_en`` must be
+            a sequence of length :attr:`norb`.
 
         mode : {'set', 'add'}, optional
-            How to apply ``onsite_en``.
+            Operation mode.
 
-            - ``'set'``: replace the value(s). (Default)
+            - ``'set'``: replace existing on-site value(s). (Default)
             - ``'add'``: add to existing value(s).
 
             .. deprecated:: 2.0.0
@@ -877,44 +885,75 @@ class TBModel:
         See Also
         --------
         set_hop : Define hopping amplitudes between orbitals.
+        set_parameters : Register parameter values 
+        with_parameters : Return a new :class:`TBModel` with specified parameters.
 
         Notes
         -----
-        - When called multiple times with ``mode='add'``, values accumulate.
+        - When ``mode='add'`` the new value is added to the existing entry.
+        - Symbolic and callable inputs automatically register their parameter names. 
+          For callables with multiple parameters, each parameter is registered.
+        - Parameter evaluation is **scalar only**. Spinful on-site blocks
+          must then be then be set with callables so that the returned values match 
+          the expected spinful structure. 
+        
+          Example:
+
+          .. code-block:: python
+
+              # Spinful on-site via 4-vector with one parameter 'mA'
+              tb.set_onsite(lambda mA: [mA, 0.2, 0.0, -0.1], ind_i=0) 
+
+              # Spinful on-site via full 2x2 matrix with two parameters 'mA' and 'mB'
+              tb.set_onsite(
+                  lambda mA, mB: np.array([[mA + mB, 0.1 - 0.2j],
+                                           [0.1 + 0.2j, mA - mB]]),
+                  ind_i=1
+              )
+        
+          Parameters values must later be supplied as scalars or 1D arrays to methods 
+          such as :meth:`set_parameters`, :meth:`hamiltonian`, :meth:`velocity`, 
+          :meth:`solve_ham`, etc., via keyword arguments. 
+        - Providing parameter values to downstream observables such as :meth:`hamiltonian`,
+          :meth:`velocity`, :meth:`solve_ham`, etc., does **not** permanently store them in
+          the model; they are used only for that evaluation. To persist parameter values on
+          the model, use :meth:`set_parameters`.
 
         Examples
         --------
-        Setting all on-site energies at once:
+        Set all on-site energies:
 
         >>> tb.set_onsite([0.0, 1.0, 2.0]) 
 
-        Adding an on-site energy to a single orbital:
+        Add to a single orbital:
 
         >>> tb.set_onsite(100.0, ind_i=1, mode="add")  
 
-        Setting the on-site energy of a single orbital:
+        Overwrite a single orbital:
 
         >>> tb.set_onsite(0.0, ind_i=1, mode="set")
 
-        Setting a spinful on-site term using a 4-vector:
+        Spinful on-site via 4-vector:
 
         >>> tb.set_onsite([1.0, 0.2, 0.0, -0.1], ind_i=0)
 
-        Parametric onsite energy using a string expression:
+        Symbolic parameter:
 
         >>> tb.set_onsite("mA", ind_i=0)
 
-        Parametric onsite energy using a callable:
+        Callable parameter:
 
         >>> tb.set_onsite(lambda mA: mA**2, ind_i=0)
 
-        Setting all on-site energies with parametric callables:
+        Callable list over all orbitals with the same parameter but different
+        functional forms:
 
         >>> tb.set_onsite([lambda mA: mA, lambda mA: 2*mA, lambda mA: 3*mA])
 
-        This will set a single parameter ``"mA"``, which can be set to a single value
-        using :meth:`set_parameters`, or with a list of values in downstream functions
-        like :meth:`hamiltonian` or :meth:`velocity`.
+        Later usage:
+
+        >>> H = tb.hamiltonian(k_pts, mA=1.2)
+        >>> H = tb.hamiltonian(k_pts, mA=np.linspace(0, 2, 5))
         """
         # Handle deprecated 'reset' mode
         mode = mode.lower()
@@ -1017,130 +1056,177 @@ class TBModel:
         ind_i: int,
         ind_j: int,
         ind_R=None,
-        mode="set",
+        mode: str = "set",
         allow_conjugate_pair=False,
     ):
-        r"""Define hopping parameters between tight-binding orbitals.
+        r"""
+        Define hopping amplitudes between tight-binding orbitals.
 
-        In the notation of tight-binding formalism, this function specifies:
+        This assigns matrix elements
 
         .. math::
-            H_{ij}(\mathbf{R}) = \langle \phi_{\mathbf{0},i} | H | \phi_{\mathbf{R},j} \rangle
+            H_{ij}(\mathbf{R}) = \langle \phi_{0,i} | H | \phi_{\mathbf{R},j} \rangle
 
-        where :math:`\langle \phi_{\mathbf{0},i} |` is the i-th orbital in the home unit cell,
-        and :math:`| \phi_{\mathbf{R},j} \rangle` is the j-th orbital in a cell shifted by lattice 
-        vector :math:`\mathbf{R}`.
+        between orbital ``i`` in the home cell and orbital ``j`` in the cell displaced
+        by integer lattice vector :math:`\mathbf{R}` (in reduced coordinates).
+        For periodic directions, hoppings contribute to the Bloch Hamiltonian with
+        phase factors :math:`e^{i\mathbf{k}\cdot\mathbf{R}}`.
 
         Parameters
         ----------
-        hop_amp : scalar, array-like, (2,2) numpy.ndarray, str, callable
+        hop_amp : scalar, array_like, (2,2) ndarray, str, or callable
+            Hopping amplitude specification.
+
             .. versionadded:: 2.0.0
-                Symbolic expressions and callables for hoppings.
+                Symbolic expressions and callables are supported.
 
-            **Symbolic (spinless or spinful)**
+            Valid formats depend on whether ``spinful`` is True or False, and
+            whether a single orbital index ``ind_i`` is specified or all orbitals
+            are being set at once.
 
-            - String: A symbolic expression for the onsite energy.
-            - Callable: A callable with a single parameter that returns the onsite energy
-              in one of the formats listed below.
+            - **Spinless models**  (``spinful=False``)
 
-            **Spinless** (``spinful=False``):
+              - Real scalar.
 
-            - Real or complex scalar.
+            - **Spinful models**  (``spinful=True``)
 
-            **Spinful** (``spinful=True``):
+              - **Scalar** ``a`` -> :math:`a I_2` (same value for both spins).
+              - **4-vector** ``[a, b, c, d]`` -> :math:`a I_2 + b \sigma_x + c \sigma_y + d \sigma_z`
+              
+                Explicitly, a 4-vector produces
 
-            - Scalar ``a`` multiplied by identity: :math:`a I`.
-            - 4-vector ``[a, b, c, d]`` dotted into identity and Pauli matrices: 
+                .. math::
+                  \begin{pmatrix}
+                  a+d & b - i c \\
+                  b + i c & a-d
+                  \end{pmatrix}.
 
-            .. math::
-                a I + b\,\sigma_x + c\,\sigma_y + d\,\sigma_z =
-                \begin{bmatrix}
-                    a + d & b - i c \\
-                    b + i c & a - d
-                \end{bmatrix}
+              - **2x2 matrix** (Hermitian ndarray).
+            
+            - **Symbolic definitions**
 
-            - Full 2 x 2 Hermitian matrix.
+              - String: symbolic expression in user-defined parameters.
+              - Callable: ``f(param)`` returning any of the above forms.
 
         ind_i : int
-            Index of bra orbital (in home unit cell).
+            Index of the bra orbital (home cell).
         ind_j : int
-            Index of ket orbital (in cell shifted by ``ind_R``).
-        ind_R : array-like of int, optional
-            Lattice vector (integer array, in reduced coordinates)
-            pointing to the unit cell where the ket orbital is located.
-            It's length must equal the real space (``dim_r``). Components
-            along non-periodic lattice directions **must** be zero; attempting
-            to hop across a finite direction raises a :class:`ValueError`. If
-            the model has no periodic directions (``dim_k=0``), this parameter
-            should not be specified.
+            Index of the ket orbital (shifted cell).
+        ind_R : array_like of int, optional
+            Integer reduced-coordinate lattice vector specifying the cell of orbital ``j``.
+            Components along non-periodic directions **must be zero**.  Attempting to hop
+            across an open direction raises :class:`ValueError`. 
+            If omitted, defaults to the zero vector.
         mode : {'set', 'add'}, optional
-            How to apply ``hop_amp``.
+            Operation mode:
 
-            - ``'set'``: replace the value(s). (Default)
-            - ``'add'``: add to existing value(s).
+            - ``'set'``: replace the hopping value (default)
+            - ``'add'``: add to existing value
 
             .. deprecated:: 2.0.0
                 ``mode="reset"`` is deprecated. Use ``mode="set"`` instead.
 
         allow_conjugate_pair : bool, optional
-            If True, allows specification of both a hopping and its conjugate pair.
-            If False, prevents double-counting.
+            If ``False`` (default), the Hermitian conjugate term is automatically handled
+            and specifying the opposite hopping is disallowed.  If ``True``, both entries
+            may be set explicitly.
 
         See Also
         --------
-        set_onsite : Define on-site energies for orbitals.
+        set_onsite : Define on-site terms.
+        set_parameters : Permanently register parameter values.
+        with_parameters : Return a new :class:`TBModel` with specified parameters.
 
         Notes
         -----
-        - Unlike `set_onsite`, there is no way to bulk set hoppings; each hopping
-          must be specified individually.
-        - Strictly speaking, this term specifies hopping amplitude for hopping from site `j+R` to site `i`, 
-          not vice-versa.
-          There is no need to specify hoppings in both :math:`i \rightarrow j+\mathbf{R}` and
-          :math:`j \rightarrow i-\mathbf{R}` directions, since the latter is included automatically as
+        - Only individual hopping terms may be defined; bulk hopping assignment is not supported.
+        - Hermiticity is automatically enforced:
 
           .. math::
-              H_{ji}(-\mathbf{R}) = \left[ H_{ij}(\mathbf{R}) \right]^*
-    
-        - When called multiple times with ``mode='add'``, values accumulate.
-        - ``ind_R`` may only carry non-zero entries along the indices listed in 
-          :attr:`periodic_dirs`. Any displacement along an open direction is refused.
+              H_{ji}(-\mathbf{R}) = \left[ H_{ij}(\mathbf{R}) \right]^* .
+
+          Therefore, it is unnecessary to define both directions unless
+          ``allow_conjugate_pair=True``.
+
+        - When ``mode='add'`` the new value accumulates.
+        - ``ind_R`` may only carry non-zero values along :attr:`periodic_dirs`.
+        - Symbolic and callable inputs automatically register their parameter names. 
+          For callables with multiple parameters, each parameter is registered.
+        - Parameter evaluation is **scalar only**. Spinful on-site blocks
+          must then be then be set with callables so that the returned values match 
+          the expected spinful structure. 
+        
+          Example:
+
+          .. code-block:: python
+
+              # Spinful on-site via 4-vector with one parameter 'mA'
+              tb.set_hop(lambda mA: [mA, 0.2, 0.0, -0.1], ind_i=0, ind_j=1, ind_R=[0,1]) 
+
+              # Spinful on-site via full 2x2 matrix with two parameters 'mA' and 'mB'
+              tb.set_hop(
+                  lambda mA, mB: np.array([[mA + mB, 0.1 - 0.2j],
+                                           [0.1 + 0.2j, mA - mB]]),
+                  ind_i=1,
+                  ind_j=1,
+                  ind_R=[0,0]
+              )
+
+              # Calling Hamiltonian later with parameter values, for example:
+              H = tb.hamiltonian(k_pts, mA=0.5, mB=[0, 1, 2, 3, 4])
+
+              # Setting the parameters later:
+              tb.set_parameters(mA=0.5, mB=1.0)
+        
+          Parameters values must later be supplied as scalars or 1D arrays to methods 
+          such as :meth:`set_parameters`, :meth:`hamiltonian`, :meth:`velocity`, 
+          :meth:`solve_ham`, etc., via keyword arguments. 
+        - Providing parameter values to downstream observables such as :meth:`hamiltonian`,
+          :meth:`velocity`, :meth:`solve_ham`, etc., does **not** permanently store them in
+          the model; they are used only for that evaluation. To persist parameter values on
+          the model, use :meth:`set_parameters`.
 
         Examples
         --------
-        Setting a hopping amplitude between orbital 0 in the home cell and orbital 1
-        in the unit cell shifted by lattice vector ``R = [0, 1]``:
+        Hopping between orbital 0 (home cell) and orbital 2 in cell ``R=[0,1]``:
 
-        >>> tb.set_hop(0.3+0.4j, 0, 2, [0, 1], mode="set")
+        >>> tb.set_hop(0.3+0.4j, 0, 2, [0, 1])
 
-        Adding to an existing hopping amplitude:
+        Add to an existing hopping:
 
         >>> tb.set_hop(100.0, 0, 2, [0, 1], mode="add")
 
-        Setting a spinful hopping using a 4-vector:
+        Spinful hopping via 4-vector:
 
         >>> tb.set_hop([0.1, 0.0, 0.2, -0.1], 0, 1, [1, 0])
 
-        Parametric hopping using a string expression:
+        Symbolic hopping:
 
         >>> tb.set_hop("t1", 0, 1, [1, 0])
 
-        Parametric hopping using a callable:
+        Callable hopping:
 
         >>> tb.set_hop(lambda t1: t1**2, 0, 1, [1, 0])
 
-        This will store a parameter ``"t1"``, which can be set to a single value
-        using :meth:`set_parameters`, or with a list of values in downstream functions
-        like :meth:`hamiltonian` or :meth:`velocity`.
+        Parametric hopping in spinful model via full 2x2 matrix:
 
-        Attempting to hop along a non-periodic direction (model with
-        ``periodic_dirs=[0, 2]``) raises an error:
+        >>> tb.set_hop(
+        ...     lambda t1, t2: np.array([[t1, 0.1 - 0.2j],
+        ...                              [0.1 + 0.2j, t2]]),
+        ...     0, 1, [1, 0]
+        ... )
+
+        Later usage:
+
+        >>> H = tb.hamiltonian(k_pts, t1=0.5, t2=1.0)
+        >>> H = tb.hamiltonian(k_pts, t1=np.linspace(0,1,5), t2=1.0)
+
+        Attempting to hop along a non-periodic axis:
 
         >>> tb.set_hop(0.5, 0, 1, [0, 1, 0])
         Traceback (most recent call last):
             ...
-        ValueError: ind_R may only have non-zero components along periodic directions (0, 2); 
-        received offsets on axes (1,) with values (1,)
+        ValueError: ind_R may only have non-zero components along periodic directions ...
         """
         #### Prechecks and formatting ####
         mode = mode.lower()
@@ -1240,40 +1326,79 @@ class TBModel:
             )
 
     def set_shell_hops(self, shell_hops: dict, mode="set"):
-        r"""Define n'th nearest-neighbor hoppings.
+        r"""
+        Set hopping amplitudes for entire nearest-neighbor shells.
 
-        This function sets hopping amplitudes for all bonds in specified
-        nearest-neighbor shells. The shells are defined based on the distance
-        from each orbital, with shell 1 being the nearest neighbors, shell 2
-        being the next-nearest neighbors, and so on. All hoppings in a given shell
-        are assigned the same value.
+        This assigns :math:`H_{ij}(\mathbf{R})` for **all** orbital pairs
+        whose spatial separation lies in a given nearest-neighbor *shell*.
+        Shells are numbered by increasing distance:
+        shell 1 = nearest neighbors, shell 2 = next-nearest neighbors, etc.
+        All hoppings within the same shell are assigned the same amplitude.
+
+        Shell topology and distances are determined from the orbital positions
+        :math:`\boldsymbol{\tau}_i` in the lattice.  Each key in ``shell_hops`` labels
+        a shell index, and the associated amplitude is applied uniformly to every
+        bond belonging to that shell.
 
         .. versionadded:: 2.0.0
 
         Parameters
         ----------
-        shell_hops : dict[int, array-like]
-            Dictionary mapping shell indices (counting from 1) to hopping amplitudes.
-            The keys are integers representing the shell number, and the values
-            are the hopping amplitudes for that shell.
-        mode : {'set', 'add'}, optional
-            Specifies how ``shell_hops`` is used
-            - ``"set"``: Set the hopping term to the values in ``shell_hops``. (Default)
-            - ``"add"``: Add the values in ``shell_hops`` to the previously set values.
+        shell_hops : dict[int, scalar | array_like | (2,2) ndarray | str | callable]
+            Mapping ``shell`` -> ``amplitude``.  Keys are positive integers labeling
+            neighbor shells. Values specify hopping strength. For spinful models,
+            amplitudes may be
+
+            - **scalar** ``a``  → :math:`a I_2`
+            - **4-vector** ``[a,b,c,d]`` → :math:`a I + b\sigma_x + c\sigma_y + d\sigma_z`
+            - **2×2 Hermitian ndarray**
+
+            Symbolic strings or callables can also be supplied; in that case, parameter
+            names are registered automatically and later passed as keyword arguments to
+            :meth:`hamiltonian`, :meth:`solve_ham`, etc.
+
+        mode : {'set', 'add'}, default='set'
+            Operation mode:
+
+            - ``'set'``: replace existing hopping values
+            - ``'add'``: add to existing values
 
         Notes
         -----
-        - The hopping amplitudes are applied to all bonds in each shell.
+        - All hopping terms in the same shell receive *exactly* the same amplitude.
+        - Shell identification is based purely on distance; degeneracies or direction
+          are not distinguished.
+        - Parameterized (symbolic/callable) shell amplitudes follow the same rules as
+          in :meth:`set_hop`. Callables receive parameters exclusively as keyword
+          arguments.
+        - Parameter values supplied to :meth:`hamiltonian` (etc.) are not permanently
+          stored in the model; use :meth:`set_parameters` to persist them.
 
         Examples
         --------
-        Setting nearest-neighbor and next-nearest-neighbor hoppings:
+        Nearest- and next-nearest-neighbor hopping:
 
         >>> tb.set_nn_hops({1: 1.0, 2: 0.5})
 
-        Setting only nearest-neighbor hoppings:
+        Only nearest‐neighbor hopping:
 
         >>> tb.set_nn_hops({1: 1.0})
+
+        Spinful shell assignment via 4-vector:
+
+        >>> tb.set_nn_hops({1: [1.0, 0.1, 0.0, -0.1]})
+
+        Symbolic parameterized NN hopping:
+
+        >>> tb.set_nn_hops({1: "t"})
+
+        Callable hopping:
+
+        >>> tb.set_nn_hops({1: lambda t: 0.2 * np.cos(t)})
+
+        Evaluate later:
+
+        >>> evals = tb.solve_ham(k_pts, t=0.3)
 
         """
         if not isinstance(shell_hops, dict):
@@ -1332,11 +1457,6 @@ class TBModel:
         -------
         float, complex, or np.ndarray
             Matrix block for onsite or hopping.
-
-        Raises
-        ------
-        ValueError
-            If input is not a valid format.
         """
         # spinless case
         if not self.spinful:
@@ -1612,42 +1732,62 @@ class TBModel:
 
     def set_parameters(self, params=None, /, **kwargs):
         r"""
-        Evaluate any parameter-dependent onsite or hopping term at the supplied scalar values.
+        Materialize parameterized on-site and hopping terms at fixed scalar values.
 
-        This helper is the inverse of declaring a parameterized term via :meth:`set_onsite` or
-        :meth:`set_hop` with a callable or string provider. Each parameter name is mapped to
-        a value that is passed directly to the provider (callable or string). Once evaluated,
-        the resulting values are fed back into :meth:`set_onsite` or :meth:`set_hop` so all
-        standard validation (Hermiticity, conjugate handling, etc.) still applies.
+        Any entries previously defined via :meth:`set_onsite` or :meth:`set_hop` with
+        a **string** or **callable** provider are evaluated using the supplied parameter
+        values. The resulting numerics are then written back through the same APIs so
+        all standard validation (Hermiticity, conjugate handling, shape checks) applies.
 
         Parameters
         ----------
-        params : mapping, optional
-            Dictionary that maps parameter names to scalar values. Use this when a parameter
-            name is not a valid Python identifier (for example, contains spaces or symbols).
-            Mutually compatible with ``kwargs`` — entries from ``params`` are applied first,
-            then any keyword arguments override them.
+        params : Mapping[str, Any], optional
+            Dictionary mapping parameter names to **scalar** values. Use this when
+            a name is not a valid Python identifier (e.g. contains spaces or ``-``).
+            If both ``params`` and ``kwargs`` are given, values in ``kwargs`` **override**
+            those from ``params``.
         **kwargs
-            Additional parameter/value pairs. These are merged on top of ``params`` and are
-            convenient when the parameter names are valid identifiers (e.g. ``model.set_parameters(beta=0.3)``).
+            Additional ``name=value`` overrides for parameters whose names are valid
+            identifiers (e.g. ``tb.set_parameters(beta=0.3)``).
 
         See Also
         --------
-        at : Create a new TBModel instance with parameter-dependent terms evaluated.
+        with_parameters : Create a new TBModel instance with parameter-dependent terms evaluated.
+            leaving the original unchanged.
+        set_onsite : Define on-site terms (may be symbolic/callable).
+        set_hop : Define hopping terms (may be symbolic/callable).
 
         Notes
         -----
-        - Only scalar values are accepted; 0-D NumPy arrays are unwrapped via ``.item()``.
-        - Providers whose parameter lists are not completely covered by the supplied values
-          are left untouched. In other words, you can freeze parameters incrementally.
-        - After a parameter is set, the corresponding provider entry is removed so future
-          Hamiltonian builds no longer depend on externally supplied values.
+        - Values must be Python scalars; 0-D NumPy scalars are
+          unwrapped via ``.item()``. Use keyword parameters to :meth:`hamiltonian`,
+          :meth:`solve_ham`, etc., for **array sweeps** (those are ephemeral).
+        - Providers whose full parameter lists are not covered
+          by the supplied values are left as-is; you can freeze parameters
+          incrementally across calls.
+        - After a provider is fully evaluated, it is **removed** and
+          replaced by its numeric value; subsequent Hamiltonian builds no longer
+          depend on external parameter kwargs.
+        - When both ``params`` and ``kwargs`` specify the same name,
+          the value from ``kwargs`` wins.
 
         Examples
         --------
-        >>> tb.set_onsite(lambda m: [m, -m])  # both onsite terms become parametric
-        >>> tb.set_hop(lambda t: t * np.eye(2), 0, 1, [0, 0, 0])
-        >>> tb.set_parameters(m=0.4, t=1.2)    # both terms become numeric, providers removed
+        Freeze two parameters at once:
+
+        >>> tb.set_onsite(lambda m: [m, -m], ind_i=None)
+        >>> tb.set_hop(lambda t: t * np.eye(2), 0, 1, [0, 0])
+        >>> tb.set_parameters(m=0.4, t=1.2)  # providers removed, numeric values stored
+
+        Use a dict for a non-identifier name, override via kwargs:
+
+        >>> tb.set_onsite(lambda m_A: m_A, ind_i=0)
+        >>> tb.set_parameters({"m-A": 0.1, "m_A": 0.2}, m_A=0.3)  # m_A=0.3 overrides
+
+        Keep one parameter symbolic (partial freeze):
+
+        >>> tb.set_hop(lambda t, phi: t * np.exp(1j*phi), 0, 2, [1, 0])
+        >>> tb.set_parameters(t=0.5)  # still depends on 'phi'
         """
         merged = {}
         if params is not None:
@@ -1707,7 +1847,7 @@ class TBModel:
                     block, i, j, list(R), mode="set", allow_conjugate_pair=True
                 )
 
-    def at(self, params=None, /, **kwargs) -> "TBModel":
+    def with_parameters(self, params=None, /, **kwargs) -> "TBModel":
         r"""
         Create a new TBModel instance with parameter-dependent terms evaluated
         at the supplied scalar values.
@@ -1721,14 +1861,14 @@ class TBModel:
 
         Parameters
         ----------
-        params : mapping, optional
-            Dictionary that maps parameter names to scalar values. Use this when a parameter
-            name is not a valid Python identifier (for example, contains spaces or symbols).
-            Mutually compatible with ``kwargs`` — entries from ``params`` are applied first,
-            then any keyword arguments override them.
+        params : Mapping[str, Any], optional
+            Dictionary mapping parameter names to **scalar** values. Use this when
+            a name is not a valid Python identifier (e.g. contains spaces or ``-``).
+            If both ``params`` and ``kwargs`` are given, values in ``kwargs`` **override**
+            those from ``params``.
         **kwargs
-            Additional parameter/value pairs. These are merged on top of ``params`` and are
-            convenient when the parameter names are valid identifiers (e.g. ``model.at(beta=0.3)``).
+            Additional ``name=value`` overrides for parameters whose names are valid
+            identifiers (e.g. ``tb.set_parameters(beta=0.3)``).
 
         Returns
         -------
