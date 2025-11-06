@@ -13,3 +13,4 @@ repos:
       - id: nbstripout
         name: strip-jupyter-notebook-outputs
         files: \.ipynb$
+        exclude: ^docs/.jupyter_cache/
