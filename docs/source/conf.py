@@ -6,6 +6,8 @@
 # -- Path setup --------------------------------------------------------------
 import os
 import sys
+from pathlib import Path
+
 import pythtb
 
 package_path = os.path.abspath("../pythtb")
@@ -128,6 +130,7 @@ html_css_files = ["custom.css"]
 html_copy_source = True
 html_show_sourcelink = False
 html_sourcelink_suffix = ""
+html_extra_path = ["examples_py"]
 exclude_patterns = ["generated/*.md", "examples_rst/*", "examples_py/*"]
 
 # Optional: controls context variables available to the 404 template
@@ -256,27 +259,28 @@ def _skip_deprecated(app, what, name, obj, skip, options):
 
 
 def _export_ipynb_to_py(app):
-    import nbformat
-    from nbconvert import ScriptExporter
+    """Convert example notebooks to plain Python scripts for download buttons."""
 
-    srcdir = app.srcdir
-    nb_root = os.path.join(srcdir, "examples_ipynb")  # adjust if yours differs
-    out_root = os.path.join(srcdir, "_static", "nb-scripts")
+    try:
+        from nbconvert import ScriptExporter
+    except ImportError:  # pragma: no cover - docs extra should provide this
+        app.warn("nbconvert not available; skipping notebook -> script export.")
+        return
+
+    srcdir = Path(app.srcdir)
+    nb_root = srcdir / "examples"
+    if not nb_root.exists():
+        return
+
+    out_root = srcdir / "examples_py"
+    out_root.mkdir(parents=True, exist_ok=True)
+
     exporter = ScriptExporter()
 
-    for root, _, files in os.walk(nb_root):
-        for name in files:
-            if not name.endswith(".ipynb"):
-                continue
-            in_path = os.path.join(root, name)
-            rel = os.path.relpath(root, nb_root)
-            os.makedirs(os.path.join(out_root, rel), exist_ok=True)
-
-            nb = nbformat.read(in_path, as_version=4)
-            body, _ = exporter.from_notebook_node(nb)
-            out_path = os.path.join(out_root, rel, name[:-6] + ".py")
-            with open(out_path, "w", encoding="utf-8") as f:
-                f.write(body)
+    for nb_path in nb_root.rglob("*.ipynb"):
+        body, _ = exporter.from_filename(str(nb_path))
+        out_path = out_root / f"{nb_path.stem}.py"
+        out_path.write_text(body, encoding="utf-8")
 
 
 def _maybe_skip_member(app, what, name, obj, skip, options):

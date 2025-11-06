@@ -192,3 +192,7 @@ _build/
 scrap
 
 .jupyter_cache/
+
+_static/nb-scripts/
+
+docs/source/examples_py/

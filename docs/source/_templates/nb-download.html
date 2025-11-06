@@ -17,10 +17,8 @@
     <i class="fa-solid fa-download"></i> Download .ipynb
   </a>
 
-  <!-- Prefer examples_py/, then fall back to _static/nb-scripts/, then same-dir -->
-  <a class="btn btn-sm nb-py" href="{{ pathto('_static/nb-scripts/' ~ stem ~ '.py', 1) }}" 
-     data-alt1="{{ pathto('_static/nb-scripts/' ~ stem ~ '.py', 1) }}"
-     data-alt2="{{ pathto(stem ~ '.py', 1) }}"
+  <!-- Notebook exports are placed in examples_py/ during the Sphinx build -->
+  <a class="btn btn-sm nb-py" href="{{ pathto('examples_py/' ~ stem ~ '.py', 1) }}" 
      download="{{ stem }}.py">
     <i class="fa-solid fa-code"></i> Download .py
   </a>
