@@ -121,7 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Added boolean flag `cartesian` to return orbital vectors in Cartesian coordinates (default `False`)
   - `TBModel.solve_ham()`: Replaces `solve_one()` and `solve_all()` with a unified, vectorized diagonalization method
   - `TBModel.set_onsite` and `TBModel.set_hop` both accept strings and callables for setting onsite energies and hoppings allowing for parameter-dependent terms
-  - `TBModel.at()` returns model at specific parameter values for parameterized models 
+  - `TBModel.with_parameters()` returns model at specific parameter values for parameterized models 
   - `TBModel.set_parameters()` resolves parameterized terms with scalar values
   - `TBModel.set_shell_hops()`: Bulk setting of n'th nearest-neighbor hoppings for faster model construction
   - `TBModel.hamiltonian()` constructs Hamiltonians for finite and periodic systems
