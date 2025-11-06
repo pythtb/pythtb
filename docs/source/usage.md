@@ -11,9 +11,10 @@ PythTB centers on a small set of core classes for constructing and analyzing tig
 - {py:class}`pythtb.TBModel` 
    Tight-binding Hamiltonians on arbitrary lattices. Use it to set hoppings, sweep parameters, compute spectra, and evaluate derived quantities such as Berry curvature, quantum geometric tensors, axion angles, or local Chern markers.
 - {py:class}`pythtb.WFArray` 
-   Mesh-aware wavefunction storage. Solve a model across $k$/$\lambda$ grids, then evaluate Wilson loops, Berry phases, Chern numbers, and other objects with consistent periodic boundary conditions.
+   Mesh-aware wavefunction storage. Solve a model across $(k, \lambda)$ grids, then evaluate Wilson loops, Berry phases, Chern numbers, and other objects with consistent periodic boundary conditions.
 - {py:class}`pythtb.W90` 
-   Interface with [Wannier90](http://www.wannier.org) and export a Wannierized tight-binding model in the form of a {py:class}`TBModel`. 
+   Interface with [Wannier90](http://www.wannier.org) and export a Wannierized tight-binding model in the form of a 
+   {py:class}`TBModel`. 
 
 :::{versionadded} 2.0.0
 These classes were introduced in PythTB version 2.0.0.
@@ -21,8 +22,8 @@ These classes were introduced in PythTB version 2.0.0.
 
 - {py:class}`pythtb.Mesh` 
    Describes k-space grids, paths, and parameter sweeps. Encodes topology 
-   (loops, endpoints, adiabatic cycles) so both {py:class}`TBModel` and 
-   {py:class}`WFArray` interpret the sampling in the same way.
+   (loops, endpoints, adiabatic cycles) so {py:class}`WFArray` can apply appropriate 
+   gauge conditions downstream.
 - {py:class}`pythtb.Lattice`
    Holds real- and reciprocal-space geometry, orbital positions, and nearest-neighbour shells. 
    Every model and wavefunction array references the same lattice instance to ensure consistent coordinates.

@@ -270,7 +270,6 @@ Methods
    :toctree: pythtb/TBModel/
 
    pythtb.TBModel.add_orb
-   pythtb.TBModel.at
    pythtb.TBModel.axion_angle
    pythtb.TBModel.berry_curvature
    pythtb.TBModel.change_nonperiodic_vector
@@ -311,6 +310,7 @@ Methods
    pythtb.TBModel.velocity
    pythtb.TBModel.visualize
    pythtb.TBModel.visualize_3d
+   pythtb.TBModel.with_parameters
    
 
 

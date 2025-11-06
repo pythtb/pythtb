@@ -130,7 +130,7 @@ html_css_files = ["custom.css"]
 html_copy_source = True
 html_show_sourcelink = False
 html_sourcelink_suffix = ""
-html_extra_path = ["examples_py"]
+html_extra_path = []
 exclude_patterns = ["generated/*.md", "examples_rst/*", "examples_py/*"]
 
 # Optional: controls context variables available to the 404 template
@@ -261,19 +261,21 @@ def _skip_deprecated(app, what, name, obj, skip, options):
 def _export_ipynb_to_py(app):
     """Convert example notebooks to plain Python scripts for download buttons."""
 
+    srcdir = Path(app.srcdir)
+    nb_root = srcdir / "examples"
+
+    # Mirror structure under build directory: _build/html/examples_py
+    out_root = Path(app.builder.outdir) / "examples_py"
+    out_root.mkdir(parents=True, exist_ok=True)
+
+    if not nb_root.exists():
+        return
+
     try:
         from nbconvert import ScriptExporter
     except ImportError:  # pragma: no cover - docs extra should provide this
         app.warn("nbconvert not available; skipping notebook -> script export.")
         return
-
-    srcdir = Path(app.srcdir)
-    nb_root = srcdir / "examples"
-    if not nb_root.exists():
-        return
-
-    out_root = srcdir / "examples_py"
-    out_root.mkdir(parents=True, exist_ok=True)
 
     exporter = ScriptExporter()
 
