@@ -106,10 +106,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **New modules**
 - `pythtb.models`: collection of common tight-binding modelsthat are importable using, e.g.,
-- `pythtb.io.wannier90`: Wannier90 file parsing utilities
+- `pythtb.io.w90`: Wannier90 file parsing utilities
   - `read_hr()`, `read_centres()` etc. for standalone Wannier90 file parsing
   - Supports loading a full Wannier90 dataset for downstream `W90` -> `TBModel` processing
-- `pythtb.io.quantum_espresso`: Quantum ESPRESSO file parsing utilities
+- `pythtb.io.qe`: Quantum ESPRESSO file parsing utilities
   - `read_bands_qe()` for reading `prefix_bands.out` `bands.x` output files
 
 **New methods and attributes to pre-existing classes**
