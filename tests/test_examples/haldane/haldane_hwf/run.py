@@ -1,8 +1,8 @@
 import numpy as np
 from pythtb import TBModel, WFArray, Lattice, Mesh
 
+
 def haldane_model():
-    
     lat = [[1.0, 0.0], [0.5, np.sqrt(3.0) / 2.0]]
     orb = [[1.0 / 3.0, 1.0 / 3.0], [2.0 / 3.0, 2.0 / 3.0]]
     lattice = Lattice(lat, orb, periodic_dirs=[0, 1])
@@ -27,6 +27,7 @@ def haldane_model():
 
     return my_model
 
+
 def run():
     my_model = haldane_model()
 
@@ -34,7 +35,7 @@ def run():
     len_0 = 100
     len_1 = 10
 
-    mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+    mesh = Mesh(dim_k=2, axis_types=["k", "k"])
     mesh.build_grid(shape=(len_0, len_1), k_endpoints=True)
     my_array = WFArray(my_model.lattice, mesh)
     my_array.solve_model(my_model)
@@ -62,11 +63,9 @@ def run():
         hwfcs.append(ribbon_model.position_hwf(occ_evec, pos_dir=1))
 
     hwfcs = np.array(hwfcs, dtype=object)
-    rib_eval = rib_eval.T # transpose in v2
+    rib_eval = rib_eval.T  # transpose in v2
     jump_k = np.array(jump_k, dtype=object)
     pos_exps = np.array(pos_exps, dtype=object)
     phi_1 = np.array(phi_1, dtype=object)
 
     return phi_1, rib_eval, jump_k, pos_exps, hwfcs
-       
-

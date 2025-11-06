@@ -1,6 +1,7 @@
 import numpy as np
 from pythtb import TBModel, Lattice
 
+
 def graphene_model():
     lat = [[1.0, 0.0], [0.5, np.sqrt(3.0) / 2.0]]
     orb = [[1.0 / 3.0, 1.0 / 3.0], [2.0 / 3.0, 2.0 / 3.0]]
@@ -8,6 +9,7 @@ def graphene_model():
     my_model = TBModel(lattice=lattice)
 
     return my_model
+
 
 def run():
     my_model = graphene_model()
@@ -23,9 +25,7 @@ def run():
     path = [[0.0, 0.0], [2.0 / 3.0, 1.0 / 3.0], [0.5, 0.5], [0.0, 0.0]]
     nk = 121
     k_vec, _, _ = my_model.k_path(path, nk)
-   
+
     evals = my_model.solve_ham(k_vec)
 
     return evals
-
-

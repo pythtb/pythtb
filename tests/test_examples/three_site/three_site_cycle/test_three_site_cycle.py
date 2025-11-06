@@ -11,8 +11,9 @@ OUTPUTS = {
     "wannier_centers": "3site_cycle_wann_centers.npy",
     "flux": "3site_cycle_final.npy",
 }
-#NOTE: Replace with your expected output file name(s). Should be in order
+# NOTE: Replace with your expected output file name(s). Should be in order
 # of the results returned by run()
+
 
 @pytest.mark.parametrize("t, delta", [(-1, 2)])
 def test_example(t, delta):
@@ -28,7 +29,7 @@ def test_example(t, delta):
     for label, fname in OUTPUTS.items():
         path = os.path.join(os.path.dirname(__file__), OUTPUTDIR, fname)
         expected[label] = np.load(path)
-    
+
     # Get result from model
     results = run(t, delta)
     if not isinstance(results, (tuple, list)):
@@ -39,18 +40,20 @@ def test_example(t, delta):
         "last_pass": datetime.datetime.now().isoformat(),
         "pythtb_version": get_version("pythtb"),
         "python_version": platform.python_version(),
-        "status": "pass"
+        "status": "pass",
     }
-    
+
     if len(results) != len(OUTPUTS):
         entry["status"] = "fail"
         entry["reason"] = f"Expected {len(OUTPUTS)} outputs, got {len(results)}"
         raise AssertionError(entry["reason"])
     # Compare results with expected outputs
-    #NOTE: Modify to match your expected output structure
+    # NOTE: Modify to match your expected output structure
     try:
         for i, (label, fname) in enumerate(OUTPUTS.items()):
-            np.testing.assert_allclose(results[i], expected[label], rtol=1e-8, atol=1e-14)
+            np.testing.assert_allclose(
+                results[i], expected[label], rtol=1e-8, atol=1e-14
+            )
     except AssertionError as e:
         entry["status"] = "fail"
         entry["reason"] = f"Mismatch in {label}: {str(e)}"
@@ -74,9 +77,11 @@ def test_example(t, delta):
     if entry["status"] == "fail":
         raise AssertionError(entry["reason"])
 
+
 def get_version(pkg):
     try:
         import importlib.metadata as im
+
         return im.version(pkg)
-    except:
+    except Exception:
         return "unknown"

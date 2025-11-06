@@ -1,6 +1,7 @@
 import numpy as np
 from pythtb import TBModel, WFArray, Lattice, Mesh
 
+
 def graphene_model() -> TBModel:
     "Return a graphene-like model on a triangular lattice."
 
@@ -10,6 +11,7 @@ def graphene_model() -> TBModel:
     my_model = TBModel(lattice=lattice, spinful=False)
 
     return my_model
+
 
 def run():
     my_model: TBModel = graphene_model()
@@ -29,13 +31,13 @@ def run():
     # construct k-point coordinate on the path
     kpts = []
     for i in range(circ_step):
-        ang = 2*np.pi * i / (circ_step - 1)
+        ang = 2 * np.pi * i / (circ_step - 1)
         kpt = np.array([np.cos(ang) * circ_radius, np.sin(ang) * circ_radius])
         kpt += circ_center
         kpts.append(kpt)
     kpts = np.array(kpts)
 
-    mesh = Mesh(dim_k=2, axis_types=['k'])
+    mesh = Mesh(dim_k=2, axis_types=["k"])
     mesh.build_custom(kpts)
     w_circ = WFArray(my_model.lattice, mesh)
     w_circ.solve_model(my_model)
@@ -60,9 +62,9 @@ def run():
             kpt += square_center
             all_kpt[i, j, :] = kpt
 
-    mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+    mesh = Mesh(dim_k=2, axis_types=["k", "k"])
     mesh.build_custom(points=all_kpt)
-    print(mesh) 
+    print(mesh)
 
     w_square = WFArray(my_model.lattice, mesh)
     w_square.solve_model(my_model)
@@ -79,5 +81,5 @@ def run():
         berr_flux_square_0,
         berr_flux_square_1,
         berr_flux_square_01,
-        plaq
+        plaq,
     )

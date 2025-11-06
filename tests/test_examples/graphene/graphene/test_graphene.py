@@ -7,6 +7,7 @@ OUTPUTDIR = "golden_outputs"
 # of the results returned by run()
 OUTPUTS = {"evals": "evals.npy"}
 
+
 def test_example():
     example_dir = os.path.dirname(__file__)
     run = import_run(example_dir)
@@ -22,15 +23,11 @@ def test_example():
     if not isinstance(results, (tuple, list)):
         results = [results]
     if len(results) != len(OUTPUTS):
-        raise AssertionError(f"Expected {len(OUTPUTS)} outputs, got {len(results)}"
-                             )
-    
+        raise AssertionError(f"Expected {len(OUTPUTS)} outputs, got {len(results)}")
+
     # Compare results with expected outputs
     # NOTE: Modify to match your expected output structure
     for i, (label, fname) in enumerate(OUTPUTS.items()):
         evals = results[i]
-        evals = evals.T # tranpose for v2.0
-        np.testing.assert_allclose(
-            evals, expected[label], rtol=1e-8, atol=1e-14
-        )
-   
+        evals = evals.T  # tranpose for v2.0
+        np.testing.assert_allclose(evals, expected[label], rtol=1e-8, atol=1e-14)

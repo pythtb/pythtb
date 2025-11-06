@@ -1,12 +1,9 @@
-import os
 import argparse
-import datetime
-import json
-import platform
 from pathlib import Path
 import importlib.metadata
 
 BASE_DIR = Path(".")
+
 
 def get_version(pkg):
     try:
@@ -14,10 +11,12 @@ def get_version(pkg):
     except importlib.metadata.PackageNotFoundError:
         return "unknown"
 
+
 def write_file(path, content):
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         f.write(content)
+
 
 def create_example(group, name):
     example_dir = BASE_DIR / group / name
@@ -25,16 +24,21 @@ def create_example(group, name):
     golden_dir.mkdir(parents=True, exist_ok=True)
 
     # run.py
-    write_file(example_dir / "run.py", '''\
+    write_file(
+        example_dir / "run.py",
+        """\
 import numpy as np
 
 def run():
     # Replace this with your model + computation
     return np.array([0.0])  # Dummy output
-''')
+""",
+    )
 
     # test.py
-    write_file(example_dir / f"test_{name}.py", '''\
+    write_file(
+        example_dir / f"test_{name}.py",
+        """\
 import os
 import numpy as np
 from tests.utils import import_run
@@ -71,10 +75,13 @@ def test_example():
     for i, (label, fname) in enumerate(OUTPUTS.items()):
         np.testing.assert_allclose(results[i], expected[label], rtol=1e-8, atol=1e-14)
 
-''')
+""",
+    )
 
     # regen_golden_data.py
-    write_file(example_dir / "regen_golden_data.py", '''\
+    write_file(
+        example_dir / "regen_golden_data.py",
+        """\
 # regen_golden_data.py
 import os
 import numpy as np
@@ -119,16 +126,21 @@ def regenerate():
 
 if __name__ == "__main__":
     regenerate()
-''')
+""",
+    )
 
     print(f"✅ Created example: {group}/{name}")
 
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--group", required=True, help="Model group name (e.g. haldane)")
+    parser.add_argument(
+        "--group", required=True, help="Model group name (e.g. haldane)"
+    )
     parser.add_argument("--name", required=True, help="Example name (e.g. ex1)")
     args = parser.parse_args()
     create_example(args.group, args.name)
+
 
 if __name__ == "__main__":
     main()

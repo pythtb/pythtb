@@ -1,6 +1,7 @@
 import numpy as np
 from pythtb import TBModel, WFArray, Lattice, Mesh
 
+
 def set_model(delta, ta, tb):
     lat = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
     orb = [[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]]
@@ -14,14 +15,15 @@ def set_model(delta, ta, tb):
 
     return model
 
+
 def run():
-    delta = 1.0  
-    ta = 0.4  
-    tb = 0.7  
+    delta = 1.0
+    ta = 0.4
+    tb = 0.7
     bulk_model = set_model(delta, ta, tb)
 
-    nl = 9  
-    slab_model = bulk_model.cut_piece(nl, 2, glue_edges=False) 
+    nl = 9
+    slab_model = bulk_model.cut_piece(nl, 2, glue_edges=False)
     slab_model.remove_orb(2 * nl - 1)
 
     nk = 10
@@ -35,20 +37,21 @@ def run():
 
     nk = 9
     mesh = Mesh(dim_k=2, axis_types=["k", "k"])
-    mesh.build_grid(
-        shape=(nk, nk), 
-        k_endpoints=True
-        )
+    mesh.build_grid(shape=(nk, nk), k_endpoints=True)
     bloch_arr = WFArray(slab_model.lattice, mesh)
     bloch_arr.solve_model(slab_model)
-   
+
     hwf_arr = bloch_arr.empty_like(nstates=nl)
     hwfc = np.zeros([nk, nk, nl])
 
     for ix in range(nk):
         for iy in range(nk):
             (val, vec) = bloch_arr.position_hwf(
-                mesh_idx=[ix, iy], state_idx=list(range(nl)), pos_dir=2, hwf_evec=True, basis="orbital"
+                mesh_idx=[ix, iy],
+                state_idx=list(range(nl)),
+                pos_dir=2,
+                hwf_evec=True,
+                basis="orbital",
             )
             hwfc[ix, iy] = val
             hwf_arr[ix, iy] = vec

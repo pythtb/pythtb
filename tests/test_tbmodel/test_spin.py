@@ -5,8 +5,8 @@ sys.path.append("../")
 from pythtb import TBModel, Lattice
 from generic_run import generic_test_of_models
 
-def test_spin():
 
+def test_spin():
     # these are three equivalent models that should ideally behave in an equivalent way
 
     lat = [[3.0, 0.1, 0.4], [0.1, 3.1, 1.2], [0.8, 0.2, 3.5]]
@@ -21,7 +21,7 @@ def test_spin():
     lattice = Lattice(lat_vecs=lat, orb_vecs=orb, periodic_dirs=[0, 2])
     model0 = TBModel(lattice=lattice, spinful=False)
     model0.set_onsite([-2.3, -2.3, 0.5, 0.5, 0.1, 0.1])
-    
+
     model0.set_hop(0.11 + 0.41, 0 * 2 + 0, 1 * 2 + 0, [1, 0, 2])
     model0.set_hop(0.11 - 0.41, 0 * 2 + 1, 1 * 2 + 1, [1, 0, 2])
     model0.set_hop(0.21 - 0.31j, 0 * 2 + 0, 1 * 2 + 1, [1, 0, 2])

@@ -1,6 +1,5 @@
 from pythtb.tbmodel import *  # import TB model class
 import numpy as np
-import matplotlib.pyplot as plt
 
 
 def fu_kane_mele(t, soc, m, beta):

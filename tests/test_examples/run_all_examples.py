@@ -1,6 +1,6 @@
-import os
 import subprocess
 from pathlib import Path
+
 
 def find_tests():
     test_files = []
@@ -13,6 +13,7 @@ def find_tests():
             if test_file.exists():
                 test_files.append(test_file)
     return test_files
+
 
 def run_tests():
     test_files = find_tests()
@@ -28,6 +29,7 @@ def run_tests():
         else:
             print("✅ PASSED\n")
     print(f"=== {len(test_files) - failed} passed, {failed} failed ===")
+
 
 if __name__ == "__main__":
     run_tests()

@@ -11,12 +11,13 @@ SIGMA_Y = np.array([[0, -1j], [1j, 0]], dtype=complex)
 SIGMA_Z = np.array([[1, 0], [0, -1]], dtype=complex)
 SIGMAS = [SIGMA_0, SIGMA_X, SIGMA_Y, SIGMA_Z]
 
+
 @pytest.mark.parametrize("spinful", [False, True])
 def test_set_onsite(spinful):
     """
     Test the TBModel with nspin=1.
     """
-    latt = Lattice(lat_vecs=lat_vecs, orb_vecs=orbital_pos, periodic_dirs=[0,1,2])
+    latt = Lattice(lat_vecs=lat_vecs, orb_vecs=orbital_pos, periodic_dirs=[0, 1, 2])
     test_model = TBModel(lattice=latt, spinful=spinful)
 
     if not spinful:
@@ -47,6 +48,5 @@ def test_set_onsite(spinful):
         onsite_check = np.zeros((test_model.norb, 2, 2), dtype=complex)
         for i in range(len(onsite_values)):
             onsite_check[i] = onsite_values[i] * SIGMA_0
-        
-        assert np.allclose(test_model.onsite, onsite_check)
 
+        assert np.allclose(test_model.onsite, onsite_check)

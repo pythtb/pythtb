@@ -2,6 +2,7 @@ import numpy as np
 from pythtb import TBModel, Lattice
 from pythtb.utils import pauli_decompose
 
+
 def ssh(v, w):
     lat = [[1]]
     orb = [[0], [1]]
@@ -13,8 +14,9 @@ def ssh(v, w):
 
     return my_model
 
+
 def run():
-    v = -1         # intercell hopping
+    v = -1  # intercell hopping
     w_init = -0.5  # initial intracell hopping
 
     # define a path in k-space
@@ -28,11 +30,11 @@ def run():
     numerator = evecs[..., 1]
     denominator = evecs[..., 0]
     # Mask invalid (zero) denominators to avoid warnings
-    with np.errstate(divide='ignore', invalid='ignore'):
+    with np.errstate(divide="ignore", invalid="ignore"):
         phase_diff = np.angle(numerator / denominator)
         # Where both components are zero, set phase to NaN
         phase_diff[~np.isfinite(phase_diff)] = np.nan
-        
+
     # plot path of endpoints of d-vec in dx dy plane as wave-vector sweeps from 0 to 2pi
     d_vec = np.zeros((len(k_vec), 4), dtype=complex)
     for k in range(len(k_vec)):

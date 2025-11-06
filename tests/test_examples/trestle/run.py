@@ -1,5 +1,5 @@
-import numpy as np
 from pythtb import TBModel, Lattice
+
 
 def trestle_model():
     "Return a trestle-like model on a rectangular lattice."
@@ -11,6 +11,7 @@ def trestle_model():
     my_model = TBModel(lattice=lattice, spinful=False)
 
     return my_model
+
 
 def run():
     my_model = trestle_model()

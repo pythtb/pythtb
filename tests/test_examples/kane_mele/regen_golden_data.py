@@ -11,11 +11,13 @@ OUTPUTDIR = "golden_outputs"
 FILENAMES = ["kane_mele_evals.npy", "kane_mele_wan_cent.npy"]
 LOGFILE = os.path.join(os.path.dirname(__file__), OUTPUTDIR, "golden_log.json")
 
+
 def get_version(pkg):
     try:
         return importlib.metadata.version(pkg)
     except importlib.metadata.PackageNotFoundError:
         return "unknown"
+
 
 def regenerate():
     os.makedirs(OUTPUTDIR, exist_ok=True)
@@ -33,12 +35,13 @@ def regenerate():
         "filenames": FILENAMES,
         "generated_at": datetime.datetime.now().isoformat(),
         "python_version": platform.python_version(),
-        "pythtb_version": get_version("pythtb")
+        "pythtb_version": get_version("pythtb"),
     }
     with open(LOGFILE, "w") as f:
         json.dump(metadata, f, indent=4)
 
     print("✅ Golden data regenerated:", FILENAMES)
+
 
 if __name__ == "__main__":
     regenerate()

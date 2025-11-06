@@ -10,12 +10,11 @@ OUTPUTDIR = "golden_outputs"
 OUTPUTS = {
     "fluxes": "3site_cycle_fluxes.npy",
     "evals": "3site_cycle_fin_evals.npy",
-    "xexp": "3site_cycle_fin_xexp.npy"
+    "xexp": "3site_cycle_fin_xexp.npy",
 }
 
-@pytest.mark.parametrize("t, delta", [
-    (-1.3, 2.0)
-])
+
+@pytest.mark.parametrize("t, delta", [(-1.3, 2.0)])
 def test_example(t, delta):
     example_dir = os.path.dirname(__file__)
     run = import_run(example_dir)
@@ -40,12 +39,14 @@ def test_example(t, delta):
         "last_pass": datetime.datetime.now().isoformat(),
         "pythtb_version": get_version("pythtb"),
         "python_version": platform.python_version(),
-        "status": "pass"
+        "status": "pass",
     }
 
     try:
         for i, (label, fname) in enumerate(OUTPUTS.items()):
-            np.testing.assert_allclose(results[i], expected[label], rtol=1e-8, atol=1e-14)
+            np.testing.assert_allclose(
+                results[i], expected[label], rtol=1e-8, atol=1e-14
+            )
     except AssertionError as e:
         entry["status"] = "fail"
         entry["reason"] = f"Mismatch in {label}: {str(e)}"
@@ -69,9 +70,11 @@ def test_example(t, delta):
     if entry["status"] == "fail":
         raise AssertionError(entry["reason"])
 
+
 def get_version(pkg):
     try:
         import importlib.metadata as im
+
         return im.version(pkg)
-    except:
+    except Exception:
         return "unknown"

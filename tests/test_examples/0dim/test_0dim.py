@@ -6,7 +6,8 @@ import platform
 from tests.utils import import_run
 
 OUTPUTDIR = "golden_outputs"
-OUTPUTNAME = "evals.npy" #NOTE: Replace with your expected output file name
+OUTPUTNAME = "evals.npy"  # NOTE: Replace with your expected output file name
+
 
 def test_example():
     example_dir = os.path.dirname(__file__)
@@ -22,10 +23,10 @@ def test_example():
         "last_pass": datetime.datetime.now().isoformat(),
         "pythtb_version": get_version("pythtb"),
         "python_version": platform.python_version(),
-        "status": "pass"
+        "status": "pass",
     }
 
-    #NOTE: Modify as needed to handle golden data and generated data 
+    # NOTE: Modify as needed to handle golden data and generated data
     expected = np.load(golden_path)
     result = run()
     try:
@@ -53,9 +54,11 @@ def test_example():
     if entry["status"] == "fail":
         raise AssertionError(entry["reason"])
 
+
 def get_version(pkg):
     try:
         import importlib.metadata as im
+
         return im.version(pkg)
     except Exception:
         return "unknown"

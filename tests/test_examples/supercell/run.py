@@ -1,6 +1,7 @@
 import numpy as np
 from pythtb import TBModel, Lattice
 
+
 def run():
     lat = [[1.0, 0.0], [0.5, np.sqrt(3.0) / 2.0]]
     orb = [[1.0 / 3.0, 1.0 / 3.0], [2.0 / 3.0, 2.0 / 3.0]]
@@ -22,7 +23,6 @@ def run():
 
     (k_vec, k_dist, k_node) = slab_model.k_path("full", 100)
     evals = slab_model.solve_ham(k_vec)
-    evals = evals.T # transpose for v2
+    evals = evals.T  # transpose for v2
 
     return evals
-

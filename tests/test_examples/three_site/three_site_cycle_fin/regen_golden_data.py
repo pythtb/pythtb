@@ -8,14 +8,20 @@ import importlib.metadata
 from run import run
 
 OUTPUTDIR = "golden_outputs"
-FILENAMES = ["3site_cycle_fluxes.npy", "3site_cycle_fin_evals.npy", "3site_cycle_fin_xexp.npy"]
+FILENAMES = [
+    "3site_cycle_fluxes.npy",
+    "3site_cycle_fin_evals.npy",
+    "3site_cycle_fin_xexp.npy",
+]
 LOGFILE = os.path.join(os.path.dirname(__file__), OUTPUTDIR, "golden_log.json")
+
 
 def get_version(pkg):
     try:
         return importlib.metadata.version(pkg)
     except importlib.metadata.PackageNotFoundError:
         return "unknown"
+
 
 def regenerate():
     os.makedirs(OUTPUTDIR, exist_ok=True)
@@ -33,12 +39,13 @@ def regenerate():
         "filenames": FILENAMES,
         "generated_at": datetime.datetime.now().isoformat(),
         "python_version": platform.python_version(),
-        "pythtb_version": get_version("pythtb")
+        "pythtb_version": get_version("pythtb"),
     }
     with open(LOGFILE, "w") as f:
         json.dump(metadata, f, indent=4)
 
     print("✅ Golden data regenerated:", FILENAMES)
+
 
 if __name__ == "__main__":
     regenerate()

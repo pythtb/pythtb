@@ -1,6 +1,6 @@
 import numpy as np
-import pytest
 from pythtb import Lattice, Mesh, WFArray
+
 
 def make_1d_wfa(include_endpoint: bool) -> WFArray:
     """Utility that builds a minimal 1D WFArray with one orbital."""
@@ -8,6 +8,7 @@ def make_1d_wfa(include_endpoint: bool) -> WFArray:
     mesh = Mesh(dim_k=1, axis_types=["k"])
     mesh.build_grid([4], k_endpoints=include_endpoint)
     return WFArray(lattice, mesh)
+
 
 def test_setitem_does_not_touch_open_axis():
     """Updating an open axis should not modify the opposite edge."""

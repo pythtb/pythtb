@@ -1,6 +1,7 @@
 import numpy as np
 from pythtb import TBModel, Lattice
 
+
 def run():
     lat = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
     sq32 = np.sqrt(3.0) / 2.0

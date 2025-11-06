@@ -1,6 +1,7 @@
 import numpy as np
 from pythtb import Lattice, Mesh, TBModel, WFArray
 
+
 def bn_model(t, delta):
     lat = [[1.0, 0.0], [0.5, np.sqrt(3.0) / 2.0]]
     orb = [[1.0 / 3.0, 1.0 / 3.0], [2.0 / 3.0, 2.0 / 3.0]]
@@ -12,6 +13,7 @@ def bn_model(t, delta):
     my_model.set_hop(t, 1, 0, [0, 1])
     return my_model
 
+
 def run():
     t = -1.0
     delta = 0.4
@@ -21,7 +23,7 @@ def run():
     nk = 40
     n_occ = model_orig.nstate // 2
 
-    mesh = Mesh(1, ['k'])
+    mesh = Mesh(1, ["k"])
     mesh.build_grid([nk])
 
     wfa = WFArray(lattice=model_orig.lattice, mesh=mesh)

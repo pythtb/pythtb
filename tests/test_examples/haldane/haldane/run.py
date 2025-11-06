@@ -1,6 +1,7 @@
 import numpy as np
 from pythtb import TBModel, Lattice
 
+
 def haldane_model():
     lat = [[1.0, 0.0], [0.5, np.sqrt(3.0) / 2.0]]
     orb = [[1.0 / 3.0, 1.0 / 3.0], [2.0 / 3.0, 2.0 / 3.0]]
@@ -26,9 +27,10 @@ def haldane_model():
 
     return my_model
 
+
 def run():
-    my_model = haldane_model() 
-    
+    my_model = haldane_model()
+
     path = [
         [0.0, 0.0],
         [2.0 / 3.0, 1.0 / 3.0],
@@ -46,6 +48,6 @@ def run():
         for j in range(kmesh):
             kpts.append([float(i) / float(kmesh), float(j) / float(kmesh)])
     evals_dos = my_model.solve_ham(kpts)
-    evals_dos = evals_dos.T.flatten() # tranpose in v2 (to match golden data from v1.8)
+    evals_dos = evals_dos.T.flatten()  # tranpose in v2 (to match golden data from v1.8)
 
     return evals.T, evals_dos

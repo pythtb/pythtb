@@ -1,24 +1,24 @@
 {
     "0dim": {
-        "last_pass": "2025-11-04T04:09:42.771506",
+        "last_pass": "2025-11-06T00:19:51.397711",
         "pythtb_version": "2.0.0.post225+gd86c3dbcf",
         "python_version": "3.12.11",
         "status": "pass"
     },
     "cubic_slab_hwf": {
-        "last_pass": "2025-11-04T04:09:42.960637",
+        "last_pass": "2025-11-06T00:19:51.557213",
         "pythtb_version": "2.0.0.post225+gd86c3dbcf",
         "python_version": "3.12.11",
         "status": "pass"
     },
     "supercell": {
-        "last_pass": "2025-11-04T04:09:44.487072",
+        "last_pass": "2025-11-06T00:19:52.942989",
         "pythtb_version": "2.0.0.post225+gd86c3dbcf",
         "python_version": "3.12.11",
         "status": "pass"
     },
     "kane_mele": {
-        "last_pass": "2025-11-04T04:09:44.352500",
+        "last_pass": "2025-11-06T00:19:52.827848",
         "pythtb_version": "2.0.0.post225+gd86c3dbcf",
         "python_version": "3.12.11",
         "status": "pass"

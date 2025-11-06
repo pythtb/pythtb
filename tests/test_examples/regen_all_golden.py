@@ -1,11 +1,13 @@
-import os
 import shutil
 import subprocess
 from pathlib import Path
 import datetime
 
 base_dir = Path("tests/test_examples")
-backup_dir = Path("golden_backups") / datetime.datetime.now().strftime("backup_%Y%m%d_%H%M%S")
+backup_dir = Path("golden_backups") / datetime.datetime.now().strftime(
+    "backup_%Y%m%d_%H%M%S"
+)
+
 
 def backup_golden_outputs():
     print(f"\n📦 Backing up all golden_outputs/ to {backup_dir}")
@@ -20,6 +22,7 @@ def backup_golden_outputs():
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copytree(golden, dest, dirs_exist_ok=True)
     print("✅ Backup complete.\n")
+
 
 def regenerate_all():
     print("🔁 Regenerating golden data for all examples...\n")
@@ -37,6 +40,7 @@ def regenerate_all():
                 except subprocess.CalledProcessError as e:
                     print(f"❌ Failed: {e}")
     print(f"\n✅ Regenerated golden data for {count} examples.\n")
+
 
 if __name__ == "__main__":
     backup_golden_outputs()

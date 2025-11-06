@@ -1,6 +1,6 @@
 # 📋 Test Status Report
 
-Last updated on **2025-11-05 at 12:51:01**
+Last updated on **2025-11-06 at 00:20:58**
 
 ---
 
@@ -8,149 +8,149 @@ Last updated on **2025-11-05 at 12:51:01**
   - **test_examples/**
     - **0dim/**
       - **test_0dim/**
-        - ✅ `test_example` — *2025-11-04 04:10:07*
+        - ✅ `test_example` — *2025-11-06 00:20:13*
     - **bn_ribbon_berry/**
       - **test_bn_ribbon_berry/**
-        - ✅ `test_example` — *2025-11-04 04:10:07*
+        - ✅ `test_example` — *2025-11-06 00:20:13*
     - **buckled_layer/**
       - **test_buckled_layer/**
-        - ✅ `test_example` — *2025-11-04 04:10:07*
+        - ✅ `test_example` — *2025-11-06 00:20:13*
     - **checkerboard/**
       - **test_checkerboard/**
-        - ✅ `test_example` — *2025-11-04 04:10:07*
+        - ✅ `test_example` — *2025-11-06 00:20:13*
     - **cubic_slab_hwf/**
       - **test_cubic_slab_hwf/**
-        - ✅ `test_example` — *2025-11-04 04:10:07*
+        - ✅ `test_example` — *2025-11-06 00:20:13*
     - **graphene/**
       - **cone/**
         - **test_cone/**
-          - ✅ `test_example` — *2025-11-04 04:10:07*
+          - ✅ `test_example` — *2025-11-06 00:20:13*
         - **test_cone_hardcode/**
-          - ✅ `test_answer` — *2025-11-04 04:10:07*
+          - ✅ `test_answer` — *2025-11-06 00:20:13*
       - **graphene/**
         - **test_graphene/**
-          - ✅ `test_example` — *2025-11-04 04:10:07*
+          - ✅ `test_example` — *2025-11-06 00:20:13*
     - **haldane/**
       - **edge/**
         - **test_edge/**
-          - ✅ `test_example` — *2025-11-04 04:10:07*
+          - ✅ `test_example` — *2025-11-06 00:20:13*
       - **haldane/**
         - **test_haldane/**
-          - ✅ `test_example` — *2025-11-04 04:10:07*
+          - ✅ `test_example` — *2025-11-06 00:20:13*
       - **haldane_bp/**
         - **test_haldane_bp/**
-          - ✅ `test_example` — *2025-11-04 04:10:07*
+          - ✅ `test_example` — *2025-11-06 00:20:13*
       - **haldane_fin/**
         - **test_haldane_fin/**
-          - ✅ `test_example` — *2025-11-04 04:10:07*
+          - ✅ `test_example` — *2025-11-06 00:20:13*
       - **haldane_hwf/**
         - **test_haldane_hwf/**
-          - ✅ `test_example` — *2025-11-04 04:10:07*
+          - ✅ `test_example` — *2025-11-06 00:20:13*
     - **kane_mele/**
       - **test_kane_mele/**
-        - ✅ `test_example` — *2025-11-04 04:10:07*
+        - ✅ `test_example` — *2025-11-06 00:20:13*
     - **simple/**
       - **test_simple/**
-        - ✅ `test_example` — *2025-11-04 04:10:07*
+        - ✅ `test_example` — *2025-11-06 00:20:13*
     - **ssh/**
       - **test_ssh/**
-        - ✅ `test_example` — *2025-11-04 04:10:07*
+        - ✅ `test_example` — *2025-11-06 00:20:13*
     - **supercell/**
       - **test_supercell/**
-        - ✅ `test_example` — *2025-11-04 04:10:07*
+        - ✅ `test_example` — *2025-11-06 00:20:13*
     - **three_site/**
       - **three_site_cycle/**
         - **test_three_site_cycle/**
-          - ✅ `test_example[-1-2]` — *2025-11-04 04:10:07*
+          - ✅ `test_example[-1-2]` — *2025-11-06 00:20:13*
       - **three_site_cycle_fin/**
         - **test_three_site_cycle_fin/**
-          - ✅ `test_example[-1.3-2.0]` — *2025-11-04 04:10:07*
+          - ✅ `test_example[-1.3-2.0]` — *2025-11-06 00:20:13*
     - **trestle/**
       - **test_trestle/**
-        - ✅ `test_example` — *2025-11-04 04:10:07*
+        - ✅ `test_example` — *2025-11-06 00:20:13*
   - **test_lattice/**
     - **test_lattice_init/**
-      - ✅ `test_all_shortcuts[all]` — *2025-11-05 12:50:58*
-      - ✅ `test_all_shortcuts[shortcut0]` — *2025-11-05 12:50:58*
-      - ✅ `test_default_is_finite` — *2025-11-05 03:44:54*
-      - ✅ `test_explicit_empty_list_is_allowed` — *2025-11-05 03:47:31*
-      - ✅ `test_invalid_periodic_index_raises` — *2025-11-05 03:47:48*
-      - ✅ `test_periodic_dirs_setter_recomputes_reciprocal` — *2025-11-05 03:48:34*
+      - ✅ `test_all_shortcuts[all]` — *2025-11-06 00:20:13*
+      - ✅ `test_all_shortcuts[shortcut0]` — *2025-11-06 00:20:13*
+      - ✅ `test_default_is_finite` — *2025-11-06 00:20:13*
+      - ✅ `test_explicit_empty_list_is_allowed` — *2025-11-06 00:20:13*
+      - ✅ `test_invalid_periodic_index_raises` — *2025-11-06 00:20:13*
+      - ✅ `test_periodic_dirs_setter_recomputes_reciprocal` — *2025-11-06 00:20:13*
   - **test_tbmodel/**
     - **test_different_modes/**
-      - ✅ `test_modes` — *2025-11-04 04:10:07*
+      - ✅ `test_modes` — *2025-11-06 00:20:13*
     - **test_dimr_dimk_different/**
-      - ✅ `test_slab` — *2025-11-04 04:10:07*
+      - ✅ `test_slab` — *2025-11-06 00:20:13*
     - **test_ham_vel/**
-      - ✅ `test_hamiltonian_spinful` — *2025-11-04 04:10:07*
-      - ✅ `test_hamiltonian_spinless` — *2025-11-04 04:10:07*
-      - ✅ `test_velocity_parametric_fkm` — *2025-11-04 04:10:07*
-      - ✅ `test_velocity_parametric_ssh` — *2025-11-04 04:10:07*
+      - ✅ `test_hamiltonian_spinful` — *2025-11-06 00:20:13*
+      - ✅ `test_hamiltonian_spinless` — *2025-11-06 00:20:13*
+      - ✅ `test_velocity_parametric_fkm` — *2025-11-06 00:20:13*
+      - ✅ `test_velocity_parametric_ssh` — *2025-11-06 00:20:13*
     - **test_initialization/**
-      - ✅ `test_origin_orbs[periodic_dirs0-lat_vecs0-0-False]` — *2025-11-04 04:10:07*
-      - ✅ `test_origin_orbs[periodic_dirs1-lat_vecs1-5-False]` — *2025-11-04 04:10:07*
-      - ✅ `test_origin_orbs[periodic_dirs2-lat_vecs2-4-False]` — *2025-11-04 04:10:07*
-      - ✅ `test_origin_orbs[periodic_dirs3-lat_vecs3-0-True]` — *2025-11-04 04:10:07*
-      - ✅ `test_origin_orbs[periodic_dirs4-lat_vecs4-10-True]` — *2025-11-04 04:10:07*
-      - ✅ `test_origin_orbs[periodic_dirs5-lat_vecs5-1-True]` — *2025-11-04 04:10:07*
-      - ✅ `test_origin_orbs[periodic_dirs6-lat_vecs6-1-1]` — *2025-11-04 04:10:07*
-      - ✅ `test_origin_orbs[periodic_dirs7-lat_vecs7-2-1]` — *2025-11-04 04:10:07*
-      - ✅ `test_origin_orbs[periodic_dirs8-lat_vecs8-4-False]` — *2025-11-04 04:10:07*
-      - ✅ `test_origin_orbs[periodic_dirs9-lat_vecs9-2-False]` — *2025-11-04 04:10:07*
-      - ✅ `test_tbmodel_initialization[periodic_dirs0-lat_vecs0-orbital_pos0-False]` — *2025-11-04 04:10:07*
-      - ✅ `test_tbmodel_initialization[periodic_dirs1-lat_vecs1-orbital_pos1-False]` — *2025-11-04 04:10:07*
-      - ✅ `test_tbmodel_initialization[periodic_dirs10-lat_vecs10-orbital_pos10-True]` — *2025-11-04 04:10:07*
-      - ✅ `test_tbmodel_initialization[periodic_dirs11-lat_vecs11-orbital_pos11-True]` — *2025-11-04 04:10:07*
-      - ✅ `test_tbmodel_initialization[periodic_dirs12-lat_vecs12-orbital_pos12-True]` — *2025-11-04 04:10:07*
-      - ✅ `test_tbmodel_initialization[periodic_dirs13-lat_vecs13-orbital_pos13-True]` — *2025-11-04 04:10:07*
-      - ✅ `test_tbmodel_initialization[periodic_dirs2-lat_vecs2-orbital_pos2-False]` — *2025-11-04 04:10:07*
-      - ✅ `test_tbmodel_initialization[periodic_dirs3-lat_vecs3-orbital_pos3-False]` — *2025-11-04 04:10:07*
-      - ✅ `test_tbmodel_initialization[periodic_dirs4-lat_vecs4-orbital_pos4-False]` — *2025-11-04 04:10:07*
-      - ✅ `test_tbmodel_initialization[periodic_dirs5-lat_vecs5-orbital_pos5-False]` — *2025-11-04 04:10:07*
-      - ✅ `test_tbmodel_initialization[periodic_dirs6-lat_vecs6-orbital_pos6-False]` — *2025-11-04 04:10:07*
-      - ✅ `test_tbmodel_initialization[periodic_dirs7-lat_vecs7-orbital_pos7-True]` — *2025-11-04 04:10:07*
-      - ✅ `test_tbmodel_initialization[periodic_dirs8-lat_vecs8-orbital_pos8-True]` — *2025-11-04 04:10:07*
-      - ✅ `test_tbmodel_initialization[periodic_dirs9-lat_vecs9-orbital_pos9-True]` — *2025-11-04 04:10:07*
+      - ✅ `test_origin_orbs[periodic_dirs0-lat_vecs0-0-False]` — *2025-11-06 00:20:13*
+      - ✅ `test_origin_orbs[periodic_dirs1-lat_vecs1-5-False]` — *2025-11-06 00:20:13*
+      - ✅ `test_origin_orbs[periodic_dirs2-lat_vecs2-4-False]` — *2025-11-06 00:20:13*
+      - ✅ `test_origin_orbs[periodic_dirs3-lat_vecs3-0-True]` — *2025-11-06 00:20:13*
+      - ✅ `test_origin_orbs[periodic_dirs4-lat_vecs4-10-True]` — *2025-11-06 00:20:13*
+      - ✅ `test_origin_orbs[periodic_dirs5-lat_vecs5-1-True]` — *2025-11-06 00:20:13*
+      - ✅ `test_origin_orbs[periodic_dirs6-lat_vecs6-1-1]` — *2025-11-06 00:20:13*
+      - ✅ `test_origin_orbs[periodic_dirs7-lat_vecs7-2-1]` — *2025-11-06 00:20:13*
+      - ✅ `test_origin_orbs[periodic_dirs8-lat_vecs8-4-False]` — *2025-11-06 00:20:13*
+      - ✅ `test_origin_orbs[periodic_dirs9-lat_vecs9-2-False]` — *2025-11-06 00:20:13*
+      - ✅ `test_tbmodel_initialization[periodic_dirs0-lat_vecs0-orbital_pos0-False]` — *2025-11-06 00:20:13*
+      - ✅ `test_tbmodel_initialization[periodic_dirs1-lat_vecs1-orbital_pos1-False]` — *2025-11-06 00:20:13*
+      - ✅ `test_tbmodel_initialization[periodic_dirs10-lat_vecs10-orbital_pos10-True]` — *2025-11-06 00:20:13*
+      - ✅ `test_tbmodel_initialization[periodic_dirs11-lat_vecs11-orbital_pos11-True]` — *2025-11-06 00:20:13*
+      - ✅ `test_tbmodel_initialization[periodic_dirs12-lat_vecs12-orbital_pos12-True]` — *2025-11-06 00:20:13*
+      - ✅ `test_tbmodel_initialization[periodic_dirs13-lat_vecs13-orbital_pos13-True]` — *2025-11-06 00:20:13*
+      - ✅ `test_tbmodel_initialization[periodic_dirs2-lat_vecs2-orbital_pos2-False]` — *2025-11-06 00:20:13*
+      - ✅ `test_tbmodel_initialization[periodic_dirs3-lat_vecs3-orbital_pos3-False]` — *2025-11-06 00:20:13*
+      - ✅ `test_tbmodel_initialization[periodic_dirs4-lat_vecs4-orbital_pos4-False]` — *2025-11-06 00:20:13*
+      - ✅ `test_tbmodel_initialization[periodic_dirs5-lat_vecs5-orbital_pos5-False]` — *2025-11-06 00:20:13*
+      - ✅ `test_tbmodel_initialization[periodic_dirs6-lat_vecs6-orbital_pos6-False]` — *2025-11-06 00:20:13*
+      - ✅ `test_tbmodel_initialization[periodic_dirs7-lat_vecs7-orbital_pos7-True]` — *2025-11-06 00:20:13*
+      - ✅ `test_tbmodel_initialization[periodic_dirs8-lat_vecs8-orbital_pos8-True]` — *2025-11-06 00:20:13*
+      - ✅ `test_tbmodel_initialization[periodic_dirs9-lat_vecs9-orbital_pos9-True]` — *2025-11-06 00:20:13*
     - **test_invariants_tbmodel/**
-      - ✅ `test_berry_curvature_second_chern` — *2025-11-04 04:10:07*
-      - ✅ `test_chern_haldane` — *2025-11-04 04:10:07*
+      - ✅ `test_berry_curvature_second_chern` — *2025-11-06 00:20:13*
+      - ✅ `test_chern_haldane` — *2025-11-06 00:20:13*
     - **test_non_periodic/**
-      - ✅ `test_centers` — *2025-11-04 04:10:07*
+      - ✅ `test_centers` — *2025-11-06 00:20:58*
     - **test_parameterize/**
-      - ✅ `test_parameter_normalization` — *2025-11-04 04:10:07*
-      - ✅ `test_ribbon` — *2025-11-04 04:10:07*
+      - ✅ `test_parameter_normalization` — *2025-11-06 00:20:13*
+      - ✅ `test_ribbon` — *2025-11-06 00:20:13*
     - **test_set_onsite/**
-      - ✅ `test_set_onsite[False]` — *2025-11-04 04:10:07*
-      - ✅ `test_set_onsite[True]` — *2025-11-04 04:10:07*
+      - ✅ `test_set_onsite[False]` — *2025-11-06 00:20:13*
+      - ✅ `test_set_onsite[True]` — *2025-11-06 00:20:13*
     - **test_spin/**
-      - ✅ `test_spin` — *2025-11-04 04:10:07*
+      - ✅ `test_spin` — *2025-11-06 00:20:13*
   - **test_wfarray/**
     - **test_invariants_wfa/**
-      - ✅ `test_chern_haldane[False]` — *2025-11-04 04:10:07*
-      - ✅ `test_chern_haldane[True]` — *2025-11-04 04:10:07*
+      - ✅ `test_chern_haldane[False]` — *2025-11-06 00:20:13*
+      - ✅ `test_chern_haldane[True]` — *2025-11-06 00:20:13*
     - **test_links/**
       - ✅ `test_berry_connection` — *2025-11-04 00:49:34*
-      - ✅ `test_berry_connection[-1.0]` — *2025-11-04 04:10:07*
-      - ✅ `test_berry_connection[-2.0]` — *2025-11-04 04:10:07*
-      - ✅ `test_berry_connection[0.0]` — *2025-11-04 04:10:07*
-      - ✅ `test_berry_connection[1.0]` — *2025-11-04 04:10:07*
-      - ✅ `test_berry_connection[2.0]` — *2025-11-04 04:10:07*
-      - ✅ `test_berry_connection_cartesian_step` — *2025-11-04 04:18:33*
+      - ✅ `test_berry_connection[-1.0]` — *2025-11-06 00:20:13*
+      - ✅ `test_berry_connection[-2.0]` — *2025-11-06 00:20:13*
+      - ✅ `test_berry_connection[0.0]` — *2025-11-06 00:20:13*
+      - ✅ `test_berry_connection[1.0]` — *2025-11-06 00:20:13*
+      - ✅ `test_berry_connection[2.0]` — *2025-11-06 00:20:13*
+      - ✅ `test_berry_connection_cartesian_step` — *2025-11-06 00:20:13*
       - ✅ `test_berry_connection_finite_diff` — *2025-11-04 01:12:40*
-      - ✅ `test_berry_connection_finite_diff[-1.0]` — *2025-11-04 04:10:07*
-      - ✅ `test_berry_connection_finite_diff[-2.0]` — *2025-11-04 04:10:07*
-      - ✅ `test_berry_connection_finite_diff[0.0]` — *2025-11-04 04:10:07*
-      - ✅ `test_berry_connection_finite_diff[1.0]` — *2025-11-04 04:10:07*
-      - ✅ `test_berry_connection_finite_diff[2.0]` — *2025-11-04 04:10:07*
-      - ✅ `test_berry_connection_hermiticity` — *2025-11-04 04:10:30*
-      - ✅ `test_berry_connection_invalid_state_idx` — *2025-11-04 04:10:21*
-      - ✅ `test_links_periodic_without_endpoints` — *2025-11-04 04:10:07*
-      - ✅ `test_links_zero_out_closed_endpoint` — *2025-11-04 04:10:07*
+      - ✅ `test_berry_connection_finite_diff[-1.0]` — *2025-11-06 00:20:13*
+      - ✅ `test_berry_connection_finite_diff[-2.0]` — *2025-11-06 00:20:13*
+      - ✅ `test_berry_connection_finite_diff[0.0]` — *2025-11-06 00:20:13*
+      - ✅ `test_berry_connection_finite_diff[1.0]` — *2025-11-06 00:20:13*
+      - ✅ `test_berry_connection_finite_diff[2.0]` — *2025-11-06 00:20:13*
+      - ✅ `test_berry_connection_hermiticity` — *2025-11-06 00:20:13*
+      - ✅ `test_berry_connection_invalid_state_idx` — *2025-11-06 00:20:13*
+      - ✅ `test_links_periodic_without_endpoints` — *2025-11-06 00:20:13*
+      - ✅ `test_links_zero_out_closed_endpoint` — *2025-11-06 00:20:13*
       - ✅ `test_set_states_enforces_closed_axis_phase` — *2025-11-04 01:07:43*
       - ✅ `test_setitem_does_not_touch_open_axis` — *2025-11-04 01:07:43*
     - **test_wfa_init/**
-      - ✅ `test_wfa_initialization` — *2025-11-04 04:10:07*
-      - ✅ `test_wfa_initialization_spinful` — *2025-11-04 04:10:07*
+      - ✅ `test_wfa_initialization` — *2025-11-06 00:20:13*
+      - ✅ `test_wfa_initialization_spinful` — *2025-11-06 00:20:13*
     - **test_wfa_mutation/**
-      - ✅ `test_set_states_enforces_closed_axis_phase` — *2025-11-04 04:10:07*
-      - ✅ `test_setitem_does_not_touch_open_axis` — *2025-11-04 04:10:07*
+      - ✅ `test_set_states_enforces_closed_axis_phase` — *2025-11-06 00:20:13*
+      - ✅ `test_setitem_does_not_touch_open_axis` — *2025-11-06 00:20:13*

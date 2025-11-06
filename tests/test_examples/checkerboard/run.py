@@ -1,5 +1,5 @@
-import numpy as np
 from pythtb import TBModel, Lattice
+
 
 def checkerboard_model():
     "Return a checkerboard model on a rectangular lattice."
@@ -8,6 +8,7 @@ def checkerboard_model():
     lattice = Lattice(lat_vecs=lat, orb_vecs=orb, periodic_dirs=[0, 1])
     my_model = TBModel(lattice=lattice, spinful=False)
     return my_model
+
 
 def run():
     my_model = checkerboard_model()

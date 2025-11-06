@@ -20,7 +20,7 @@ def test_all_shortcuts(shortcut):
     )
     assert lat.periodic_dirs == [0, 1]
     assert lat.dim_k == 2
-    np.testing.assert_array_equal(lat.recip_lat_vecs, 2*np.pi*np.eye(2))
+    np.testing.assert_array_equal(lat.recip_lat_vecs, 2 * np.pi * np.eye(2))
 
 
 def test_explicit_empty_list_is_allowed():
@@ -50,8 +50,10 @@ def test_periodic_dirs_setter_recomputes_reciprocal():
         orb_vecs=[[0.0, 0.0]],
         periodic_dirs=[0],
     )
-    np.testing.assert_allclose(lat.recip_lat_vecs, 2*np.pi*np.array([[0.5, 0.0]]))
+    np.testing.assert_allclose(lat.recip_lat_vecs, 2 * np.pi * np.array([[0.5, 0.0]]))
 
     lat.periodic_dirs = [0, 1]
-    np.testing.assert_allclose(lat.recip_lat_vecs, 2*np.pi*np.array([[0.5, 0.0], [0.0, 1.0]]))
+    np.testing.assert_allclose(
+        lat.recip_lat_vecs, 2 * np.pi * np.array([[0.5, 0.0], [0.0, 1.0]])
+    )
     assert lat.dim_k == 2

@@ -1,5 +1,5 @@
-import numpy as np
 from pythtb import Lattice, TBModel
+
 
 def buckled_model():
     "Return a buckled layer model on a rectangular lattice."
@@ -8,9 +8,10 @@ def buckled_model():
     orb = [[0.0, 0.0, -0.15], [0.5, 0.5, 0.15]]
 
     lattice = Lattice(lat_vecs=lat, orb_vecs=orb, periodic_dirs=[0, 1])
-    model = TBModel(lattice=lattice, spinful=False) 
+    model = TBModel(lattice=lattice, spinful=False)
 
     return model
+
 
 def run():
     my_model = buckled_model()

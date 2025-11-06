@@ -34,14 +34,17 @@ def test_centers():
     num_wire = 3
 
     # compute berry phases for the bottom band along both directions
-    mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+    mesh = Mesh(dim_k=2, axis_types=["k", "k"])
     mesh.build_grid([numk, 100])
     bulk_array = WFArray(bulk_model.lattice, mesh, spinful=bulk_model.spinful)
     bulk_array.solve_model(bulk_model)
-    bulk_array.solve_on_grid([0.0, 0.0])
     # (skip last kpoints to avoid double counting)
-    bulk_phase_0 = np.mean(bulk_array.berry_phase(state_idx=[0], axis_idx=0, contin=True)[:-1])
-    bulk_phase_1 = np.mean(bulk_array.berry_phase(state_idx=[0], axis_idx=1, contin=True)[:-1])
+    bulk_phase_0 = np.mean(
+        bulk_array.berry_phase(state_idx=[0], axis_idx=0, contin=True)[:-1]
+    )
+    bulk_phase_1 = np.mean(
+        bulk_array.berry_phase(state_idx=[0], axis_idx=1, contin=True)[:-1]
+    )
     # charge center
     bulk_location = (bulk_phase_0 / (2.0 * np.pi)) * bulk_model.lat_vecs[0] + (
         bulk_phase_1 / (2.0 * np.pi)
@@ -68,16 +71,18 @@ def test_centers():
     bulk_location_three = bulk_location_three / float(num_wire)
 
     # now enlarge model along direction 1
-    sc_model = bulk_model.make_supercell(
-        [[1, 0], [0, num_wire]], to_home=False
-    )
-    mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+    sc_model = bulk_model.make_supercell([[1, 0], [0, num_wire]], to_home=False)
+    mesh = Mesh(dim_k=2, axis_types=["k", "k"])
     mesh.build_grid([numk, 100])
     sc_array = WFArray(sc_model.lattice, mesh)
     sc_array.solve_model(sc_model)
     # (skip last kpoints to avoid double counting)
-    sc_phase_0 = np.mean(sc_array.berry_phase(state_idx=range(num_wire), axis_idx=0, contin=True)[:-1])
-    sc_phase_1 = np.mean(sc_array.berry_phase(state_idx=range(num_wire), axis_idx=1, contin=True)[:-1])
+    sc_phase_0 = np.mean(
+        sc_array.berry_phase(state_idx=range(num_wire), axis_idx=0, contin=True)[:-1]
+    )
+    sc_phase_1 = np.mean(
+        sc_array.berry_phase(state_idx=range(num_wire), axis_idx=1, contin=True)[:-1]
+    )
     # charge center
     sc_location = (sc_phase_0 / (2.0 * np.pi)) * sc_model.lat_vecs[0] + (
         sc_phase_1 / (2.0 * np.pi)
@@ -98,11 +103,10 @@ def test_centers():
     # direction 0 and finite along direction 1
     def get_centers_01(mod, num_bands):
         # get wavefunctions on a grid
-        mesh = Mesh(dim_k=1, axis_types=['k'])
+        mesh = Mesh(dim_k=1, axis_types=["k"])
         mesh.build_grid([numk])
         wfa = WFArray(mod.lattice, mesh)
         wfa.solve_model(mod)
-        wfa.solve_on_grid([0.0])
 
         # compute center of charge along the periodic direction
         ph0 = wfa.berry_phase(state_idx=range(num_bands), axis_idx=0, contin=True)
@@ -111,7 +115,13 @@ def test_centers():
         pos1 = []
         for i in range(numk - 1):
             # sum over three bands
-            pos1.append(np.sum(wfa.position_expectation(mesh_idx=[i], state_idx=range(num_bands), pos_dir=1)))
+            pos1.append(
+                np.sum(
+                    wfa.position_expectation(
+                        mesh_idx=[i], state_idx=range(num_bands), pos_dir=1
+                    )
+                )
+            )
         # average over kpoints
         pos1 = np.mean(pos1)
 
@@ -124,7 +134,9 @@ def test_centers():
 
     # now cut a finite piece, so that there
     # there are effectivelly only three one-dimensional "wires"
-    finite_model = bulk_model.cut_piece(num_cells=num_wire, periodic_dir=1, glue_edges=False)
+    finite_model = bulk_model.cut_piece(
+        num_cells=num_wire, periodic_dir=1, glue_edges=False
+    )
     # get center of charge for this model
     finite_location, finite_location_periodicity = get_centers_01(
         finite_model, num_wire
@@ -140,9 +152,7 @@ def test_centers():
     # now create a new finite model with a different non-periodic vector
     # code chooses automatically a non-periodic vector that is perpendicular to the periodic vector(s)
     finite_model_orthogonalized = finite_model.copy()
-    finite_model_orthogonalized.change_nonperiodic_vector(
-        fin_dir=1, new_latt_vec=None
-    )
+    finite_model_orthogonalized.change_nonperiodic_vector(fin_dir=1, new_latt_vec=None)
     # get center of charge for model with these periodicity vectors
     finite_location_orthogonalized, finite_location_orthogonalized_periodicity = (
         get_centers_01(finite_model_orthogonalized, num_wire)
@@ -160,9 +170,7 @@ def test_centers():
 
     # redo everything as above but with an arbitrary choice of a non-periodic vector
     finite_model_arb = finite_model.copy()
-    finite_model_arb.change_nonperiodic_vector(
-        fin_dir=1, new_latt_vec=[-1.3, 4.8]
-    )
+    finite_model_arb.change_nonperiodic_vector(fin_dir=1, new_latt_vec=[-1.3, 4.8])
     finite_location_arb, finite_location_arb_periodicity = get_centers_01(
         finite_model_arb, num_wire
     )

@@ -1,8 +1,8 @@
 import numpy as np
 from pythtb import TBModel, Lattice
 
-def haldane_model():
 
+def haldane_model():
     lat = [[1.0, 0.0], [0.5, np.sqrt(3.0) / 2.0]]
     orb = [[1.0 / 3.0, 1.0 / 3.0], [2.0 / 3.0, 2.0 / 3.0]]
     lattice = Lattice(lat, orb, periodic_dirs=[0, 1])
@@ -27,6 +27,7 @@ def haldane_model():
 
     return my_model
 
+
 def run():
     my_model = haldane_model()
 
@@ -37,7 +38,7 @@ def run():
     fin_model_true = tmp_model.cut_piece(20, 1, glue_edges=True)
 
     evals_false = fin_model_false.solve_ham()
-    evals_false = evals_false.T # Transpose in v2 to match v1.8
+    evals_false = evals_false.T  # Transpose in v2 to match v1.8
     evals_false = evals_false.flatten()
     evals_true = fin_model_true.solve_ham()
     evals_true = evals_true.T  # Transpose in v2 to match v1.8

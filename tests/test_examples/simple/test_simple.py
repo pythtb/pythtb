@@ -10,6 +10,7 @@ OUTPUTS = {
     "evals": "evals.npy",
 }
 
+
 def test_example():
     # NOTE: Mostly boilerplate code to load expected outputs and compare
     ###################################################################
@@ -21,7 +22,7 @@ def test_example():
     for label, fname in OUTPUTS.items():
         path = os.path.join(os.path.dirname(__file__), OUTPUTDIR, fname)
         expected[label] = np.load(path)
-    
+
     # Get result from model
     results = run()
     if not isinstance(results, (tuple, list)):
@@ -36,4 +37,3 @@ def test_example():
         eigvals = results[i]
         eigvals = eigvals.T  # in v2.0 eigvals shape is changed
         np.testing.assert_allclose(eigvals, expected[label], rtol=1e-8, atol=1e-14)
-    
