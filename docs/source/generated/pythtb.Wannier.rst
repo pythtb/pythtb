@@ -139,14 +139,14 @@ Methods
    pythtb.Wannier.get_centers
    pythtb.Wannier.info
    pythtb.Wannier.interp_bands
-   pythtb.Wannier.max_localize
+   pythtb.Wannier.maxloc
    pythtb.Wannier.min_spread
    pythtb.Wannier.plot_centers
    pythtb.Wannier.plot_decay
    pythtb.Wannier.plot_density
+   pythtb.Wannier.project
    pythtb.Wannier.set_tilde_states
    pythtb.Wannier.set_trial_wfs
-   pythtb.Wannier.single_shot_projection
    
 
 

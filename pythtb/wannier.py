@@ -28,7 +28,7 @@ class Wannier:
       where :meth:`disentangle` optimizes projectors within user-defined outer and inner windows
       to minimize the gauge-invariant spread :math:`\Omega_I`.
     - **Maximal localization** thorugh the Marzari-Vanderbilt scheme [1]_ using
-      :meth:`max_localize`, which iteratively rotates the
+      :meth:`maxloc`, which iteratively rotates the
       disentangled subspace to minimize the gauge-dependent spread
       :math:`\widetilde{\Omega}=\Omega_{\mathrm{OD}}+\Omega_{\mathrm{D}}`.
 
@@ -51,7 +51,7 @@ class Wannier:
     - **Disentanglement workflow**: :meth:`disentangle` uses outer (candidate) and inner
       (frozen) windows to optimize projectors that define a smooth subspace with minimal
       gauge-invariant spread.
-    - **Maximal localization**: :meth:`max_localize` performs a steepest-descent update of
+    - **Maximal localization**: :meth:`maxloc` performs a steepest-descent update of
       the unitary gauge to reduce the gauge-dependent spread and produce maximally localized
       Wannier functions.
     - **Wannier construction**: We form Wannier functions by discrete inverse Fourier transform
@@ -113,11 +113,11 @@ class Wannier:
     Set trial wavefunctions and perform single-shot projection
 
     >>> twf_list = [[(0, 1.0)]]  # single trial wf on orbital 0
-    >>> wan.single_shot_projection(twf_list)
+    >>> wan.project(twf_list)
 
     Perform maximal localization
 
-    >>> wan.max_localize(num_iter=100, conv_tol=1e-6)
+    >>> wan.maxloc(num_iter=100, conv_tol=1e-6)
 
     Compute and print Wannier centers and spreads
 
@@ -180,7 +180,7 @@ class Wannier:
         if not hasattr(self, "_tilde_states"):
             raise ValueError(
                 "Bloch-like states have not been set. "
-                "Use `set_tilde_states` or `single_shot_projection`."
+                "Use `set_tilde_states` or `project`."
             )
         return getattr(self, "_tilde_states", None)
 
@@ -599,9 +599,7 @@ class Wannier:
 
         return psi_tilde
 
-    def single_shot_projection(
-        self, tf_list: list = None, band_idxs: list = None, use_tilde=False
-    ):
+    def project(self, tf_list: list = None, band_idxs: list = None, use_tilde=False):
         r"""Perform Wannierization via optimal alignment with trial functions (single-shot SVD).
 
         Constructs Bloch-like states :math:`\tilde{\psi}_{n\mathbf{k}}` by maximizing their overlap
@@ -1589,12 +1587,12 @@ class Wannier:
 
         self.set_tilde_states(util_min, is_cell_periodic=True, is_spin_axis_flat=True)
 
-    def max_localize(
+    def maxloc(
         self, alpha=1 / 2, max_iter=1000, tol=1e-5, grad_min=1e-3, verbose=False
     ):
         r"""Unitary transformation to minimize the gauge-dependent spread.
 
-        This procedure implements the Marzari–Vanderbilt maximal localization
+        This procedure implements the Marzari-Vanderbilt maximal localization
         algorithm [1]_. Given a (disentangled) subspace
         (``.tilde_states``), it finds the optimal unitary transformation that
         minimizes the gauge-dependent part of the Wannier spread
@@ -1688,10 +1686,10 @@ class Wannier:
 
         2. Applies a second projection using ``twfs_2`` if provided, or the original trial wavefunctions otherwise,
            to refine the states within the optimal subspace. This step ensures that the states are well-aligned
-           with the desired chemical character before localization. It uses the :meth:`single_shot_projection` method
+           with the desired chemical character before localization. It uses the :meth:`project` method
            for this projection.
 
-        3. Calls :meth:`max_localize` to find the unitary transformation that minimizes the gauge-dependent spread,
+        3. Calls :meth:`maxloc` to find the unitary transformation that minimizes the gauge-dependent spread,
            resulting in maximally localized Wannier functions.
 
         Parameters
@@ -1788,7 +1786,7 @@ class Wannier:
         )
 
         ### Finding optimal gauge with maxloc ###
-        self.max_localize(
+        self.maxloc(
             alpha=alpha,
             iter_num=max_iter,
             tol=tol_max_loc,
