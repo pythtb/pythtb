@@ -40,7 +40,9 @@ def run(t, delta):
         lambda_stop=1.0,
         lambda_endpoints=True,
     )
-    mesh.loop_axis(axis_idx=1, component_idx=1)  # form the lambda axis into a loop
+    mesh.loop(
+        axis_idx=1, component_idx=1, closed=True
+    )  # form the lambda axis into a loop
 
     my_model = three_site_chain(t, delta)
 

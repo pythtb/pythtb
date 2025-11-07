@@ -124,12 +124,19 @@ def render_markdown(tree, updated_at):
 @pytest.hookimpl(trylast=True)
 def pytest_sessionfinish(session, exitstatus):
     out_path = Path(session.config.rootdir) / "tests" / "README.md"
+
+    if not results:
+        return
+
     existing_tree = load_existing_tree(out_path)
     new_tree = build_nested_tree(results)
 
     # Merge into a copy so we can detect real changes
     merged_tree = deepcopy(existing_tree)
     merge_trees(merged_tree, new_tree)
+
+    if merged_tree == existing_tree:
+        return  # No changes detected
 
     ts = datetime.now().strftime("%Y-%m-%d at %H:%M:%S")
     out_path.write_text(render_markdown(merged_tree, ts), encoding="utf-8")
