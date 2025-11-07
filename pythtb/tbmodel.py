@@ -4364,15 +4364,15 @@ class TBModel:
         self,
         nks: tuple[int, int, int] = (20, 20, 20),
         occ_idxs=None,
+        return_second_chern: bool = False,
         *,
         param_periods: dict[str, float] | None = None,
         diff_scheme: str = "central",
         diff_order: int = 4,
         use_tensorflow: bool = False,
-        return_second_chern: bool = False,
         **params,
     ):
-        r"""Chern–Simons axion angle.
+        r"""Chern-Simons axion angle.
 
         Computes the Chern-Simons contribution to the axion angle for
         a 3D bulk model that depends on a single adiabatic parameter
@@ -4383,13 +4383,13 @@ class TBModel:
             \theta(\lambda) = \frac{1}{16\pi} \int_0^{\lambda} d\lambda'
             \int_{\text{BZ}} d^3k \,
             \epsilon^{\mu\nu\rho\sigma} \mathrm{Tr} \left[
-                \mathcal{\Omega}_{\mu\nu}(\mathbf{k}, \lambda')
-                \mathcal{\Omega}_{\rho\sigma}(\mathbf{k}, \lambda')
+                \Omega_{\mu\nu}(\mathbf{k}, \lambda')
+                \Omega_{\rho\sigma}(\mathbf{k}, \lambda')
             \right]
 
         where :math:`\mu, \nu, \rho, \sigma` run over the three reciprocal-space
         directions and the adiabatic parameter :math:`\lambda`, and
-        :math:`\mathcal{\Omega}_{\mu\nu}` is the non-Abelian Berry curvature
+        :math:`\Omega_{\mu\nu}` is the non-Abelian Berry curvature
         tensor over the occupied states.
 
         When the parameter :math:`\lambda` is periodic (e.g., an angle variable),
@@ -4413,6 +4413,10 @@ class TBModel:
         occ_idxs : array_like, optional
             Explicit list of occupied band indices.  If omitted, all bands below the gap
             are used, consistent with other bulk invariants.
+        return_second_chern : bool, optional
+            If ``True``, return the second Chern number :math:`C_2` alongside :math:`\theta(\lambda)`.
+            This corresponds to the integer winding number of the axion angle over a full
+            cycle of the adiabatic parameter.
         param_periods : dict[str, float], optional
             Optional map ``{param_name: period}`` for swept parameters. When supplied,
             assumes the parameter is cyclic and trims any duplicated endpoints, or endpoints
@@ -4428,10 +4432,6 @@ class TBModel:
         use_tensorflow : bool, optional
             Forwarded to :meth:`berry_curvature`; set ``True`` to accelerate large grids on
             GPU if TensorFlow is installed.
-        return_second_chern : bool, optional
-            If ``True``, return the second Chern number :math:`C_2` alongside :math:`\theta(\lambda)`.
-            This corresponds to the integer winding number of the axion angle over a full
-            cycle of the adiabatic parameter.
         **params :
             Keyword arguments mapping parameter names to value(s). Exactly one parameter
             must be supplied with an array of values to sweep the adiabatic parameter
@@ -4445,6 +4445,10 @@ class TBModel:
             Axion angle :math:`\theta(\lambda)` wrapped into :math:`[0, 2\pi)`.
         c2 : float, optional
             Second Chern number. Only returned when ``return_second_chern=True``.
+
+        See Also
+        --------
+        berry_curvature : Computes the Berry curvature tensor used in the integrand.
 
         Notes
         -----
@@ -4646,6 +4650,10 @@ class TBModel:
             returned when no spectator axes remain; otherwise the array shape
             matches the Cartesian product of the spectator coordinates.
 
+        See Also
+        --------
+        berry_curvature : Computes the Berry curvature used in the integrand.
+
         Notes
         -----
         - The plane indices use the combined coordinate ordering of k-space
@@ -4790,19 +4798,26 @@ class TBModel:
         trim_cells: int = 4,
         **params,
     ):
-        r"""Bianco–Resta local Chern marker.
+        r"""Bianco-Resta local Chern marker.
 
-        The local Chern marker is a per-site quantity that captures the
-        topological character of the occupied manifold in real space.
-        It is defined as
+        The local Chern marker is a real-space diagnostic of topology,
+        assigning to each orbital/site a scalar quantity that reflects the
+        topological character of the occupied bands. It is defined as
 
         .. math::
-            C_i = 4\pi \, \mathrm{Im} \left(P[X,P][Y,P]\right)_{ii},
+            C(\boldsymbol{\tau}_i) = \frac{4\pi}{{A_\text{cell}}}\, \mathrm{Im}\!
+            \langle \phi_i |
+            \mathcal{P} \left[ X,\mathcal{P} \right]\left[Y,\mathcal{P}\right]
+            | \phi_i \rangle ,
 
-        where :math:`P` is the projector onto occupied states, :math:`X,Y` are position
-        operators, and :math:`i` is the orbital index. The local Chern marker
-        is normalized by the unit cell volume, so that its spatial average
-        gives the Chern number of the occupied manifold.
+        where :math:`\mathcal{P}` is the projector onto the occupied subspace,
+        :math:`X,Y` are the single-particle position operators and
+        :math:`|\phi_i\rangle` is the orbital basis state at site
+        :math:`\boldsymbol{\tau}_i`.
+
+        This quantity is intensive: when normalized by the unit-cell volume,
+        its spatial average converges to the total Chern number of the occupied
+        manifold in the crystalline case [1]_.
 
         .. versionadded:: 2.0.0
 
@@ -4825,6 +4840,11 @@ class TBModel:
         C_bulk_avg : float, optional
             Bulk-averaged Chern number computed from local Chern marker.
             Returned only if `return_bulk_avg` is True.
+
+        References
+        ----------
+        .. [1] R. Bianco and R. Resta, "Mapping topological order in coordinate space",
+               Phys. Rev. B 84, 241106(R) (2011).
         """
         if self.dim_k != 0:
             raise ValueError(

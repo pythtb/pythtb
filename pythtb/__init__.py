@@ -83,14 +83,8 @@ from .wannier import *
 from .utils import *
 from .lattice import *
 
-# Aggregate exports defensively
+# Use the core module's __all__ to define the package exports from * imports.
+
 __all__ = []
 for m in (tbmodel, wfarray, w90, mesh, wannier, utils, lattice):
     __all__ += getattr(m, "__all__", [])
-
-# Use the core module's __all__ to define the package exports from * imports.
-# This ensures 'from pythtb import *' pulls in only the intended public API.
-# If you want to control what gets imported with "from pythtb import *",
-# you can define __all__ in the respective modules (tbmodel, wfarray, w90).
-# This is a common practice in Python packages to avoid polluting the namespace
-# with internal details and to provide a clear public API.

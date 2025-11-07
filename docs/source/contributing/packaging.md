@@ -31,20 +31,26 @@ MAJOR (X.Y.Z → X+1.0.0)
 Breaking API changes
 ```
 
-Inclusion criteria for a release
+## Pre-release checks
 
-Before tagging:
-- [ ] Tests pass locally
-- [ ] Docs build locally
-- [ ] No unresolved deprecation notes
-- [ ] Changelog updated
-- [ ] Version incremented in pyproject.toml
-- [ ] Update docs/local/release/release.rst. 
-- [ ] Add a folder in docs/local/release/ver_ABC for the old version of the package,
-put in the `.tar.gz file`. of the old version.
-- [ ] Update versions in docs/source/conf.py.
+Before releasing a new version, ensure the following:
 
-If a release changes behavior, update relevant docstrings and tutorials.
+0. If a release changes behavior, update relevant docstrings and tutorials.
+1. Tests pass locally
+
+```bash
+pytest -n auto
+```
+
+2. Documentation builds locally without warnings or errors
+
+```bash
+sphinx-build docs/source docs/build/html
+```
+
+3. `CHANGELOG.md` updated
+4. Write release notes in `docs/local/release/` and update `docs/local/release/release.rst`
+5. Update versions in `docs/source/conf.py` and all relevant documentation pages.
 
 ## Releasing on PyPI
 
