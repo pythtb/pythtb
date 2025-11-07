@@ -620,28 +620,19 @@ class Mesh:
         # Full grid (optional flag some versions have)
         is_k_torus = getattr(self, "is_k_torus", None)
 
-        # Closed axes
-        closed_axes = self._get_endpt_ax_comp()
-        if closed_axes:
-            ca_str = ", ".join(
-                f"(axis {a} contains endpoint of component {c})" for a, c in closed_axes
-            )
+        # Loop summary with winds/closed flags
+        loop_entries = []
+        for ax_idx, ax in enumerate(self.axes):
+            for comp in ax.loop_components:
+                winds = comp in ax.winds_bz_components
+                closed = comp in ax.endpoint_components
+                loop_entries.append(
+                    f"(axis {ax_idx}, comp {comp}, winds_bz={_yn(winds)}, closed={_yn(closed)})"
+                )
+        if loop_entries:
+            loop_str = ", ".join(loop_entries)
         else:
-            ca_str = "None"
-        # Looped axes
-        loop_axes = self._get_loop_ax_comp()
-        if loop_axes:
-            la_str = ", ".join(f"(axis {a} loops component {c})" for a, c in loop_axes)
-        else:
-            la_str = "None"
-        # Winding axes
-        winding_axes = self._get_bz_wind_ax_comp()
-        if winding_axes:
-            wa_str = ", ".join(
-                f"(axis {a} winds component {c})" for a, c in winding_axes
-            )
-        else:
-            wa_str = "None"
+            loop_str = "None"
 
         # Count points
         num_points = self.num_points
@@ -661,14 +652,13 @@ class Mesh:
         lines.append(f"Full shape: {_fmt_tuple(overall_shape)}")
         lines.append(f"k-axes: {_fmt_list(k_axes)}")
         lines.append(f"λ-axes: {_fmt_list(p_axes)}")
+
         # Optional full-grid flag
         if is_k_torus is not None and mesh_type != "path":
             lines.append(
                 f"Is a torus in k-space (all k-axes wind BZ): {_yn(is_k_torus)}"
             )
-        lines.append(f"Looped axes: {la_str}")
-        lines.append(f"BZ-winding axes: {wa_str}")
-        lines.append(f"Endpoint axes: {ca_str}")
+        lines.append(f"Loops: {loop_str}")
 
         if show:
             print("\n".join(lines))
@@ -700,7 +690,7 @@ class Mesh:
         - This will overwrite any previously set topology information.
         - If a k-axis does not contain the edges of the BZ (ki=1) then it will not be detected as
           winding the BZ. This is up to the user to mark the axis as winding (for custom meshes or paths)
-          using the `wind_bz` method. When using `build_grid` this will be set automatically.
+          using the `loop` method. When using `build_grid` this will be set automatically.
         """
         if not self.filled:
             raise ValueError("Mesh points are not initialized.")
@@ -751,114 +741,41 @@ class Mesh:
                     ax.add_loop_component(c)
 
     # ---- Topology configuration (explicit) ----
-    def wind_bz(self, axis_idx: int, component_idx: int):
-        r"""Declare an axis winds around the Brillouin zone for a specified k-component.
 
-        Calling this function will mark an axis as winding a given k-component of the vector
-        in :math:`(\mathbf{k}, \lambda)`-space. This means that
-        the two ends of the axis are identified, and sampling along ``axis_idx``
-        winds ``component_idx`` around the Brillouin zone.
-
-        Notes
-        -----
-        - Winding the BZ implies the axis is also looped. This does not necessarily imply
-          the axis contains endpoints (first and last points equal), as the axis may wind
-          around the BZ without having equal endpoints.
-
-        - If the mesh is built using :meth:`build_grid`
-          or :meth:`build_custom`, this will be set automatically
-          for k-axes that include the edge of BZ (i.e., include 1 for a given k-component)
-          This also implies that this axis is closed for that k-component.
-
-        - Setting an axis as winding the BZ allows ``WFArray`` to decide whether phases apply
-          at the edge of the mesh (axis is closed) or just beyond the edge of the mesh (axis open).
-          This will apply when ``axis_idx`` is a k-axis and ``component_idx`` is a k-component.
-
-        See Also
-        --------
-        :ref:`mesh-nb`
-
-        Examples
-        --------
-        A situation where this may be useful is when creating a path
-        through k-space that winds around the BZ but does contain the endpoints.
-        In this case, the user can manually mark the axis as winding the BZ for the
-        relevant k-component.
-
-        >>> from pythtb import Mesh
-        >>> mesh = Mesh(dim_k=2, axis_types=['k'])
-        >>> points = np.linspace([0,0], [1, 1], 10, endpoint=False)  # path from (0,0) to (1, 1)
-        >>> mesh.build_custom(points)
-        >>> mesh.wind_bz(axis_idx=0, component_idx=0)  # mark as winding k_x
-        >>> mesh.wind_bz(axis_idx=0, component_idx=1)  # mark as winding k_y
-        >>> print(mesh)
-        """
-        if axis_idx < 0 or axis_idx >= self.num_axes:
-            raise IndexError(
-                f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes"
-            )
-        if component_idx < 0 or component_idx >= self.dim_total:
-            raise IndexError(
-                f"component_idx {component_idx} out of bounds for {self.dim_total} components"
-            )
-        if component_idx >= self.dim_k:
-            raise ValueError(
-                f"component_idx {component_idx} is not a k-component (dim_k={self.dim_k})"
-            )
-
-        ax = self.axes[axis_idx]
-        if not ax.is_k_axis:
-            raise ValueError(f"axis_idx {axis_idx} is not a k-axis (type={ax.type})")
-
-        if component_idx not in ax.winds_bz_components:
-            ax.add_wind_bz_component(component_idx)
-            ax.add_loop_component(component_idx)  # winding implies looped
-
-    def unwind_bz(self, axis_idx: int, component_idx: int):
-        r"""Declare an axis does not wind around the Brillouin zone for a specified k-component.
-
-        Calling this function will unmark an axis as winding a given k-component of the vector
-        in :math:`(\mathbf{k}, \lambda)`-space.
-
-        See Also
-        --------
-        :meth:`wind_bz`
-        """
-        if axis_idx < 0 or axis_idx >= self.num_axes:
-            raise IndexError(
-                f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes"
-            )
-        if component_idx < 0 or component_idx >= self.dim_total:
-            raise IndexError(
-                f"component_idx {component_idx} out of bounds for {self.dim_total} components"
-            )
-        if component_idx >= self.dim_k:
-            raise ValueError(
-                f"component_idx {component_idx} is not a k-component (dim_k={self.dim_k})"
-            )
-
-        ax = self.axes[axis_idx]
-        if not ax.is_k_axis:
-            raise ValueError(f"axis_idx {axis_idx} is not a k-axis (type={ax.type})")
-
-        if component_idx in ax.winds_bz_components:
-            ax.remove_wind_bz_component(component_idx)
-            # NOTE: do not remove from loop_components, as it may still be looped by endpoints
-
-    def loop_axis(self, axis_idx: int, component_idx: int):
+    def loop(
+        self,
+        axis_idx: int,
+        component_idx: int,
+        winds_bz: bool = False,
+        closed: bool = False,
+    ):
         r"""Declare an axis loops a specified component of the mesh vector.
 
         Calling this function will mark an axis as looping a given component of the vector
         in :math:`(\mathbf{k}, \lambda)`-space. This means that
         the two ends of the axis are identified, and sampling along
-        ``axis_idx`` loops ``component_idx`` around a cycle that
-        brings the Hamiltonian back into itself.
+        ``axis_idx`` loops ``component_idx`` around a cycle.
+
+        Parameters
+        ----------
+        axis_idx : int
+            The index of the axis to mark as looping.
+        component_idx : int
+            The component of the vector to mark as looping.
+        winds_bz : bool, optional
+            If True, also mark the axis as winding the BZ for this component.
+            This requires that the axis is a k-axis and the component is a k-component.
+            Default is False.
+        closed : bool, optional
+            If True, also mark the axis as closed for this component.
+            This means the two ends of the axis correspond to the same Hamiltonian.
+            Default is False.
 
         Notes
         -----
-        This will not mark the axis as winding the BZ, use :meth:`wind_bz` instead.
-        This means the `WFArray` will not apply phases at the edge of the mesh unless
-        the axis is also marked as winding the BZ.
+        - Setting ``winds_bz`` and ``closed`` allows ``WFArray`` to decide whether phases apply
+          to k-components at the edge of the mesh (loop is closed) or just beyond the edge of
+          the mesh (loop is open).
         """
         if axis_idx < 0 or axis_idx >= self.num_axes:
             raise IndexError(
@@ -872,19 +789,39 @@ class Mesh:
         if component_idx not in ax.loop_components:
             ax.add_loop_component(component_idx)
 
-    def unloop_axis(self, axis_idx: int, component_idx: int):
+        if winds_bz and component_idx not in ax.winds_bz_components:
+            if not ax.is_k_axis:
+                raise ValueError(
+                    f"axis_idx {axis_idx} is not a k-axis (type={ax.type})"
+                )
+            if component_idx >= self.dim_k:
+                raise ValueError(
+                    f"component_idx {component_idx} is not a k-component (dim_k={self.dim_k})"
+                )
+            ax.add_wind_bz_component(component_idx)
+
+        if closed and component_idx not in ax.endpoint_components:
+            ax.add_endpoint_component(component_idx)
+
+    def unloop(
+        self,
+        axis_idx: int,
+        component_idx: int,
+        unwind_bz: bool = False,
+        open: bool = False,
+    ):
         r"""Declare an axis as not looping a specified component of the mesh vector.
 
         Calling this function will mark an axis as winding a given component of the vector
         in :math:`(\mathbf{k}, \lambda)`-space. This means that
-        the two ends of the axis are identified, and sampling along ``axis_idx`` winds ``component_idx``
-        around a cycle that brings the Hamiltonian back into itself.
+        the two ends of the axis are identified, and sampling along ``axis_idx``
+        winds ``component_idx`` around a cycle that brings the Hamiltonian back into itself.
 
         Notes
         -----
-        This allows ``WFArray`` to decide whether phases apply to k-components at the edge
-        of the mesh (axis is closed) or just beyond the edge of the mesh (axis is not closed).
-        This will apply when ``axis_idx`` is a k-axis and ``component_idx`` is a k-component.
+        - This allows ``WFArray`` to decide whether phases apply to k-components at the edge
+          of the mesh (loop is closed) or just beyond the edge of the mesh (loop is open).
+          This will apply when ``axis_idx`` is a k-axis and ``component_idx`` is a k-component.
         """
         if axis_idx < 0 or axis_idx >= self.num_axes:
             raise IndexError(
@@ -898,111 +835,18 @@ class Mesh:
         if component_idx in ax.loop_components:
             ax.remove_loop_component(component_idx)
 
-    def close_axis(self, axis_idx: int, component_idx: int):
-        r"""Declare an axis as closed for a given component.
+        if unwind_bz and component_idx in ax.winds_bz_components:
+            if not ax.is_k_axis:
+                raise ValueError(
+                    f"axis_idx {axis_idx} is not a k-axis (type={ax.type})"
+                )
+            if component_idx >= self.dim_k:
+                raise ValueError(
+                    f"component_idx {component_idx} is not a k-component (dim_k={self.dim_k})"
+                )
+            ax.remove_wind_bz_component(component_idx)
 
-        Calling this function will mark an axis as being closed for a given
-        component of the vector in :math:`(\mathbf{k}, \lambda)`-space.
-        This means that the two ends of the axis correspond to the same Hamiltonian, and
-        the eigenstates at the two ends should be considered identical with equal phase.
-
-        Parameters
-        ----------
-        axis_idx : int
-            The index of the axis to close.
-        component_idx : int
-            The component of the vector to close.
-
-        Notes
-        -----
-        - Closing an axis will also mark it as looped for the given component.
-          k-axes are marked as closed automatically when the difference between
-          the first and last points is 0 or 1 (in reduced units).
-
-        .. warning::
-            It is up to the user to ensure that the Hamiltonian is indeed the same
-            at the two ends of the axis. This function does not check this condition.
-            If this is not the case, the results may be incorrect.
-
-        Examples
-        --------
-        Say we have a model with a single k-axis and a single parameteric variable.
-        This variable varies from 0 to :math:`2\pi` and brings the Hamiltonian back
-        to itself. Here, we include :math:`2\pi` in the mesh.
-
-        >>> mesh = Mesh(dim_k=1, dim_lambda=1, axis_types=["k", "l"])
-        >>> mesh.build_grid(lambda_endpoints=True, lambda_start=0, lambda_end=2*np.pi)
-
-        To indicate that the endpoint of this adiabatic loop is included in the mesh
-        we set the `1` axis (lambda) as closed for the `1` component (lambda).
-
-        >>> mesh.close_axis(1, 1)
-
-        There may be instances where the axis and component differ. For example,
-        if we have a two-dimensional k-space, but only build a mesh in
-        """
-        if axis_idx < 0 or axis_idx >= self.num_axes:
-            raise IndexError(
-                f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes"
-            )
-        if component_idx < 0 or component_idx >= self.dim_total:
-            raise IndexError(
-                f"component_idx {component_idx} out of bounds for {self.dim_total} components"
-            )
-
-        # self._endpt_mask[axis_idx, component_idx] = True
-        ax = self.axes[axis_idx]
-        if component_idx not in ax.endpoint_components:
-            ax.add_endpoint_component(component_idx)
-
-    def open_axis(self, axis_idx: int, component_idx: int):
-        r"""Declare an axis as open for a given component.
-
-        Calling this function will mark an axis as being open (not closed) for a given
-        component of the vector in :math:`(\mathbf{k}, \lambda)`-space.
-        This means that the two ends of the axis correspond to different Hamiltonians, and
-        the eigenstates at the two ends should be considered distinct.
-
-        Parameters
-        ----------
-        axis_idx : int
-            The index of the axis to open.
-        component_idx : int
-            The component of the vector to open.
-
-        Examples
-        --------
-        Say we have a model with a single k-axis and a single parameteric variable.
-        This variable varies from 0 to :math:`2\pi` and brings the Hamiltonian back
-        to itself. Here, we include :math:`2\pi` in the mesh.
-
-        >>> mesh = Mesh(dim_k=1, dim_lambda=1, axis_types=["k", "l"])
-        >>> mesh.build_grid(lambda_endpoints=True, lambda_start=0, lambda_end=2*np.pi)
-
-        To indicate that the endpoint of this adiabatic loop is included in the mesh
-        we set the `1` axis (lambda) as closed for the `1` component (lambda).
-
-        >>> mesh.close_axis(1, 1)
-
-        If we later decide that we want to treat this axis as open, we can call
-        `open_axis` to remove this designation.
-
-        >>> mesh.open_axis(1, 1)
-
-        There may be instances where the axis and component differ. For example,
-        if we have a two-dimensional k-space, but only build a mesh in
-        """
-        if axis_idx < 0 or axis_idx >= self.num_axes:
-            raise IndexError(
-                f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes"
-            )
-        if component_idx < 0 or component_idx >= self.dim_total:
-            raise IndexError(
-                f"component_idx {component_idx} out of bounds for {self.dim_total} components"
-            )
-
-        ax = self.axes[axis_idx]
-        if component_idx in ax.endpoint_components:
+        if open and component_idx in ax.closed_components:
             ax.remove_endpoint_component(component_idx)
 
     def is_axis_closed(self, axis_idx: int, comp: int = "any") -> bool:
@@ -1285,7 +1129,6 @@ class Mesh:
             ax.size = shape[i]
 
         self._gamma_centered = gamma_centered
-        # k_endpoints = [False] * self.num_k_axes
 
         k_starts = []
         k_stops = []
@@ -1332,14 +1175,10 @@ class Mesh:
             flat = np.hstack([k_rep, p_rep])
 
         self._points = flat
+
         for ax_idx in self.k_axis_indices:
             # Default mapping: k-axis winds the same-index k-component
-            self.wind_bz(ax_idx, ax_idx)
-
-        if lambda_endpoints is not None:
-            for i, ax_idx in enumerate(self.lambda_axis_indices):
-                if lambda_endpoints[i]:
-                    self.close_axis(ax_idx, ax_idx)
+            self.loop(ax_idx, ax_idx, winds_bz=True, closed=False)
 
         self._set_ax_info()
 
@@ -1389,9 +1228,6 @@ class Mesh:
 
         self._points = np.reshape(points, (-1, points.shape[-1]))
 
-        # shape = points.shape[:-1]
-        # self._shape_k = tuple(shape[i] for i in self.k_axes)
-        # self._shape_lambda = tuple(shape[i] for i in self.lambda_axes)
         self._set_ax_info()
 
     def get_axis_range(self, axis_index: int, component_index: int) -> np.ndarray:
