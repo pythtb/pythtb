@@ -503,7 +503,7 @@ class Wannier:
         if not isinstance(states, np.ndarray):
             raise ValueError("Bloch-like states must be a numpy array.")
 
-        if states.ndim != self.mesh.num_k_axes + 2 + (self.bloch_states.nspin - 1):
+        if states.ndim != self.mesh.nk_axes + 2 + (self.bloch_states.nspin - 1):
             raise ValueError(
                 f"Bloch-like states must have shape (nk1, ..., nstates, n_orbs[, n_spins]), "
                 f"but got {states.shape}."
@@ -521,11 +521,11 @@ class Wannier:
 
         # Fourier transform Bloch-like states to set WFs
         psi_nk = self.tilde_states.psi_nk
-        num_k_axes = self.mesh.num_k_axes
+        nk_axes = self.mesh.nk_axes
 
         # FFT NOTE: A non-repeating grid is required for consistent inverse FFTs.
         self._wannier = self.WFs = np.fft.ifftn(
-            psi_nk, axes=[i for i in range(num_k_axes)], norm=None
+            psi_nk, axes=[i for i in range(nk_axes)], norm=None
         )
 
         # set spreads

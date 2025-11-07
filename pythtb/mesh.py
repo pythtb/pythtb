@@ -288,14 +288,14 @@ class Mesh:
         # Initialize axes
         self._axes = [Axis(at, name) for at, name in zip(axis_types, axis_names)]
 
-        if self.num_k_axes > dim_k:
+        if self.nk_axes > dim_k:
             raise ValueError(
-                f"Number of k axes ({self.num_k_axes}) cannot exceed specified dimension ({dim_k})."
+                f"Number of k axes ({self.nk_axes}) cannot exceed specified dimension ({dim_k})."
             )
 
         # Dimension of parameter space
         if dim_lambda is None:
-            self._dim_lambda = self.num_lambda_axes
+            self._dim_lambda = self.nl_axes
         else:
             self._dim_lambda = dim_lambda
 
@@ -379,7 +379,7 @@ class Mesh:
         return tuple([ax.size for ax in self.axes])
 
     @property
-    def num_points(self) -> int:
+    def npoints(self) -> int:
         """Number of mesh points."""
         return int(np.prod(self.axis_sizes))
 
@@ -408,22 +408,22 @@ class Mesh:
     @property
     def shape_flat(self) -> tuple[int]:
         """Shape of flattened mesh points ``(N_points, dim_total)``."""
-        return (self.num_points, self.dim_total)
+        return (self.npoints, self.dim_total)
 
     @property
-    def num_k_axes(self) -> int:
+    def nk_axes(self) -> int:
         """Number of k-axes."""
         return len(self.k_axes)
 
     @property
-    def num_lambda_axes(self) -> int:
+    def nl_axes(self) -> int:
         """Number of lambda-axes."""
         return len(self.lambda_axes)
 
     @property
-    def num_axes(self) -> int:
+    def naxes(self) -> int:
         """Total number of axes."""
-        return self.num_k_axes + self.num_lambda_axes
+        return self.nk_axes + self.nl_axes
 
     @property
     def is_grid(self) -> bool:
@@ -431,7 +431,7 @@ class Mesh:
 
         A grid mesh has an axis for each dimension of the mesh.
         """
-        return self.num_axes == self.dim_total
+        return self.naxes == self.dim_total
 
     # ---- Vector component properties ----
     @property
@@ -474,8 +474,8 @@ class Mesh:
 
     @property
     def loop_mask(self) -> np.ndarray:
-        """Boolean array of shape (num_axes, dim_total) marking which axes wind to form a loop."""
-        loop_mask = np.zeros((self.num_axes, self.dim_total), dtype=bool)
+        """Boolean array of shape (naxes, dim_total) marking which axes wind to form a loop."""
+        loop_mask = np.zeros((self.naxes, self.dim_total), dtype=bool)
         for i, ax in enumerate(self.axes):
             for c in ax.loop_components:
                 loop_mask[i, c] = True
@@ -502,8 +502,8 @@ class Mesh:
 
     @property
     def endpoint_mask(self) -> np.ndarray:
-        """Boolean array of shape (num_axes, dim_total) marking which axes have equal endpoints."""
-        endpt_mask = np.zeros((self.num_axes, self.dim_total), dtype=bool)
+        """Boolean array of shape (naxes, dim_total) marking which axes have equal endpoints."""
+        endpt_mask = np.zeros((self.naxes, self.dim_total), dtype=bool)
         for i, ax in enumerate(self.axes):
             for c in ax.endpoint_components:
                 endpt_mask[i, c] = True
@@ -530,8 +530,8 @@ class Mesh:
 
     @property
     def bz_winding_mask(self) -> np.ndarray:
-        """Boolean array of shape (num_axes, dim_total) marking which axes wind around the BZ."""
-        winds_bz_mask = np.zeros((self.num_axes, self.dim_total), dtype=bool)
+        """Boolean array of shape (naxes, dim_total) marking which axes wind around the BZ."""
+        winds_bz_mask = np.zeros((self.naxes, self.dim_total), dtype=bool)
         for i, ax in enumerate(self.axes):
             for c in ax.winds_bz_components:
                 winds_bz_mask[i, c] = True
@@ -569,7 +569,7 @@ class Mesh:
         if not self.is_grid:
             return False
 
-        if self.num_k_axes < self.dim_k:
+        if self.nk_axes < self.dim_k:
             return False
 
         if self.dim_k == 0:
@@ -635,7 +635,7 @@ class Mesh:
             loop_str = "None"
 
         # Count points
-        num_points = self.num_points
+        npoints = self.npoints
 
         # Names / indices
         k_axes = getattr(self, "k_axes", [])
@@ -648,7 +648,7 @@ class Mesh:
         lines.append(
             f"Dimensionality: {self.dim_k} k-dim(s) + {self.dim_lambda} λ-dim(s)"
         )
-        lines.append(f"Number of mesh points: {num_points}")
+        lines.append(f"Number of mesh points: {npoints}")
         lines.append(f"Full shape: {_fmt_tuple(overall_shape)}")
         lines.append(f"k-axes: {_fmt_list(k_axes)}")
         lines.append(f"λ-axes: {_fmt_list(p_axes)}")
@@ -700,7 +700,7 @@ class Mesh:
         k_comp_mask[: self.dim_k] = True
 
         # Iterate over sampling axes; compare first vs last hyperfaces.
-        for axis_idx in range(self.num_axes):
+        for axis_idx in range(self.naxes):
             closed_vec = np.zeros(self.dim_total, dtype=bool)
             winding_vec = np.zeros(self.dim_total, dtype=bool)
             looped_vec = np.zeros(self.dim_total, dtype=bool)
@@ -777,10 +777,8 @@ class Mesh:
           to k-components at the edge of the mesh (loop is closed) or just beyond the edge of
           the mesh (loop is open).
         """
-        if axis_idx < 0 or axis_idx >= self.num_axes:
-            raise IndexError(
-                f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes"
-            )
+        if axis_idx < 0 or axis_idx >= self.naxes:
+            raise IndexError(f"axis_idx {axis_idx} out of bounds for {self.naxes} axes")
         if component_idx < 0 or component_idx >= self.dim_total:
             raise IndexError(
                 f"component_idx {component_idx} out of bounds for {self.dim_total} components"
@@ -823,10 +821,8 @@ class Mesh:
           of the mesh (loop is closed) or just beyond the edge of the mesh (loop is open).
           This will apply when ``axis_idx`` is a k-axis and ``component_idx`` is a k-component.
         """
-        if axis_idx < 0 or axis_idx >= self.num_axes:
-            raise IndexError(
-                f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes"
-            )
+        if axis_idx < 0 or axis_idx >= self.naxes:
+            raise IndexError(f"axis_idx {axis_idx} out of bounds for {self.naxes} axes")
         if component_idx < 0 or component_idx >= self.dim_total:
             raise IndexError(
                 f"component_idx {component_idx} out of bounds for {self.dim_total} components"
@@ -851,10 +847,8 @@ class Mesh:
 
     def is_axis_closed(self, axis_idx: int, comp: int = "any") -> bool:
         """Return True iff sampling axis *axis_idx* contains endpoint for at least one component."""
-        if axis_idx < 0 or axis_idx >= self.num_axes:
-            raise IndexError(
-                f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes"
-            )
+        if axis_idx < 0 or axis_idx >= self.naxes:
+            raise IndexError(f"axis_idx {axis_idx} out of bounds for {self.naxes} axes")
 
         comp_type = type(comp)
 
@@ -872,10 +866,8 @@ class Mesh:
 
     def is_axis_looped(self, axis_idx: int, comp: int = "any") -> bool:
         """Return True iff sampling axis *axis_idx* wraps at least one component."""
-        if axis_idx < 0 or axis_idx >= self.num_axes:
-            raise IndexError(
-                f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes"
-            )
+        if axis_idx < 0 or axis_idx >= self.naxes:
+            raise IndexError(f"axis_idx {axis_idx} out of bounds for {self.naxes} axes")
         comp_type = type(comp)
 
         if comp_type not in [int, str] or comp_type is str and comp.lower() != "any":
@@ -892,10 +884,8 @@ class Mesh:
 
     def is_axis_bz_winding(self, axis_idx: int, comp: int = "any") -> bool:
         """Return True iff sampling axis *axis_idx* winds around the BZ for at least one component."""
-        if axis_idx < 0 or axis_idx >= self.num_axes:
-            raise IndexError(
-                f"axis_idx {axis_idx} out of bounds for {self.num_axes} axes"
-            )
+        if axis_idx < 0 or axis_idx >= self.naxes:
+            raise IndexError(f"axis_idx {axis_idx} out of bounds for {self.naxes} axes")
         comp_type = type(comp)
 
         if comp_type not in [int, str] or comp_type is str and comp.lower() != "any":
@@ -943,7 +933,7 @@ class Mesh:
         >>> mesh.flat.shape
         (10, 3)
         """
-        if self.num_k_axes + self.num_lambda_axes != 1:
+        if self.nk_axes + self.nl_axes != 1:
             raise ValueError("For a path, must only have one axis type.")
 
         nodes = np.asarray(nodes, dtype=float)
@@ -1058,50 +1048,45 @@ class Mesh:
         if not isinstance(shape, (tuple, list)):
             raise TypeError(f"Expected tuple or list for shape, got {type(shape)}")
 
-        if len(shape) != self.num_k_axes + self.num_lambda_axes:
+        if len(shape) != self.nk_axes + self.nl_axes:
             raise ValueError(
-                f"Expected {self.num_k_axes + self.num_lambda_axes} dimensions, got {len(shape)}"
+                f"Expected {self.nk_axes + self.nl_axes} dimensions, got {len(shape)}"
             )
 
         if isinstance(gamma_centered, bool):
-            gamma_centered = [gamma_centered] * self.num_k_axes
-        elif (
-            isinstance(gamma_centered, list) and len(gamma_centered) != self.num_k_axes
-        ):
+            gamma_centered = [gamma_centered] * self.nk_axes
+        elif isinstance(gamma_centered, list) and len(gamma_centered) != self.nk_axes:
             raise ValueError(
-                f"Expected {self.num_k_axes} elements in gamma_centered, got {len(gamma_centered)}"
+                f"Expected {self.nk_axes} elements in gamma_centered, got {len(gamma_centered)}"
             )
         else:
             raise TypeError("gamma_centered must be a bool or a list of bools.")
 
         if isinstance(k_endpoints, bool):
-            k_endpoints = [k_endpoints] * self.num_k_axes
-        elif isinstance(k_endpoints, list) and len(k_endpoints) != self.num_k_axes:
+            k_endpoints = [k_endpoints] * self.nk_axes
+        elif isinstance(k_endpoints, list) and len(k_endpoints) != self.nk_axes:
             raise ValueError(
-                f"Expected {self.num_k_axes} elements in k_endpoints, got {len(k_endpoints)}"
+                f"Expected {self.nk_axes} elements in k_endpoints, got {len(k_endpoints)}"
             )
         else:
             raise TypeError("k_endpoints must be a bool or a list of bools.")
 
         if isinstance(lambda_endpoints, bool):
-            lambda_endpoints = [lambda_endpoints] * self.num_lambda_axes
+            lambda_endpoints = [lambda_endpoints] * self.nl_axes
         elif (
-            isinstance(lambda_endpoints, list)
-            and len(lambda_endpoints) != self.num_lambda_axes
+            isinstance(lambda_endpoints, list) and len(lambda_endpoints) != self.nl_axes
         ):
             raise ValueError(
-                f"Expected {self.num_lambda_axes} elements in lambda_endpoints, got {len(lambda_endpoints)}"
+                f"Expected {self.nl_axes} elements in lambda_endpoints, got {len(lambda_endpoints)}"
             )
         else:
             raise TypeError("lambda_endpoints must be a bool or a list of bools.")
 
         if isinstance(lambda_start, (int, float, complex)):
-            lambda_start = [lambda_start] * self.num_lambda_axes
-        elif (
-            isinstance(lambda_start, list) and len(lambda_start) != self.num_lambda_axes
-        ):
+            lambda_start = [lambda_start] * self.nl_axes
+        elif isinstance(lambda_start, list) and len(lambda_start) != self.nl_axes:
             raise ValueError(
-                f"Expected {self.num_lambda_axes} elements in lambda_start, got {len(lambda_start)}"
+                f"Expected {self.nl_axes} elements in lambda_start, got {len(lambda_start)}"
             )
         else:
             raise TypeError(
@@ -1109,10 +1094,10 @@ class Mesh:
             )
 
         if isinstance(lambda_stop, (int, float, complex)):
-            lambda_stop = [lambda_stop] * self.num_lambda_axes
-        elif isinstance(lambda_stop, list) and len(lambda_stop) != self.num_lambda_axes:
+            lambda_stop = [lambda_stop] * self.nl_axes
+        elif isinstance(lambda_stop, list) and len(lambda_stop) != self.nl_axes:
             raise ValueError(
-                f"Expected {self.num_lambda_axes} elements in lambda_stop, got {len(lambda_stop)}"
+                f"Expected {self.nl_axes} elements in lambda_stop, got {len(lambda_stop)}"
             )
         else:
             raise TypeError(
@@ -1121,8 +1106,8 @@ class Mesh:
 
         # convert shape to ints
         shape = tuple(int(x) for x in shape)
-        shape_k = shape[: self.num_k_axes]
-        shape_lambda = shape[self.num_k_axes :]
+        shape_k = shape[: self.nk_axes]
+        shape_lambda = shape[self.nk_axes :]
 
         # set axes shape
         for i, ax in enumerate(self.axes):
@@ -1248,16 +1233,16 @@ class Mesh:
         """
         if not self.filled:
             raise ValueError("Mesh points are not initialized.")
-        if axis_index < 0 or axis_index >= self.num_axes:
+        if axis_index < 0 or axis_index >= self.naxes:
             raise IndexError(
-                f"axis_index {axis_index} out of bounds for mesh with {self.num_axes} axes."
+                f"axis_index {axis_index} out of bounds for mesh with {self.naxes} axes."
             )
         if component_index < 0 or component_index >= self.dim_total:
             raise IndexError(
                 f"component_index {component_index} out of bounds for {self.dim_total} components."
             )
 
-        idx = [0] * self.num_axes
+        idx = [0] * self.naxes
         idx[axis_index] = slice(None)
         idx = tuple(idx)
         arr = self.grid[idx + (component_index,)]
@@ -1282,10 +1267,10 @@ class Mesh:
             raise ValueError("Mesh points are not initialized.")
         G = self.grid  # shape (*shape_k, *shape_lambda, dim_k+dim_lambda)
         Gk = G[..., : self.dim_k]
-        num_k_axes = self.num_k_axes
-        num_lambda_axes = self.num_lambda_axes
-        # Build index: [slice(None)]*num_k_axes + [0]*num_lambda_axes + [slice(None)]
-        idx = [slice(None)] * num_k_axes + [0] * num_lambda_axes + [slice(None)]
+        nk_axes = self.nk_axes
+        num_lambda_axes = self.nl_axes
+        # Build index: [slice(None)]*nk_axes + [0]*num_lambda_axes + [slice(None)]
+        idx = [slice(None)] * nk_axes + [0] * num_lambda_axes + [slice(None)]
         Gk_unique = Gk[tuple(idx)]
         # Ensure correct shape
         Gk_unique = np.asarray(Gk_unique)
@@ -1310,10 +1295,10 @@ class Mesh:
             raise ValueError("Mesh points are not initialized.")
         G = self.grid  # shape (*shape_k, *shape_lambda, dim_k+dim_lambda)
         Gp = G[..., self.dim_k :]
-        num_k_axes = self.num_k_axes
-        num_lambda_axes = self.num_lambda_axes
-        # Build index: [0]*num_k_axes + [slice(None)]*num_lambda_axes + [slice(None)]
-        idx = [0] * num_k_axes + [slice(None)] * num_lambda_axes + [slice(None)]
+        nk_axes = self.nk_axes
+        num_lambda_axes = self.nl_axes
+        # Build index: [0]*nk_axes + [slice(None)]*num_lambda_axes + [slice(None)]
+        idx = [0] * nk_axes + [slice(None)] * num_lambda_axes + [slice(None)]
         Gp_unique = Gp[tuple(idx)]
         # Ensure correct shape
         shape_lambda = self.shape_lambda

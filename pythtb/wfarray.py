@@ -501,7 +501,7 @@ class WFArray:
     @property
     def naxes(self) -> int:
         """The number of axes in the :class:`Mesh`."""
-        return self.mesh.num_axes
+        return self.mesh.naxes
 
     @property
     def nks(self) -> tuple:
@@ -1103,7 +1103,7 @@ class WFArray:
         # reshape to broadcast over parameter-axes, band axis, and optional spin axis
         phases = phase2d.reshape(
             *self.nks,  # k-grid
-            *([1] * self.mesh.num_lambda_axes),  # lambda-axes (broadcast)
+            *([1] * self.mesh.nl_axes),  # lambda-axes (broadcast)
             1,  # band axis (broadcast)
             self.norb,  # orbital axis
         )
@@ -1509,7 +1509,7 @@ class WFArray:
         phase = np.exp(-2j * np.pi * dot).astype(complex)  # (*nks, norb)
 
         # Broadcast to (nk..., nl..., nstate, norb[, nspin]) in one reshape/expand
-        shape = (*nks, *([1] * self.mesh.num_lambda_axes), 1, self.norb)  # band axis
+        shape = (*nks, *([1] * self.mesh.nl_axes), 1, self.norb)  # band axis
         phase = phase.reshape(shape)
         if self.nspin == 2:
             phase = phase[..., np.newaxis]  # spin axis
@@ -1580,11 +1580,11 @@ class WFArray:
         if np.any(abs(np.array(shift_vec, dtype=int)) > 1):
             raise ValueError("Only unit shifts (+1, 0, -1) are supported in shift_vec.")
 
-        if len(shift_vec) < mesh.num_k_axes:
+        if len(shift_vec) < mesh.nk_axes:
             raise ValueError(
                 "shift_vec must have at least as many elements as k-axes in the mesh."
             )
-        elif len(shift_vec) > mesh.num_axes:
+        elif len(shift_vec) > mesh.naxes:
             raise ValueError(
                 "shift_vec must have at most as many elements as total axes in the mesh."
             )
@@ -1705,7 +1705,7 @@ class WFArray:
                 "Computing overlap matrix without k-metric for neighbor lookup."
             )
             # get number of k-axes
-            n_k_axes = self.mesh.num_k_axes
+            n_k_axes = self.mesh.nk_axes
 
             # overlap matrix
             M = np.zeros(
