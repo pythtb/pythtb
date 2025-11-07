@@ -201,8 +201,6 @@
 
 
 
-
-
 Methods
 -------
 .. autosummary::
