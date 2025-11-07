@@ -204,11 +204,9 @@ class WFArray:
         self._energies = None
 
     def __getitem__(self, index):
-        self._check_index(index)
         return self._wfs[index]
 
     def __setitem__(self, index, value):
-        self._check_index(index)
         if not isinstance(value, (list, np.ndarray)):
             raise TypeError("Value must be a list or numpy array!")
 
@@ -229,34 +227,6 @@ class WFArray:
         self._wfs[index] = value
         self._sync_boundary_from_index(index)
         self._invalidate_caches()
-
-    def _check_index(self, index: ArrayLike):
-        # Normalize to a tuple of ints
-        if isinstance(index, (tuple, list, np.ndarray)):
-            if len(index) != self.naxes:
-                raise TypeError(
-                    f"Index should be an integer or a tuple of length {self.naxes}."
-                )
-
-        if self.naxes == 1:
-            if isinstance(index, (tuple, list, np.ndarray)):
-                index = index[0]
-            elif not isinstance(index, (int, np.integer)):
-                raise TypeError("Indices should be integers.")
-
-            idxs = (int(index),)
-        else:
-            if not isinstance(index, (tuple, list, np.ndarray)):
-                raise TypeError("Index should be a tuple, list, or ndarray.")
-            if not all(isinstance(k, (int, np.integer)) for k in index):
-                raise TypeError("Index should be array-like of integers.")
-
-            idxs = tuple(int(k) for k in index)
-
-        for i, k in enumerate(idxs):
-            lo, hi = -self.shape_mesh[i], self.shape_mesh[i]
-            if k < lo or k >= hi:
-                raise IndexError("Index outside the range of the WFArray.")
 
     def _check_state_indices(
         self, state_idx: int | ArrayLike, return_indices: bool = False
@@ -1002,8 +972,8 @@ class WFArray:
           :math:`\psi_{n,{\bf k+G}}=\psi_{n {\bf k}}`, so the cell-periodic states satisfy
           :math:`u_{n,{\bf k_0+G}}=e^{-i{\bf G}\cdot{\bf r}} u_{n {\bf k_0}}`.
           See :ref:`formalism` section 4.4 and equation 4.18 for more detail.
-        - If the mesh includes Brillouin zone boundary points along any k-axis, or an axis
-          is marked as both Brillouin zone winding and closed, ``solve_model`` applies the
+        - If the mesh includes Brillouin zone boundary points along any k-axis, or a looping
+          axis is marked as both Brillouin zone winding and closed, ``solve_model`` applies the
           periodic-gauge phase to the states along that axis.
 
         Examples
@@ -1687,36 +1657,27 @@ class WFArray:
 
         Notes
         -----
-        - :func:`overlap_matrix` delegates neighbor lookup to :meth:`roll_states_with_pbc`, so the
-          behaviour at mesh boundaries depends entirely on how each sampling axis is
-          labelled in the :class:`Mesh`:
+        - Boundary behavior follows the ``Mesh`` axis type:
 
-            - **Periodic, no endpoints**
+          - **Periodic (no endpoint)**
 
-              Axes marked as looped/winding the BZ but without
-              duplicated endpoints. We wrap with :func:`numpy.roll`, so the last k-point is
-              paired with the first and a Bloch phase is applied automatically. Every element
-              of the returned link tensor is meaningful.
+            The final point wraps to the first (looped). All entries
+            are meaningful.
 
-            - **Periodic, endpoints included**
+          - **Periodic with endpoint included**
 
-              Axes that include the terminal point
-              explicitly (``endpoint=True`` or user-provided meshes that repeat the BZ
-              boundary). These are considered “closed” and we *do not* wrap. Instead the
-              array is shifted without wraparound and the vacated slab is zero-filled. The
-              final slice in the returned links therefore vanishes; drop it when forming
-              Wilson loops or Berry phases. Calling the functions :meth:`wilson_loop` or
-              :meth:`berry_phase` will automatically handle this for you.
+            The endpoint is explicitly included in the mesh. No wrap is applied;
+            the final forward link is undefined and is filled with ``NaN``.
+            Discard the final slice along that axis.
 
-            - **Non-periodic axes**
+          - **Nonperiodic (open directions)`**
 
-              Lambda axes or open directions. They take the same
-              zero-filled code path as the previous case because no physical neighbour
-              exists beyond the edge. Those terminal slices should likewise be ignored by
-              downstream consumers.
+            No physical neighbor exists at the boundary. Forward links there are
+            filled with ``NaN`` and should be dropped.
 
-        - In practice, after calling `overlap_matrix`, discard rows where the entries are ``np.nan``
-          before accumulating Wilson loops or Berry phases.
+          These conventions match those used internally by :meth:`wilson_loop`,
+          :meth:`berry_phase`, and related routines, which automatically trim
+          invalid points.
         """
 
         if use_k_metric:
@@ -1768,89 +1729,123 @@ class WFArray:
     def links(
         self, axis_idx: int | ArrayLike = None, state_idx: int | ArrayLike = None
     ) -> np.ndarray:
-        r"""Compute the overlap links (unitary matrices) for the wavefunctions.
+        r"""Compute unitary link matrices for specified axis directions.
 
-        The overlap links along a given direction are defined as the unitary part of the overlap
-        between the wavefunctions and their neighbors in the forward direction along each
-        mesh directions. Specifically, the overlap matrices are computed as
+        For each mesh direction :math:`\mu` in ``axis_idx``, 
+        this routine computes the parallel-transport unitary (“link”) 
+        between the states at each point :math:`\boldsymbol{\kappa}` and 
+        its nearest forward neighbor :math:`\boldsymbol{\kappa} + \hat{\mu}`.
+
+        First define the overlap matrix:
+        
+        .. math::
+
+            M_{\mu}(\boldsymbol{\kappa})_{mn}
+            = \langle
+                u_{m}(\boldsymbol{\kappa})
+                \mid
+                u_{n}(\boldsymbol{\kappa} + \hat{\mu})
+            \rangle.
+
+        where :math:`m,n` index the selected states in ``state_idx``.
+
+        The **unitary link** is then obtained by taking the unitary factor
+        of this overlap matrix:
 
         .. math::
 
-            M_{nm}^{\mu}(\mathbf{k}) = \langle u_{nk} | u_{m, k + \delta k_{\mu}} \rangle
+            U_{\mu}(\boldsymbol{\kappa})
+            \;\equiv\;
+            \mathcal{U}\!\big[M_{\mu}(\boldsymbol{\kappa})\big],
 
-        where :math:`\mu` is the direction along which the link is computed, and
-        :math:`\delta k_{\mu}` is the shift in the wavevector along that direction. The
-        :math:`k` here could be a point in an arbitrary parameter mesh. The unitary link that
-        is returned by the function is obtained through the singular value decomposition
-        (SVD) of the overlap matrix :math:`M^{\mu}(\mathbf{k}) = V^{\mu} \Sigma^{\mu} (W^{\mu})^\dagger`
-        as,
-
-        .. math::
-
-            U^{\mu}(\mathbf{k}) = V^{\mu} (W^{\mu})^\dagger
+        Here :math:`\mathcal{U}[\cdot]` denotes the **unitary part**
+        of the matrix, i.e. the unitary factor in a matrix-factorization
+        of :math:`M_{\mu}(\boldsymbol{\kappa})`. In practice this is
+        obtained from the singular-value decomposition (see Notes).
 
         .. versionadded:: 2.0.0
-
-        .. warning::
-            The neighbor at the boundary is defined with periodic boundary conditions by default.
-            In most cases, this means that the last point in the mesh of :math:`U^{\mu}(\mathbf{k})`
-            along each direction should be disregarded (see Notes for further details).
 
         Parameters
         ----------
         axis_idx : int or array_like of int, optional
             List of `Mesh` axes along which to compute the links.
-            If not provided, links will be computed for all directions in the mesh.
-        state_idx : int or array_like of int
+            If not provided, links will be computed for all directions 
+            in the mesh.
+        state_idx : int or array_like of int, optional
             Index or indices of the states for which to compute the links.
             If an integer is provided, only that state will be considered.
             If a list is provided, links for all specified states will be computed.
+            If not provided, links will be computed for all states.
 
         Returns
         -------
-        U_forward (np.ndarray):
-            Array of shape ``(dim, *shape_k, *shape_l, n_states, n_states)``
-            where
+        U_forward : np.ndarray
+            Array of unitary links. The leading dimension indexes the chosen
+            ``axis_idx`` directions (or all axes if ``axis_idx`` is None).
+            The trailing two dimensions are the matrix indices in band space.
 
-            - ``dim`` is the number of dimensions of the mesh corresponding to :math:`\mu`
-              in the equations above. If ``axis_idx`` is provided, ``dim=len(axis_idx)``; and
-              the indexing of the first axis corresponds to the order of directions
-              in ``axis_idx``.
-            - ``shape_k`` is the tuple of sizes of the mesh along each k-dimension, similarly
-            - ``shape_l`` is the tuple of sizes of the mesh along each lambda-dimension,
-            - The last two axes are the matrix elements of the unitary link matrices,
-              where ``n_states`` is the number of states in the `WFArray` object.
+            Shape:
+              ``(ndirs, *mesh_shape, n_states, n_states)``
+
+            where ``ndirs = len(axis_idx)`` (or ``WFArray.naxes`` by default).
+
+        See Also
+        --------
+        :meth:`berry_connection`, :meth:`berry_phase`, :meth:`berry_flux`,
+        :meth:`wilson_loop`
 
         Notes
         -----
-        - In practice, after calling :meth:`links`, discard rows where the entries
-          are ``np.nan`` (typically the last index along any closed or nonperiodic axis).
-          :meth:`links` delegates neighbor lookup to :meth:`roll_states_with_pbc`, so the
-          behavior at mesh boundaries depends entirely on how each sampling axis is
-          labelled in the :class:`Mesh`:
+        - This is the primitive building block for :meth:`berry_connection`, 
+          :meth:`berry_phase`, :meth:`berry_flux`, and :meth:`wilson_loop`
+          functions.
+        - The unitary link is construced from the singular value 
+          decomposition of the overlap matrix,
 
-            - **Periodic, no endpoints**
+          .. math::
+            M_{\mu} = V_{\mu}\,\Sigma_{\mu}\,W_{\mu}^{\dagger},
 
-              Axes marked as looped/winding the BZ but without
-              duplicated endpoints. We wrap with :meth:`numpy.roll`, so the last k-point is
-              paired with the first and a Bloch phase is applied automatically. Every element
-              of the returned link tensor is meaningful.
+          as,
 
-            - **Periodic, endpoints included**
+          .. math::
 
-              Axes that include the terminal point
-              explicitly (``endpoint=True`` or user-provided meshes that repeat the BZ
-              boundary). These are considered “closed” and we *do not* wrap. Instead the
-              array is shifted without wraparound and the vacated slab is ``np.nan``-filled.
-              Drop any such final slice in the returned links before further analysis.
-              Calling the functions :meth:`wilson_loop` or :meth:`berry_phase` will
-              automatically handle this for you.
+            \mathcal{U} \big[ M_{\mu}(\boldsymbol{\kappa}) \big] 
+            \equiv V_{\mu} W_{\mu}^\dagger
 
-            - **Non-periodic axes**
+          This is equivalent to taking the unitary factor in the
+          polar decomposition. 
 
-              Lambda axes or open directions. They take the same
-              ``np.nan``-filled code path as the previous case because no physical neighbor
-              exists beyond the edge. Those terminal slices should likewise be dropped.
+          .. math::
+
+            M_{\mu} = U_{\mu}\,H_{\mu}, \qquad
+            H_{\mu} = \bigl(M_{\mu}^{\dagger} M_{\mu}\bigr)^{1/2},
+            \\
+            \Rightarrow\quad
+            \mathcal{U}[M_{\mu}] \equiv U_{\mu}
+            = M_{\mu}\bigl(M_{\mu}^{\dagger} M_{\mu}\bigr)^{-1/2}.
+
+        - Boundary behavior follows the ``Mesh`` axis type:
+
+          - **Periodic (no endpoint)**
+
+            The final point wraps to the first (looped). All entries
+            are meaningful.
+
+          - **Periodic with endpoint included** 
+
+            The endpoint is explicitly included in the mesh. No wrap is applied;
+            the final forward link is undefined and is filled with ``NaN``.
+            Discard the final slice along that axis.
+
+          - **Nonperiodic (open directions)**  
+
+            No physical forward neighbor exists at the boundary. Forward links there 
+            are filled with ``NaN`` to keep the shape consistent. These values are not
+            physically meaningful and should be dropped.
+
+          These conventions match those used internally by :meth:`wilson_loop`,
+          :meth:`berry_phase`, and related routines, which automatically trim
+          invalid points.
         """
         if axis_idx is None:
             axis_idx = np.arange(self.naxes, dtype=int)
@@ -2050,28 +2045,22 @@ class WFArray:
             return berry_phase
 
     def wilson_loop(self, axis_idx: int, state_idx=None, wilson_evals: bool = False):
-        r"""Wilson loop unitary matrix along a given mesh axis.
+        r"""Wilson loop along a chosen mesh axis.
 
-        Computes the Wilson loop unitary matrix and its eigenvalues for multiband Berry phases.
-        The Wilson loop is a geometric quantity that characterizes the topology of the
-        band structure. It is defined as the product of the overlap matrices between
-        neighboring wavefunctions in the loop. Specifically, it is given by
-
-        .. math::
-
-            U_{\text{Wilson}} = \prod_{n} U_{n}
-
-        where :math:`U_{n}` is the unitary part of the overlap matrix between neighboring
-        wavefunctions in the loop, and the index :math:`n` labels the position in the loop
-        (see :meth:`links` for more details).
-
-        When ``wilson_evals=True``, the function computes and returns the eigenvalues of the
-        Wilson loop unitary matrix. The eigenvalues are complex numbers of the form
+        The Wilson is defined as the ordered product of *unitary link matrices*
+        along a closed loop string of points in parameter space. For a direction
+        :math:`\mu` in the mesh, this routine computes the Wilson loop unitary
+        matrix along that direction,
 
         .. math::
-            \lambda_n = e^{i \phi_n}
 
-        where :math:`\phi_n` are the multiband Berry phases associated with each band.
+            W_{\mu} = \prod_{n=0}^{N_{\mu}-1}
+            U_{\mu}\!\bigl(\boldsymbol{\kappa}_n \bigr)
+
+        where :math:`\mu` corresponds to ``axis_idx``, and
+        :math:`U_{\mu}(\boldsymbol{\kappa}_n)` is the **unitary part** of the
+        overlap matrix between the states at consecutive mesh points
+        (see :meth:`links`).
 
         .. versionadded:: 2.0.0
 
@@ -2084,16 +2073,15 @@ class WFArray:
             in the subsequent calculations. If unspecified, all bands are
             included.
         wilson_evals : bool, optional
-            If True, then will compute eigenvalues of the Wilson loop unitary and
-            return the negative phases.
-            Otherwise just return the Wilson loop unitary matrix. Default is False.
+            If True, then will compute eigenvalues of the Wilson loop and
+            return them along with the Wilson loop. Default is False.
 
         Returns
         -------
         U_wilson : np.ndarray
             Wilson loop unitary matrix of shape ``(band, band)``.
-        eval_pha : np.ndarray, optional
-            Multiband Berry phases associated with each band.
+        eigvals : np.ndarray, optional
+            Unit norm complex eigenvalues of the Wilson loop unitary matrix.
             Returned only if ``wilson_evals=True``, otherwise not returned.
 
         See Also
@@ -2103,11 +2091,24 @@ class WFArray:
 
         Notes
         -----
-        - ``wilson_evals`` are to be distinguished from multiband Berry phases, in :meth:`berry_phase`.
-          The ``berry_evals`` are the phase arguments of ``wilson_evals`` and are always returned between
-          :math:`-\pi` and :math:`\pi`.
+        - When ``wilson_evals=True``, the function computes and returns the eigenvalues of the
+          Wilson loop unitary matrix. The eigenvalues are complex numbers of the form
+
+          .. math::
+            \lambda_n = e^{i \phi_n}
+
+          where :math:`\phi_n` are the multiband Berry phases associated with each band.
+
+        - ``wilson_evals`` are to be distinguished from multiband Berry phases (as returned
+          in :meth:`berry_phase` with ``berry_evals=True``). The ``berry_evals`` are the **phase**
+          arguments of ``wilson_evals``, not the eigenvalues themselves.
+
+        - For an array of size ``N`` along ``axis_idx``, the Wilson loop is
+          formed from the ``N-1`` nearest-neighbor inner products. This gives an
+          open-path "Wilson line" unless the endpoints correspond to the same physical
+          Hamiltonian; in which case the first state is appended to the end (if endpoints
+          are not already identical) to close the loop (with appropriate PBC phase along k-axes).
         """
-        # print(axis_idx)
 
         if (
             not isinstance(axis_idx, (int, np.integer))
@@ -2195,27 +2196,39 @@ class WFArray:
     ):
         r"""Compute the (non-Abelian) Berry connection from parallel-transport links.
 
-        The gauge-covariant connection is computed from the link unitaries
-        :math:`U_\mu(\mathbf{k})` returned by :meth:`links` with a discrete approximation:
+        This routine evaluates the gauge-covariant Berry connection on the
+        reduced parameter mesh. For each mesh direction :math:`\mu` in
+        ``axis_idx``, the connection is obtained from the parallel-transport link
+        unitaries :math:`U_{\mu}(\boldsymbol{\kappa})` returned by
+        :meth:`links`, using the discrete finite-difference approximation:
 
         .. math::
-            A_\mu(\mathbf{k}) = -\frac{1}{i \Delta k_\mu} \log U_\mu(\mathbf{k})
 
-        where :math:`\Delta k_\mu` is the step size in reduced coordinates along
-        direction :math:`\mu` specified in ``axis_idx``. The matrix-valued connection
-        is defined on the full mesh
-        :math:`(k_1,\dots,k_{\text{dim_k}};\,\lambda_1,\dots,\lambda_{\text{dim}_{\lambda}})`,
-        with band indices on the last two axes. The band indices run over the subspace
-        specified in ``state_idx``.
+            A_{\mu}(\boldsymbol{\kappa})
+            \;=\;
+            -\frac{1}{i\,\Delta \kappa_{\mu}}
+            \log\!\big[\,U_{\mu}(\boldsymbol{\kappa})\,\big],
+
+        where :math:`\Delta \kappa_{\mu}` is the step size (in reduced coordinates)
+        between adjacent points along direction :math:`\mu`. The result is a
+        matrix-valued, non-Abelian connection defined over the full reduced mesh
+        :math:`\boldsymbol{\kappa} = (k_1,\dots,k_{d_k};\,\lambda_1,\dots,\lambda_{d_\lambda})`,
+        with the final two array axes spanning the band subspace specified by
+        ``state_idx``.
+
+        .. versionadded:: 2.0.0
 
         Parameters
         ----------
         axis_idx : int or array_like of int or None, optional
-            Mesh directions to compute the Berry connection. If None, use all mesh axes.
+            Mesh directions :math:`\mu` along which to compute the connection.
+            If None, all mesh axes are used. Default is None.
         state_idx : int or array_like of int or None, optional
             Subspace (band indices) to use. If None, use all.
+            Default is None.
         return_unitaries : bool, optional
-            If True, also return the ``U_mu`` used internally.
+            If True, also return the link unitaries :math:`U_{\mu}`.
+            Default is False.
         cartesian : bool, optional
             If True, compute the step size :math:`\Delta k_\mu` in Cartesian space
             (using the reciprocal lattice vectors) rather than in reduced coordinates.
@@ -2224,19 +2237,25 @@ class WFArray:
         Returns
         -------
         A : ndarray
-            Non-Abelian connection with shape:
-            ``(n_mu, nk1, ..., nkN, nl1, ..., nlM, nstate, nstate)``.
+            Non-Abelian connection with shape: ``(n_mu, *mesh_shape, nstate, nstate)``,
+            where ``n_mu = len(axis_idx)`` (or ``WFArray.naxes`` if ``axis_idx=None``)
+            and ``nstate = len(state_idx)`` (or ``WFArray.nstates`` if ``state_idx=None``).
+
         U : ndarray, optional
-            The link unitaries with same leading shape (returned if ``return_unitaries=True``).
+            The link unitaries with same shape (returned if ``return_unitaries=True``).
+
+        See Also
+        --------
+        :meth:`links`, :meth:`berry_phase`, :meth:`wilson_loop`
 
         Notes
         -----
         - The connection is Hermitian, :math:`A_\mu^\dagger = A_\mu`.
-        - The logarithm is computed via eigen-decomposition of the unitary
+        - The logarithm is computed using spectral decomposition of the unitaries
           :math:`U = V \, \text{diag}(e^{i\theta_n}) \, V^\dagger`, with principal phases
           :math:`\theta_n` in :math:`(-\pi, \pi]`.
-        - Entries of the connection at invalid boundaries (where links are NaN)
-          are left as NaN.
+        - Entries of the connection at invalid boundaries
+          (where links are NaN; see :meth:`links`) remain NaN.
         """
         # Get link unitaries U_mu (n_mu, ..., nstate, nstate), with NaNs at boundaries
         U = self.links(
@@ -2322,36 +2341,44 @@ class WFArray:
         berry_evals: bool = False,
         contin: bool = True,
     ):
-        r"""Berry phase along a given mesh axis.
+        r"""
+        Compute the discretized Berry phase along a specified mesh axis.
 
-        By default, the function returns the Berry phase traced
-        over the specified set of bands. Optionally, with ``berry_evals=True``,
-        the function will also return the multiband berry phases associated with
-        the phase of the eigenvalues of the :meth:`wilson_loop` unitary
-        matrix (corresponding to "hybrid Wannier centers" or "Wilson loop eigenvalues").
-        Explicitly, these take the form
+        This routine evaluates the geometric phase accumulated by a set of
+        states transported along a closed loop in parameter space. The phase
+        is computed from the Wilson loop unitary matrix. Explicitly,
 
         .. math::
-            \phi_n = -\text{Im} \ln \lambda_n
+            \phi_{\mu} = -\text{Im} \ln \det W_{\mu}
 
-        where :math:`\lambda_n` are the eigenvalues of the Wilson loop unitary matrix
-        from :meth:`wilson_loop`.
+        where :math:`W_{\mu}` (obtained from :meth:`wilson_loop`) is the
+        ordered product of the unitary (overlap) links along the ``axis_idx``
+        direction :math:`\mu` in the mesh.
+
+        If ``berry_evals=True``, the function additionally returns the *individual*
+        multiband phases ("hybrid Wannier centers") determined from the phases of the
+        eigenvalues of the Wilson loop unitary matrix,
+
+        .. math::
+            \phi_{\mu}^{(n)} = -\text{Im} \ln \lambda_{\mu}^{(n)}
+
+        When summed modulo :math:`2\pi`, the :math:`\phi_{\mu}^{(n)}` reproduce
+        the total Berry phase.
 
         Parameters
         ----------
         axis_idx : int
-            Index of ``Mesh`` axis along which Berry phase is
-            computed. This parameters needs not be specified for
-            a one-dimensional ``WFArray``.
+            Index of the ``Mesh`` axis along which the Berry phase is
+            computed. For a one-dimensional ``Mesh``, this must be 0.
 
             .. versionchanged:: 2.0.0
-                Changed parameter name from `dir` to `axis_idx` to avoid conflict
+                Renamed from `dir` to `axis_idx` to avoid conflict
                 with built-in Python function `dir()`.
 
-        state_idx : int, array-like, optional
-            Optional band index or array of band indices to be included
-            in the subsequent calculations. If unspecified, all bands are
-            included.
+        state_idx : int or array-like of int, optional
+            Band index or list of indices specifying which states to
+            include in the Berry phase calculation. If omitted, all
+            bands are included.
 
             .. versionchanged:: 2.0.0
                 Renamed from ``occ``. The band indices are not required to be
@@ -2359,79 +2386,70 @@ class WFArray:
                 and the ``"all"`` option has been removed.
 
         contin : bool, optional
-            If True (default) then the branch choice of the Berry phase (which is
-            indeterminate modulo :math:`2\pi`) is made so that neighboring strings
-            (in the direction of increasing index value) have as close as
-            possible phases. The phase of the first string (with lowest
-            index) is always constrained to be between :math:`-\pi` and :math:`\pi`.
-            If False, the Berry phase for every string is constrained to be
-            between :math:`-\pi` and :math:`\pi`.
+            Controls branch-continuity of the returned Berry phases. If True (default),
+            phases are chosen to vary smoothly along the orthogonal mesh directions. The
+            reference phase (first string) is constrained to lie in :math:`[-\pi, \pi]`.
+            Subsequent phases are adjusted by adding or subtracting :math:`2 \pi`
+            as needed to ensure continuity with the previous string. If False, all
+            phases are constrained to lie in :math:`[-\pi, \pi]`.
 
         berry_evals : bool, optional
-            If True then will compute and return the phases of the eigenvalues of the
-            product of overlap matrices. (These numbers correspond also
-            to hybrid Wannier function centers.) These phases are either
-            forced to be between :math:`-\pi` and :math:`\pi` (if ``contin=False``) or
-            they are made to be continuous (if ``contin=True``).
+            If True, also return the Wilson loop eigen-phases
+            (hybrid Wannier centers). These are branch-fixed following the same
+            rules as above.
 
         Returns
         -------
         phase : np.ndarray
-            Total accumulated Berry phase along the specified axis.
-            When only a single axis is present in the ``Mesh``, this is
-            a scalar. When multiple axes are present, this is an array
-            with one less dimension than the original mesh, corresponding
-            to the total Berry phase for the remaining ``Mesh`` points.
-            For example, if ``Mesh`` has three axes, indexed by ``[i,j,k]``,
-            and we specify ``axis_idx=1``, then ``phase`` will be two
-            dimensional array with indices ``[i,k]``.
+            Total Berry phase along ``axis_idx``. Scalar when only one axis
+            is present in the ``Mesh``, otherwise an array with one less
+            dimension than the original ``Mesh``, corresponding to the
+            Berry phase for each remaining ``Mesh`` points.
+
+            For example, if ``Mesh`` has axes ``[i, j, k]``,
+            and ``axis_idx=1``, then the returned array has shape
+            ``[i, k]``.
 
         evals : np.ndarray, optional
-            Phases of each eigenvalue of the Wilson loop unitary (product of
-            unitary part of overlap matrices along the specified axis).
-            In the convention used for the previous example,
-            ``evals`` in this case would have indices ``[i,k,n]``,
-            where ``n`` refers to the index of the individual phase of
-            the product matrix eigenvalue.
+            Only returned if ``berry_evals=True``. Wilson loop eigen-phases
+            along ``axis_idx``. Follows the same indexing convention as above,
+            with an additional trailing index labeling the phases :math:`\phi_n`.
 
         See Also
         --------
+        :meth:`wilson_loop`
+        :ref:`formalism` : Sec. 4.5 for the discretized formula used to compute Berry phase.
         :ref:`haldane-bp-nb` : For an example
         :ref:`cone-nb` : For an example
         :ref:`three-site-thouless-nb` : For an example
-        :meth:`wilson_loop` : For a function that computes Wilson loops.
-        :ref:`formalism` : Sec. 4.5 for the discretized formula used to compute Berry phase.
 
         Notes
         -----
-        - For a single ``Mesh`` axis in ``WFArray`` (i.e., a single string), the
-          computed Berry phases are always chosen to be between :math:`-\pi`
-          and :math:`\pi`. For a higher dimensional ``WFArray``, the Berry phase
-          is computed for each one-dimensional string of points, and an array of
-          Berry phases is returned. The Berry phase for the first string
-          (with lowest index) is always constrained to be between :math:`-\pi` and
-          :math:`\pi`. The range of the remaining phases depends on the value of
-          the input parameter ``contin``.
-
-        - For an array of size ``N`` in direction ``axis_idx``, the Berry phase
-          is computed from the ``N-1`` inner products of neighboring
-          eigenfunctions. This corresponds to an "open-path Berry
-          phase" if the first and last points have no special
-          relation. If they correspond to the same physical
-          Hamiltonian, then a closed-path Berry phase will be computed.
-
-        - The bands in ``state_idx`` should be non-degenerate with states
-          outside the manifold. This means they should be well separated in energy.
-          It is the responsibility of the user to check that this is satisfied.
+        - ``berry_evals`` are to be distinguished from Wilson loop eigenvalues (as returned
+          in :meth:`wilson_loop` with ``wilson_evals=True``). The ``berry_evals`` are the **phase**
+          arguments of ``wilson_evals``, not the eigenvalues themselves.
+        - For a single 1D string, the Berry phase is always returned in
+          :math:`[-\pi,\pi]`.
+        - For multidimensional meshes, the phase is computed for each 1D string
+          obtained by slicing along ``axis_idx``; continuity treatment depends on
+          ``contin``.
+        - A manifold specified by ``state_idx`` should be isolated from other
+          states (no degeneracies with states outside the subset). Ensuring this
+          is the user's responsibility.
+        - For an array of size ``N`` along ``axis_idx``, the Wilson loop is
+          formed from the ``N-1`` nearest-neighbor inner products. This gives an
+          open-path phase unless the endpoints correspond to the same physical
+          Hamiltonian; in which case the first state is appended to the end
+          (if endpoints are not already identical) to close the loop
+          (with appropriate PBC phase along k-axes).
 
         Examples
         --------
-        Computes Berry phases along second direction for three lowest
-        occupied states. For example, if wf is threedimensional, then
-        ``pha[2, 3]`` would correspond to Berry phase of string of states
-        along ``wf[2, :, 3]``
+        Compute Berry phases along the second mesh axis for the three lowest
+        bands.  If ``wf`` has axes ``[i, j, k]``, then ``phase[i, k]`` is the
+        result along the string ``wf[i, :, k]``.
 
-        >>> pha = wf.berry_phase([0, 1, 2], 1)
+        >>> phase = wf.berry_phase(axis_idx=1, state_idx=[0, 1, 2])
         """
         if (
             not isinstance(axis_idx, (int, np.integer))
@@ -2550,16 +2568,29 @@ class WFArray:
         *,
         use_tensorflow: bool = False,
     ):
-        r"""Berry flux tensor using the Fukui-Hatsugai-Suzuki formalism.
+        r"""Berry flux tensor using the Fukui-Hatsugai-Suzuki plaquette method.
 
         The Berry flux tensor :math:`\mathcal{F}_{\mu\nu}(\boldsymbol{\kappa})`
-        is computed using a discretized formula based on the
-        Fukui-Hatsugai-Suzuki (FHS) method [1]_. This method involves 
-        calculating the Berry flux through closed loops around
-        each plaquette of the parameter mesh. The tensor is either defined
-        as a matrix-valued quantity (non-Abelian case) or as a scalar quantity
-        obtained by tracing over the band indices (Abelian case). See Notes
-        section below for details.
+        on a reduced mesh point :math:`\boldsymbol{\kappa}` is evaluated by forming the
+        ordered product of parallel-transport link unitaries around an elementary
+        plaquette in directions :math:`(\mu,\nu)` [1]_:
+
+        .. math::
+            \mathcal{F}_{\mu\nu}(\boldsymbol{\kappa})
+            = -\,\operatorname{Im}\,
+            \ln\!\Big[
+                U_{\mu}(\boldsymbol{\kappa})\,
+                U_{\nu}(\boldsymbol{\kappa}+\hat{\mu})\,
+                U_{\mu}^{\dagger}(\boldsymbol{\kappa}+\hat{\nu})\,
+                U_{\nu}^{\dagger}(\boldsymbol{\kappa})
+            \Big],
+        
+        where :math:`U_{\mu}(\boldsymbol{\kappa})` is the unitary link obtained from
+        the overlap between states at :math:`\boldsymbol{\kappa}` and its forward
+        neighbor along direction :math:`\mu` (see :meth:`links`). When a multiband
+        subspace is supplied, this expression yields the **non-Abelian**
+        matrix-valued flux; taking the matrix determinant gives the usual **Abelian**
+        (band-traced) flux.
 
         .. versionremoved:: 2.0.0
             The `individual_phases` parameter has been removed.
@@ -2567,19 +2598,15 @@ class WFArray:
         Parameters
         ----------
         plane : (2,) array_like, optional
-            Array or tuple of two indices defining the axes in the
-            WFArray mesh which the Berry flux is computed over. By default,
-            all directions are considered, and the full Berry flux tensor is
-            returned.
+            Array or tuple of two mesh-axis indices over which the flux
+            is computed. By default, all index pairs are evaluated.
 
             .. versionchanged:: 2.0.0
                 Renamed from ``dirs``.
 
         state_idx : int or array_like of int, optional
-            Optional index or array of indices defining the states to be included
-            in the subsequent calculations, typically the indices of
-            bands considered occupied. If not specified, or None, all bands are
-            included.
+            Indices of the states spanning the subspace. 
+            If None, all states are used.
 
             .. versionchanged:: 2.0.0
                 Renamed from ``occ``. The band indices are not required to be
@@ -2587,23 +2614,32 @@ class WFArray:
                 and the ``"all"`` option has been removed.
 
         non_abelian : bool, optional
-            If *True* then the non-Abelian Berry flux tensor is computed defined 
-            as a matrix-valued quantity.
-            If *False* (default) then the Berry flux is computed as a scalar quantity
-            by tracing over the band indices.
+            If *True*, return the matrix-valued non-Abelian flux.
+            If *False* (default), return the Abelian (band-traced) flux.
 
             .. versionadded:: 2.0.0
+
+        use_tensorflow : bool, optional
+            If *True*, use TensorFlow for speedup on large calculations.
+            Default is *False*.
 
         Returns
         -------
         flux : ndarray
             The Berry flux tensor, which is an array of shape
             
-            - ``non_abelian=True``, ``plane=None``: ``(naxes, naxes, *mesh_shape, n_states, n_states)``,
-            - ``non_abelian=False``, ``plane=None``: ``(naxes, naxes, *mesh_shape)``,
-            - ``non_abelian=False``, ``plane=(mu, nu)``: ``(*mesh_shape,)``,
-            - ``non_abelian=True``, ``plane=(mu, nu)``: ``(*mesh_shape, n_states, n_states)``,
+            - ``non_abelian=True``, ``plane=None``: 
+              ``(naxes, naxes, *mesh_shape, nstates, nstates)``,
+            - ``non_abelian=True``, ``plane=(mu, nu)``: 
+              ``(*mesh_shape, nstates, nstates)``,
+            - ``non_abelian=False``, ``plane=None``: 
+              ``(naxes, naxes, *mesh_shape)``,
+            - ``non_abelian=False``, ``plane=(mu, nu)``: 
+              ``(*mesh_shape,)``,
 
+            where ``nstates = len(state_idx)`` (or ``WFArray.nstates`` if
+            ``state_idx=None``).
+ 
         Notes
         -----
         - For a given :math:`(\mathbf{k}, \boldsymbol{\lambda})`-point :math:`\boldsymbol{\kappa}` 
@@ -3012,6 +3048,21 @@ class WFArray:
             E.g., the shape of the returned array is `(nk3, ..., nkd)` if the plane is
             `(0, 1)`, where `(nk3, ..., nkd)` are the sizes of the mesh in the remaining
             dimensions.
+
+        See Also
+        --------
+        :meth:`berry_flux` : For details and formalism on the Berry flux tensor.
+
+        Notes
+        -----
+        - The Chern number gives an integer value in the
+          limit of an infinitely dense mesh only when the plane
+          forms a closed manifold.
+        - The method requires at least a two-dimensional mesh in the
+          combined adiabatic space (momentum + adiabatic parameters). Thus,
+          ``WFArray.naxes >= 2``.
+        - The last point along closed or non-periodic axes is trimmed from the Chern
+          number array to avoid overcounting, since it is equivalent to the first point.
 
         Examples
         --------
