@@ -4805,8 +4805,8 @@ class TBModel:
         topological character of the occupied bands. It is defined as
 
         .. math::
-            C(\boldsymbol{\tau}_i) = \frac{4\pi}{{A_\text{cell}}}\, \mathrm{Im}\!
-            \langle \phi_i |
+            C(\boldsymbol{\tau}_i) = \frac{4\pi}{{A_\text{cell}}}\,
+            \mathrm{Im} \; \langle \phi_i |
             \mathcal{P} \left[ X,\mathcal{P} \right]\left[Y,\mathcal{P}\right]
             | \phi_i \rangle ,
 
