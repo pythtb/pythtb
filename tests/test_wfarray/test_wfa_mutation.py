@@ -13,7 +13,7 @@ def make_1d_wfa(include_endpoint: bool) -> WFArray:
 def test_setitem_does_not_touch_open_axis():
     """Updating an open axis should not modify the opposite edge."""
     wfa = make_1d_wfa(include_endpoint=False)
-    n_pts = wfa.mesh.shape_mesh[0]
+    n_pts = wfa.mesh.shape_axes[0]
     states = np.ones((n_pts, 1, 1), dtype=complex)
     wfa.set_states(states)
 
@@ -25,7 +25,7 @@ def test_setitem_does_not_touch_open_axis():
 def test_set_states_enforces_closed_axis_phase():
     """Closing a loop should make the endpoint match the starting point after set_states."""
     wfa = make_1d_wfa(include_endpoint=True)
-    n_pts = wfa.mesh.shape_mesh[0]
+    n_pts = wfa.mesh.shape_axes[0]
     states = np.zeros((n_pts, 1, 1), dtype=complex)
     states[0, 0, 0] = 1.0
     states[-1, 0, 0] = 2.0  # should be overwritten by enforcement

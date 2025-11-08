@@ -64,7 +64,6 @@ def run():
 
     mesh = Mesh(dim_k=2, axis_types=["k", "k"])
     mesh.build_custom(points=all_kpt)
-    print(mesh)
 
     w_square = WFArray(my_model.lattice, mesh)
     w_square.solve_model(my_model)

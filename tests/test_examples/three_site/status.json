@@ -6,14 +6,14 @@
         "status": "pass"
     },
     "three_site_cycle": {
-        "last_pass": "2025-11-07T01:51:24.049350",
-        "pythtb_version": "2.0.0.post225+gd86c3dbcf",
+        "last_pass": "2025-11-08T05:13:55.372543",
+        "pythtb_version": "2.0.0.post421+gd76ad73cc.d20251108",
         "python_version": "3.12.11",
         "status": "pass"
     },
     "three_site_cycle_fin": {
-        "last_pass": "2025-11-07T01:51:24.350392",
-        "pythtb_version": "2.0.0.post225+gd86c3dbcf",
+        "last_pass": "2025-11-08T05:13:55.686752",
+        "pythtb_version": "2.0.0.post421+gd76ad73cc.d20251108",
         "python_version": "3.12.11",
         "status": "pass"
     }
