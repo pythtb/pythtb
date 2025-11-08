@@ -4,6 +4,7 @@ from .lattice import Lattice
 import warnings
 import functools
 import logging
+import copy
 import numpy as np
 from numpy.typing import ArrayLike
 
@@ -172,17 +173,17 @@ class WFArray:
             raise TypeError("mesh must be of type pythtb.Mesh")
         if not isinstance(spinful, bool):
             raise TypeError("Argument spinful must be a boolean.")
-
-        self._lattice = lattice
-
-        if self.dim_k != mesh.dim_k:
+        if lattice.dim_k != mesh.dim_k:
             raise ValueError(
-                f"Model dim_k ({self.dim_k}) does not match mesh dim_k ({mesh.dim_k})"
+                f"Lattice dim_k ({lattice.dim_k}) does not match Mesh dim_k ({mesh.dim_k})"
             )
         if not mesh.filled:
             raise ValueError(
                 "Mesh points are not initialized. Did you call build_grid/build_custom?"
             )
+
+        self._lattice = lattice
+        self._mesh = mesh
 
         axis_sizes = np.array(self.shape_mesh, dtype=int)
         loop_axes = [idx for idx, ax in enumerate(mesh.axes) if ax.is_loop]
@@ -192,8 +193,6 @@ class WFArray:
                 "Looping mesh axes must have at least two samples "
                 f"(axes {short_loops} are too short)."
             )
-
-        self._mesh = mesh
 
         if True in (np.array(self.shape_mesh, dtype=int) < 1).tolist():
             raise ValueError(
@@ -335,24 +334,82 @@ class WFArray:
                     )
                     self._copy_edge(slc_last, slc_first)
 
+    def _canonical_to_mesh_axes(self) -> tuple[int, ...]:
+        """Permutation from canonical axis order to the mesh's declared axis order."""
+        axes = self.mesh.axes
+        if not axes:
+            return tuple()
+        shape_k = self.mesh.shape_k
+        perm_user_to_canonical: list[int] = []
+        k_counter = l_counter = 0
+        for ax in axes:
+            if ax.type == "k":
+                perm_user_to_canonical.append(k_counter)
+                k_counter += 1
+            else:
+                perm_user_to_canonical.append(len(shape_k) + l_counter)
+                l_counter += 1
+        return tuple(perm_user_to_canonical)
+
+    def _mesh_axes_to_canonical(self) -> tuple[int, ...]:
+        """Permutation from mesh's declared axis order to canonical axis order."""
+        perm = self._canonical_to_mesh_axes()
+        return tuple(np.argsort(perm).tolist())
+
     @property
-    def model(self):
-        """The :class:`TBModel` associated with the :class:`WFArray`."""
+    def model(self) -> TBModel:
+        """The :class:`TBModel` associated with the :class:`WFArray`.
+
+        Returns
+        -------
+        TBModel
+            The :class:`TBModel` associated with the :class:`WFArray`.
+            Only defined if the wavefunctions were computed
+            by :meth:`solve_model`.
+
+        Raises
+        ------
+        ValueError
+            If no :class:`TBModel` is associated with this :class:`WFArray`.
+        """
+        if not hasattr(self, "_model"):
+            raise ValueError(
+                "No TBModel is associated with this WFArray. "
+                "Did you compute the wavefunctions using solve_model?"
+            )
         return self._model
 
     @property
     def lattice(self) -> Lattice:
-        """The :class:`Lattice` associated with the :class:`WFArray`."""
+        """The :class:`Lattice` associated with the :class:`WFArray`.
+
+        Returns
+        -------
+        Lattice
+            The :class:`Lattice` associated with the :class:`WFArray`.
+        """
         return self._lattice
 
     @property
-    def mesh(self):
-        """The :class:`Mesh` associated with the :class:`WFArray`."""
+    def mesh(self) -> Mesh:
+        """The :class:`Mesh` associated with the :class:`WFArray`.
+
+        Returns
+        -------
+        Mesh
+            The :class:`Mesh` associated with the :class:`WFArray`.
+        """
         return self._mesh
 
     @property
     def filled(self) -> bool:
-        """Whether the wavefunctions are filled (i.e., not empty)."""
+        """Whether the wavefunction array has been initialized.
+
+        Returns
+        -------
+        bool
+            True if the :attr:`wfs` array is not empty.
+        """
         # if uninitialzed, wfs will be np.empty
         return self._wfs.size > 0
 
@@ -360,13 +417,14 @@ class WFArray:
     def wfs(self) -> np.ndarray:
         """The stored wavefunctions.
 
+        In the case of k-axes, these are the cell-periodic (Bloch) states
+        without the plane-wave phase factors.
+
         Returns
         -------
         np.ndarray
-            The stored wavefunctions. Shape is ``(shape_mesh..., nstates, norb[, nspin])``.
-            In the case of spinful models, the last axis corresponds to spin. When k-axes
-            are present, the wavefunctions are cell-periodic (Bloch states without the
-            plane-wave phase factors).
+            The stored wavefunctions. Shape is ``(*shape_mesh, nstates, norb[, nspin])``.
+            In the case of spinful models, the last axis corresponds to spin.
         """
         return self._wfs
 
@@ -374,15 +432,18 @@ class WFArray:
     def u_nk(self) -> np.ndarray:
         r"""The cell-periodic wavefunctions.
 
+        These are the :math:`|u_{n\mathbf{k}}\rangle` states without the plane-wave phase factors.
+
         Returns
         -------
         np.ndarray
-            The cell-periodic wavefunctions. Shape is ``(shape_mesh..., nstates, norb[, nspin])``.
-            These are the :math:`|u_{n\mathbf{k}}\rangle` states without the plane-wave phase factors.
+            The cell-periodic wavefunctions.
+            Shape is ``(*shape_mesh, nstates, norb[, nspin])``.
 
-        Notes
-        -----
-        - The cell-periodic wavefunctions are only defined when k-axes are present in the mesh.
+        Raises
+        ------
+        ValueError
+            If the wavefunctions are not initialized or if k-axes are not present in the mesh.
         """
         if not self.filled:
             raise ValueError("Wavefunctions are not initialized.")
@@ -397,11 +458,19 @@ class WFArray:
     def psi_nk(self) -> np.ndarray:
         r"""The Bloch wavefunctions.
 
+        These are the :math:`|\psi_{n\mathbf{k}}\rangle` states including the plane-wave
+        phase factors.
+
         Returns
         -------
         np.ndarray
-            The Bloch wavefunctions. Shape is ``(shape_mesh..., nstates, norb[, nspin])``.
-            These are the :math:`|\psi_{n\mathbf{k}}\rangle` states including the plane-wave phase factors.
+            The Bloch wavefunctions.
+            Shape is ``(*shape_mesh, nstates, norb[, nspin])``.
+
+        Raises
+        ------
+        ValueError
+            If the wavefunctions are not initialized or if k-axes are not present in the mesh
         """
         if not self.filled:
             raise ValueError("Wavefunctions are not initialized.")
@@ -425,12 +494,19 @@ class WFArray:
         Returns
         -------
         np.ndarray
-            The overlap matrix of the wavefunctions. Shape is ``(shape_mesh..., nnbrs, nstates, nstates)``.
+            The overlap matrix of the wavefunctions. Shape is ``(*shape_mesh, nnbrs, nstates, nstates)``.
+
+        Raises
+        ------
+        ValueError
+            If the wavefunctions are not initialized or if the mesh is not a regular grid.
 
         Notes
         -----
-        - The overlap matrix is only defined for regular grids.
-        - To compute the overlap matrix using reduced neighbors, use :meth:`overlap_matrix`.
+        - The overlap matrix is only defined for regular grids in k-space.
+        - The overlap matrix is computed using the Cartesian metric by default.
+          To compute the overlap matrix using reduced neighbors,
+          use :meth:`overlap_matrix` with ``use_k_metric=False``.
         """
         if not self.filled:
             raise ValueError("Wavefunctions are not initialized.")
@@ -446,12 +522,19 @@ class WFArray:
 
     @property
     def energies(self) -> np.ndarray:
-        """The band energies of the energy eigenstates of the :class:`TBModel`.
+        """The energies of the :class:`TBModel`.
 
-        Notes
-        -----
-        - The energies are only defined when the states stored in the :class:`WFArray`
-          are eigenstates of the Hamiltonian.
+        Returns
+        -------
+        np.ndarray
+            The energies of the :class:`TBModel`. Shape is ``(shape_mesh..., nstates)``.
+            Only defined after calling :meth:`solve_model`.
+
+        Raises
+        ------
+        ValueError
+            If the wavefunctions are not initialized
+            or if the energies have not been computed.
         """
         if not self.filled:
             raise ValueError("Wavefunctions are not initialized.")
@@ -464,12 +547,26 @@ class WFArray:
 
     @property
     def hamiltonian(self) -> np.ndarray:
-        r"""The Hamiltonian defined on the :class:`Mesh`."""
+        r"""The Hamiltonian defined on the :class:`Mesh`.
+
+        Returns
+        -------
+        np.ndarray
+            The Hamiltonian defined on the :class:`Mesh`. Shape is
+            ``(*shape_mesh, norb[, nspin], norb[, nspin])``.
+        """
         return getattr(self, "_H", None)
 
     @property
     def shape(self) -> tuple:
-        """The shape of the state array."""
+        """The shape of the state array.
+
+        Returns
+        -------
+        tuple of int
+            The shape of the state array, including mesh axes, states,
+            orbitals, and (if present) spin.
+        """
         wfs_dim = np.array(self.shape_mesh, dtype=int)
         wfs_dim = np.append(wfs_dim, self.nstates)
         wfs_dim = np.append(wfs_dim, self.norb)
@@ -479,82 +576,150 @@ class WFArray:
 
     @property
     def nstates(self) -> int:
-        """The number of states (or bands) in the state array."""
+        """The number of states (or bands) in the state array.
+
+        Returns
+        -------
+        int
+        """
         return self._nstates
 
     @property
     def nspin(self) -> int:
-        """The number of spin components."""
+        """The number of spin components.
+
+        Returns
+        -------
+        int
+            2 if the :class:`WFArray` is spinful, 1 otherwise.
+        """
         return 2 if self.spinful else 1
 
     @property
     def spinful(self) -> bool:
-        """Whether the :class:`WFArray` includes spin degrees of freedom."""
+        """Whether the :class:`WFArray` includes spin degrees of freedom.
+
+        Returns
+        -------
+        bool
+        """
         return self._spinful
 
     @property
     def norb(self) -> int:
-        """The number of orbitals defined in the :class:`Lattice`."""
+        """The number of orbitals defined in the :class:`Lattice`.
+
+        Returns
+        -------
+        int
+        """
         return self.lattice.norb
 
     @property
     def shape_mesh(self) -> tuple:
-        """The shape of the :class:`Mesh`."""
-        return self.mesh.shape_mesh
+        """The shape of the axes of :class:`Mesh`.
+
+        Returns
+        -------
+        tuple of int
+            The shape of the axes of :class:`Mesh`. Corrsponds to
+            :attr:`Mesh.shape_axes`.
+        """
+        return self.mesh.shape_axes
 
     @property
     def dim_k(self) -> int:
-        """The dimension of k-space in the :class:`Mesh`."""
+        """The dimension of k-space in the :class:`Mesh`.
+
+        Returns
+        -------
+        int
+        """
         return self.lattice.dim_k
 
     @property
     def dim_lambda(self) -> int:
-        """The dimension of lambda space in the :class:`Mesh`."""
+        """The dimension of lambda-space in the :class:`Mesh`.
+
+        Returns
+        -------
+        int
+        """
         return self.mesh.dim_lambda
 
     @property
     def naxes(self) -> int:
-        """The number of axes in the :class:`Mesh`."""
+        """The number of axes in the :class:`Mesh`.
+
+        Returns
+        -------
+        int
+        """
         return self.mesh.naxes
 
     @property
-    def nks(self) -> tuple:
-        """The number of points along each k-axis in the :class:`Mesh`."""
-        return self.mesh.shape_k
-
-    @property
-    def shape_k(self) -> tuple:
-        """The number of points along each k-axis in the :class:`Mesh`."""
-        return self.mesh.shape_k
-
-    @property
-    def nlams(self) -> tuple:
-        """The number of points along each lambda-axis in the :class:`Mesh`."""
-        return self.mesh.shape_lambda
-
-    @property
-    def shape_lambda(self) -> tuple:
-        """The number of points along each lambda-axis in the :class:`Mesh`."""
-        return self.mesh.shape_lambda
-
-    @property
     def k_points(self) -> np.ndarray:
-        """The k-points in the :class:`Mesh`."""
+        """The k-points in the :class:`Mesh`.
+
+        Returns
+        -------
+        np.ndarray
+            The k-points in the :class:`Mesh`.
+        """
         return self.mesh.get_k_points()
 
     @property
     def param_points(self) -> np.ndarray:
-        """The parameter points in the :class:`Mesh`."""
+        """The parameter points in the :class:`Mesh`.
+
+        Returns
+        -------
+        np.ndarray
+            The parameter points in the :class:`Mesh`.
+        """
         return self.mesh.get_param_points()
+
+    def empty_like(self, nstates: int = None) -> "WFArray":
+        r"""Create a new :class:`WFArray` object with the same :class:`Lattice` and :class:`Mesh`.
+
+        Parameters
+        ----------
+        nstates : int, optional
+            Number of states for the new :class:`WFArray`.
+            If None, uses the current number of states (default).
+
+            .. versionchanged:: 2.0.0
+                Renamed from ``nsta_arr`` for consistency with initialization.
+
+        Returns
+        -------
+        WFArray
+            A new :class:`WFArray` object with the same :class:`Lattice` and :class:`Mesh`.
+        """
+        # make a full copy of the WFArray
+        wf_new = WFArray(self.lattice, self.mesh, nstates=nstates, spinful=self.spinful)
+        return wf_new
+
+    def copy(self) -> "WFArray":
+        r"""Create a copy of the current :class:`WFArray` object.
+
+        .. versionadded:: 2.0.0
+
+        Returns
+        -------
+        WFArray
+            A copy of the current :class:`WFArray` object.
+        """
+        return copy.deepcopy(self)
 
     def set_states(
         self, wfs, is_cell_periodic: bool = True, is_spin_axis_flat: bool = False
     ):
-        """Sets the wavefunctions in the *WFArray* object.
+        """Populate the wavefunction array.
 
-        This function is used to update the wavefunctions stored in the object.
-        It is typically called internally after diagonalization. However,
-        it can also be called externally to manually set the wavefunctions.
+        This method sets the wavefunctions stored in the :class:`WFArray`.
+        The input wavefunctions can be either the cell-periodic (Bloch) states
+        or the full Bloch states, depending on the value of ``is_cell_periodic``.
 
         .. versionadded:: 2.0.0
 
@@ -562,26 +727,24 @@ class WFArray:
         ----------
         wfs : np.ndarray
             Wavefunctions to populate the mesh with. The shape must match the expected
-            shape for the given ``Mesh``, ``nstates``, and spin configuration.
+            shape :attr:`shape`.
         is_cell_periodic : bool, optional
             If True, the wavefunctions are treated as cell-periodic (Bloch states).
             Default is True.
         is_spin_axis_flat : bool, optional
             If True, the spin and orbital indices of ``wfs`` have been
             flattened into a single index. Default is False. This option
-            is only relevant when ``spinful=True``.
+            is only relevant when :attr:`spinful` is True.
 
         Notes
         -----
-        This function sets the Bloch and cell-periodic eigenstates as class attributes
-        when `wfs` is defined on the a k-mesh. When the model is finite, only the
-        ``.wfs`` attribute is set and ``is_cell_periodic`` argument is ignored.
+        - This function sets the Bloch and cell-periodic eigenstates as class attributes
+          when ``wfs`` are defined on the a k-mesh. When the model is finite, only the
+          :attr:`wfs` attribute is set and ``is_cell_periodic`` argument is ignored.
 
         .. warning::
             This function should be used carefully to ensure that the wavefunctions
-            are consistent with the mesh and model.
-            It is up to the user to ensure periodic boundary conditions and other mesh properties
-            are properly accounted for.
+            are consistent with the :attr:`mesh` and :attr:`lattice`.
         """
         if not isinstance(wfs, np.ndarray):
             raise TypeError("wfs must be a numpy ndarray.")
@@ -625,7 +788,7 @@ class WFArray:
         self._invalidate_caches()
 
     def remove_states(self, state_idx: int | ArrayLike):
-        r"""Remove states from the *WFArray* object.
+        r"""Remove specified states from the :class:`WFArray`.
 
         .. versionadded:: 2.0.0
 
@@ -636,8 +799,16 @@ class WFArray:
 
         Notes
         -----
-        This modifies the shape of the ``.wfs``, ``.energies``,
-        ``.u_nk`` and ``.psi_nk`` arrays.
+        - This modifies the shape of the :attr:`wfs`, :attr:`energies`,
+          :attr:`u_nk` and :attr:`psi_nk` arrays.
+        - The indices in ``state_idx`` refer to the current ordering of states.
+          After removal, the remaining states are re-indexed accordingly.
+
+        Examples
+        --------
+        Remove states 0 and 2 from the :class:`WFArray`
+
+        >>> wf.remove_states([0, 2])
         """
         if self.nspin == 2:
             state_ax = -3
@@ -660,7 +831,7 @@ class WFArray:
             self._psi_nk = np.delete(self._psi_nk, state_idx, axis=state_ax)
 
     def choose_states(self, state_idx: int | ArrayLike):
-        r"""Pick a subset of states to keep in the :class:`WFArray`.
+        r"""Keep only the specified states in the :class:`WFArray`.
 
         This method modifies the existing states in place to keep only
         those specified by ``state_idx``.
@@ -675,116 +846,22 @@ class WFArray:
 
         Notes
         -----
-        This modifies the shape of the ``.wfs``, ``.energies``,
-        ``.u_nk`` and ``.psi_nk`` arrays.
+        - This modifies the shape of the :attr:`wfs`, :attr:`energies`,
+          :attr:`u_nk` and :attr:`psi_nk` arrays.
+        - The indices in ``state_idx`` refer to the current ordering of states.
+          After removal, the remaining states are re-indexed accordingly.
 
         Examples
         --------
-        Make new *WFArray* object containing only two states
+        Keep only states 3 and 5 from the :class:`WFArray`
 
-        >>> wf_new = wf.choose_states([3, 5])
+        >>> wf.choose_states([3, 5])
 
         """
         state_idx = self._check_state_indices(state_idx, return_indices=True)
 
         remove_indices = np.setdiff1d(np.arange(self.nstates), state_idx)
         self.remove_states(remove_indices)
-
-    def empty_like(self, nstates: int = None) -> "WFArray":
-        r"""Create a new :class:`WFArray` object with the same :class:`Lattice` and :class:`Mesh`.
-
-        Parameters
-        ----------
-        nstates : int, optional
-            Number of states for the new :class:`WFArray`.
-            If None, uses the current number of states (default).
-
-            .. versionchanged:: 2.0.0
-                Renamed from ``nsta_arr`` for consistency with initialization.
-
-        Returns
-        -------
-        WFArray
-            A new :class:`WFArray` object with the same :class:`Lattice` and :class:`Mesh`.
-        """
-        # make a full copy of the WFArray
-        wf_new = WFArray(self.lattice, self.mesh, nstates=nstates, spinful=self.spinful)
-        return wf_new
-
-    def get_k_shell(self, n_shell: int, report: bool = False):
-        r"""Generates shells of k-points around the Gamma point.
-
-        Returns array of vectors connecting the origin to nearest
-        neighboring k-points in the mesh. The vectors are expressed
-        in inverse units of lattice vectors.
-
-        .. versionadded:: 2.0.0
-
-        Parameters
-        ----------
-        n_shell : int
-            Number of nearest neighbor shells to include.
-        report : bool
-            If True, prints a summary of the k-shell.
-
-        Returns
-        -------
-        k_shell : list[np.ndarray[float]]
-            List of :math:`\mathbf{b}` vectors in inverse units of lattice vectors
-            connecting nearest neighbor k-mesh points. Shape is
-            ``(n_shell, M_s, dim_k)`` where ``M_s`` is the number of k-points
-            in the s-th shell.
-        idx_shell : list[np.ndarray[int]]
-            Each entry is an array of integer shifts that takes a k-point
-            index in the mesh to its nearest neighbors. Shape is
-            ``(n_shell, M_s, dim_k)`` where ``M_s`` is the number of k-points
-            in the s-th shell.
-        """
-
-        return self.lattice.nn_k_shell(self.nks, n_shell, report=report)
-
-    def get_shell_weights(self, n_shell: int = 1, report: bool = False):
-        r"""Generates the finite difference weights on a k-shell.
-
-        This function uses the k-shells generated by :func:`get_k_shell`
-        to compute the  weights for finite difference approximations of
-        :math:`\nabla_{\mathbf{k}}` on a Monkhorst-Pack k-mesh. To linear
-        order, the following expression must be satisfied
-
-        .. math::
-
-            \sum_{s}^{N_{\rm sh}} w_s \sum_{i}^{M_s} b_{\alpha}^{i,s}
-            b_{\beta}^{i,s} = \delta_{\alpha,\beta}
-
-        where :math:`N_{\rm sh} \equiv` ``n_shell`` is the number of shells
-        defining the order of nearest neighbors, :math:`M_s` is the number of
-        k-points in the :math:`s`-th shell, and :math:`b_{\alpha}^{i,s}` is the
-        :math:`\alpha`-th Cartesian component of :math:`i`-th vector
-        connecting k-points to their nearest neighbors in the
-        :math:`s`-th shell.
-
-        .. versionadded:: 2.0.0
-
-        Parameters
-        ----------
-        n_shell : int
-            The number of shells to consider.
-        report : bool
-            Whether to print a report of the k-shells.
-
-        Returns
-        -------
-        w : np.ndarray
-            The finite difference weights.
-        k_shell : list[np.ndarray[float]]
-            List of :math:`\mathbf{b}` vectors in inverse units of lattice vectors
-            connecting nearest neighbor k-mesh points. Length is ``n_shell``.
-        idx_shell : list[np.ndarray[int]]
-            Each entry is an array of integer shifts that takes a k-point
-            index in the mesh to its nearest neighbors.
-            Length is ``n_shell``.
-        """
-        return self.lattice.k_shell_weights(self.nks, n_shell, report=report)
 
     def states(
         self,
@@ -880,7 +957,10 @@ class WFArray:
             return self._P_nbr
 
         # Nearest neighbor shifts
-        _, nnbr_idx_shell = self.get_k_shell(n_shell=1, report=False)
+
+        _, nnbr_idx_shell = self.lattice.nn_k_shell(
+            self.mesh.shape_k, n_shell=1, report=False
+        )
         shifts = nnbr_idx_shell[0]
         num_nnbrs = shifts.shape[0]
 
@@ -1069,9 +1149,25 @@ class WFArray:
                 "count matches."
             )
 
-        # Reshape & set
+        # Reshape from TBModel's canonical (k-first, lambda-second) ordering to the user-defined mesh ordering.
+        shape_k = self.mesh.shape_k
+        shape_lambda = self.mesh.shape_lambda
+        canonical_mesh_shape = shape_k + shape_lambda
+        axes_total = len(self.mesh.axes)
+        state_shape = self.shape[axes_total:]
+
+        eigvals = eigvals.reshape(*canonical_mesh_shape, self.nstates)
+        eigvecs = eigvecs.reshape(*canonical_mesh_shape, *state_shape)
+
+        axis_perm = self._canonical_to_mesh_axes()
+        if axis_perm:
+            axes_for_vals = axis_perm + (axes_total,)
+            eigvals = np.transpose(eigvals, axes_for_vals)
+            trailing_axes = tuple(range(axes_total, axes_total + len(state_shape)))
+            eigvecs = np.transpose(eigvecs, axis_perm + trailing_axes)
+
+        eigvals = eigvals.reshape(*self.shape_mesh, self.nstates)
         eigvecs = eigvecs.reshape(*self.shape)
-        eigvals = eigvals.reshape(*self.mesh.shape_mesh, self.nstates)
         self.set_states(eigvecs, is_cell_periodic=True, is_spin_axis_flat=False)
         self._energies = eigvals
         self._model = model
@@ -1114,13 +1210,19 @@ class WFArray:
         # phases: exp(+-1 * i 2pi k.tau) with shape (Nk, norb)
         phase2d = np.exp(lam * 1j * 2.0 * np.pi * (k @ tau.T))
 
-        # reshape to broadcast over parameter-axes, band axis, and optional spin axis
+        shape_k = self.mesh.shape_k
+        axes_total = len(self.mesh.axes)
+
         phases = phase2d.reshape(
-            *self.nks,  # k-grid
-            *([1] * self.mesh.nl_axes),  # lambda-axes (broadcast)
-            1,  # band axis (broadcast)
-            self.norb,  # orbital axis
+            *shape_k,
+            *([1] * self.mesh.nl_axes),
+            1,
+            self.norb,
         )
+
+        axis_perm = self._canonical_to_mesh_axes()
+        if axis_perm:
+            phases = np.transpose(phases, axis_perm + (axes_total, axes_total + 1))
 
         if self.nspin == 2:
             phases = phases[..., np.newaxis]  # spin axis (broadcast)
@@ -1420,10 +1522,14 @@ class WFArray:
             if self.psi_nk is not None:
                 self._psi_nk[slc_last] = self._psi_nk[slc_first]
 
-    def _unit_shift(self, axis: int):
-        """Return an integer shift vector with +1 along *axis* over sampling axes."""
+    def _unit_shift(self, axis: int, direction: int = 1) -> list[int]:
+        """Return an integer shift vector with ±1 along *axis*."""
+        if axis < 0 or axis >= self.naxes:
+            raise IndexError(f"axis must be in [0, {self.naxes - 1}]")
+        if direction not in (-1, 1):
+            raise ValueError("direction must be ±1.")
         v = [0] * self.naxes
-        v[axis] = 1
+        v[axis] = direction
         return v
 
     @staticmethod
@@ -1454,12 +1560,12 @@ class WFArray:
         (including lambda axes and the state axis). For spinful models, it
         is also broadcast over the spin axis.
         """
-        nks = np.array(self.nks, dtype=int)
+        mesh = self.mesh
+        nks = np.array(mesh.shape_k, dtype=int)
         dim_k = nks.size
         if dim_k == 0:
             return np.array(1.0, dtype=complex)
 
-        mesh = self.mesh
         k_axes = np.asarray(mesh.k_axis_indices, dtype=int)
 
         # Normalize shift vector and restrict to k-axes
@@ -1527,6 +1633,11 @@ class WFArray:
         phase = phase.reshape(shape)
         if self.nspin == 2:
             phase = phase[..., np.newaxis]  # spin axis
+
+        axis_perm = self._canonical_to_mesh_axes()
+        if axis_perm:
+            perm = axis_perm + tuple(range(len(self.mesh.axes), phase.ndim))
+            phase = np.transpose(phase, perm)
 
         return phase
 
@@ -1667,10 +1778,20 @@ class WFArray:
         Returns
         -------
         M : np.ndarray
-            Overlap matrix with shape ``(*shape_k, *shape_lambda, num_nnbrs, n_states, n_states)``
+            Overlap matrix with shape ``(*mesh_shape, num_nnbrs, n_states, n_states)``
 
         Notes
         -----
+        - The overlap matrix is computed between cell-periodic parts of the Bloch states.
+        - When ``use_k_metric`` is True, the leading neighbor index runs over the
+          *Cartesian metric-derived* k-shell (if any) followed by the :math:`\pm \mu`
+          unit steps along each :math:`\lambda`-axis.
+        - When ``use_k_metric`` is False, every :math:`k`- and :math:`\lambda`-axis
+          contributes both the :math:`+\mu` and :math:`-\mu` neighbors
+          in *reduced coordinates*, so the third dimension length is
+          ``2 * mesh.naxes``. The ordering is
+          :math:`(+\kappa_0, -\kappa_0, \cdots, +\lambda_0, -\lambda_0, \cdots )``.
+        - The overlap matrix is only defined where neighbors exist.
         - Boundary behavior follows the ``Mesh`` axis type:
 
           - **Periodic (no endpoint)**
@@ -1696,47 +1817,48 @@ class WFArray:
 
         if use_k_metric:
             logger.info("Computing overlap matrix using k-metric for neighbor lookup.")
-            # Assumes only one shell for now
-            _, idx_shell = self.get_k_shell(n_shell=1, report=False)
-            idx_shell = idx_shell[0]
-
-            # overlap matrix
-            M = np.zeros(
-                (*self.shape_mesh, len(idx_shell), self.nstates, self.nstates),
-                dtype=complex,
-            )
-
-            u_nk = self.states(flatten_spin_axis=True)
-            for idx, idx_vec in enumerate(idx_shell):  # nearest neighbors
-                # introduce phases to states when k+b is across the BZ boundary
-                states_pbc = self.roll_states_with_pbc(idx_vec, flatten_spin_axis=True)
-                overlaps = np.einsum("...mj, ...nj -> ...mn", u_nk.conj(), states_pbc)
-                overlaps = self._invalidate_boundary_links(overlaps, idx_vec)
-                M[..., idx, :, :] = overlaps
+            k_axis_indices = self.mesh.k_axis_indices
+            k_shifts = []
+            if k_axis_indices:
+                _, idx_shell = self.lattice.nn_k_shell(
+                    self.mesh.shape_k, n_shell=1, report=False
+                )
+                for delta in idx_shell[0]:
+                    shift_vec = [0] * self.naxes
+                    for offset, axis_idx in zip(delta, k_axis_indices):
+                        shift_vec[axis_idx] = int(offset)
+                    k_shifts.append(shift_vec)
+            lambda_shifts = [
+                self._unit_shift(axis_idx, direction)
+                for axis_idx in self.mesh.lambda_axis_indices
+                for direction in (+1, -1)
+            ]
+            shift_vectors = k_shifts + lambda_shifts
 
         else:
             logger.info(
                 "Computing overlap matrix without k-metric for neighbor lookup."
             )
-            # get number of k-axes
-            n_k_axes = self.mesh.nk_axes
-
-            # overlap matrix
-            M = np.zeros(
-                (*self.shape_mesh, n_k_axes, self.nstates, self.nstates),
-                dtype=complex,
-            )
-
-            u_nk = self.states(flatten_spin_axis=True)
-            for axis in range(n_k_axes):  # nearest neighbors
-                shift_vec = self._unit_shift(axis)
-                # introduce phases to states when k+b is across the BZ boundary
-                states_pbc = self.roll_states_with_pbc(
-                    shift_vec, flatten_spin_axis=True
+            shift_vectors = [
+                self._unit_shift(axis_idx, direction)
+                for axis_idx in (
+                    self.mesh.k_axis_indices + self.mesh.lambda_axis_indices
                 )
-                overlaps = np.einsum("...mj, ...nj -> ...mn", u_nk.conj(), states_pbc)
-                overlaps = self._invalidate_boundary_links(overlaps, shift_vec)
-                M[..., axis, :, :] = overlaps
+                for direction in (+1, -1)
+            ]
+
+        # overlap matrix
+        M = np.zeros(
+            (*self.shape_mesh, len(shift_vectors), self.nstates, self.nstates),
+            dtype=complex,
+        )
+
+        u_nk = self.states(flatten_spin_axis=True)
+        for slot, shift_vec in enumerate(shift_vectors):
+            rolled = self.roll_states_with_pbc(shift_vec, flatten_spin_axis=True)
+            overlaps = np.einsum("...mj, ...nj -> ...mn", u_nk.conj(), rolled)
+            overlaps = self._invalidate_boundary_links(overlaps, shift_vec)
+            M[..., slot, :, :] = overlaps
 
         return M
 
@@ -1770,7 +1892,7 @@ class WFArray:
 
             U_{\mu}(\boldsymbol{\kappa})
             \;\equiv\;
-            \mathcal{U}\!\big[M_{\mu}(\boldsymbol{\kappa})\big],
+            \mathcal{U}\, \big[M_{\mu}(\boldsymbol{\kappa})\big],
 
         Here :math:`\mathcal{U}[\cdot]` denotes the **unitary part**
         of the matrix, i.e. the unitary factor in a matrix-factorization
@@ -2733,14 +2855,14 @@ class WFArray:
 
         >>> flux = wf.berry_flux(
         ... state_idx = [0, 1, 2]
-        ... ) # shape: (naxes, naxes, *nks, *nlams) 
+        ... ) # shape: (naxes, naxes, *mesh_shape) 
 
         or over a specific plane,
 
         >>> flux = wf.berry_flux(
         ... plane = (0, 1), 
         ... state_idx = [0, 1, 2]
-        ... ) # shape: (*nks, *nlams)
+        ... ) # shape: (*mesh_shape)
 
         We can also compute the non-Abelian Berry flux tensor over a specific plane:
 
@@ -2748,7 +2870,7 @@ class WFArray:
         ... plane = (0,1), 
         ... state_idx = [0, 1, 2], 
         ... non_abelian = True
-        ... ) # shape: (*nks, *nlams, n_states, n_states)
+        ... ) # shape: (*mesh_shape, n_states, n_states)
 
         References
         ----------
@@ -2981,7 +3103,7 @@ class WFArray:
         berry_flux = self.berry_flux(state_idx=state_idx, non_abelian=non_abelian)
         berry_curv = np.zeros_like(berry_flux, dtype=complex)
 
-        coords = self.mesh.grid  # (..., dim_k + dim_lam)
+        coords = self.mesh.points  # (..., dim_k + dim_lam)
         dim_total = coords.shape[-1]
         dim_k = self.lattice.dim_k
         recip = np.asarray(self.lattice.recip_lat_vecs, float) if dim_k else None
@@ -3423,7 +3545,8 @@ class WFArray:
 
         nks = Q_nbr.shape[:-3]
         num_nnbrs = Q_nbr.shape[-3]
-        w_b, _, _ = self.get_shell_weights(n_shell=1)
+
+        w_b, _, _ = self.lattice.k_shell_weights(self.mesh.shape_k, n_shell=1)
 
         T_kb = np.zeros((*nks, num_nnbrs), dtype=complex)
         for nbr_idx in range(num_nnbrs):  # nearest neighbors
@@ -3435,7 +3558,7 @@ class WFArray:
 
     def _omega_til(self):
         Mmn = self._Mmn
-        w_b, k_shell, idx_shell = self.get_shell_weights(n_shell=1)
+        w_b, k_shell, _ = self.lattice.k_shell_weights(self.mesh.shape_k, n_shell=1)
         w_b = w_b[0]
         k_shell = k_shell[0]
 
