@@ -717,7 +717,7 @@ class Wannier:
         **uniform Monkhorst–Pack mesh**.
         """
         M = self.tilde_states.Mmn
-        w_b, k_shell, _ = self.bloch_states.get_shell_weights()
+        w_b, k_shell, _ = self.lattice.k_shell_weights(self.mesh.shape_k, n_shell=1)
         w_b, k_shell = w_b[0], k_shell[0]  # Assume only one shell for now
 
         n_states = self.tilde_states.nstates
@@ -818,7 +818,7 @@ class Wannier:
 
         nks = self.nks
         Nk = np.prod(nks)
-        w_b, _, idx_shell = self.tilde_states.get_shell_weights(n_shell=1)
+        w_b, _, idx_shell = self.lattice.k_shell_weights(self.mesh.shape_k, n_shell=1)
         num_nnbrs = idx_shell[0].shape[0]
 
         T_kb = np.zeros((*nks, num_nnbrs), dtype=complex)
@@ -1027,7 +1027,7 @@ class Wannier:
             keep_mask = np.swapaxes(keep_mask, axis1=-1, axis2=-2)
 
         # Assumes only one shell for now
-        w_b, _, _ = self.bloch_states.get_shell_weights(n_shell=1)
+        w_b, _, _ = self.lattice.k_shell_weights(self.mesh.shape_k, n_shell=1)
         w_b = w_b[0]  # Assume only one shell for now
 
         # Projector of initial tilde subspace at each k-point
@@ -1213,7 +1213,7 @@ class Wannier:
         n_occ = int(n_orb / 2)
 
         # Assumes only one shell for now
-        w_b, _, _ = self.bloch_states.get_shell_weights(n_shell=1)
+        w_b, _, _ = self.lattice.k_shell_weights(self.mesh.shape_k, n_shell=1)
         w_b = w_b[0]  # Assume only one shell for now
 
         # initial subspace
@@ -1379,12 +1379,14 @@ class Wannier:
             the gauge-dependent spread.
         """
         M = self.tilde_states.Mmn
-        w_b, k_shell, idx_shell = self.bloch_states.get_shell_weights()
+        w_b, k_shell, idx_shell = self.lattice.k_shell_weights(
+            self.mesh.shape_k, n_shell=1
+        )
         # Assumes only one shell for now
         w_b, k_shell, idx_shell = w_b[0], k_shell[0], idx_shell[0]
         k_axes = tuple(self.mesh.k_axis_indices)
         nks = self.nks
-        shape_mesh = self.mesh.shape_mesh
+        shape_mesh = self.mesh.shape_axes
         Nk = np.prod(nks)
         num_state = self.tilde_states.nstates
 
