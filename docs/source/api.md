@@ -1,4 +1,4 @@
-# Usage
+# PythTB API Reference
 
 ```{eval-rst}
 .. currentmodule:: pythtb

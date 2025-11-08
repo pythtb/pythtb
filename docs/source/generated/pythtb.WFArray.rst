@@ -213,9 +213,8 @@ Methods
    pythtb.WFArray.berry_phase
    pythtb.WFArray.chern_number
    pythtb.WFArray.choose_states
+   pythtb.WFArray.copy
    pythtb.WFArray.empty_like
-   pythtb.WFArray.get_k_shell
-   pythtb.WFArray.get_shell_weights
    pythtb.WFArray.impose_loop
    pythtb.WFArray.impose_pbc
    pythtb.WFArray.links
@@ -333,22 +332,6 @@ Methods
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 Attributes
 ----------
 .. autosummary::
@@ -366,16 +349,12 @@ Attributes
    pythtb.WFArray.mesh
    pythtb.WFArray.model
    pythtb.WFArray.naxes
-   pythtb.WFArray.nks
-   pythtb.WFArray.nlams
    pythtb.WFArray.norb
    pythtb.WFArray.nspin
    pythtb.WFArray.nstates
    pythtb.WFArray.param_points
    pythtb.WFArray.psi_nk
    pythtb.WFArray.shape
-   pythtb.WFArray.shape_k
-   pythtb.WFArray.shape_lambda
    pythtb.WFArray.shape_mesh
    pythtb.WFArray.spinful
    pythtb.WFArray.u_nk

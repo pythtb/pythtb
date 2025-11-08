@@ -131,7 +131,7 @@ html_copy_source = True
 html_show_sourcelink = False
 html_sourcelink_suffix = ""
 html_extra_path = []
-exclude_patterns = ["generated/*.md", "examples_rst/*", "examples_py/*"]
+exclude_patterns = ["generated/*.md", "tutorials_rst/*", "tutorials_py/*"]
 
 # Optional: controls context variables available to the 404 template
 notfound_context = {
@@ -258,13 +258,13 @@ def _skip_deprecated(app, what, name, obj, skip, options):
 
 
 def _export_ipynb_to_py(app):
-    """Convert example notebooks to plain Python scripts for download buttons."""
+    """Convert tutorial notebooks to plain Python scripts for download buttons."""
 
     srcdir = Path(app.srcdir)
-    nb_root = srcdir / "examples"
+    nb_root = srcdir / "tutorials"
 
-    # Mirror structure under build directory: _build/html/examples_py
-    out_root = Path(app.builder.outdir) / "examples_py"
+    # Mirror structure under build directory: _build/html/tutorials_py
+    out_root = Path(app.builder.outdir) / "tutorials_py"
     out_root.mkdir(parents=True, exist_ok=True)
 
     if not nb_root.exists():

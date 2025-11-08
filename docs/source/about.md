@@ -7,8 +7,8 @@ The ``PythTB`` package was written in Python for several reasons, including
 - The flexibility with which Python can be interfaced with graphics and visualization modules
 - In general, the easy extensibility of Python programs
 
-You can get an idea of the capabilities of the package by browsing {doc}`usage <usage>` 
-for code documentation and the {doc}`examples <examples>` for notebooks that 
+You can get an idea of the capabilities of the package by browsing {doc}`API <api>` 
+for code documentation and the {doc}`tutorials <tutorials>` for notebooks that 
 demonstrate these workflows.
 
 ## Tight-binding models

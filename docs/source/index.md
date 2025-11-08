@@ -19,8 +19,13 @@ PythTB is a pure-Python toolbox for building and analyzing tight-binding models.
 :class: seealso
 
 - {doc}`Installation <install>` - install instructions and dependencies
-- {doc}`Usage guide <usage>` - APIs, workflows, and tips
-- {doc}`Examples <examples>` - example scripts and notebooks
+- {doc}`API <api>` - detailed API reference
+- {doc}`Tutorials <tutorials>` - Jupyter notebooks demonstrating key features
+- {doc}`Development <development>` - contributing guidelines and developer docs
+- {doc}`Release Notes <release>` - detailed version history
+- {doc}`Changelog <CHANGELOG>` - summary of changes by version
+- {doc}`Formalism <formalism>` - theoretical background 
+- {doc}`Citation <citation>` - how to cite PythTB in publications
 ```
 
 ## Core functionality
@@ -46,7 +51,7 @@ PythTB is a pure-Python toolbox for building and analyzing tight-binding models.
       in ``WFArray`` for further analysis.
 
    .. grid-item-card:: :material-outlined:`all_inclusive` Topology & quantum geometry
-      :link: usage
+      :link: api
       :link-type: doc
 
       Compute Berry phases, connections, and curvature; Chern numbers;
@@ -70,7 +75,7 @@ PythTB is a pure-Python toolbox for building and analyzing tight-binding models.
       evaluate spreads, and analyze centers and localization properties.
    
    .. grid-item-card:: :material-outlined:`image` Visualization
-      :link: usage
+      :link: api
       :link-type: doc
 
       Plot band structures, density of states, lattice geometries,
@@ -82,7 +87,7 @@ PythTB is a pure-Python toolbox for building and analyzing tight-binding models.
 
 This is a simple example showing how to define graphene tight-binding
 model with first neighbour hopping only. Below is the source code and
-plot of the resulting band structure. Here you can find {doc}`more examples <examples>`.
+plot of the resulting band structure. Here you can find {doc}`more examples <tutorials>`.
 
 ```{literalinclude} _static/get_started/graphene_bands.py
 :language: python
@@ -110,12 +115,11 @@ Please send comments or suggestions for improvement to [these email addresses](m
 :maxdepth: 1
 :hidden:
 
-Home <self>
 About <about>
 install
-usage
-examples
-Contributing <CONTRIBUTING>
+API <api>
+Tutorials <tutorials>
+Development <development>
 release
 CHANGELOG
 formalism

@@ -281,18 +281,6 @@ Methods
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 Attributes
 ----------
 .. autosummary::
@@ -301,7 +289,6 @@ Attributes
 
    pythtb.Mesh.axes
    pythtb.Mesh.axis_names
-   pythtb.Mesh.axis_sizes
    pythtb.Mesh.axis_types
    pythtb.Mesh.bz_winding_axes
    pythtb.Mesh.bz_winding_mask
@@ -313,7 +300,6 @@ Attributes
    pythtb.Mesh.endpoint_mask
    pythtb.Mesh.filled
    pythtb.Mesh.flat
-   pythtb.Mesh.grid
    pythtb.Mesh.is_grid
    pythtb.Mesh.is_k_torus
    pythtb.Mesh.k_axes
@@ -330,9 +316,8 @@ Attributes
    pythtb.Mesh.nodes
    pythtb.Mesh.npoints
    pythtb.Mesh.points
-   pythtb.Mesh.shape_flat
-   pythtb.Mesh.shape_full
+   pythtb.Mesh.shape
+   pythtb.Mesh.shape_axes
    pythtb.Mesh.shape_k
    pythtb.Mesh.shape_lambda
-   pythtb.Mesh.shape_mesh
    
