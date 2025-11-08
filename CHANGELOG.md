@@ -38,14 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `TBModel` Initialization Changes
   - Replaced `dim_r`, `dim_k`, `lat`, `orb`, and `per` parameters with a single `Lattice` instance
   - Replaced `nspin` parameter with `spinful` boolean flag
-- `WFArray` Initialization Changes:
-  - Replaced `mesh_arr` parameter with a `Mesh` instance
-  - Replaced `model` parameter with a `Lattice` instance
-  - Renamed `nsta_arr` parameter to integer `nstates` for clarity
-- `W90.w90_bands_consistency()` (deprecated and renamed to `bands_w90()`)
-  - Returned energy array shape changed from `(band, kpts)` to `(kpts, band)`
-  - Now consistent with eigenvalue shape from `TBModel.solve_ham()`
-  - Aligns with NumPy convention of putting k-points in first axis
 - `TBModel.solve_ham()` (replaces `solve_one()` and `solve_all()`)
   - Changed eigenvalue/eigenvector indexing for vectorized workflows
   - Eigenvalues: shape `(nk, nstate)` (matrix elements last for NumPy compatibility)
@@ -60,6 +52,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `TBModel.position_hwf()` parameter renaming
   - Renamed parameter `evec` to `evecs` for clarity
   - Renamed parameter `dir` to `pos_dir` to avoid conflict with built-in Python function `dir()`
+
+- `WFArray` Initialization Changes:
+  - Replaced `mesh_arr` parameter with a `Mesh` instance
+  - Replaced `model` parameter with a `Lattice` instance
+  - Renamed `nsta_arr` parameter to integer `nstates` for clarity
 - `WFArray.berry_phase()` parameter renaming 
   - `dir` renamed to `axis_idx` to avoid conflict with Python built-in `dir()`
   - `occ` renamed to `state_idx` to emphasize that band indices need not be occupied
@@ -83,6 +80,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `subset` renamed to `state_idxs` for clarity and consistency
 - `WFArray.empty_like()` parameter rename:
   - `nsta_arr` renamed to `nstates` for clarity and consistency
+
+- `W90.w90_bands_consistency()` (deprecated and renamed to `bands_w90()`)
+  - Returned energy array shape changed from `(band, kpts)` to `(kpts, band)`
+  - Now consistent with eigenvalue shape from `TBModel.solve_ham()`
+  - Aligns with NumPy convention of putting k-points in first axis
 
 ### Added
 - Published `pythtb` package to [conda-forge](https://anaconda.org/conda-forge/pythtb) for easy installation via `conda install -c conda-forge pythtb`
@@ -112,15 +114,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `pythtb.io.qe`: Quantum ESPRESSO file parsing utilities
   - `read_bands_qe()` for reading `prefix_bands.out` `bands.x` output files
 
-**New methods and attributes to pre-existing classes**
+**New features to pre-existing classes**
 - `TBModel` methods:
   - `TBModel.__str__`: Allows printing a `TBModel` instance using `print(TBModel)`, which prints `TBModel.info()`
   - `TBModel.info()`: Replaces `display()` for printing model summary
   - `TBModel.get_lat_vecs()`: Replaces `get_lat()` for clarity
   - `TBModel.get_orb_vecs()`: Replaces `get_orb()` for clarity
     - Added boolean flag `cartesian` to return orbital vectors in Cartesian coordinates (default `False`)
-  - `TBModel.solve_ham()`: Replaces `solve_one()` and `solve_all()` with a unified, vectorized diagonalization method
-  - `TBModel.set_onsite` and `TBModel.set_hop` both accept strings and callables for setting onsite energies and hoppings allowing for parameter-dependent terms
+  - `TBModel.solve_ham()`: Diagonalizes Hamiltonian and returns eigenvalues and optionally eigenvectors
+    - Replaces `solve_one()` and `solve_all()` with a unified, vectorized diagonalization method
+  - Symbolic `TBModel.set_onsite` and `TBModel.set_hop` : both accept strings and callables for setting onsite energies and hoppings allowing for parameter-dependent terms
   - `TBModel.with_parameters()` returns model at specific parameter values for parameterized models 
   - `TBModel.set_parameters()` resolves parameterized terms with scalar values
   - `TBModel.set_shell_hops()`: Bulk setting of n'th nearest-neighbor hoppings for faster model construction
@@ -159,11 +162,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `WFArray.berry_curvature()`: Computes dimensionful Berry curvature by divinding Berry flux by mesh cell area/volume
   - `WFArray.chern_number()`: Returns the Chern number for a given plane in the parameter mesh
   - `WFArray.solve_model()`: Populates `WFArray` with energy eigenstates from a given `TBModel` along the `Mesh`
+    - Replaces deprecated `solve_on_grid()` and `solve_on_one_point()` methods
   - `WFArray.projectors()`: Returns band projectors and optionally their complements as NumPy arrays
   - `WFArray.states()`: Returns states as a NumPy array, optionally the full Bloch states including phase factors
   - `WFArray.get_k_shell()`: Generates vectors connecting nearest neighboring k-points in the mesh. 
   - `WFArray.get_shell_weights()`: Returns the finite-difference weights for a given shell of k-neighbors.
   - `WFArray.roll_states_with_pbc()`: Rolls states along a given mesh axis with periodic boundary conditions.
+  - `WFArray.copy()`: Creates a deep copy of the `WFArray` instance
   - Added parameter `non_abelian` to `WFArray.berry_flux()` to compute non-Abelian Berry flux for a manifold of states
 
 - `W90` methods:
