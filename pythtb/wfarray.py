@@ -168,22 +168,36 @@ class WFArray:
     ):
         if not isinstance(lattice, Lattice):
             raise TypeError("lattice must be of type pythtb.Lattice")
+        if not isinstance(mesh, Mesh):
+            raise TypeError("mesh must be of type pythtb.Mesh")
+        if not isinstance(spinful, bool):
+            raise TypeError("Argument spinful must be a boolean.")
 
         self._lattice = lattice
 
-        if not isinstance(mesh, Mesh):
-            raise TypeError("mesh must be of type pythtb.Mesh")
         if self.dim_k != mesh.dim_k:
             raise ValueError(
                 f"Model dim_k ({self.dim_k}) does not match mesh dim_k ({mesh.dim_k})"
             )
+        if not mesh.filled:
+            raise ValueError(
+                "Mesh points are not initialized. Did you call build_grid/build_custom?"
+            )
+
+        axis_sizes = np.array(self.shape_mesh, dtype=int)
+        loop_axes = [idx for idx, ax in enumerate(mesh.axes) if ax.is_loop]
+        short_loops = [idx for idx in loop_axes if axis_sizes[idx] < 2]
+        if short_loops:
+            raise ValueError(
+                "Looping mesh axes must have at least two samples "
+                f"(axes {short_loops} are too short)."
+            )
 
         self._mesh = mesh
 
-        if True in (np.array(self.shape_mesh, dtype=int) <= 1).tolist():
+        if True in (np.array(self.shape_mesh, dtype=int) < 1).tolist():
             raise ValueError(
-                "Dimension of WFArray object in each direction must be 2 or larger.\n"
-                "This is required for periodic boundary conditions (PBC) to be applied.\n"
+                "Dimension of WFArray object in each direction must be at least 1.\n"
                 "Maybe you need to build the mesh first?"
             )
 
