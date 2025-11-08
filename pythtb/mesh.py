@@ -277,16 +277,15 @@ class Mesh:
                 raise ValueError("Axis types must be either 'k' or 'l'.")
 
         if axis_names is None:
-            k_count = l_count = 0
             axis_names = []
+            k_count = l_count = 0
             for kind in axis_types:
                 if kind == "k":
                     axis_names.append(f"k_{k_count}")
                     k_count += 1
-            else:
-                axis_names.append(f"l_{l_count}")
-                l_count += 1
-
+                else:
+                    axis_names.append(f"l_{l_count}")
+                    l_count += 1
         elif len(axis_types) != len(axis_names):
             raise ValueError("Axis types and axis names must have the same length.")
 
@@ -1093,8 +1092,14 @@ class Mesh:
 
         # convert shape to ints
         shape = tuple(int(x) for x in shape)
-        shape_k = shape[: self.nk_axes]
-        shape_lambda = shape[self.nk_axes :]
+        if len(shape) != len(self.axes):
+            raise ValueError(
+                f"Shape length ({len(shape)}) must match number of axes ({len(self.axes)})."
+            )
+        shape_k = tuple(shape[i] for i, ax in enumerate(self.axes) if ax.type == "k")
+        shape_lambda = tuple(
+            shape[i] for i, ax in enumerate(self.axes) if ax.type == "l"
+        )
 
         # set axes shape
         for i, ax in enumerate(self.axes):
@@ -1112,6 +1117,7 @@ class Mesh:
                 k_starts.append(0)
                 k_stops.append(1)
 
+        dim_total = self.dim_k + self.dim_lambda
         if len(shape_lambda) == 0:
             flat = self.gen_hyper_cube(
                 *shape_k, start=k_starts, stop=k_stops, flat=True, endpoint=k_endpoints
@@ -1146,11 +1152,26 @@ class Mesh:
             p_rep = np.tile(p_flat, (Nk, 1))
             flat = np.hstack([k_rep, p_rep])
 
-        self._points = flat
+        # Reshape to k-first ordering, then permute axes to match original axis ordering.
+        base_shape = (*shape_k, *shape_lambda, dim_total)
+        grid_k_first = flat.reshape(base_shape)
+        axes_total = self.nk_axes + self.nl_axes
+        perm = []
+        k_counter = l_counter = 0
+        for ax in self.axes:
+            if ax.type == "k":
+                perm.append(k_counter)
+                k_counter += 1
+            else:
+                perm.append(self.nk_axes + l_counter)
+                l_counter += 1
+        perm.append(axes_total)  # keep component axis last
+        grid = np.transpose(grid_k_first, perm)
+        self._points = grid.reshape(-1, dim_total)
 
-        for ax_idx in self.k_axis_indices:
-            # Default mapping: k-axis winds the same-index k-component
-            self.loop(ax_idx, ax_idx, winds_bz=True, closed=False)
+        for comp_idx, ax_idx in enumerate(self.k_axis_indices):
+            # Map each k-axis to its corresponding k-component (order of axes may differ).
+            self.loop(ax_idx, comp_idx, winds_bz=True, closed=False)
 
         self._set_ax_info()
 
@@ -1252,13 +1273,12 @@ class Mesh:
         """
         if not self.filled:
             raise ValueError("Mesh points are not initialized.")
-        G = self.grid  # shape (*shape_k, *shape_lambda, dim_k+dim_lambda)
-        Gk = G[..., : self.dim_k]
-        nk_axes = self.nk_axes
-        num_lambda_axes = self.nl_axes
-        # Build index: [slice(None)]*nk_axes + [0]*num_lambda_axes + [slice(None)]
-        idx = [slice(None)] * nk_axes + [0] * num_lambda_axes + [slice(None)]
-        Gk_unique = Gk[tuple(idx)]
+        idx = [
+            slice(None) if ax.type == "k" else 0  # keep k-axes, freeze lambda axes
+            for ax in self.axes
+        ]
+        idx.append(slice(None))  # component axis
+        Gk_unique = self.grid[tuple(idx)][..., : self.dim_k]
         # Ensure correct shape
         Gk_unique = np.asarray(Gk_unique)
         shape_k = self.shape_k
@@ -1280,13 +1300,12 @@ class Mesh:
         """
         if not self.filled:
             raise ValueError("Mesh points are not initialized.")
-        G = self.grid  # shape (*shape_k, *shape_lambda, dim_k+dim_lambda)
-        Gp = G[..., self.dim_k :]
-        nk_axes = self.nk_axes
-        num_lambda_axes = self.nl_axes
-        # Build index: [0]*nk_axes + [slice(None)]*num_lambda_axes + [slice(None)]
-        idx = [0] * nk_axes + [slice(None)] * num_lambda_axes + [slice(None)]
-        Gp_unique = Gp[tuple(idx)]
+        idx = [
+            0 if ax.type == "k" else slice(None)  # freeze k-axes, keep lambda axes
+            for ax in self.axes
+        ]
+        idx.append(slice(None))  # component axis
+        Gp_unique = self.grid[tuple(idx)][..., self.dim_k :]
         # Ensure correct shape
         shape_lambda = self.shape_lambda
         if Gp_unique.shape != shape_lambda + (self.dim_lambda,):
