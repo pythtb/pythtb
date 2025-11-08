@@ -1,17 +1,17 @@
+# ruff: noqa: E402
 # Configuration file for the Sphinx documentation builder.
 #
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 # -- Path setup --------------------------------------------------------------
-import os
 import sys
 from pathlib import Path
 
-import pythtb
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
 
-package_path = os.path.abspath("../pythtb")
-sys.path.insert(0, package_path)
+import pythtb
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
