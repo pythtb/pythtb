@@ -276,12 +276,17 @@ class Mesh:
             if kind not in ["k", "l"]:
                 raise ValueError("Axis types must be either 'k' or 'l'.")
 
-        nk_ax = sum(1 for at in axis_types if at == "k")
-        nl_ax = sum(1 for at in axis_types if at == "l")
         if axis_names is None:
-            axis_names = [f"k_{i}" for i in range(nk_ax)] + [
-                f"l_{i}" for i in range(nl_ax)
-            ]
+            k_count = l_count = 0
+            axis_names = []
+            for kind in axis_types:
+                if kind == "k":
+                    axis_names.append(f"k_{k_count}")
+                    k_count += 1
+            else:
+                axis_names.append(f"l_{l_count}")
+                l_count += 1
+
         elif len(axis_types) != len(axis_names):
             raise ValueError("Axis types and axis names must have the same length.")
 
@@ -1053,56 +1058,38 @@ class Mesh:
                 f"Expected {self.nk_axes + self.nl_axes} dimensions, got {len(shape)}"
             )
 
-        if isinstance(gamma_centered, bool):
-            gamma_centered = [gamma_centered] * self.nk_axes
-        elif isinstance(gamma_centered, list) and len(gamma_centered) != self.nk_axes:
-            raise ValueError(
-                f"Expected {self.nk_axes} elements in gamma_centered, got {len(gamma_centered)}"
-            )
-        else:
-            raise TypeError("gamma_centered must be a bool or a list of bools.")
-
-        if isinstance(k_endpoints, bool):
-            k_endpoints = [k_endpoints] * self.nk_axes
-        elif isinstance(k_endpoints, list) and len(k_endpoints) != self.nk_axes:
-            raise ValueError(
-                f"Expected {self.nk_axes} elements in k_endpoints, got {len(k_endpoints)}"
-            )
-        else:
-            raise TypeError("k_endpoints must be a bool or a list of bools.")
-
-        if isinstance(lambda_endpoints, bool):
-            lambda_endpoints = [lambda_endpoints] * self.nl_axes
-        elif (
-            isinstance(lambda_endpoints, list) and len(lambda_endpoints) != self.nl_axes
-        ):
-            raise ValueError(
-                f"Expected {self.nl_axes} elements in lambda_endpoints, got {len(lambda_endpoints)}"
-            )
-        else:
-            raise TypeError("lambda_endpoints must be a bool or a list of bools.")
-
-        if isinstance(lambda_start, (int, float, complex)):
-            lambda_start = [lambda_start] * self.nl_axes
-        elif isinstance(lambda_start, list) and len(lambda_start) != self.nl_axes:
-            raise ValueError(
-                f"Expected {self.nl_axes} elements in lambda_start, got {len(lambda_start)}"
-            )
-        else:
+        def _normalize_opt(value, n, label, expect_type):
+            if n == 0:
+                return []
+            if isinstance(value, expect_type):
+                return [value] * n
+            if isinstance(value, list):
+                if len(value) != n:
+                    raise ValueError(
+                        f"Expected {n} entries for {label}, got {len(value)}"
+                    )
+                if not all(isinstance(v, expect_type) for v in value):
+                    raise TypeError(
+                        f"Each {label} entry must be a {expect_type.__name__}."
+                    )
+                return value
             raise TypeError(
-                "lambda_start must be a complex, int, float or a list of them."
+                f"{label} must be a {expect_type.__name__} or list of them."
             )
 
-        if isinstance(lambda_stop, (int, float, complex)):
-            lambda_stop = [lambda_stop] * self.nl_axes
-        elif isinstance(lambda_stop, list) and len(lambda_stop) != self.nl_axes:
-            raise ValueError(
-                f"Expected {self.nl_axes} elements in lambda_stop, got {len(lambda_stop)}"
-            )
-        else:
-            raise TypeError(
-                "lambda_stop must be a complex, int, float or a list of them."
-            )
+        gamma_centered = _normalize_opt(
+            gamma_centered, self.nk_axes, "gamma_centered", bool
+        )
+        k_endpoints = _normalize_opt(k_endpoints, self.nk_axes, "k_endpoints", bool)
+        lambda_endpoints = _normalize_opt(
+            lambda_endpoints, self.nl_axes, "lambda_endpoints", bool
+        )
+        lambda_start = _normalize_opt(
+            lambda_start, self.nl_axes, "lambda_start", (int, float, complex)
+        )
+        lambda_stop = _normalize_opt(
+            lambda_stop, self.nl_axes, "lambda_stop", (int, float, complex)
+        )
 
         # convert shape to ints
         shape = tuple(int(x) for x in shape)
