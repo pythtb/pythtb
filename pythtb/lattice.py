@@ -47,10 +47,10 @@ class Lattice:
         Array of shape ``(norb, dim_r)`` containing the orbital positions as rows
         in reduced coordinates (fractions of the lattice vectors). If ``orb_vecs``
         is an integer, it specifies the number of orbitals at the origin.
-    periodic_dirs : iterable of int or {'all'} or Ellipsis, optional
+    periodic_dirs : array_like of int or {'all'} or Ellipsis, optional
         Real-space lattice directions that treated as periodic. The indices
         refer to the ``lat_vecs`` array, e.g. ``[0]`` would indicate that the first
-        lattice vector is periodic. Use "all" or `...` to indicate that all directions
+        lattice vector is periodic. Use ``...`` or ``"all"`` to indicate that all directions
         are periodic. If an empty list (default) or None, all directions are considered
         finite (open boundary conditions).
 
