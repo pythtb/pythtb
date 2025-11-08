@@ -306,15 +306,15 @@ class Mesh:
         # Define component types for the last coordinate axis: first dim_k are 'k', then parameters
         self._component_types = tuple(["k"] * self.dim_k + ["l"] * self.dim_lambda)
 
-        self._points = np.empty((0,) + (self.dim_k + self.dim_lambda,), dtype=float)
+        self._flat = np.empty((0,) + (self.dim_k + self.dim_lambda,), dtype=float)
 
         # for paths
         self._nodes = None
 
     @property
     def points(self):
-        r"""Mesh point array of shape ``(N1*N2*...*Nd, dim_k + dim_lambda)``."""
-        return self._points
+        r"""Mesh point array of shape ``(N1, ..., Nd, dim_k + dim_lambda)``."""
+        return self._flat.reshape(*self.shape)
 
     @property
     def flat(self):
@@ -322,12 +322,7 @@ class Mesh:
 
         Alias for `points` property.
         """
-        return self._points
-
-    @property
-    def grid(self):
-        r"""Mesh point array of shape ``(N1, ..., Nd, dim_k + dim_lambda)``."""
-        return self._points.reshape(*self.shape_full)
+        return self._flat
 
     @property
     def nodes(self):
@@ -378,14 +373,9 @@ class Mesh:
         return axis_types
 
     @property
-    def axis_sizes(self) -> tuple[int]:
-        """Tuple of axis sizes."""
-        return tuple([ax.size for ax in self.axes])
-
-    @property
     def npoints(self) -> int:
         """Number of mesh points."""
-        return int(np.prod(self.axis_sizes))
+        return int(np.prod(self.shape_axes))
 
     @property
     def shape_k(self) -> tuple[int]:
@@ -400,19 +390,14 @@ class Mesh:
         return shape_lambda
 
     @property
-    def shape_full(self) -> tuple[int]:
-        r"""Shape of full grid ``(*shape_k, *shape_lambda, dim_k + dim_lambda)``."""
-        return self.axis_sizes + (self.dim_k + self.dim_lambda,)
+    def shape(self) -> tuple[int]:
+        r"""Shape of mesh points ``(*shape_axes, dim_k + dim_lambda)``."""
+        return self.shape_axes + (self.dim_k + self.dim_lambda,)
 
     @property
-    def shape_mesh(self) -> tuple[int]:
-        r"""Shape of mesh grid ``(*shape_k, *shape_lambda)``."""
-        return self.axis_sizes
-
-    @property
-    def shape_flat(self) -> tuple[int]:
-        """Shape of flattened mesh points ``(N_points, dim_total)``."""
-        return (self.npoints, self.dim_total)
+    def shape_axes(self) -> tuple[int]:
+        r"""Tuple of axis sizes ``(N1, N2, ..., Nd)``."""
+        return tuple([ax.size for ax in self.axes])
 
     @property
     def nk_axes(self) -> int:
@@ -428,14 +413,6 @@ class Mesh:
     def naxes(self) -> int:
         """Total number of axes."""
         return self.nk_axes + self.nl_axes
-
-    @property
-    def is_grid(self) -> bool:
-        r"""True if the mesh is a grid (as opposed to a path).
-
-        A grid mesh has an axis for each dimension of the mesh.
-        """
-        return self.naxes == self.dim_total
 
     # ---- Vector component properties ----
     @property
@@ -555,6 +532,14 @@ class Mesh:
         return bz_wind_axes
 
     @property
+    def is_grid(self) -> bool:
+        r"""True if the mesh is a grid (as opposed to a path).
+
+        A grid mesh has an axis for each dimension of the mesh.
+        """
+        return self.naxes == self.dim_total
+
+    @property
     def is_k_torus(self) -> bool:
         r"""Does the mesh wind around the BZ in all k-directions?
 
@@ -619,7 +604,7 @@ class Mesh:
             mesh_type = "path"
 
         # Shapes
-        overall_shape = self.shape_full
+        overall_shape = self.shape
 
         # Full grid (optional flag some versions have)
         is_k_torus = getattr(self, "is_k_torus", None)
@@ -951,7 +936,7 @@ class Mesh:
         self._nodes = nodes
 
         path = _interpolate_path(nodes, n_interp)
-        self._points = path
+        self._flat = path
 
         self.axes[0].size = path.shape[0]
 
@@ -968,27 +953,15 @@ class Mesh:
     ):
         r"""Build a regular Monkhorst-Pack k-space and lambda space grid.
 
-        The grid is a uniform array that has an axis for each dimension
-        in the combined k-space and lambda space (Monkhorst-Pack mesh).
+        The grid is a uniform array that has a sampling axis for each dimension
+        in the combined :math:`(k, \lambda)`-space (Monkhorst-Pack mesh).
 
-        The k-points (in reduced units) range from [0, 1) along the k-axes,
-        unless gamma_centered is True, in which case they range from [-0.5, 0.5)
-        along the k-axes. The last points (1 or 0.5) are excluded for internal
-        consistency.
-
-        The lambda points range from ``lambda_start`` to ``lambda_stop``
-        along the lambda axes. If these are not specified, they will default
-        to 0 and 1 respectively. The endpoints are included if ``lambda_endpoints``
-        flag is set to ``True`` (default is ``True``).
-
-        This function populates the ``.grid`` and ``.flat`` attributes.
-        After calling this function, the ``.grid`` attribute will be:
-
-        - shape ``(*shape, dim_k+dim_lambda)``,
-
-        while the ``.flat`` attribute will be the flattened version:
-
-        - shape ``(np.prod(*shape), dim_k+dim_lambda)``.
+        .. warning::
+            This function is not suitable for creating paths or irregular meshes.
+            An example of when not to use it is if you have a 2D k-space model and
+            are using a mesh of values along :math:`k_y` for a given
+            :math:`k_x` value, or vice versa. In such cases, you should
+            use :meth:`build_path` or :meth:`build_custom` instead.
 
         Parameters
         ----------
@@ -1017,12 +990,20 @@ class Mesh:
 
         Notes
         -----
-        This function should be used to create a regular grid in k-space and parameter space.
-        It is not suitable for creating paths or irregular meshes. An example of when not to
-        use it is if you have a 2D k-space model and are using a mesh of values along
-        :math:`k_y` for a given :math:`k_x` value, or vice versa. In such cases,
-        you should use the :func:`build_path` method instead. This only is used when
-        the number of axes match the number of k-dimensions.
+        - The k-points (in reduced units) range from :math:`[0, 1)`,
+          unless ``gamma_centered = True``, in which case they range
+          from :math:`[-0.5, 0.5)`. The endpoints are included if
+          ``k_endpoints`` flag is set to ``True`` (default is ``False``).
+        - The lambda points range from ``lambda_start`` to ``lambda_stop``
+          along the lambda axes. If these are not specified, they will default
+          to 0 and 1 respectively. The endpoints are included if ``lambda_endpoints``
+          flag is set to ``True`` (default is ``True``).
+
+        - This function populates the ``.points`` and ``.flat`` attributes.
+          After calling this function, the ``.points`` attribute will be
+          shape ``(*mesh_shape, dim_k+dim_lambda)``, while the ``.flat``
+          attribute will be the flattened version
+          ``(np.prod(*mesh_shape), dim_k+dim_lambda)``.
 
         Examples
         --------
@@ -1049,6 +1030,12 @@ class Mesh:
         array([ 0.49,  0.49,  0.49,  1. ])
         """
         # Checks
+        if not self.is_grid:
+            raise ValueError(
+                "Mesh must be a grid to use build_grid method."
+                "This requires one axis per dimension in (k, lambda)-space."
+            )
+
         if not isinstance(shape, (tuple, list)):
             raise TypeError(f"Expected tuple or list for shape, got {type(shape)}")
 
@@ -1167,7 +1154,7 @@ class Mesh:
                 l_counter += 1
         perm.append(axes_total)  # keep component axis last
         grid = np.transpose(grid_k_first, perm)
-        self._points = grid.reshape(-1, dim_total)
+        self._flat = grid.reshape(-1, dim_total)
 
         for comp_idx, ax_idx in enumerate(self.k_axis_indices):
             # Map each k-axis to its corresponding k-component (order of axes may differ).
@@ -1210,7 +1197,7 @@ class Mesh:
 
         if not isinstance(points, np.ndarray):
             raise ValueError("Mesh points must be a numpy array.")
-        if points.ndim != len(self.shape_full):
+        if points.ndim != len(self.shape):
             raise ValueError(
                 "Inconsistent dimensions between mesh points and axis types."
             )
@@ -1219,7 +1206,7 @@ class Mesh:
         for i, ax in enumerate(self.axes):
             ax.size = points.shape[i]
 
-        self._points = np.reshape(points, (-1, points.shape[-1]))
+        self._flat = np.reshape(points, (-1, points.shape[-1]))
 
         self._set_ax_info()
 
@@ -1253,7 +1240,7 @@ class Mesh:
         idx = [0] * self.naxes
         idx[axis_index] = slice(None)
         idx = tuple(idx)
-        arr = self.grid[idx + (component_index,)]
+        arr = self.points[idx + (component_index,)]
         arr = np.asarray(arr)
         # arr should be 1D
         if arr.ndim != 1:
@@ -1278,7 +1265,7 @@ class Mesh:
             for ax in self.axes
         ]
         idx.append(slice(None))  # component axis
-        Gk_unique = self.grid[tuple(idx)][..., : self.dim_k]
+        Gk_unique = self.points[tuple(idx)][..., : self.dim_k]
         # Ensure correct shape
         Gk_unique = np.asarray(Gk_unique)
         shape_k = self.shape_k
@@ -1305,7 +1292,7 @@ class Mesh:
             for ax in self.axes
         ]
         idx.append(slice(None))  # component axis
-        Gp_unique = self.grid[tuple(idx)][..., self.dim_k :]
+        Gp_unique = self.points[tuple(idx)][..., self.dim_k :]
         # Ensure correct shape
         shape_lambda = self.shape_lambda
         if Gp_unique.shape != shape_lambda + (self.dim_lambda,):
