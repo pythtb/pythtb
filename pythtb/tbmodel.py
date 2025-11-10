@@ -3798,40 +3798,38 @@ class TBModel:
             from tensorflow import constant as const
 
             v_tf = const(v, dtype=tf.complex64)
-            evals_tf, evecs_tf = (
-                const(eigvals, dtype=tf.complex64),
-                const(eigvecs, dtype=tf.complex64),
-            )
+            evals_tf = const(eigvals, dtype=tf.complex64)
+            evecs_tf = const(eigvecs, dtype=tf.complex64)
 
             # Transpose eigenvectors for matmul
             r = tf.rank(evecs_tf)  # number of axes
-            # swap last two axes
+            # Transpose last two axes
             evecs_T_tf = tf.transpose(
                 evecs_tf, tf.concat([tf.range(r - 2), [r - 1, r - 2]], 0)
             )
+            # Conjugate eigenvectors
             evecs_conj_tf = tf.math.conj(evecs_tf)
 
-            # All pairwise energy differences
-            delta_E_tf = evals_tf[..., None, :] - evals_tf[..., :, None]
+            E_occ = tf.gather(evals_tf, occ_idxs, axis=-1)
+            E_cond = tf.gather(evals_tf, cond_idxs, axis=-1)
 
-            # Extract occupied <-> conduction band energy differences
-            delta_E_occ_cond_tf = tf.gather(
-                tf.gather(delta_E_tf, occ_idxs, axis=-2), cond_idxs, axis=-1
-            )
-            delta_E_cond_occ_tf = tf.gather(
-                tf.gather(delta_E_tf, cond_idxs, axis=-2), occ_idxs, axis=-1
-            )
+            # Delta_{nm} = E_n - E_m (occ - cond)
+            delta_occ_cond = E_occ[..., :, None] - E_cond[..., None, :]
 
             # Degeneracy guard: abort if any denominator is (near) zero
-            tol = tf.constant(1e-12, dtype=delta_E_tf.dtype.real_dtype)
-            if tf.reduce_any(tf.math.abs(delta_E_occ_cond_tf) < tol).numpy():
+            tol = tf.constant(1e-12, dtype=delta_occ_cond.dtype.real_dtype)
+            if tf.reduce_any(tf.math.abs(delta_occ_cond) < tol).numpy():
                 raise ZeroDivisionError(
                     "Degenerate occupied/conduction bands encountered."
                 )
 
-            # Inverse energy differences
-            inv_delta_E_occ_cond_tf = 1 / delta_E_occ_cond_tf
-            inv_delta_E_cond_occ_tf = 1 / delta_E_cond_occ_tf
+            inv_delta_occ_cond = tf.math.reciprocal(delta_occ_cond)
+
+            # reuse the same denominators for the conjugate block by swapping the last axes
+            rank = inv_delta_occ_cond.shape.rank
+            perm = list(range(rank))
+            perm[-2], perm[-1] = perm[-1], perm[-2]
+            inv_delta_cond_occ = tf.transpose(inv_delta_occ_cond, perm=perm)
 
             # Rotate velocity operators to energy eigenbasis
             v_rot_tf = tf.matmul(
@@ -3849,9 +3847,10 @@ class TBModel:
             v_cond_occ_tf = tf.gather(
                 tf.gather(v_rot_tf, cond_idxs, axis=-2), occ_idxs, axis=-1
             )
+
             # premultiply by energy denominators
-            v_occ_cond_tf = v_occ_cond_tf * inv_delta_E_occ_cond_tf
-            v_cond_occ_tf = v_cond_occ_tf * -inv_delta_E_cond_occ_tf
+            v_occ_cond_tf *= inv_delta_occ_cond
+            v_cond_occ_tf *= inv_delta_cond_occ
 
             # Compute Berry curvature
             # newaxis for Cartesian direction
@@ -3861,23 +3860,20 @@ class TBModel:
             # Convert final result to NumPy
             Q = Q.numpy()
         else:
-            # All pairs of energy differences
-            delta_E = (
-                eigvals[..., np.newaxis, :] - eigvals[..., :, np.newaxis]
-            )  # shape (Nk, *params, nstate, nstate)
-            # Energy differences between occupied and conduction bands
-            delta_occ_cond = np.take(
-                np.take(delta_E, occ_idxs, axis=-2), cond_idxs, axis=-1
-            )
-            delta_cond_occ = np.take(
-                np.take(delta_E, cond_idxs, axis=-2), occ_idxs, axis=-1
-            )
+            # Occupied and conduction energies
+            E_occ = np.take(eigvals, occ_idxs, axis=-1)
+            E_cond = np.take(eigvals, cond_idxs, axis=-1)
+
+            # Delta_{nm} = E_n - E_m (occ - cond)
+            delta_occ_cond = E_occ[..., np.newaxis] - E_cond[..., np.newaxis, :]
             if np.any(np.isclose(delta_occ_cond, 0.0)):
                 raise ZeroDivisionError(
                     "Degenerate occupied/conduction bands encountered."
                 )
-            inv_delta_occ_cond = np.divide(1.0, delta_occ_cond)
-            inv_delta_cond_occ = np.divide(1.0, delta_cond_occ)
+            inv_delta_occ_cond = np.divide(1.0, delta_occ_cond)  # (..., n_occ, n_cond)
+            inv_delta_cond_occ = np.swapaxes(
+                inv_delta_occ_cond, -2, -1
+            )  # (..., n_cond, n_occ)
 
             # newaxis for Cartesian direction
             evecs_conj = eigvecs.conj()[np.newaxis, ...]
@@ -3899,7 +3895,7 @@ class TBModel:
 
             # premultiply by energy denominators
             v_occ_cond *= inv_delta_occ_cond
-            v_cond_occ *= -inv_delta_cond_occ
+            v_cond_occ *= inv_delta_cond_occ
 
             Q = np.matmul(v_occ_cond[:, None], v_cond_occ[None, :])
 
@@ -3939,7 +3935,7 @@ class TBModel:
                 \langle u_{mk} | \partial_{\mu} H_k | u_{lk} \rangle
                 \langle u_{lk} | \partial_{\nu} H_k | u_{nk} \rangle
             }{
-                (E_{nk} - E_{lk})(E_{mk} - E_{lk})
+                (E_{mk} - E_{lk})(E_{nk} - E_{lk})
             }
 
         The Abelian quantum geometric tensor (when ``non_abelian=False``)
