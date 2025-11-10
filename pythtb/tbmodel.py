@@ -2779,7 +2779,12 @@ class TBModel:
             ham = ham.reshape(n_kpts, norb, nspin, norb, nspin)
         return ham
 
-    def hamiltonian(self, k_pts=None, flatten_spin_axis=False, **params):
+    def hamiltonian(
+        self,
+        k_pts: list | np.ndarray | None = None,
+        flatten_spin_axis: bool = False,
+        **params,
+    ) -> np.ndarray:
         r"""Generate the Bloch Hamiltonian of the tight-binding model.
 
         The Hamiltonian is computed in tight-binding convention I, which includes phase factors
@@ -2795,16 +2800,14 @@ class TBModel:
 
         Parameters
         ----------
-        k_pts : (Nk, dim_k) array, optional
-            Array of k-points in reduced coordinates.
+        k_pts : (Nk, dim_k) list or numpy.ndarray of floats or None, optional
+            Array of k-points in reduced coordinates. Shape must be ``(Nk, dim_k)``.
             If `None`, the Hamiltonian is computed at a single point (`dim_k = 0`),
             corresponding to a finite sample.
-
         flatten_spin_axis : bool, optional
             If True, the spin indices are flattened into the orbital indices.
-            This results in a Hamiltonian at each k-point of shape ``(norb*nspin, norb*nspin)``.
-            If False (default), the Hamiltonian has shape ``(norb, nspin, norb, nspin)``.
-
+            This results in a Hamiltonian of shape ``(..., norb*nspin, norb*nspin)``.
+            If False (default), the Hamiltonian has shape ``(..., norb, nspin, norb, nspin)``.
         **params :
             Keyword arguments mapping parameter names to value(s). Each value can be a scalar
             or a 1D array of values. If any values are array-like,
@@ -2869,7 +2872,9 @@ class TBModel:
             k_arr = None
         else:
             if k_pts is None:
-                k_arr = self._normalize_kpoints(np.zeros((1, self.dim_k)))
+                raise ValueError(
+                    "k_pts must be specified for periodic systems (dim_k > 0)."
+                )
             else:
                 k_arr = self._normalize_kpoints(k_pts)
 
@@ -3000,7 +3005,7 @@ class TBModel:
 
     def solve_ham(
         self,
-        k_pts=None,
+        k_pts: list | np.ndarray | None = None,
         return_eigvecs: bool = False,
         flatten_spin_axis: bool = True,
         tf_speedup: bool = False,
@@ -3018,7 +3023,7 @@ class TBModel:
 
         Parameters
         ----------
-        k_pts : array_like, optional
+        k_pts : (Nk, dim_k) list or numpy.ndarray or None, optional
             One-dimensional list or array of k-vectors, each given in reduced coordinates.
             Shape should be ``(Nk, dim_k)``, where ``dim_k`` is the number of periodic directions.
             Should not be specified for systems with zero-dimensional reciprocal space.
