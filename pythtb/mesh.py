@@ -198,22 +198,21 @@ class Mesh:
 
     Parameters
     ----------
-    dim_k : int
-        The dimensionality of k-space. This will influence the dimension of
-        the vector at each mesh point.
     axis_types : list[str]
         A list of axis types, which can be ``"k"`` or ``"l"`` for k-space and parametric
         space respectively. The length of this list will determine the number of
         dimensions in the mesh.
-    dim_lambda : int, optional
-        The dimensionality of parameter space. If left unspecified, the
-        parameter space dimension will be automatically inferred from the axis types.
-        If creating a path through a higher-dimensional parameter space, this must be
-        specified.
     axis_names : list[str], optional
         A list of axis names, which can be used for parametrically populating
         a :class:`pythtb.WFArray`. If unspecified, default names will be generated.
         See examples listed below for more details.
+    dim_k : int, optional
+        The dimensionality of k-space. If unspecified, this will default to the number of
+        ``"k"`` axes specified in ``axis_types``. Specifying this parameter is useful
+        when creating a mesh with fewer k-axes than the full k-space dimensionality, such
+        as when creating a path through 2D k-space using only a single k-axis.
+        This will determine the dimension of the vector at each mesh point. Must be at least
+        equal to the number of ``"k"`` axes specified in ``axis_types``.
 
     See Also
     --------
@@ -225,23 +224,26 @@ class Mesh:
 
     Notes
     -----
-    .. warning::
-        The parameter space is assumed to be orthogonal to the k-space. This means that when varying the parameter
-        along its axis, the k-components are held fixed. Paths through a mixed parameter and k-space are not
-        currently supported.
+    - The mesh points are stored in reduced units, i.e., in units of the reciprocal lattice vectors for k-space
+      and in units of the full parameter range for parameter space.
+    - The parameter space is assumed to be orthogonal to the k-space. This means that when varying the parameter
+      along its axis, the k-components are held fixed.
+    - The dimension of parameter space is ``dim_k`` plus the number of ``"l"`` axes specified in ``axis_types``.
+      This means that it is currently not supported to have a path through adiabatic parameter space, we must have
+      a separate axis for each parameter dimension.
 
     Examples
     --------
     We can create a full grid by specifying the shape of the grid.
 
-    >>> mesh = Mesh(dim_k=2, dim_lambda=0, axis_types=['k', 'k'])
+    >>> mesh = Mesh(axis_types=['k', 'k'])
     >>> mesh.build_grid(shape=(10, 10), gamma_centered=True)
     >>> mesh.grid.shape
     (10, 10, 2)
 
     Or suppose we have a 3D k-space model with an additional lambda dimension.
 
-    >>> mesh = Mesh(dim_k=3, dim_lambda=1, axis_types=['k', 'k', 'k', 'l'])
+    >>> mesh = Mesh(axis_types=['k', 'k', 'k', 'l'])
     >>> mesh.build_grid(shape=(10, 10, 10, 100), gamma_centered=True)
     >>> mesh.grid.shape
     (10, 10, 10, 100, 4)
@@ -258,19 +260,16 @@ class Mesh:
     We would then need to initialize the ``Mesh`` with a single 'k' axis type.
 
     >>> path_points = np.random.rand(100, 2)  # 100 point path in 2D k-space
-    >>> mesh = Mesh(dim_k=2, dim_lambda=0, axis_types=['k'])
+    >>> mesh = Mesh(axis_types=['k'], dim_k=2)
     >>> mesh.build_custom(path_points)
     """
 
     def __init__(
         self,
-        dim_k: int,
         axis_types: list[str],
-        dim_lambda: int | None = None,
         axis_names: list[str] = None,
+        dim_k: int = None,
     ):
-        self._dim_k = dim_k
-
         # Naming axes
         for kind in axis_types:
             if kind not in ["k", "l"]:
@@ -292,16 +291,19 @@ class Mesh:
         # Initialize axes
         self._axes = [Axis(at, name) for at, name in zip(axis_types, axis_names)]
 
-        if self.nk_axes > dim_k:
+        # Dimension of k-space
+        if dim_k is None:
+            self._dim_k = sum(1 for at in axis_types if at == "k")
+        else:
+            self._dim_k = dim_k
+
+        if self.nk_axes > self.dim_k:
             raise ValueError(
-                f"Number of k axes ({self.nk_axes}) cannot exceed specified dimension ({dim_k})."
+                f"Number of k axes ({self.nk_axes}) cannot exceed specified dimension ({self.dim_k})."
             )
 
         # Dimension of parameter space
-        if dim_lambda is None:
-            self._dim_lambda = self.nl_axes
-        else:
-            self._dim_lambda = dim_lambda
+        self._dim_lambda = self.nl_axes
 
         # Define component types for the last coordinate axis: first dim_k are 'k', then parameters
         self._component_types = tuple(["k"] * self.dim_k + ["l"] * self.dim_lambda)
@@ -831,7 +833,7 @@ class Mesh:
                 )
             ax.remove_wind_bz_component(component_idx)
 
-        if open and component_idx in ax.closed_components:
+        if open and component_idx in ax.endpoint_components:
             ax.remove_endpoint_component(component_idx)
 
     def is_axis_closed(self, axis_idx: int, comp: int = "any") -> bool:
@@ -1009,14 +1011,14 @@ class Mesh:
         --------
         We can create a full grid by specifying the shape of the grid.
 
-        >>> mesh = Mesh(dim_k=2, dim_lambda=0, axis_types=['k', 'k'])
+        >>> mesh = Mesh(axis_types=['k', 'k'])
         >>> mesh.build_grid(shape=(10, 10), gamma_centered=True)
         >>> mesh.grid.shape
         (10, 10, 2)
 
         Or suppose we have a 3D k-space model with an additional lambda dimension.
 
-        >>> mesh = Mesh(dim_k=3, dim_lambda=1, axis_types=['k', 'k', 'k', 'l'])
+        >>> mesh = Mesh(axis_types=['k', 'k', 'k', 'l'])
         >>> mesh.build_grid(shape=(10, 10, 10, 100), gamma_centered=True)
         >>> mesh.grid.shape
         (10, 10, 10, 100, 4)
@@ -1055,13 +1057,19 @@ class Mesh:
                         f"Expected {n} entries for {label}, got {len(value)}"
                     )
                 if not all(isinstance(v, expect_type) for v in value):
-                    raise TypeError(
-                        f"Each {label} entry must be a {expect_type.__name__}."
+                    type_names = (
+                        "/".join(t.__name__ for t in expect_type)
+                        if isinstance(expect_type, tuple)
+                        else expect_type.__name__
                     )
+                    raise TypeError(f"Each {label} entry must be a {type_names}.")
                 return value
-            raise TypeError(
-                f"{label} must be a {expect_type.__name__} or list of them."
+            type_names = (
+                "/".join(t.__name__ for t in expect_type)
+                if isinstance(expect_type, tuple)
+                else expect_type.__name__
             )
+            raise TypeError(f"{label} must be a {type_names} or list of them.")
 
         gamma_centered = _normalize_opt(
             gamma_centered, self.nk_axes, "gamma_centered", bool
@@ -1183,14 +1191,14 @@ class Mesh:
         We can then build a custom mesh using arbitrary points:
 
         >>> custom_points = np.random.rand(10, 10, 2)  # 2D mesh in 2D k-space
-        >>> mesh = Mesh(dim_k=2, dim_lambda=0, axis_types=['k', 'k'])
+        >>> mesh = Mesh(axis_types=['k', 'k'])
         >>> mesh.build_custom(custom_points)
 
         Suppose instead we have a custom path through k-space that is not a regular grid.
         We would then need to initialize the ``Mesh`` with a single 'k' axis type.
 
         >>> path_points = np.random.rand(100, 2)  # 100 point path in 2D k-space
-        >>> mesh = Mesh(dim_k=2, dim_lambda=0, axis_types=['k'])
+        >>> mesh = Mesh(axis_types=['k'], dim_k=2)
         >>> mesh.build_custom(path_points)
         """
         self.is_custom = True
