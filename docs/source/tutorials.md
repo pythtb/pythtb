@@ -14,8 +14,9 @@ There is a useful [`collection of PythTB sample programs`](https://minisites.cam
 that were developed in connection with David Vanderbilt's book [`Berry Phases in Electronic Structure Theory`](https://www.cambridge.org/9781107157651)(Cambridge University Press, 2018).
 ```
    
-```{tip}
-See **New to v2.0** for tutorials demonstrating features added in PythTB v2.0.
+```{admonition} v2.0 Upgrade Notice
+:class: attention
+For tips on upgrading to v2.0, first see the {doc}`release notes <release/2.0.0-notes>`. After that, you can explore the tutorials below, particularly those in the **New to v2.0** section.
 ```
 
 ```{toctree}
