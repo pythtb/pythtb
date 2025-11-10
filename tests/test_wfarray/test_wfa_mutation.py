@@ -5,7 +5,7 @@ from pythtb import Lattice, Mesh, WFArray
 def make_1d_wfa(include_endpoint: bool) -> WFArray:
     """Utility that builds a minimal 1D WFArray with one orbital."""
     lattice = Lattice(lat_vecs=[[1.0]], orb_vecs=[[0.0]], periodic_dirs=[0])
-    mesh = Mesh(dim_k=1, axis_types=["k"])
+    mesh = Mesh(["k"])
     mesh.build_grid([4], k_endpoints=include_endpoint)
     return WFArray(lattice, mesh)
 

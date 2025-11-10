@@ -3,7 +3,7 @@ import numpy as np
 
 
 def test_mesh_k_and_param_points_match_axis_order():
-    mesh = Mesh(dim_k=1, dim_lambda=1, axis_types=["l", "k"])
+    mesh = Mesh(["l", "k"])
     mesh.build_grid(
         shape=(2, 3),
         gamma_centered=[False],
@@ -24,7 +24,7 @@ def test_mesh_k_and_param_points_match_axis_order():
 
 
 def test_mesh_axis_type_ordering():
-    mesh = Mesh(dim_k=2, dim_lambda=1, axis_types=["l", "k", "k"])
+    mesh = Mesh(["l", "k", "k"])
     mesh.build_grid(
         shape=(3, 4, 5),
         gamma_centered=[True, False],

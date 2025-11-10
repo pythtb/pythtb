@@ -30,7 +30,7 @@ def run(t, delta):
     # my_model.set_parameters(lam=0.0)
     (k_vec, _, _) = my_model.k_path([[-0.5], [0.5]], num_kpt, report=False)
 
-    mesh = Mesh(dim_k=1, dim_lambda=1, axis_types=["k", "l"], axis_names=["k_x", "lam"])
+    mesh = Mesh(dim_k=1, axis_types=["k", "l"], axis_names=["k_x", "lam"])
     mesh.build_grid(
         shape=(num_kpt, path_steps),
         k_endpoints=True,

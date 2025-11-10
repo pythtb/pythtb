@@ -2,9 +2,15 @@ import numpy as np
 from pythtb import TBModel, Mesh, WFArray, Lattice
 
 
+def _phase_state_from_coords(mesh: Mesh) -> np.ndarray:
+    coords = mesh.points
+    phase = np.exp(2j * np.pi * (coords[..., 0] + coords[..., -1]))
+    return phase[..., np.newaxis, np.newaxis]
+
+
 def test_solve_model_respects_arbitrary_axis_order():
     lat = Lattice([[1.0]], [[0.0]], periodic_dirs=[0])
-    mesh = Mesh(dim_k=1, dim_lambda=1, axis_types=["l", "k"], axis_names=["phi", "k"])
+    mesh = Mesh(["l", "k"], axis_names=["phi", "k"])
     mesh.build_grid(
         shape=(2, 3),
         gamma_centered=[False],
@@ -60,7 +66,7 @@ def _assign_flux_states(wfa):
 def test_berry_phase_handles_axis_reordering():
     lat = Lattice([[1.0]], [[0.0]], periodic_dirs=[0])
 
-    mesh_kl = Mesh(dim_k=1, dim_lambda=1, axis_types=["k", "l"])
+    mesh_kl = Mesh(["k", "l"])
     mesh_kl.build_grid(
         shape=(8, 5),
         gamma_centered=[True],
@@ -69,7 +75,7 @@ def test_berry_phase_handles_axis_reordering():
         lambda_stop=[np.pi],
         lambda_endpoints=[True],
     )
-    mesh_lk = Mesh(dim_k=1, dim_lambda=1, axis_types=["l", "k"])
+    mesh_lk = Mesh(["l", "k"])
     mesh_lk.build_grid(
         shape=(5, 8),
         gamma_centered=[True],
@@ -94,7 +100,7 @@ def test_berry_flux_handles_axis_reordering():
         [[1.0, 0.0], [0.0, 1.0]], [[0.0, 0.0], [0.5, 0.5]], periodic_dirs=[0, 1]
     )
 
-    mesh_kkl = Mesh(dim_k=2, dim_lambda=1, axis_types=["k", "k", "l"])
+    mesh_kkl = Mesh(["k", "k", "l"])
     mesh_kkl.build_grid(
         shape=(4, 5, 3),
         gamma_centered=[True, False],
@@ -104,7 +110,7 @@ def test_berry_flux_handles_axis_reordering():
         lambda_endpoints=[True],
     )
 
-    mesh_lkk = Mesh(dim_k=2, dim_lambda=1, axis_types=["l", "k", "k"])
+    mesh_lkk = Mesh(["l", "k", "k"])
     mesh_lkk.build_grid(
         shape=(3, 4, 5),
         gamma_centered=[True, False],
@@ -125,3 +131,54 @@ def test_berry_flux_handles_axis_reordering():
     perm = wfa_lkk._mesh_axes_to_canonical()
     flux_lkk = np.transpose(flux_lkk, perm)
     np.testing.assert_allclose(flux_kkl, flux_lkk)
+
+
+def test_links_with_reordered_axes():
+    lat = Lattice(
+        lat_vecs=[[1.0, 0.0], [0.0, 1.0]], orb_vecs=[[0.0, 0.0]], periodic_dirs=[0, 1]
+    )
+    mesh_kl = Mesh(["k", "k", "l"])
+    mesh_kl.build_grid(shape=(5, 5, 3), gamma_centered=True, k_endpoints=False)
+
+    mesh_lk = Mesh(["l", "k", "k"])
+    mesh_lk.build_grid(shape=(3, 5, 5), gamma_centered=True, k_endpoints=False)
+
+    wfa_kl = WFArray(lat, mesh_kl)
+    wfa_lk = WFArray(lat, mesh_lk)
+    wfa_kl.set_states(_phase_state_from_coords(mesh_kl))
+    wfa_lk.set_states(_phase_state_from_coords(mesh_lk))
+
+    links_kl = wfa_kl.links(axis_idx=0)
+    links_lk = wfa_lk.links(axis_idx=1)
+    perm = wfa_lk._mesh_axes_to_canonical()
+    # add 1 to account for leading axis_idx dim
+    perm = tuple(p + 1 for p in perm)
+    links_lk = np.transpose(links_lk, (0,) + perm + (4, 5))
+
+    np.testing.assert_allclose(links_kl, links_lk)
+
+
+def test_roll_states_with_pbc_axis_reordering():
+    lat = Lattice(
+        lat_vecs=[[1.0, 0.0], [0.0, 1.0]], orb_vecs=[[0.0, 0.0]], periodic_dirs=[0, 1]
+    )
+    mesh_kl = Mesh(["k", "k", "l"])
+    mesh_kl.build_grid(
+        shape=(5, 5, 3), gamma_centered=[False, False], k_endpoints=[True, True]
+    )
+    mesh_lk = Mesh(["l", "k", "k"])
+    mesh_lk.build_grid(
+        shape=(3, 5, 5), gamma_centered=[False, False], k_endpoints=[True, True]
+    )
+
+    wfa_kl = WFArray(lat, mesh_kl)
+    wfa_lk = WFArray(lat, mesh_lk)
+    wfa_kl.set_states(_phase_state_from_coords(mesh_kl))
+    wfa_lk.set_states(_phase_state_from_coords(mesh_lk))
+
+    rolled_kl = wfa_kl.roll_states_with_pbc([1, 0], flatten_spin_axis=False)
+    rolled_lk = wfa_lk.roll_states_with_pbc([0, 1], flatten_spin_axis=False)
+
+    perm = wfa_lk._mesh_axes_to_canonical()
+    rolled_lk = np.transpose(rolled_lk, perm + (3, 4))
+    np.testing.assert_allclose(rolled_kl, rolled_lk)

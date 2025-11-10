@@ -1,4 +1,3 @@
-import numpy as np
 import pytest
 from pythtb import TBModel, Mesh, WFArray, Lattice
 
@@ -16,7 +15,7 @@ def test_wfa_initialization():
     numk = 10  # number of k-points along each direction
 
     # create mesh
-    mesh = Mesh(dim_k=2, axis_types=["k", "k"])
+    mesh = Mesh(["k", "k"])
     mesh.build_grid([numk, numk])
 
     # initialize WFArray
@@ -41,7 +40,7 @@ def test_wfa_initialization():
         f"Wavefunction array shape should be {expected_shape}"
     )
 
-    mesh_param = Mesh(dim_k=2, dim_lambda=1, axis_types=["k", "k", "l"])
+    mesh_param = Mesh(["k", "k", "l"])
     mesh_param.build_grid([numk, numk, 5])  # 5 points along the lambda direction
     param_array = WFArray(bulk_model.lattice, mesh_param, spinful=bulk_model.spinful)
 
@@ -78,7 +77,7 @@ def test_wfa_initialization_spinful():
     numk = 10  # number of k-points along each direction
 
     # create mesh
-    mesh = Mesh(dim_k=2, axis_types=["k", "k"])
+    mesh = Mesh(["k", "k"])
     mesh.build_grid([numk, numk])
 
     # initialize WFArray
@@ -106,43 +105,16 @@ def test_wfa_initialization_spinful():
 
 def test_wfarray_allows_single_point_lambda_axis():
     lat = Lattice([[1.0]], [[0.0]], periodic_dirs=[0])
-    mesh = Mesh(dim_k=1, dim_lambda=1, axis_types=["k", "l"])
+    mesh = Mesh(["k", "l"])
     mesh.build_grid(shape=(8, 1), lambda_start=[0.0], lambda_stop=[0.0])
     WFArray(lat, mesh, spinful=False)  # should not raise
 
 
 def test_wfarray_rejects_loop_axis_with_single_point():
     lat = Lattice([[1.0]], [[0.0]], periodic_dirs=[0])
-    mesh = Mesh(dim_k=1, dim_lambda=0, axis_types=["k"])
+    mesh = Mesh(["k"])
     mesh.build_grid(shape=(1,), k_endpoints=False)
     with pytest.raises(
         ValueError, match="Looping mesh axes must have at least two samples"
     ):
         WFArray(lat, mesh)
-
-
-def test_solve_model_respects_arbitrary_axis_order():
-    lat = Lattice([[1.0]], [[0.0]], periodic_dirs=[0])
-    mesh = Mesh(dim_k=1, dim_lambda=1, axis_types=["l", "k"], axis_names=["phi", "k"])
-    mesh.build_grid(
-        shape=(2, 3),
-        gamma_centered=[False],
-        k_endpoints=[False],
-        lambda_start=[0.0],
-        lambda_stop=[np.pi],
-        lambda_endpoints=[True],
-    )
-
-    wfa = WFArray(lat, mesh, spinful=False)
-    model = TBModel(lat, spinful=False)
-    model.set_onsite(lambda phi: phi, ind_i=0)
-
-    wfa.solve_model(model)
-
-    lam_axis = mesh.lambda_axis_indices[0]
-    lam_comp = mesh.lambda_component_indices[0]
-    param_vals = mesh.get_axis_range(lam_axis, lam_comp)
-
-    energies = wfa.energies[..., 0]
-    expected = np.broadcast_to(param_vals[:, None], energies.shape)
-    np.testing.assert_allclose(energies, expected)

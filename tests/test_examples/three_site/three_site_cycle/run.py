@@ -24,7 +24,6 @@ def three_site_chain(t, delta):
 def run(t, delta):
     mesh = Mesh(
         dim_k=1,
-        dim_lambda=1,
         axis_types=[
             "k",
             "l",

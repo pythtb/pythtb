@@ -18,22 +18,24 @@ def run():
     t = -1.0
     delta = 0.4
 
-    model_orig = bn_model(t, delta).cut_piece(3, 1, glue_edges=False)
+    model_orig = bn_model(t, delta).cut_piece(
+        num_cells=3, periodic_dir=1, glue_edges=False
+    )
 
     nk = 40
     n_occ = model_orig.nstate // 2
 
-    mesh = Mesh(1, ["k"])
+    mesh = Mesh(["k"])
     mesh.build_grid([nk])
 
     wfa = WFArray(lattice=model_orig.lattice, mesh=mesh)
     wfa.solve_model(model_orig)
-    berry_phase = wfa.berry_phase(0, range(n_occ))
+    berry_phase = wfa.berry_phase(axis_idx=0, state_idx=range(n_occ))
 
     model_orig.change_nonperiodic_vector(1)
 
     wfa2 = WFArray(lattice=model_orig.lattice, mesh=mesh)
     wfa2.solve_model(model_orig)
-    berry_phase2 = wfa2.berry_phase(0, range(n_occ))
+    berry_phase2 = wfa2.berry_phase(axis_idx=0, state_idx=range(n_occ))
 
     return berry_phase, berry_phase2

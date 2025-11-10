@@ -27,7 +27,7 @@ def test_chern_haldane(k_endpoints):
 
     model = haldane(delta=delta, t1=t1, t2=0, phi=np.pi / 2)
 
-    mesh = Mesh(dim_k=2, axis_types=["k", "k"])
+    mesh = Mesh(["k", "k"])
     mesh.build_grid([100, 100], k_endpoints=k_endpoints)
     wfa = WFArray(model.lattice, mesh)
 

@@ -5,24 +5,10 @@ from pythtb import Lattice, Mesh, WFArray
 from pythtb.models import haldane, kane_mele
 
 
-def _canonicalize_axes(arr: np.ndarray, wfa: WFArray) -> np.ndarray:
-    perm = getattr(wfa, "_canonical_to_mesh_axes")()
-    if not perm:
-        return arr
-    trailing = tuple(range(len(perm), arr.ndim))
-    return np.transpose(arr, perm + trailing)
-
-
-def _phase_state_from_coords(mesh: Mesh) -> np.ndarray:
-    coords = mesh.points
-    phase = np.exp(2j * np.pi * (coords[..., 0] + coords[..., -1]))
-    return phase[..., np.newaxis, np.newaxis]
-
-
 def make_1d_wfa(include_endpoint: bool) -> WFArray:
     """Utility that builds a minimal 1D WFArray with one orbital."""
     lattice = Lattice(lat_vecs=[[1.0]], orb_vecs=[[0.0]], periodic_dirs=[0])
-    mesh = Mesh(dim_k=1, axis_types=["k"])
+    mesh = Mesh(["k"])
     mesh.build_grid([4], k_endpoints=include_endpoint)
     return WFArray(lattice, mesh)
 
@@ -58,7 +44,7 @@ def test_berry_connection_phase(delta):
     t2 = -0.3
     model = haldane(delta, t, t2)
     nkx = nky = 100
-    mesh = Mesh(dim_k=2, axis_types=["k", "k"])
+    mesh = Mesh(["k", "k"])
     mesh.build_grid((nkx, nky))
     wfa = WFArray(model.lattice, mesh=mesh)
     wfa.solve_model(model)
@@ -91,7 +77,7 @@ def test_berry_connection_hermiticity():
     model = kane_mele(1.0, 0.6, 0.1, 0.1)
 
     nkx = nky = 20
-    mesh = Mesh(dim_k=2, axis_types=["k", "k"])
+    mesh = Mesh(["k", "k"])
     mesh.build_grid((nkx, nky))
     wfa = WFArray(model.lattice, mesh=mesh, spinful=True)
     wfa.solve_model(model)
@@ -109,7 +95,7 @@ def test_berry_connection_invalid_state_idx():
     model = kane_mele(1.0, 0.6, 0.1, 0.1)
 
     nkx = nky = 20
-    mesh = Mesh(dim_k=2, axis_types=["k", "k"])
+    mesh = Mesh(["k", "k"])
     mesh.build_grid((nkx, nky))
     wfa = WFArray(model.lattice, mesh=mesh, spinful=True)
     wfa.solve_model(model)
@@ -124,7 +110,7 @@ def test_berry_connection_finite_diff(delta):
     t2 = -0.3
     model = haldane(delta, t, t2)
     nkx = nky = 100
-    mesh = Mesh(dim_k=2, axis_types=["k", "k"])
+    mesh = Mesh(["k", "k"])
     mesh.build_grid((nkx, nky))
     wfa = WFArray(model.lattice, mesh=mesh)
     wfa.solve_model(model)
@@ -168,7 +154,7 @@ def test_berry_connection_cartesian_step():
     lattice = Lattice(
         lat_vecs=[[1, 0], [0, 1]], orb_vecs=[[0, 0]], periodic_dirs=[0, 1]
     )
-    mesh = Mesh(dim_k=2, axis_types=["k"])
+    mesh = Mesh(["k"], dim_k=2)
     points = np.linspace([0, 0], [1, 1], 6, endpoint=False)
     mesh.build_custom(points)
     wfa = WFArray(lattice, mesh)
@@ -187,54 +173,3 @@ def test_berry_connection_cartesian_step():
 
     np.testing.assert_allclose(A_red, expected_red, rtol=1e-12, atol=1e-12)
     np.testing.assert_allclose(A_cart, expected_cart, rtol=1e-12, atol=1e-12)
-
-
-def test_links_with_reordered_axes():
-    lat = Lattice(
-        lat_vecs=[[1.0, 0.0], [0.0, 1.0]], orb_vecs=[[0.0, 0.0]], periodic_dirs=[0, 1]
-    )
-    mesh_kl = Mesh(dim_k=2, dim_lambda=1, axis_types=["k", "k", "l"])
-    mesh_kl.build_grid(shape=(5, 5, 3), gamma_centered=True, k_endpoints=False)
-
-    mesh_lk = Mesh(dim_k=2, dim_lambda=1, axis_types=["l", "k", "k"])
-    mesh_lk.build_grid(shape=(3, 5, 5), gamma_centered=True, k_endpoints=False)
-
-    wfa_kl = WFArray(lat, mesh_kl)
-    wfa_lk = WFArray(lat, mesh_lk)
-    wfa_kl.set_states(_phase_state_from_coords(mesh_kl))
-    wfa_lk.set_states(_phase_state_from_coords(mesh_lk))
-
-    links_kl = wfa_kl.links(axis_idx=0)
-    links_lk = wfa_lk.links(axis_idx=1)
-    perm = wfa_lk._mesh_axes_to_canonical()
-    # add 1 to account for leading axis_idx dim
-    perm = tuple(p + 1 for p in perm)
-    links_lk = np.transpose(links_lk, (0,) + perm + (4, 5))
-
-    np.testing.assert_allclose(links_kl, links_lk)
-
-
-def test_roll_states_with_pbc_axis_reordering():
-    lat = Lattice(
-        lat_vecs=[[1.0, 0.0], [0.0, 1.0]], orb_vecs=[[0.0, 0.0]], periodic_dirs=[0, 1]
-    )
-    mesh_kl = Mesh(dim_k=2, dim_lambda=1, axis_types=["k", "k", "l"])
-    mesh_kl.build_grid(
-        shape=(5, 5, 3), gamma_centered=[False, False], k_endpoints=[True, True]
-    )
-    mesh_lk = Mesh(dim_k=2, dim_lambda=1, axis_types=["l", "k", "k"])
-    mesh_lk.build_grid(
-        shape=(3, 5, 5), gamma_centered=[False, False], k_endpoints=[True, True]
-    )
-
-    wfa_kl = WFArray(lat, mesh_kl)
-    wfa_lk = WFArray(lat, mesh_lk)
-    wfa_kl.set_states(_phase_state_from_coords(mesh_kl))
-    wfa_lk.set_states(_phase_state_from_coords(mesh_lk))
-
-    rolled_kl = wfa_kl.roll_states_with_pbc([1, 0], flatten_spin_axis=False)
-    rolled_lk = wfa_lk.roll_states_with_pbc([0, 1], flatten_spin_axis=False)
-
-    perm = wfa_lk._mesh_axes_to_canonical()
-    rolled_lk = np.transpose(rolled_lk, perm + (3, 4))
-    np.testing.assert_allclose(rolled_kl, rolled_lk)
