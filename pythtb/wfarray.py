@@ -2870,7 +2870,7 @@ class WFArray:
         ... plane = (0,1), 
         ... state_idx = [0, 1, 2], 
         ... non_abelian = True
-        ... ) # shape: (*mesh_shape, n_states, n_states)
+        ... ) # shape: (*mesh_shape, nstates, nstates)
 
         References
         ----------
@@ -3029,11 +3029,21 @@ class WFArray:
 
         The Berry curvature tensor :math:`\Omega_{\mu\nu}(\mathbf{k})`
         is computed using a discretized formula based on the
-        Fukui-Hatsugai-Suzuki (FHS) method [1]_. This method involves
-        calculating the Berry flux through closed loops around
-        each plaquette of the parameter mesh. The tensor is either defined
-        as a matrix-valued quantity (non-Abelian case) or as a scalar quantity
-        obtained by tracing over the band indices (Abelian case).
+        Fukui-Hatsugai-Suzuki (FHS) plaquette-based method [1]_. The curvature
+        is approximated from the Berry flux (computed in :meth:`berry_flux`)
+        by dividing the flux by the (presumed uniform) area of the plaquette in
+        parameter space,
+
+        .. math::
+            \Omega_{\mu\nu}(\mathbf{k}) \approx
+            \frac{\mathcal{F}_{\mu\nu}(\mathbf{k})}{A_{\mu\nu}},
+
+        where :math:`A_{\mu\nu}` is the area (in Cartesian units) of the
+        plaquette in parameter space.
+
+        The tensor is either defined is a matrix-valued quantity (non-Abelian case)
+        or as a scalar quantity obtained by tracing over the band indices
+        (Abelian case).
 
         .. versionadded:: 2.0.0
 
@@ -3072,17 +3082,6 @@ class WFArray:
 
         Notes
         -----
-        - The curvature is approximated from the Berry flux (computed in :meth:`berry_flux`)
-          by dividing the flux by the (presumed uniform) area of the plaquette in parameter space.
-          Specifically,
-
-          .. math::
-            \Omega_{\mu\nu}(\mathbf{k}) \approx \frac{\mathcal{F}_{\mu\nu}(\mathbf{k})}{A_{\mu\nu}},
-
-          where :math:`A_{\mu\nu}` is the area (in Cartesian units) of the
-          plaquette in parameter space. The approximation arises from assuming
-          that the Berry curvature is constant over the plaquette area.
-          This approximation becomes exact in the limit of an infinitely dense mesh.
         - The method requires at least a two-dimensional mesh in the
           combined adiabatic space (momentum + adiabatic parameters). Thus,
           ``WFArray.naxes >= 2``.
@@ -3100,7 +3099,9 @@ class WFArray:
             p, q = plane  # Unpack plane directions
             dirs = [p, q]
 
-        berry_flux = self.berry_flux(state_idx=state_idx, non_abelian=non_abelian)
+        berry_flux = self.berry_flux(
+            plane=plane, state_idx=state_idx, non_abelian=non_abelian
+        )
         berry_curv = np.zeros_like(berry_flux, dtype=complex)
 
         coords = self.mesh.points  # (..., dim_k + dim_lam)
@@ -3112,7 +3113,6 @@ class WFArray:
         axis_vecs = []
         for ax in range(ndims):
             delta = np.zeros(dim_total, dtype=float)
-
             for comp in range(dim_total):
                 arr = self.mesh.get_axis_range(ax, comp)
                 if arr.size >= 2:
@@ -3120,33 +3120,40 @@ class WFArray:
                     if not np.isclose(diff, 0.0):
                         delta[comp] = diff
 
-        if not np.any(delta):
-            raise ValueError(
-                f"Cannot compute Berry curvature: "
-                f"Mesh axis {ax} has zero length in all parameter directions."
-            )
+            if not np.any(delta):
+                raise ValueError(
+                    f"Cannot compute Berry curvature: "
+                    f"Mesh axis {ax} has zero length in all parameter directions."
+                )
 
-        if dim_k:
-            k_cart = delta[:dim_k] @ recip
-            vec = np.concatenate([k_cart, delta[dim_k:]])
-        else:
-            vec = delta[dim_k:]
-        axis_vecs.append(vec)
+            if dim_k:
+                k_cart = delta[:dim_k] @ recip
+                vec = np.concatenate([k_cart, delta[dim_k:]])
+            else:
+                vec = delta[dim_k:]
+            axis_vecs.append(vec)
 
         # Divide by area elements for the (mu, nu)-plane
-        for i, mu in enumerate(dirs):
-            for j in range(i + 1, len(dirs)):
-                nu = dirs[j]
-                A = np.vstack([axis_vecs[mu], axis_vecs[nu]])
-                area = np.sqrt(np.linalg.det(A @ A.T))
+        if plane is not None:  # first two axes absent
+            mu, nu = p, q
+            A = np.vstack([axis_vecs[mu], axis_vecs[nu]])
+            area = np.sqrt(np.linalg.det(A @ A.T))
 
-                # Divide flux by the area element to get approx curvature
-                berry_curv[mu, nu] = berry_flux[mu, nu] / area
-                berry_curv[nu, mu] = berry_flux[nu, mu] / area
+            berry_curv = berry_flux / area
+        else:
+            for i, mu in enumerate(dirs):
+                for j in range(i + 1, len(dirs)):
+                    nu = dirs[j]
+                    A = np.vstack([axis_vecs[mu], axis_vecs[nu]])
+                    area = np.sqrt(np.linalg.det(A @ A.T))
 
-        if plane is not None:
-            berry_curv = berry_curv[plane]
-            berry_flux = berry_flux[plane]
+                    # Divide flux by the area element to get approx curvature
+                    berry_curv[mu, nu] = berry_flux[mu, nu] / area
+                    berry_curv[nu, mu] = berry_flux[nu, mu] / area
+
+        # if plane is not None:
+        #     berry_curv = berry_curv[plane]
+        #     berry_flux = berry_flux[plane]
 
         return (berry_curv, berry_flux) if return_flux else berry_curv
 
