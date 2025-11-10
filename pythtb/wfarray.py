@@ -3151,10 +3151,6 @@ class WFArray:
                     berry_curv[mu, nu] = berry_flux[mu, nu] / area
                     berry_curv[nu, mu] = berry_flux[nu, mu] / area
 
-        # if plane is not None:
-        #     berry_curv = berry_curv[plane]
-        #     berry_flux = berry_flux[plane]
-
         return (berry_curv, berry_flux) if return_flux else berry_curv
 
     def chern_number(self, plane=(0, 1), state_idx=None):
