@@ -159,8 +159,8 @@ html_sidebars = {
 
 html_theme_options = {
     "logo": {
-        "image_light": "_static/pythtb_logo2_dark.svg",
-        "image_dark": "_static/pythtb_logo2_dark.svg",
+        "image_light": "_static/pythtb_logo.svg",
+        "image_dark": "_static/pythtb_logo.svg",
     },
     "collapse_navigation": False,
     #   "navigation_depth": 4,
