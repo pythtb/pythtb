@@ -2952,7 +2952,12 @@ class WFArray:
 
                 # Wilson loops: W = U_{mu}(k_0) U_{nu}(k_0+delta_mu) U^{-1}_{mu}(k_0+delta_mu+delta_nu) U^{-1}_{nu}(k_0)
                 if use_tensorflow:
-                    import tensorflow as tf
+                    try:
+                        import tensorflow as tf
+                    except ImportError:
+                        raise ImportError(
+                            "TensorFlow is not installed. Please install it or set use_tensorflow=False."
+                        )
 
                     U_mu_tf = tf.convert_to_tensor(U_mu)
                     U_nu_shift_mu_tf = tf.convert_to_tensor(U_nu_shift_mu)
@@ -2993,7 +2998,12 @@ class WFArray:
                     # Eigen-decompose U_wilson = V diag(-phi_j) V^{-1}, phi_j in (-pi, pi]
 
                     if use_tensorflow:
-                        import tensorflow as tf
+                        try:
+                            import tensorflow as tf
+                        except ImportError:
+                            raise ImportError(
+                                "TensorFlow is not installed. Please install it or set use_tensorflow=False."
+                            )
 
                         eigvals, eigvecs = tf.linalg.eig(tf.convert_to_tensor(U_wilson))
                         eigvals = eigvals.numpy()
