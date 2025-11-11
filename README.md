@@ -4,7 +4,8 @@
 
 --------
 
-[![Conda Version](https://anaconda.org/conda-forge/pythtb/badges/version.svg)](https://anaconda.org/conda-forge/pythtb/) 
+[![PyPI](https://img.shields.io/pypi/v/pythtb.svg)](https://pypi.org/project/pythtb/)
+[![Conda Version](https://img.shields.io/conda/vn/conda-forge/pythtb.svg)](https://anaconda.org/conda-forge/pythtb)
 [![Conda Downloads](https://anaconda.org/conda-forge/pythtb/badges/downloads.svg)](https://anaconda.org/conda-forge/pythtb/) 
 [![PyPI Downloads](https://img.shields.io/pypi/dm/pythtb.svg?label=PyPI%20downloads)](
 https://pypi.org/project/pythtb/)
