@@ -1,0 +1,10 @@
+{
+    "group": "supercell",
+    "name": "supercell",
+    "filenames": [
+        "evals.py"
+    ],
+    "generated_at": "2025-06-18T20:36:02.242942",
+    "python_version": "3.10.17",
+    "pythtb_version": "1.8.0"
+}

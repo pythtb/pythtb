@@ -1,0 +1,10 @@
+{
+    "group": "buckling",
+    "name": "buckled_layer",
+    "filenames": [
+        "evals.npy"
+    ],
+    "generated_at": "2025-06-18T18:58:26.019728",
+    "python_version": "3.10.17",
+    "pythtb_version": "1.8.0"
+}
