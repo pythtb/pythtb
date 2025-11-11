@@ -1,0 +1,38 @@
+name: Publish to PyPI (Trusted Publishing)
+
+on:
+  push:
+    tags:
+      - "v*"          # trigger on any v-tag; we'll filter rc below
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # REQUIRED for OIDC
+
+jobs:
+  build-and-publish:
+    # Only run for non-rc tags like v2.0.0
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'rc')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi-prod
+      url: https://pypi.org/project/pythtb/
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # setuptools-scm needs tags
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          twine check dist/*
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@v1.12.4
+        # no `with:` block needed for Trusted Publishing
