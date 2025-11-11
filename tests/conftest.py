@@ -123,7 +123,7 @@ def render_markdown(tree, updated_at):
 
 @pytest.hookimpl(trylast=True)
 def pytest_sessionfinish(session, exitstatus):
-    out_path = Path(session.config.rootdir) / "tests" / "README.md"
+    out_path = Path(session.config.rootdir) / "tests" / "PASSING.md"
 
     if not results:
         return
