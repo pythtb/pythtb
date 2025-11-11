@@ -1,0 +1,11 @@
+{
+    "group": "kane_mele",
+    "name": "kane_mele",
+    "filenames": [
+        "kane_mele_evals.npy",
+        "kane_mele_wan_cent.npy"
+    ],
+    "generated_at": "2025-06-18T19:41:35.775947",
+    "python_version": "3.10.17",
+    "pythtb_version": "1.8.0"
+}

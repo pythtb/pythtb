@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>About &#8212; PythTB 1.8.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="_static/classic.css?v=2bf1fcf8" />
+    <link rel="stylesheet" type="text/css" href="_static/plot_directive.css?v=7f9a90b1" />
+    
+    <script src="_static/documentation_options.js?v=371fd5e7"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    
+    <link rel="author" title="About these documents" href="#" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Installation" href="install.html" />
+    <link rel="prev" title="Python Tight Binding (PythTB)" href="index.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="install.html" title="Installation"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Python Tight Binding (PythTB)"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">PythTB 1.8.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">About</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="about">
+<h1>About<a class="headerlink" href="#about" title="Link to this heading">¶</a></h1>
+<p>The “<strong>Pyth</strong>on <strong>T</strong>ight <strong>B</strong>inding” (<code class="docutils literal notranslate"><span class="pre">PythTB</span></code>) code was
+developed and is maintained by Sinisa Coh (University of California at
+Riverside) and David Vanderbilt (Rutgers University) with assistance
+from <a class="reference internal" href="#history"><span class="std std-ref">many other individuals</span></a>.</p>
+<p>The primary location for this package is at
+<a class="reference external" href="http://www.physics.rutgers.edu/pythtb">http://www.physics.rutgers.edu/pythtb</a> where the most up-to-date
+releases and information can be found.</p>
+<section id="motivations-and-capabilities">
+<h2>Motivations and capabilities<a class="headerlink" href="#motivations-and-capabilities" title="Link to this heading">¶</a></h2>
+<p>The <a class="reference external" href="http://en.wikipedia.org/wiki/Tight_binding">tight binding</a>
+method is an approximate approach for solving for the electronic wave
+functions for electrons in solids assuming a basis of localized
+atomic-like orbitals. We assume here that the orbitals are
+orthonormal, and focus on the “empirical tight binding” approach in
+which the Hamiltonian matrix elements are simply parametrized, as
+opposed to being computed ab-initio.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">PythTB</span></code> package is intended to set up and solve tight-binding
+models for the electronic structure of</p>
+<ul class="simple">
+<li><p>0D clusters</p></li>
+<li><p>1D chains and ladders</p></li>
+<li><p>2D layers (square lattice, hexagonal lattice, honeycomb lattice,
+etc.)</p></li>
+<li><p>3D crystals</p></li>
+<li><p>clusters, ribbons, slabs, etc., cut from higher-dimensional crystals</p></li>
+<li><p>etc.</p></li>
+</ul>
+<p>As currently written, it is not intended to handle realistic chemical
+interactions. So for example, the <a class="reference external" href="http://en.wikipedia.org/wiki/Tight_binding#Table_of_interatomic_matrix_elements">Slater-Koster forms</a>
+for interactions between <em>s</em>, <em>p</em> and <em>d</em> orbitals are <em>not currently
+coded</em>, although the addition of such features could be considered for
+a future release.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">PythTB</span></code> package includes capabilities for</p>
+<ul class="simple">
+<li><p>computing electron eigenvalues and eigenvectors at selected k-points
+or on a mesh of k-points</p></li>
+<li><p>generating band-structure plots</p></li>
+<li><p>generating density-of-states plots</p></li>
+</ul>
+<p>It can also calculate <a class="reference external" href="http://en.wikipedia.org/wiki/Berry_connection_and_curvature">Berry phases, connections and curvatures</a> in
+ways that are useful for calculations of</p>
+<ul class="simple">
+<li><p>adiabatic charge transport</p></li>
+<li><p>electric polarization</p></li>
+<li><p>anomalous Hall conductivity</p></li>
+<li><p>topological indices</p></li>
+<li><p>etc.</p></li>
+</ul>
+<p>Finally, it provides tools for setting up more complicated
+tight-binding models, e.g., by “cutting” a cluster, ribbon, or slab
+out of a higher-dimensional crystal, and for visualizing the
+connectivity of a tight-binding model once it has been
+constructed. You can get an idea of the capabilities of the package by
+browsing the <a class="reference internal" href="examples.html"><span class="doc">PythTB examples</span></a>.</p>
+<p>The code is intended for pedagogical as well as research purposes. For
+example, it should be suitable for use in an undergraduate- or
+graduate-level solid-state physics course as a tool for illustrating the
+calculation of electronic band structructures, and it is simple enough
+that it can be considered for use in homework sets or special projects
+in such a course.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">PythTB</span></code> package was written in Python for several reasons,
+including</p>
+<ul class="simple">
+<li><p>The ease of learning and using Python</p></li>
+<li><p>The wide availability of Python in the community</p></li>
+<li><p>The flexibility with which Python can be interfaced with graphics and
+visualization modules</p></li>
+<li><p>In general, the easy extensibility of Python programs</p></li>
+</ul>
+<p>On the other hand, please note that Python is not a computationally
+efficient platform when applied to large systems requiring heavy
+computation.</p>
+</section>
+<section id="getting-started">
+<h2>Getting started<a class="headerlink" href="#getting-started" title="Link to this heading">¶</a></h2>
+<p>The best way to explore the capabilities of <code class="docutils literal notranslate"><span class="pre">PythTB</span></code> and to get
+started in using it is to read through the <a class="reference internal" href="install.html"><span class="doc">installation
+instructions</span></a> and <a class="reference internal" href="examples.html"><span class="doc">PythTB examples</span></a>.</p>
+<p>If you are unfamiliar with Python or are not sure whether Python and the
+needed Python modules are installed on your system, see our
+<a class="reference internal" href="resources.html"><span class="doc">python introduction</span></a> and <a class="reference internal" href="install.html"><span class="doc">installation
+instructions</span></a>.</p>
+<p>Note that the <code class="docutils literal notranslate"><span class="pre">PythTB</span></code> code is freely distributed under the terms of
+the <a class="reference download internal" download="" href="_downloads/7987dde0655186ac59588ddc53b953c6/gpl-3.0.txt"><code class="xref download docutils literal notranslate"><span class="pre">GNU</span> <span class="pre">GPL</span> <span class="pre">public</span> <span class="pre">license</span></code></a>. You may
+use it for your own research and educational purposes, or pass it on
+to others for similar use. However, the code is not guaranteed to be
+bug-free, and we do not promise active support for the package.</p>
+</section>
+<section id="wannier90-interface">
+<h2>Wannier90 interface<a class="headerlink" href="#wannier90-interface" title="Link to this heading">¶</a></h2>
+<p>Starting with Version 1.7, <code class="docutils literal notranslate"><span class="pre">PythTB</span></code> also provides an interface
+to the <a class="reference external" href="http://wannier.org">Wannier90</a> code, which can
+be used to take the output of a first-principles density-functional
+calculation and construct from it a tight-binding model, in
+the basis of Wannier functions, that accurately reproduces the
+first-principles bandstructure.  See <a class="reference internal" href="usage.html"><span class="doc">usage</span></a>.</p>
+</section>
+<section id="history">
+<span id="id1"></span><h2>History<a class="headerlink" href="#history" title="Link to this heading">¶</a></h2>
+<p>This code package had its origins in a simpler package that was
+developed for use in a special-topics course on “Berry Phases in Solid
+State Physics” offered by D. Vanderbilt in Fall 2010 at Rutgers
+University. The students were asked to use the code as provided, or to
+make extensions on their own as needed, in order to compute properties
+of simple systems, such as a 2D honeycomb model of graphene, in the
+tight-binding (TB) approximation.</p>
+<p>From the beginning, Sinisa Coh, who was a PhD student with Vanderbilt at
+the time, has been the primary developer of the package. However, many
+other individuals made contributions to this code, including
+Wenshuo Liu, Victor Alexandrov, Tahir Yusufaly, and Maryam Taherinejad.</p>
+</section>
+<section id="feedback">
+<h2>Feedback<a class="headerlink" href="#feedback" title="Link to this heading">¶</a></h2>
+<p>Please send comments or suggestions for improvement to <a class="reference external" href="mailto:dhv&#37;&#52;&#48;physics&#46;rutgers&#46;edu,sinisacoh&#37;&#52;&#48;gmail&#46;com">these email
+addresses</a>.</p>
+</section>
+<section id="acknowledgments-and-disclaimer">
+<h2>Acknowledgments and Disclaimer<a class="headerlink" href="#acknowledgments-and-disclaimer" title="Link to this heading">¶</a></h2>
+<p>This Web page is based in part upon work supported by the US National
+Science Foundation under Grants DMR-1005838, DMR-1408838, DMR-1954856,
+and DMR-2421895.  Any opinions, findings, and
+conclusions or recommendations expressed in this material are those of
+the author and do not necessarily reflect the views of the National
+Science Foundation.</p>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h3><a href="index.html">PythTB</a></h3>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="formalism.html">Formalism</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="resources.html">Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="citation.html">Citation</a></li>
+</ul>
+
+  <h3><a href="index.html">This page</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">About</a><ul>
+<li><a class="reference internal" href="#motivations-and-capabilities">Motivations and capabilities</a></li>
+<li><a class="reference internal" href="#getting-started">Getting started</a></li>
+<li><a class="reference internal" href="#wannier90-interface">Wannier90 interface</a></li>
+<li><a class="reference internal" href="#history">History</a></li>
+<li><a class="reference internal" href="#feedback">Feedback</a></li>
+<li><a class="reference internal" href="#acknowledgments-and-disclaimer">Acknowledgments and Disclaimer</a></li>
+</ul>
+</li>
+</ul>
+
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="install.html" title="Installation"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Python Tight Binding (PythTB)"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">PythTB 1.8.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">About</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2016, Sinisa Coh and David Vanderbilt.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    </div>
+  </body>
+</html>

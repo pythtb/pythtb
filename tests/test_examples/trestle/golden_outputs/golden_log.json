@@ -1,0 +1,10 @@
+{
+    "group": "buckling",
+    "name": "trestle",
+    "filenames": [
+        "evals.npy"
+    ],
+    "generated_at": "2025-06-18T18:58:30.820502",
+    "python_version": "3.10.17",
+    "pythtb_version": "1.8.0"
+}

@@ -1,26 +1,21 @@
-Before creating a new test for an example script, please read the following information.
+#### _Before creating a new test for an example script, please read the following information._
 
-This folder contains a test suite for all of the examples in the `~/examples` directory. The examples are grouped by category (e.g. graphene, haldane, etc.) as in the `~/examples` directory, and each example has a folder of test files. When creating a new example test, please use the `make_test_example.py` to generate a skeleton of the folder of test files.
+This folder contains a test suite for all of the examples in the `~/examples` directory. The examples are grouped by category (e.g., graphene, haldane, etc.) as in the `~/examples` directory, and each example has a folder of test files. When creating a new test for an example, please use the `make_test_example.py` script to generate a skeleton of the folder of test files. The way to use this script is as follows:
 
 ```bash
 python make_test_example.py --group $NAMEOFGROUP --name $NAMEOFEXAMPLE
 ```
-This will create a folder under `$NAMEOFGROUP/$NAMEOFEXAMPLE` with the following:
 
-### `/golden_data`
-The tests use 'golden data' from a previous working version of `pythtb` as a standard to compare to. This data is stored in a `golden_data` directory within each example's test folder. 
+where the `$NAMEOFGROUP` is the name of the parent directory where the example lives, and `$NAMEOFEXAMPLE` is the example's name. This script will then create a folder structure `tests/test_example/$NAMEOFGROUP/$NAMEOFEXAMPLE` with the following content:
 
-### `regen_golden_data.py`
-When releasing a new version, all of the golden data should be regenerated using the `regen_golden_data.py` file. Please double check that the data is being saved as expected: with correct formating, and consistent file names across the test files.
+### `/golden_data` folder
+The tests use 'golden data' from a previous working version of `pythtb` as a standard to compare to. This data is stored in the `golden_data` directory within each example's test folder. 
 
-### `run.py`
+### `regen_golden_data.py` script
+When releasing a new version, all of the golden data should be regenerated using the `regen_golden_data.py` file. Please double-check that the data is being saved as expected: with correct formatting and consistent file names across the test files.
+
+### `run.py` script
 This file contains a function `run()` which returns the relevant data being generated in the example script. This output is what will be compared against the golden data to ensure consistency across code updates.
 
-### `test.py`
-This file is what will be automatically detected and ran by `pytest`. If `run()` returns more than one output, or something that is not save-able by NumPy, be sure to modify the code where the assertion `np.allclose()` is made to something appropriate for your data type.
-
-After each run of `pytest`, the pass/fail status will be written to `status.json` in the group directory. To see the status of all of the examples, run
-```bash
-python report_test_status.py
-```
-in the terminal. 
+### `test_$NAMEOFEXAMPLE.py` script
+This file is what will be automatically detected and run by `pytest`. At the top of the file, the dictionary `OUTPUTS` must be modified to include the names of the golden data files. Be careful that the order in which the entries are added matches the order of what is returned in `run()`. If the data is something that is not savable by `NumPy`, such as pickled objects, be sure to modify the code as needed to make the appropriate comparisons. 

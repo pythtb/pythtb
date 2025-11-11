@@ -1,0 +1,824 @@
+import numpy as np
+from math import factorial
+from itertools import permutations
+from itertools import combinations_with_replacement as comb
+from itertools import product
+import functools
+import warnings
+
+__all__ = [
+    "levi_civita",
+    "finite_diff_coeffs",
+    "finite_difference",
+    "is_Hermitian",
+    "pauli_decompose",
+    "get_trial_wfs",
+]
+
+_TF_CACHE = None  # module-level cache so we import once
+
+
+def get_tensorflow():
+    """Return the TensorFlow routines we need, importing lazily on demand."""
+    global _TF_CACHE
+    if _TF_CACHE is not None:
+        return _TF_CACHE
+
+    try:
+        import tensorflow as tf
+    except ImportError as exc:
+        raise ImportError(
+            "TensorFlow support requires `pip install pythtb[speedup]` "
+            "or a manual tensorflow install."
+        ) from exc
+
+    _TF_CACHE = {
+        "convert_to_tensor": tf.convert_to_tensor,
+        "eigvalsh": tf.linalg.eigvalsh,
+        "eigh": tf.linalg.eigh,
+        "complex64": tf.complex64,
+        "complex128": tf.complex128,
+    }
+    return _TF_CACHE
+
+
+# deprecation decorator
+def deprecated(message: str, category=FutureWarning):
+    """
+    Decorator to mark a function as deprecated.
+    Raises a FutureWarning with the given message when the function is called.
+    """
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            warnings.warn(
+                f"{func.__qualname__} is deprecated and will be removed in a future release: {message}",
+                category=category,
+                stacklevel=2,
+            )
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+def copydoc(src):
+    def deco(dst):
+        dst.__doc__ = src.__doc__
+        return dst
+
+    return deco
+
+
+def get_trial_wfs(tf_list, norb, nspin=1):
+    """
+    Args:
+        tf_list: list[int | list[tuple]]
+            list of tuples defining the orbital and amplitude of the trial function
+            on that orbital. Of the form [ [(orb, amp), ...], ...]. If spin is included,
+            then the form is [ [(orb, spin, amp), ...], ...]
+
+    Returns:
+        tfs: np.ndarray
+            Array of trial functions
+    """
+
+    # number of trial functions to define
+    num_tf = len(tf_list)
+
+    if nspin == 2:
+        tfs = np.zeros([num_tf, norb, 2], dtype=complex)
+        for j, tf in enumerate(tf_list):
+            assert isinstance(tf, (list, np.ndarray)), (
+                "Trial function must be a list of tuples"
+            )
+            for orb, spin, amp in tf:
+                tfs[j, orb, spin] = amp
+            tfs[j] /= np.linalg.norm(tfs[j])
+
+    elif nspin == 1:
+        # initialize array containing tfs = "trial functions"
+        tfs = np.zeros([num_tf, norb], dtype=complex)
+        for j, tf in enumerate(tf_list):
+            assert isinstance(tf, (list, np.ndarray)), (
+                "Trial function must be a list of tuples"
+            )
+            for site, amp in tf:
+                tfs[j, site] = amp
+            tfs[j] /= np.linalg.norm(tfs[j])
+
+    return tfs
+
+
+def detect_degeneracies(eigenvalues, tol=1e-8):
+    """
+    Detects degeneracies in a list of eigenvalues.
+
+    Parameters:
+        eigenvalues (array): List or array of eigenvalues (assumed sorted).
+        tol (float): Tolerance for identifying degeneracy.
+
+    Returns:
+        degenerate_groups (list of lists): Indices of degenerate eigenvalues.
+    """
+    eigenvalues = np.array(eigenvalues)
+    # sort eigenvalues if not already sorted
+    if not np.all(np.diff(eigenvalues) >= 0):
+        eigenvalues = np.sort(eigenvalues)
+    degenerate_groups = []
+    current_group = [0]
+
+    for i in range(1, len(eigenvalues)):
+        if abs(eigenvalues[i] - eigenvalues[i - 1]) < tol:
+            current_group.append(i)
+        else:
+            if len(current_group) > 1:
+                degenerate_groups.append(current_group)
+            current_group = [i]
+
+    if len(current_group) > 1:
+        degenerate_groups.append(current_group)
+
+    return degenerate_groups
+
+
+def mat_exp(M):
+    eigvals, eigvecs = np.linalg.eig(M)
+    U = eigvecs
+    U_inv = np.linalg.inv(U)
+    # Diagonal matrix of the exponentials of the eigenvalues
+    exp_diagM = np.exp(eigvals)
+    # Construct the matrix exponential
+    expM = np.einsum(
+        "...ij, ...jk -> ...ik",
+        U,
+        np.multiply(U_inv, exp_diagM[..., :, np.newaxis]),
+    )
+    return expM
+
+
+def levi_civita(n, d):
+    """
+    Constructs the rank-n Levi-Civita tensor in dimension d.
+
+    The Levi-Civita tensor is an antisymmetric tensor used in various
+    areas of physics and mathematics, particularly in the context of
+    cross products and determinants. It is defined such that its components
+    are +1 for even permutations of indices, -1 for odd permutations,
+    and 0 if any indices are repeated.
+
+    Parameters
+    ----------
+    n : int
+        Rank of the tensor (number of indices).
+    d : int
+        Dimension (number of possible index values).
+
+    Returns
+    -------
+    np.ndarray
+        Levi-Civita tensor of shape (d, d, ..., d) with n dimensions.
+    """
+    shape = (d,) * n
+    epsilon = np.zeros(shape, dtype=int)
+    # Generate all possible permutations of n indices
+    for perm in permutations(range(d), n):
+        sign = 1
+        for i in range(n):
+            for j in range(i + 1, n):
+                if perm[i] > perm[j]:
+                    sign *= -1
+        epsilon[perm] = sign
+
+    return epsilon
+
+
+def kpath_distance(
+    k_frac: np.ndarray, b1: np.ndarray, b2: np.ndarray, b3: np.ndarray
+) -> np.ndarray:
+    """
+    Build 1D cumulative k-path distance (in 1/Å) from fractional k-points.
+
+    Parameters
+    ----------
+    k_frac : (nks, 3)
+        Fractional k-points (crystal coords).
+    b1,b2,b3 : (3,) in 1/Å
+        Reciprocal lattice basis vectors in Cartesian coords.
+
+    Returns
+    -------
+    x : (nks,)
+        Cumulative distance along the path.
+    """
+    B = np.vstack([b1, b2, b3]).T  # 3x3, columns are basis vectors
+    k_cart = k_frac @ B.T  # (nks,3) Cartesian k
+    dk = np.linalg.norm(np.diff(k_cart, axis=0), axis=1)
+    x = np.zeros(len(k_cart), dtype=float)
+    x[1:] = np.cumsum(dk)
+    return x
+
+
+def get_k_shell(model, nks, N_sh: int, report: bool = False):
+    """Generates shells of k-points around the Gamma point.
+
+    Returns array of vectors connecting the origin to nearest neighboring k-points
+    in the mesh, along with vectors of reduced coordinates.
+
+    Parameters
+    ----------
+    N_sh : int
+        Number of nearest neighbor shells.
+    report : bool
+        If True, prints a summary of the k-shell.
+
+    Returns
+    -------
+        k_shell : list[np.ndarray[float]]
+            List of arrays of vectors in inverse units of lattice vectors
+            connecting nearest neighbor k-mesh points.
+        idx_shell : list[np.ndarray[int]]
+            List of arrays of vectors of integers used for indexing the nearest
+            neighboring k-mesh points to a given k-mesh point.
+    """
+    recip_lat_vecs = model.recip_lat_vecs
+    dim_k = model.dim_k
+    # basis vectors connecting neighboring mesh points (in inverse Cartesian units)
+    dk = np.array([recip_lat_vecs[i] / nk for i, nk in enumerate(nks)])
+    # array of integers e.g. in 2D for N_sh = 1 would be [0,1], [1,0], [0,-1], [-1,0]
+    nnbr_idx = list(product(list(range(-N_sh, N_sh + 1)), repeat=dim_k))
+    nnbr_idx.remove((0,) * dim_k)
+    nnbr_idx = np.array(nnbr_idx)
+    # vectors connecting k-points near Gamma point (in inverse lattice vector units)
+    b_vecs = np.array([nnbr_idx[i] @ dk for i in range(nnbr_idx.shape[0])])
+    # distances to points around Gamma
+    dists = np.array([np.vdot(b_vecs[i], b_vecs[i]) for i in range(b_vecs.shape[0])])
+    # remove numerical noise
+    dists = dists.round(10)
+
+    # sorting by distance
+    sorted_idxs = np.argsort(dists)
+    dists_sorted = dists[sorted_idxs]
+    b_vecs_sorted = b_vecs[sorted_idxs]
+    nnbr_idx_sorted = nnbr_idx[sorted_idxs]
+
+    unique_dists = sorted(list(set(dists)))  # removes repeated distances
+    keep_dists = unique_dists[:N_sh]  # keep only distances up to N_sh away
+    # keep only b_vecs in N_sh shells
+    k_shell = [
+        b_vecs_sorted[np.isin(dists_sorted, keep_dists[i])]
+        for i in range(len(keep_dists))
+    ]
+    idx_shell = [
+        nnbr_idx_sorted[np.isin(dists_sorted, keep_dists[i])]
+        for i in range(len(keep_dists))
+    ]
+
+    if report:
+        dist_degen = {ud: len(k_shell[i]) for i, ud in enumerate(keep_dists)}
+        print("k-shell report:")
+        print("--------------")
+        print(f"Reciprocal lattice vectors: {recip_lat_vecs}")
+        print(f"Distances and degeneracies: {dist_degen}")
+        print(f"k-shells: {k_shell}")
+        print(f"idx-shells: {idx_shell}")
+
+    return k_shell, idx_shell
+
+
+def get_fd_weights(model, nks, dim_k, N_sh=1, report=False):
+    """Generates the finite difference weights on a k-shell."""
+    k_shell, idx_shell = get_k_shell(model, nks, N_sh=N_sh, report=report)
+    cart_idx = list(comb(range(dim_k), 2))
+    n_comb = len(cart_idx)
+
+    A = np.zeros((n_comb, N_sh))
+    q = np.zeros((n_comb))
+
+    for j, (alpha, beta) in enumerate(cart_idx):
+        if alpha == beta:
+            q[j] = 1
+        for s in range(N_sh):
+            b_star = k_shell[s]
+            for i in range(b_star.shape[0]):
+                b = b_star[i]
+                A[j, s] += b[alpha] * b[beta]
+
+    U, D, Vt = np.linalg.svd(A, full_matrices=False)
+    w = (Vt.T @ np.linalg.inv(np.diag(D)) @ U.T) @ q
+    if report:
+        print(f"Finite difference weights: {w}")
+    return w, k_shell, idx_shell
+
+
+def finite_diff_coeffs(order, derivative_order=1, mode="central"):
+    """
+    Compute finite difference coefficients using the inverse of the Vandermonde matrix.
+
+    Parameters:
+        stencil_points (array-like): The relative positions of the stencil points (e.g., [-2, -1, 0, 1, 2]).
+        derivative_order (int): Order of the derivative to approximate (default is first derivative).
+
+    Returns:
+        coeffs (numpy array): Finite difference coefficients for the given stencil.
+    """
+    if mode not in ["central", "forward", "backward"]:
+        raise ValueError("Mode must be 'central', 'forward', or 'backward'.")
+
+    num_points = derivative_order + order
+
+    if mode == "central":
+        if num_points % 2 == 0:
+            num_points += 1
+        half_span = num_points // 2
+        stencil = np.arange(-half_span, half_span + 1)
+
+    elif mode == "forward":
+        stencil = np.arange(0, num_points)
+
+    elif mode == "backward":
+        stencil = np.arange(-num_points + 1, 1)
+
+    A = np.vander(stencil, increasing=True).T  # Vandermonde matrix
+    b = np.zeros(num_points)
+    b[derivative_order] = factorial(
+        derivative_order
+    )  # Right-hand side for the desired derivative
+
+    coeffs = np.linalg.solve(A, b)  # Solve system Ax = b
+    return coeffs, stencil
+
+
+def finite_difference_periodic(M, axis, delta, order, mode="central"):
+    coeffs, stencil = finite_diff_coeffs(order=order, mode=mode)
+
+    fd_sum = np.zeros_like(M)
+
+    for s, c in zip(stencil, coeffs):
+        fd_sum += c * np.roll(M, shift=-s, axis=axis)
+
+    v = fd_sum / (delta)
+    return v
+
+
+def finite_difference(
+    M,
+    axis: int,
+    delta: float,
+    order: int,
+    *,
+    mode: str = "central",
+    periodic: bool = False,
+):
+    """
+    Finite-difference derivative along a uniformly sampled axis.
+
+    Parameters
+    ----------
+    M : np.ndarray
+        Array containing the values to differentiate.
+    axis : int
+        Axis along which the derivative is taken.
+    delta : float
+        Sample spacing along the axis.
+    order : int
+        Order (number of stencil points) used in the finite-difference scheme.
+    mode : {'central', 'forward', 'backward'}, optional
+        Stencil type. ``"central"`` is used by default.
+    periodic : bool, optional
+        If ``True``, wrap the stencil across the boundaries (cyclic parameter).
+        If ``False``, forward/backward stencils are used near the edges.
+
+    Returns
+    -------
+    np.ndarray
+        Array of the same shape (and promoted dtype) containing the derivative.
+    """
+    from numpy.lib.stride_tricks import sliding_window_view
+
+    if delta == 0:
+        raise ValueError("delta must be non-zero for finite differences.")
+
+    # Move the differentiation axis to the front and promote to a real dtype
+    arr = np.asarray(M)
+    dtype = np.result_type(arr.dtype, np.float64)
+    data = np.moveaxis(arr.astype(dtype, copy=False), axis, 0)
+    n = data.shape[0]
+
+    # Obtain the main stencil (length = window size) and the corresponding offset grid
+    coeff_core, stencil_core = finite_diff_coeffs(order=order, mode=mode)
+    window = len(coeff_core)
+
+    # Check that we have enough samples; otherwise explain what the maximum feasible order is
+    if periodic:
+        if n < window:
+            max_order = n - 1  # window size is order + 1 for these stencils
+            raise ValueError(
+                f"Periodic finite differences along axis {axis} need at least {window} samples "
+                f"for order {order}, but only {n} were provided. "
+                f"With {n} samples the largest admissible order is {max_order}."
+            )
+    else:
+        if mode == "central":
+            # Number of points required to cover the interior window plus the one-sided padding
+            min_needed = 2 * window - 2  # interior window plus both one-sided pads
+            if n < min_needed:
+                max_order = (n + 2) // 2 - 1
+                raise ValueError(
+                    f"Central differences of order {order} require at least {min_needed} samples "
+                    f"along axis {axis}; received {n}. "
+                    f"With {n} samples the largest central order you can request is {max_order}."
+                )
+        else:
+            # Forward/backward stencils only need the window itself
+            min_needed = window
+            if n < min_needed:
+                max_order = n - 1
+                raise ValueError(
+                    f"{mode.capitalize()} differences of order {order} need at least {min_needed} samples "
+                    f"along axis {axis}; received {n}. "
+                    f"With {n} samples the largest admissible order for this mode is {max_order}."
+                )
+
+    # Accumulate the derivative in the re-ordered array; moveaxes will restore the layout later
+    out = np.empty_like(data)
+
+    def _apply(coeffs, values):
+        """Convenience helper: contract stencil coefficients with trailing axes."""
+        return np.tensordot(coeffs, values, axes=(0, -1))
+
+    if periodic:
+        # Apply the periodic stencil explicitly via np.roll so every sample sees the same window
+        acc = np.zeros_like(data)
+        for shift, coeff in zip(stencil_core, coeff_core):
+            acc += coeff * np.roll(data, -shift, axis=0)
+        out[...] = acc / delta
+    else:
+        if mode == "central":
+            # Apply the central stencil on the interior (where it fits completely)
+            half = window // 2
+            windows = sliding_window_view(data, window_shape=window, axis=0)
+            interior = _apply(coeff_core, windows) / delta
+            out[half : n - half] = interior
+
+            # Use one-sided forward/backward stencils near the two boundaries
+            coeff_fwd, _ = finite_diff_coeffs(order=order, mode="forward")
+            width_fwd = len(coeff_fwd)
+            for i in range(width_fwd - 1):
+                seg = data[i : i + width_fwd]
+                out[i] = np.tensordot(coeff_fwd, seg, axes=(0, 0)) / delta
+
+            coeff_bwd, _ = finite_diff_coeffs(order=order, mode="backward")
+            width_bwd = len(coeff_bwd)
+            for i in range(width_bwd - 1):
+                seg = data[n - width_bwd - i : n - i]
+                out[n - 1 - i] = np.tensordot(coeff_bwd, seg, axes=(0, 0)) / delta
+
+        else:
+            # (Pure) forward or backward mode: slide the requested window and apply the stencil directly
+            windows = sliding_window_view(data, window_shape=window, axis=0)
+            deriv = _apply(coeff_core, windows) / delta
+            if mode == "forward":
+                out[: deriv.shape[0]] = deriv
+                out[deriv.shape[0] :] = deriv[-1]
+            else:  # 'backward'
+                out[-deriv.shape[0] :] = deriv
+                out[: -deriv.shape[0]] = deriv[0]
+
+    # Restore the original axis ordering before returning
+    return np.moveaxis(out, 0, axis)
+
+
+def is_Hermitian(M):
+    """
+    Check if a matrix M is Hermitian.
+
+    Parameters:
+        M (array-like): A square matrix (as a numpy array or convertible to one).
+
+    Returns:
+        bool: True if M is Hermitian, False otherwise.
+    """
+    M = np.array(M, dtype=complex)
+    if M.ndim == 0:
+        return np.allclose(M, np.conj(M))
+    # 1D: not Hermitian (by usual definition)
+    if M.ndim == 1:
+        return False
+    # Otherwise: check M == M^\dagger
+    return np.allclose(M, M.conj().swapaxes(-1, -2))
+
+
+def pauli_decompose(M):
+    """
+    Decompose a 2x2 matrix M in terms of the Pauli matrices.
+
+    That is, find coefficients a0, a1, a2, a3 such that:
+
+        M = a0 * I + a1 * sigma_x + a2 * sigma_y + a3 * sigma_z
+
+    Parameters:
+        M (array-like): A 2x2 matrix (as a numpy array or convertible to one).
+        precision (int): Number of significant digits for the coefficients.
+
+    Returns:
+        str: A string representing the decomposition, e.g.
+             "1I + 0.3τₓ - 0.2τ_y + 0τ_z"
+
+    Note: This function is applicable only when nspin = 2.
+    """
+    M = np.array(M, dtype=complex)
+    if M.shape != (2, 2):
+        raise ValueError("Matrix must be 2x2 for Pauli decomposition.")
+
+    # Define the 2x2 identity and Pauli matrices.
+    sigma_x = np.array([[0, 1], [1, 0]], dtype=complex)
+    sigma_y = np.array([[0, -1j], [1j, 0]], dtype=complex)
+    sigma_z = np.array([[1, 0], [0, -1]], dtype=complex)
+
+    # Compute coefficients using the Hilbert-Schmidt inner product.
+    a0 = 0.5 * np.trace(M)
+    a1 = 0.5 * np.trace(np.dot(M, sigma_x))
+    a2 = 0.5 * np.trace(np.dot(M, sigma_y))
+    a3 = 0.5 * np.trace(np.dot(M, sigma_z))
+
+    return [a0, a1, a2, a3]
+
+
+def twf_generator(model, twf_list):
+    # number of trial functions to define
+    num_tf = len(twf_list)
+    if model.nspin == 2:
+        tfs = np.zeros([num_tf, model.norb, 2], dtype=complex)
+        for j, tf in enumerate(twf_list):
+            assert isinstance(tf, (list, np.ndarray)), (
+                "Trial function must be a list of tuples"
+            )
+            for orb, spin, amp in tf:
+                tfs[j, orb, spin] = amp
+            tfs[j] /= np.linalg.norm(tfs[j])
+
+    elif model.nspin == 1:
+        # initialize array containing tfs = "trial functions"
+        tfs = np.zeros([num_tf, model.norb], dtype=complex)
+        for j, tf in enumerate(twf_list):
+            assert isinstance(tf, (list, np.ndarray)), (
+                "Trial function must be a list of tuples"
+            )
+            for site, amp in tf:
+                tfs[j, site] = amp
+            tfs[j] /= np.linalg.norm(tfs[j])
+
+    return tfs
+
+
+def no_2pi(x, clos):
+    "Make x as close to clos by adding or removing 2pi"
+    while abs(clos - x) > np.pi:
+        if clos - x > np.pi:
+            x += 2.0 * np.pi
+        elif clos - x < -1.0 * np.pi:
+            x -= 2.0 * np.pi
+    return x
+
+
+def _maybe_pad(arr, axis, keep):
+    """Repeat the first slice along `axis` when `keep` is True."""
+    if not keep:
+        return arr
+    first = np.take(arr, indices=0, axis=axis)
+    first = np.expand_dims(first, axis=axis)
+    return np.concatenate([arr, first], axis=axis)
+
+
+def _cart_to_red(a_vecs, cart):
+    "Convert cartesian vectors cart to reduced coordinates of a1,a2,a3 vectors"
+    # (a1, a2, a3) = tmp
+    # matrix with lattice vectors
+    # cnv = np.array([a1, a2, a3])
+    # cnv = cnv.T  # transpose
+    # # reduced coordinates
+    # red = np.zeros_like(cart, dtype=float)
+    # for i in range(0, len(cart)):
+    #     red[i] = np.dot(cnv, cart[i])
+    # return red
+    cnv = np.linalg.inv(np.array(a_vecs).T)  # inverse
+    return np.dot(cart, cnv.T)
+
+
+def _red_to_cart(a_vecs, red):
+    "Convert reduced to cartesian vectors."
+    a1, a2, a3 = a_vecs
+
+    basis = np.array([a1, a2, a3])
+    cart = np.array(red) @ basis
+
+    # # cartesian coordinates
+    # cart2 = np.zeros_like(red, dtype=float)
+    # for i in range(0, len(cart)):
+    #     cart2[i, :] = a1 * red[i][0] + a2 * red[i][1] + a3 * red[i][2]
+    # print(np.allclose(cart, cart2))  # should be True
+
+    return cart
+
+
+class PositionOperatorApproximationError(Exception):
+    """
+    Raised when a calculation involving the position operator is attempted
+    using a tight-binding model generated by Wannier90, which neglects off-diagonal
+    position operator elements.
+    """
+
+    pass
+
+
+def _offdiag_approximation_warning_and_stop():
+    raise PositionOperatorApproximationError(
+        """
+
+----------------------------------------------------------------------
+
+  It looks like you are trying to calculate Berry-like object that
+  involves position operator.  However, you are using a tight-binding
+  model that was generated from Wannier90.  This procedure introduces
+  approximation as it ignores off-diagonal elements of the position
+  operator in the Wannier basis.  This is discussed here in more
+  detail:
+
+    http://www.physics.rutgers.edu/pythtb/usage.html#pythtb.w90
+
+  If you know what you are doing and wish to continue with the
+  calculation despite this approximation, please call the following
+  function on your TBModel object
+
+    my_model.ignore_position_operator_offdiagonal()
+
+----------------------------------------------------------------------
+
+"""
+    )
+
+
+def compute_d4k_and_d2k(delta_k):
+    """
+    Computes the 4D volume element d^4k and the 2D plaquette areas d^2k for a given set of difference vectors in 4D space.
+
+    Parameters:
+    delta_k (numpy.ndarray): A 4x4 matrix where each row is a 4D difference vector.
+
+    Returns:
+    tuple: (d4k, plaquette_areas) where
+        - d4k is the absolute determinant of delta_k (4D volume element).
+        - plaquette_areas is a dictionary with keys (i, j) and values representing d^2k_{ij}.
+    """
+    # Compute d^4k as the determinant of the 4x4 difference matrix
+    d4k = np.abs(np.linalg.det(delta_k))
+
+    # Function to compute 2D plaquette area in 4D space
+    def compute_plaquette_area(v1, v2):
+        """Compute the 2D plaquette area spanned by two 4D vectors."""
+        area_squared = 0.0
+        # Sum over all unique (m, n) pairs where m < n
+        for m in range(4):
+            for n in range(m + 1, 4):
+                area_squared += (v1[m] * v2[n] - v1[n] * v2[m]) ** 2
+        return np.sqrt(area_squared)
+
+    # Compute all unique plaquette areas
+    plaquette_areas = {}
+    for i in range(4):
+        for j in range(i + 1, 4):
+            plaquette_areas[(i, j)] = compute_plaquette_area(delta_k[i], delta_k[j])
+
+    return d4k, plaquette_areas
+
+
+# def vel_op_fin_diff(model, H_flat, k_vals, dk, order_eps=1, mode='central'):
+#     """
+#     Compute velocity operators using finite differences.
+
+#     Parameters:
+#         H_mesh: ndarray of shape (Nk, M, M)
+#             The Hamiltonian on the parameter grid.
+#         dk: list of float
+#             Step sizes in each parameter direction.
+
+#     Returns:
+#         v_mu_fd: list of ndarray
+#             Velocity operators for each parameter direction.
+#     # """
+
+#     # recip_lat_vecs = model.get_recip_lat_vecs()
+#     # recip_basis = recip_lat_vecs/ np.linalg.norm(recip_lat_vecs, axis=1, keepdims=True)
+#     # g = recip_basis @ recip_basis.T
+#     # sqrt_mtrc = np.sqrt(np.linalg.det(g))
+#     # g_inv = np.linalg.inv(g)
+
+#     # dk = np.einsum("ij, j -> i", g_inv, dk)
+
+#     # assume only k for now
+#     dim_param = model._dim_k # Number of parameters (dimensions)
+#     # assume equal number of mesh points along each dimension
+#     nks = ( int(H_flat.shape[0]**(1/dim_param)),)*dim_param
+
+#     # Switch to periodic gauge H(k) = H(k+G)
+#     H_flat = get_periodic_H(model, H_flat, k_vals)
+#     H_mesh = H_flat.reshape(*nks, model._norb, model._norb)
+#     v_mu_fd = np.zeros((dim_param, *H_mesh.shape), dtype=complex)
+
+#     # Compute Jacobian
+#     recip_lat_vecs = model.get_recip_lat_vecs()
+#     inv_recip_lat = np.linalg.inv(recip_lat_vecs)
+
+#     for mu in range(dim_param):
+#         coeffs, stencil = finite_diff_coeffs(order_eps=order_eps, mode=mode)
+
+#         derivative_sum = np.zeros_like(H_mesh)
+
+#         for s, c in zip(stencil, coeffs):
+#             H_shifted = np.roll(H_mesh, shift=-s, axis=mu)
+#             derivative_sum += c * H_shifted
+
+#         v_mu_fd[mu] = derivative_sum / (dk[mu])
+
+#         # Ensure Hermitian symmetry
+#         v_mu_fd[mu] = 0.5 * (v_mu_fd[mu] + np.conj(v_mu_fd[mu].swapaxes(-1, -2)))
+
+#     return v_mu_fd
+
+
+def _wf_dpr(wf1, wf2):
+    """calculate dot product between two wavefunctions.
+    wf1 and wf2 are of the form [orbital,spin]"""
+    return np.dot(wf1.flatten().conjugate(), wf2.flatten())
+
+
+def _one_berry_loop(wf, berry_evals=False):
+    """Do one Berry phase calculation (also returns a product of M
+    matrices).  Always returns numbers between -pi and pi.  wf has
+    format [kpnt,band,orbital,spin] and kpnt has to be one dimensional.
+    Assumes that first and last k-point are the same. Therefore if
+    there are n wavefunctions in total, will calculate phase along n-1
+    links only!  If berry_evals is True then will compute phases for
+    individual states, these corresponds to 1d hybrid Wannier
+    function centers. Otherwise just return one number, Berry phase."""
+    # number of occupied states
+    nocc = wf.shape[1]
+    # temporary matrices
+    prd = np.identity(nocc, dtype=complex)
+    ovr = np.zeros([nocc, nocc], dtype=complex)
+    # go over all pairs of k-points, assuming that last point is overcounted!
+    for i in range(wf.shape[0] - 1):
+        # generate overlap matrix, go over all bands
+        for j in range(nocc):
+            for k in range(nocc):
+                ovr[j, k] = _wf_dpr(wf[i, j, :], wf[i + 1, k, :])
+        # only find Berry phase
+        if not berry_evals:
+            # multiply overlap matrices
+            prd = np.dot(prd, ovr)
+        # also find phases of individual eigenvalues
+        else:
+            # cleanup matrices with SVD then take product
+            matU, sing, matV = np.linalg.svd(ovr)
+            prd = np.dot(prd, np.dot(matU, matV))
+    # calculate Berry phase
+    if not berry_evals:
+        det = np.linalg.det(prd)
+        pha = (-1.0) * np.angle(det)
+        return pha
+    # calculate phases of all eigenvalues
+    else:
+        evals = np.linalg.eigvals(prd)
+        eval_pha = (-1.0) * np.angle(evals)
+        # sort these numbers as well
+        eval_pha = np.sort(eval_pha)
+        return eval_pha
+
+
+def _one_flux_plane(wfs2d):
+    "Compute fluxes on a two-dimensional plane of states."
+    # size of the mesh
+    nk0 = wfs2d.shape[0]
+    nk1 = wfs2d.shape[1]
+
+    # here store flux through each plaquette of the mesh
+    all_phases = np.zeros((nk0 - 1, nk1 - 1), dtype=float)
+
+    # go over all plaquettes
+    for i in range(nk0 - 1):
+        for j in range(nk1 - 1):
+            # generate a small loop made out of four pieces
+            wf_use = []
+            wf_use.append(wfs2d[i, j])
+            wf_use.append(wfs2d[i + 1, j])
+            wf_use.append(wfs2d[i + 1, j + 1])
+            wf_use.append(wfs2d[i, j + 1])
+            wf_use.append(wfs2d[i, j])
+            wf_use = np.array(wf_use, dtype=complex)
+            # calculate phase around one plaquette
+            all_phases[i, j] = _one_berry_loop(wf_use)
+
+    return all_phases

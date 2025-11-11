@@ -1,0 +1,21 @@
+name: pythtb-env
+channels: [conda-forge]
+dependencies:
+  - python=3.12
+  - pip
+  - numpy
+  - matplotlib
+  - plotly
+  - pip:
+      - sphinx
+      - pydata-sphinx-theme
+      - sphinx-copybutton
+      - myst-nb
+      - sphinxcontrib-programoutput
+      - nbconvert
+      - sphinx_design
+      - ipykernel
+      - notebook
+      - jupyter_client
+      - nbclient
+      - jupyter-server-proxy

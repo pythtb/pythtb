@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Installation &#8212; PythTB 1.8.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="_static/classic.css?v=2bf1fcf8" />
+    <link rel="stylesheet" type="text/css" href="_static/plot_directive.css?v=7f9a90b1" />
+    
+    <script src="_static/documentation_options.js?v=371fd5e7"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Examples" href="examples.html" />
+    <link rel="prev" title="About" href="about.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="examples.html" title="Examples"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="about.html" title="About"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">PythTB 1.8.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Installation</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="installation">
+<span id="id1"></span><h1>Installation<a class="headerlink" href="#installation" title="Link to this heading">¶</a></h1>
+<p>To install the latest version of PythTB simply type in terminal:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">pythtb</span> <span class="o">--</span><span class="n">upgrade</span>
+</pre></div>
+</div>
+<p>If you don’t have root access try installing PythTB into your home
+folder by executing:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">pythtb</span> <span class="o">--</span><span class="n">upgrade</span> <span class="o">--</span><span class="n">user</span>
+</pre></div>
+</div>
+<p>You should now be ready to download and run any of the  <a class="reference internal" href="examples.html"><span class="doc">examples</span></a>.
+If you wish, you could also download all example files as a single tar file</p>
+<blockquote>
+<div><p><a class="reference download internal" download="" href="_downloads/56b70a8999debf50199827c16e4fecd8/pythtb-examples.tar.gz"><code class="xref download docutils literal notranslate"><span class="pre">pythtb-examples.tar.gz</span></code></a></p>
+</div></blockquote>
+<p>to untar this file use the following unix command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">tar</span> <span class="o">-</span><span class="n">zxf</span> <span class="n">pythtb</span><span class="o">-</span><span class="n">examples</span><span class="o">.</span><span class="n">tar</span><span class="o">.</span><span class="n">gz</span>
+</pre></div>
+</div>
+<p>If you need more assistance with the installation process, please
+continue reading.</p>
+<section id="more-detailed-instructions">
+<h2>More detailed instructions<a class="headerlink" href="#more-detailed-instructions" title="Link to this heading">¶</a></h2>
+<p>PythTB is compatible with Python 2.7 and 3.x (Python 2.6 and
+below are not recommended).  To check which version of Python is
+currently installed on your system, just type:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="o">-</span><span class="n">V</span>
+</pre></div>
+</div>
+<p>If your Python is not at version 2.7 or 3.x, see
+<a class="reference internal" href="#install-python"><span class="std std-ref">Installing or upgrading Python</span></a>.</p>
+<p>These instructions also assume that
+<a class="reference external" href="https://pip.pypa.io/en/stable/">pip</a>, the standard package
+manager for Python, is installed on your system.  If not, we recommend
+that you
+<a class="reference external" href="https://pip.pypa.io/en/stable/installing/">install it</a>.
+Otherwise, see instructions for
+<a class="reference internal" href="#install-alternative"><span class="std std-ref">Installing without pip</span></a>.</p>
+<p>Once you have python and pip you can install PythTB simply by
+typing the following into your terminal:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">pythtb</span> <span class="o">--</span><span class="n">upgrade</span>
+</pre></div>
+</div>
+<p>Note that pip command should automatically install/upgrade the
+following python packages if they were not previously installed
+and upgraded to the latest version:</p>
+<ul class="simple">
+<li><p>numpy</p></li>
+<li><p>matplotlib</p></li>
+</ul>
+<p>To bypass the upgrade of these packages:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="o">--</span><span class="n">upgrade</span> <span class="o">--</span><span class="n">upgrade</span><span class="o">-</span><span class="n">strategy</span> <span class="n">only</span><span class="o">-</span><span class="k">if</span><span class="o">-</span><span class="n">needed</span> <span class="n">pythtb</span>
+</pre></div>
+</div>
+<p>You should now be ready to run any of the  <a class="reference internal" href="examples.html"><span class="doc">examples</span></a>.</p>
+</section>
+<section id="older-versions-of-pythtb">
+<h2>Older versions of PythTB<a class="headerlink" href="#older-versions-of-pythtb" title="Link to this heading">¶</a></h2>
+<p>If for some reason you wish to install a specific older version of PythTB you
+can type the following into terminal (replace 1.x.x with version number you
+wish to install):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">pythtb</span><span class="o">==</span><span class="mf">1.</span><span class="n">x</span><span class="o">.</span><span class="n">x</span>
+</pre></div>
+</div>
+<p>To check which version of PythTB you have installed, type:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">show</span> <span class="n">pythtb</span>
+</pre></div>
+</div>
+<p>or print the value of the version number from within a PythTB program:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">pythtb</span><span class="o">.</span><span class="n">__version__</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="alternative-installation-without-pip">
+<span id="install-alternative"></span><h2>Alternative installation, without ‘pip’<a class="headerlink" href="#alternative-installation-without-pip" title="Link to this heading">¶</a></h2>
+<p>If for any reason you can’t install PythTB using ‘pip’ you can
+follow these instructions.</p>
+<p>PythTB is compatible with Python 2.7 and 3.x (Python 2.6 and
+below are not recommended).  To check which version of Python is
+currently installed on your system, just type:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="o">-</span><span class="n">V</span>
+</pre></div>
+</div>
+<p>If your Python is not at version 2.7 or 3.x, see
+<a class="reference internal" href="#install-python"><span class="std std-ref">Installing or upgrading Python</span></a>.</p>
+<p>In addition, you will need to have numpy and matplotlib installed.
+On a Unix/Linux/Mac system, you may be able to install these using your
+Package Manager.  Otherwise, follow the installation instructions
+at the numpy and matplotlib official websites:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="http://numpy.scipy.org">numpy official website</a></p></li>
+<li><p><a class="reference external" href="http://www.matplotlib.org">matplotlib official website</a></p></li>
+</ul>
+<p>or install <a class="reference external" href="https://www.continuum.io/downloads">Anaconda</a> version of python.</p>
+<p>To install PythTB without ‘pip’ first download either of the following
+two archived forms</p>
+<ul class="simple">
+<li><p><a class="reference download internal" download="" href="_downloads/56e7d78222a7302764c67513524d5025/pythtb-1.8.0.tar.gz"><code class="xref download docutils literal notranslate"><span class="pre">pythtb-1.8.0.tar.gz</span></code></a></p></li>
+<li><p><a class="reference download internal" download="" href="_downloads/78d832095b9a4432b146101ddb48383d/pythtb-1.8.0.zip"><code class="xref download docutils literal notranslate"><span class="pre">pythtb-1.8.0.zip</span></code></a></p></li>
+</ul>
+<p>and unpack it with one of these commands:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">tar</span> <span class="o">-</span><span class="n">zxf</span> <span class="n">pythtb</span><span class="o">-</span><span class="mf">1.8.0</span><span class="o">.</span><span class="n">tar</span><span class="o">.</span><span class="n">gz</span>
+<span class="n">unzip</span> <span class="n">pythtb</span><span class="o">-</span><span class="mf">1.8.0</span><span class="o">.</span><span class="n">zip</span>
+</pre></div>
+</div>
+<p>Then move into the working directory and install it:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="n">pythtb</span><span class="o">-</span><span class="mf">1.8.0</span>
+<span class="n">python</span> <span class="n">setup</span><span class="o">.</span><span class="n">py</span> <span class="n">install</span>
+</pre></div>
+</div>
+<p>(You may have to <cite>sudo</cite> the second command.)  To check that the
+installation was successful, type:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python</span>
+</pre></div>
+</div>
+<p>and then execute the following command in python interpreter:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pythtb</span>
+</pre></div>
+</div>
+<p>If you do not see any error message, the installation was
+successful. Now you can try executing any of the <a class="reference internal" href="examples.html"><span class="doc">example scripts</span></a>.</p>
+</section>
+<section id="installing-or-upgrading-python">
+<span id="install-python"></span><h2>Installing or upgrading Python<a class="headerlink" href="#installing-or-upgrading-python" title="Link to this heading">¶</a></h2>
+<p>If you do not have Python installed, or it is not at Version 2.7 or
+higher, follow these instructions.</p>
+<p>In Unix/Linux or Mac, use the package manager provided by your system
+to download and install or upgrade Python and
+any needed modules.  It is recommended to install ‘python2.7’
+(or python3.5) and related packages such as ‘python2.7-doc’.
+If you do not have a package manager, you can try going to the
+official <a class="reference external" href="http://www.python.org/download/">Python Download Page</a> and
+follow instructions there to download and install it. Or, try <a class="reference external" href="https://www.continuum.io/downloads">Anaconda</a>, which provides SciPy,
+NumPy, and Matplotlib already in the distribution.</p>
+<p>For Windows, follow the instructions at the
+<a class="reference external" href="https://www.python.org/downloads/windows/">official Python site</a> or
+try <a class="reference external" href="https://www.continuum.io/downloads">Anaconda</a>.</p>
+</section>
+<section id="additional-software">
+<h2>Additional software<a class="headerlink" href="#additional-software" title="Link to this heading">¶</a></h2>
+<p>You may wish to try installing <a class="reference external" href="http://www.ipython.org">ipython</a>; it
+provides a more user-friendly interactive interface than ‘python’ does.</p>
+</section>
+<section id="release-notes-and-version-list">
+<h2>Release notes and version list<a class="headerlink" href="#release-notes-and-version-list" title="Link to this heading">¶</a></h2>
+<p>We recommend you always use latest available version of PythTB.
+Note that versions up to 1.7.0 are incompatible with Python3.
+Versions 1.7.1 and above are compatible with both Python 2.7
+and 3.x.</p>
+<p>However, if you need
+to look up an old version of the code, you can find it below.</p>
+<section id="version-1-8-0-current">
+<h3>Version 1.8.0 (current)<a class="headerlink" href="#version-1-8-0-current" title="Link to this heading">¶</a></h3>
+<p>20 September 2022: <a class="reference download internal" download="" href="_downloads/56e7d78222a7302764c67513524d5025/pythtb-1.8.0.tar.gz"><code class="xref download docutils literal notranslate"><span class="pre">pythtb-1.8.0.tar.gz</span></code></a></p>
+<ul class="simple">
+<li><p>Updated class wf_array to make it easier to store states
+which are not Bloch-like eigenstates.</p></li>
+<li><p>Added new functionality to wf_array (solve_on_one_point,
+choose_states, empty_like)</p></li>
+<li><p>Added function change_nonperiodic_vector and changed the way
+“to_home” parameter works.</p></li>
+<li><p>Fixed various small issues.</p></li>
+<li><p>Removed some functions that were kept for backwards compatibility
+(berry_curv, k_path, tbmodel, set_sites, add_hop).</p></li>
+</ul>
+</section>
+<section id="version-1-7-2">
+<h3>Version 1.7.2<a class="headerlink" href="#version-1-7-2" title="Link to this heading">¶</a></h3>
+<p>1 August 2017: <a class="reference download internal" download="" href="_downloads/fa2dd333825db24f61c58c400a9cbba2/pythtb-1.7.2.tar.gz"><code class="xref download docutils literal notranslate"><span class="pre">pythtb-1.7.2.tar.gz</span></code></a></p>
+<ul class="simple">
+<li><p>Added support for deleting orbitals</p></li>
+<li><p>Display function now prints hopping distances</p></li>
+</ul>
+</section>
+<section id="version-1-7-1">
+<h3>Version 1.7.1<a class="headerlink" href="#version-1-7-1" title="Link to this heading">¶</a></h3>
+<p>22 December 2016: <a class="reference download internal" download="" href="_downloads/3f856cf802e2b5234cd04d55a8644f6f/pythtb-1.7.1.tar.gz"><code class="xref download docutils literal notranslate"><span class="pre">pythtb-1.7.1.tar.gz</span></code></a></p>
+<ul class="simple">
+<li><p>Added support for python 3.x in addition to 2.x</p></li>
+</ul>
+</section>
+<section id="version-1-7-0">
+<h3>Version 1.7.0<a class="headerlink" href="#version-1-7-0" title="Link to this heading">¶</a></h3>
+<p>7 June 2016: <a class="reference download internal" download="" href="_downloads/85a12fe428d89be1f54c85e94833406b/pythtb-1.7.0.tar.gz"><code class="xref download docutils literal notranslate"><span class="pre">pythtb-1.7.0.tar.gz</span></code></a></p>
+<ul class="simple">
+<li><p>Added interface with Wannier90 package</p></li>
+<li><p>Added support for making bandstructure plots along multi-segment
+paths in the Brillouin zone</p></li>
+<li><p>Added support for hybrid Wannier functions.</p></li>
+<li><p>Cleaned up period boundary condition in the wf_array class</p></li>
+<li><p>Berry curvature in dimensions higher than 2.</p></li>
+<li><p>Fixed bug with reduce_dim.  Some hopping terms were not correctly
+casted as onsite terms.</p></li>
+<li><p>Fixed bug in impose_pbc when dim_k is less than dim_r.</p></li>
+</ul>
+</section>
+<section id="version-1-6-2">
+<h3>Version 1.6.2<a class="headerlink" href="#version-1-6-2" title="Link to this heading">¶</a></h3>
+<p>25 February 2013: <a class="reference download internal" download="" href="_downloads/1037c2b6fee9240216f99fab39fac5ad/pythtb-1.6.2.tar.gz"><code class="xref download docutils literal notranslate"><span class="pre">pythtb-1.6.2.tar.gz</span></code></a></p>
+<ul class="simple">
+<li><p>Added support for spinors.</p></li>
+<li><p>Added make_supercell method with which one can make arbitrary
+super-cells of the model and also generate slabs with arbitrary
+orientation.</p></li>
+</ul>
+</section>
+<section id="version-1-6-1">
+<h3>Version 1.6.1<a class="headerlink" href="#version-1-6-1" title="Link to this heading">¶</a></h3>
+<p>15 November 2012: <a class="reference download internal" download="" href="_downloads/41b65d9c2eacdab3dfbbf195fdfa8646/pythtb-1.6.1.tar.gz"><code class="xref download docutils literal notranslate"><span class="pre">pythtb-1.6.1.tar.gz</span></code></a></p>
+<ul class="simple">
+<li><p>Renamed the code package (previously PyTB) to avoid confusion with
+other acronyms.</p></li>
+<li><p>Built a proper python distribution including documentation and an
+improved website.</p></li>
+<li><p>Streamlined the code to be more consistent in naming conventions.</p></li>
+<li><p>Made some improvements and extensions to the calculation of Berry
+phases and curvatures.</p></li>
+<li><p>Added a more powerful method of setting onsite and hopping parameters.</p></li>
+<li><p>Removed <em>add_wf</em> function from <em>wf_array</em> object and replaced it
+with <em>[]</em> operator, and changed the way in which the <em>impose_pbc</em>
+function is used.</p></li>
+<li><p>Added some additional examples.</p></li>
+<li><p>For the most part, the code should be backward-compatible with version
+1.5. (<em>tb_model</em>, <em>set_onsite</em>, <em>set_hop</em> are named differently but
+have aliases to names from version 1.5).</p></li>
+</ul>
+</section>
+<section id="version-1-5">
+<h3>Version 1.5<a class="headerlink" href="#version-1-5" title="Link to this heading">¶</a></h3>
+<p>4 June 2012: <a class="reference download internal" download="" href="_downloads/e5ed1c0cceeb4e0639e81b6d2a7a3f2f/pytb-1.5.tar.gz"><code class="xref download docutils literal notranslate"><span class="pre">pytb-1.5.tar.gz</span></code></a></p>
+</section>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h3><a href="index.html">PythTB</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="formalism.html">Formalism</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="resources.html">Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="citation.html">Citation</a></li>
+</ul>
+
+  <h3><a href="index.html">This page</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Installation</a><ul>
+<li><a class="reference internal" href="#more-detailed-instructions">More detailed instructions</a></li>
+<li><a class="reference internal" href="#older-versions-of-pythtb">Older versions of PythTB</a></li>
+<li><a class="reference internal" href="#alternative-installation-without-pip">Alternative installation, without ‘pip’</a></li>
+<li><a class="reference internal" href="#installing-or-upgrading-python">Installing or upgrading Python</a></li>
+<li><a class="reference internal" href="#additional-software">Additional software</a></li>
+<li><a class="reference internal" href="#release-notes-and-version-list">Release notes and version list</a><ul>
+<li><a class="reference internal" href="#version-1-8-0-current">Version 1.8.0 (current)</a></li>
+<li><a class="reference internal" href="#version-1-7-2">Version 1.7.2</a></li>
+<li><a class="reference internal" href="#version-1-7-1">Version 1.7.1</a></li>
+<li><a class="reference internal" href="#version-1-7-0">Version 1.7.0</a></li>
+<li><a class="reference internal" href="#version-1-6-2">Version 1.6.2</a></li>
+<li><a class="reference internal" href="#version-1-6-1">Version 1.6.1</a></li>
+<li><a class="reference internal" href="#version-1-5">Version 1.5</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="examples.html" title="Examples"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="about.html" title="About"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">PythTB 1.8.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Installation</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2016, Sinisa Coh and David Vanderbilt.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    </div>
+  </body>
+</html>

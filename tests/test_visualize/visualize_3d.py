@@ -1,6 +1,5 @@
-from pythtb.tb_model import *  # import TB model class
+from pythtb.tbmodel import *  # import TB model class
 import numpy as np
-import matplotlib.pyplot as plt
 
 
 def fu_kane_mele(t, soc, m, beta):
@@ -8,7 +7,7 @@ def fu_kane_mele(t, soc, m, beta):
     lat = [[0, 1, 1], [1, 0, 1], [1, 1, 0]]
     # lat = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
     orb = [[0, 0, 0], [0.25, 0.25, 0.25]]
-    model = tb_model(3, 3, lat, orb, nspin=2)
+    model = TBModel(3, 3, lat, orb, nspin=2)
 
     h = m * np.sin(beta) * np.array([1, 1, 1])
     dt = m * np.cos(beta)

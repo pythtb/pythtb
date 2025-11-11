@@ -1,0 +1,63 @@
+
+
+{% if sourcename and sourcename.endswith('.ipynb') %}
+{% set base = sourcename.split('/')[-1] %}        {# e.g. foo.ipynb #}
+{% set stem = base[:-6] %}                          {# -> foo #}
+{% set binder_url = "https://mybinder.org/v2/gh/"
+   ~ github_user ~ "/" ~ github_repo ~ "/" ~ github_version
+   ~ "?labpath=" ~ ("docs/source/" ~ sourcename)|urlencode %}
+<div class="nb-download-top" style="display:flex; gap:.5rem; align-items:center;">
+  <a class="btn btn-sm nb-binder"
+     href="{{ binder_url }}"
+     target="_blank" rel="noopener">
+    <i class="fa-solid fa-rocket"></i> Run in Binder
+  </a>
+  <!-- .ipynb lives under _sources/<sourcename> in HTML builds -->
+  <a class="btn btn-sm nb-ipynb" href="{{ pathto('_sources/' ~ sourcename, 1) }}" download="{{ base }}">
+    <i class="fa-solid fa-download"></i> Download .ipynb
+  </a>
+
+  <!-- Notebook exports are placed in tutorials_py/ during the Sphinx build -->
+  <a class="btn btn-sm nb-py" href="{{ pathto('tutorials_py/' ~ stem ~ '.py', 1) }}" 
+     download="{{ stem }}.py">
+    <i class="fa-solid fa-code"></i> Download .py
+  </a>
+</div>
+
+<script>
+// Force real download for .ipynb and .py; try a couple of likely locations for .py
+(function(){
+  function fetchFirst(urls){
+    if (!urls.length) return Promise.reject(new Error('no urls'));
+    const [u, ...rest] = urls;
+    return fetch(u, {credentials: 'same-origin'})
+      .then(r => { if(!r.ok) throw new Error('HTTP '+r.status); return r.blob().then(b=>({blob:b, url:u})); })
+      .catch(() => fetchFirst(rest));
+  }
+  function forceDownload(a){
+    const alt1 = a.getAttribute('data-alt1');
+    const alt2 = a.getAttribute('data-alt2');
+    const urls = [a.href].concat(alt1? [alt1]: []).concat(alt2? [alt2]: []);
+    fetchFirst(urls).then(({blob}) => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = a.getAttribute('download') || (a.href.split('/').pop() || 'download');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }).catch(err => {
+      console.warn('Download fallback to navigation:', err);
+      window.location.href = a.href;
+    });
+  }
+  document.addEventListener('click', function(ev){
+    var a = ev.target.closest && ev.target.closest('a.nb-ipynb, a.nb-py');
+    if (!a) return;
+    ev.preventDefault();
+    forceDownload(a);
+  });
+})();
+</script>
+{% endif %}

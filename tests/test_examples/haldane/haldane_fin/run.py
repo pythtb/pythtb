@@ -1,12 +1,13 @@
 import numpy as np
-from pythtb import tb_model
+from pythtb import TBModel, Lattice
+
 
 def haldane_model():
-
     lat = [[1.0, 0.0], [0.5, np.sqrt(3.0) / 2.0]]
     orb = [[1.0 / 3.0, 1.0 / 3.0], [2.0 / 3.0, 2.0 / 3.0]]
+    lattice = Lattice(lat, orb, periodic_dirs=[0, 1])
 
-    my_model = tb_model(2, 2, lat, orb)
+    my_model = TBModel(lattice)
 
     delta = 0.0
     t = -1.0
@@ -26,18 +27,21 @@ def haldane_model():
 
     return my_model
 
+
 def run():
     my_model = haldane_model()
-   
-    tmp_model = my_model.cut_piece(20, 0, glue_edgs=False)
-    fin_model_false = tmp_model.cut_piece(20, 1, glue_edgs=False)
 
-    tmp_model = my_model.cut_piece(20, 0, glue_edgs=True)
-    fin_model_true = tmp_model.cut_piece(20, 1, glue_edgs=True)
+    tmp_model = my_model.cut_piece(20, 0, glue_edges=False)
+    fin_model_false = tmp_model.cut_piece(20, 1, glue_edges=False)
 
-    evals_false = fin_model_false.solve_all()
+    tmp_model = my_model.cut_piece(20, 0, glue_edges=True)
+    fin_model_true = tmp_model.cut_piece(20, 1, glue_edges=True)
+
+    evals_false = fin_model_false.solve_ham()
+    evals_false = evals_false.T  # Transpose in v2 to match v1.8
     evals_false = evals_false.flatten()
-    evals_true = fin_model_true.solve_all()
+    evals_true = fin_model_true.solve_ham()
+    evals_true = evals_true.T  # Transpose in v2 to match v1.8
     evals_true = evals_true.flatten()
 
     return evals_false, evals_true

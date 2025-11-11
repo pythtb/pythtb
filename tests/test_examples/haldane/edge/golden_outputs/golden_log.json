@@ -5,9 +5,9 @@
         "evals.npy",
         "evecs.npy",
         "evals_half.npy",
-        "evecs_hald.npy"
+        "evecs_half.npy"
     ],
-    "generated_at": "2025-06-18T20:21:50.849884",
+    "generated_at": "2025-06-19T02:24:50.942751",
     "python_version": "3.10.17",
     "pythtb_version": "1.8.0"
 }

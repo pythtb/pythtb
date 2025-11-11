@@ -1,7 +1,0 @@
-include gpl-3.0.txt
-include INSTALL
-include pythtb.py
-include examples/gpl-3.0.txt
-include examples/gpl-pythtb.txt
-recursive-include examples *.py
-exclude examples/pythtb.py

@@ -1,14 +1,20 @@
 {
     "3site_cycle_fin": {
-        "last_pass": "2025-06-18T17:19:42.344607",
-        "pythtb_version": "2.0.0",
+        "last_pass": "2025-07-31T11:21:23.178984",
+        "pythtb_version": "2.0.0.post2+g3919c22.d20250730",
         "python_version": "3.11.11",
         "status": "pass"
     },
-    "3site_cycle": {
-        "last_pass": "2025-06-18T17:25:02.967075",
-        "pythtb_version": "2.0.0",
-        "python_version": "3.11.11",
+    "three_site_cycle": {
+        "last_pass": "2025-11-11T00:20:35.570722",
+        "pythtb_version": "2.0.0.post421+gd76ad73cc.d20251108",
+        "python_version": "3.12.11",
+        "status": "pass"
+    },
+    "three_site_cycle_fin": {
+        "last_pass": "2025-11-11T00:20:35.936350",
+        "pythtb_version": "2.0.0.post421+gd76ad73cc.d20251108",
+        "python_version": "3.12.11",
         "status": "pass"
     }
 }

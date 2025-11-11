@@ -1,0 +1,1887 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Usage &#8212; PythTB 1.8.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="_static/classic.css?v=2bf1fcf8" />
+    <link rel="stylesheet" type="text/css" href="_static/plot_directive.css?v=7f9a90b1" />
+    
+    <script src="_static/documentation_options.js?v=371fd5e7"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Resources" href="resources.html" />
+    <link rel="prev" title="Formalism" href="formalism.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="resources.html" title="Resources"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="formalism.html" title="Formalism"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">PythTB 1.8.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Usage</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="usage">
+<h1>Usage<a class="headerlink" href="#usage" title="Link to this heading">¶</a></h1>
+<p>Here you can find the <a class="reference external" href="_modules/pythtb.html">source code</a> of the main PythTB module.</p>
+<p>The main PythTB module consists of these three parts:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#pythtb.tb_model" title="pythtb.tb_model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.tb_model</span></code></a> main tight-binding model class.</p></li>
+<li><p><a class="reference internal" href="#pythtb.wf_array" title="pythtb.wf_array"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.wf_array</span></code></a> class for computing Berry phase (and related) properties.</p></li>
+<li><p><a class="reference internal" href="#pythtb.w90" title="pythtb.w90"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.w90</span></code></a> class for interface with <a class="reference external" href="http://www.wannier.org">Wannier90</a> code that allows construction of tight-binding models based on first-principles density functional theory calculations.</p></li>
+</ul>
+<dl class="py class" id="module-pythtb">
+<dt class="sig sig-object py" id="pythtb.tb_model">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pythtb.</span></span><span class="sig-name descname"><span class="pre">tb_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dim_k</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dim_r</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lat</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orb</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">per</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nspin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model" title="Link to this definition">¶</a></dt>
+<dd><p>This is the main class of the PythTB package which contains all
+information for the tight-binding model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dim_k</strong> – Dimensionality of reciprocal space, i.e., specifies how
+many directions are considered to be periodic.</p></li>
+<li><p><strong>dim_r</strong> – Dimensionality of real space, i.e., specifies how many
+real space lattice vectors there are and how many coordinates are
+needed to specify the orbital coordinates.</p></li>
+</ul>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Parameter <em>dim_r</em> can be larger than <em>dim_k</em>! For example,
+a polymer is a three-dimensional molecule (one needs three
+coordinates to specify orbital positions), but it is periodic
+along only one direction. For a polymer, therefore, we should
+have <em>dim_k</em> equal to 1 and <em>dim_r</em> equal to 3. See similar example
+here: <a class="reference internal" href="examples.html#trestle-example"><span class="std std-ref">Trestle</span></a>.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>lat</strong> – Array containing lattice vectors in Cartesian
+coordinates (in arbitrary units). In example the below, the first
+lattice vector has coordinates [1.0,0.5] while the second
+one has coordinates [0.0,2.0].  By default, lattice vectors
+are an identity matrix.</p></li>
+<li><p><strong>orb</strong> – Array containing reduced coordinates of all
+tight-binding orbitals. In the example below, the first
+orbital is defined with reduced coordinates [0.2,0.3]. Its
+Cartesian coordinates are therefore 0.2 times the first
+lattice vector plus 0.3 times the second lattice vector.
+If <em>orb</em> is an integer code will assume that there are these many
+orbitals all at the origin of the unit cell.  By default
+the code will assume a single orbital at the origin.</p></li>
+<li><p><strong>per</strong> – This is an optional parameter giving a list of lattice
+vectors which are considered to be periodic. In the example below,
+only the vector [0.0,2.0] is considered to be periodic (since
+per=[1]). By default, all lattice vectors are assumed to be
+periodic. If dim_k is smaller than dim_r, then by default the first
+dim_k vectors are considered to be periodic.</p></li>
+<li><p><strong>nspin</strong> – Number of explicit spin components assumed for each
+orbital in <em>orb</em>. Allowed values of <em>nspin</em> are <em>1</em> and <em>2</em>. If
+<em>nspin</em> is 1 then the model is spinless, if <em>nspin</em> is 2 then it
+is explicitly a spinfull model and each orbital is assumed to
+have two spin components. Default value of this parameter is
+<em>1</em>.  Of course one can make spinfull calculation even with
+<em>nspin</em> set to 1, but then the user must keep track of which
+orbital corresponds to which spin component.</p></li>
+</ul>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Creates model that is two-dimensional in real space but only</span>
+<span class="c1"># one-dimensional in reciprocal space. Second lattice vector is</span>
+<span class="c1"># chosen to be periodic (since per=[1]). Three orbital</span>
+<span class="c1"># coordinates are specified.       </span>
+<span class="n">tb</span> <span class="o">=</span> <span class="n">tb_model</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span>
+            <span class="n">lat</span><span class="o">=</span><span class="p">[[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">]],</span>
+            <span class="n">orb</span><span class="o">=</span><span class="p">[[</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">]],</span>
+            <span class="n">per</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.set_onsite">
+<span class="sig-name descname"><span class="pre">set_onsite</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">onsite_en</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ind_i</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'set'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.set_onsite"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.set_onsite" title="Link to this definition">¶</a></dt>
+<dd><p>Defines on-site energies for tight-binding orbitals. One can
+either set energy for one tight-binding orbital, or all at
+once.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>onsite_en</strong> – Either a list of on-site energies (in
+arbitrary units) for each orbital, or a single on-site
+energy (in this case <em>ind_i</em> parameter must be given). In
+the case when <em>nspin</em> is <em>1</em> (spinless) then each on-site
+energy is a single number.  If <em>nspin</em> is <em>2</em> then on-site
+energy can be given either as a single number, or as an
+array of four numbers, or 2x2 matrix. If a single number is
+given, it is interpreted as on-site energy for both up and
+down spin component. If an array of four numbers is given,
+these are the coefficients of I, sigma_x, sigma_y, and
+sigma_z (that is, the 2x2 identity and the three Pauli spin
+matrices) respectively. Finally, full 2x2 matrix can be
+given as well. If this function is never called, on-site
+energy is assumed to be zero.</p></li>
+<li><p><strong>ind_i</strong> – Index of tight-binding orbital whose on-site
+energy you wish to change. This parameter should be
+specified only when <em>onsite_en</em> is a single number (not a
+list).</p></li>
+<li><p><strong>mode</strong> – <p>Similar to parameter <em>mode</em> in function set_hop*. 
+Speficies way in which parameter <em>onsite_en</em> is
+used. It can either set value of on-site energy from scratch,
+reset it, or add to it.</p>
+<ul>
+<li><p>”set” – Default value. On-site energy is set to value of
+<em>onsite_en</em> parameter. One can use “set” on each
+tight-binding orbital only once.</p></li>
+<li><p>”reset” – Specifies on-site energy to given value. This
+function can be called multiple times for the same
+orbital(s).</p></li>
+<li><p>”add” – Adds to the previous value of on-site
+energy. This function can be called multiple times for the
+same orbital(s).</p></li>
+</ul>
+</p></li>
+</ul>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Defines on-site energy of first orbital to be 0.0,</span>
+<span class="c1"># second 1.0, and third 2.0</span>
+<span class="n">tb</span><span class="o">.</span><span class="n">set_onsite</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])</span>
+<span class="c1"># Increases value of on-site energy for second orbital</span>
+<span class="n">tb</span><span class="o">.</span><span class="n">set_onsite</span><span class="p">(</span><span class="mf">100.0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;add&quot;</span><span class="p">)</span>
+<span class="c1"># Changes on-site energy of second orbital to zero</span>
+<span class="n">tb</span><span class="o">.</span><span class="n">set_onsite</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">)</span>
+<span class="c1"># Sets all three on-site energies at once</span>
+<span class="n">tb</span><span class="o">.</span><span class="n">set_onsite</span><span class="p">([</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">],</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.set_hop">
+<span class="sig-name descname"><span class="pre">set_hop</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hop_amp</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ind_i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ind_j</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ind_R</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'set'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">allow_conjugate_pair</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.set_hop"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.set_hop" title="Link to this definition">¶</a></dt>
+<dd><p>Defines hopping parameters between tight-binding orbitals. In
+the notation used in section 3.1 equation 3.6 of
+<a class="reference download internal" download="" href="_downloads/e39c23ce476d399b268efa520e7a9091/pythtb-formalism.pdf"><code class="xref download docutils literal notranslate"><span class="pre">notes</span> <span class="pre">on</span> <span class="pre">tight-binding</span> <span class="pre">formalism</span></code></a> this function specifies the
+following object</p>
+<div class="math">
+<p><img src="_images/math/6979dfdc7fa35036567117951365012c675bb81d.png" alt="H_{ij}({\bf R})= \langle \phi_{{\bf 0} i}  \vert H  \vert \phi_{{\bf R},j} \rangle"/></p>
+</div><p>Where <img class="math" src="_images/math/7f035ade1ea5795307121e614b97d72febce16f2.png" alt="\langle \phi_{{\bf 0} i} \vert"/> is i-th
+tight-binding orbital in the home unit cell and
+<img class="math" src="_images/math/97daa24f3e443bebda35fdf9c5ee1a48b18e6857.png" alt="\vert \phi_{{\bf R},j} \rangle"/> is j-th tight-binding orbital in
+unit cell shifted by lattice vector <img class="math" src="_images/math/450c62a721ed71d5ea8fb42ea59d93655413e482.png" alt="{\bf R}"/>. <img class="math" src="_images/math/cb5de54f699cf4b3c7c1a3e87313d11d536c0d88.png" alt="H"/>
+is the Hamiltonian.</p>
+<p>(Strictly speaking, this term specifies hopping amplitude
+for hopping from site <em>j+R</em> to site <em>i</em>, not vice-versa.)</p>
+<p>Hopping in the opposite direction is automatically included by
+the code since</p>
+<div class="math">
+<p><img src="_images/math/9790dd9c328b7243a78c90029e8cd4efbe93f83d.png" alt="H_{ji}(-{\bf R})= \left[ H_{ij}({\bf R}) \right]^{*}"/></p>
+</div><div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>There is no need to specify hoppings in both <img class="math" src="_images/math/c3997b8721665e4e16eba3a100281f8e6d55d82c.png" alt="i
+\rightarrow j+R"/> direction and opposite <img class="math" src="_images/math/59a951371e1571c9b5a9e908d07d45616275284e.png" alt="j
+\rightarrow i-R"/> direction since that is done
+automatically. If you want to specifiy hoppings in both
+directions, see description of parameter
+<em>allow_conjugate_pair</em>.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>hop_amp</strong> – Hopping amplitude; can be real or complex
+number, equals <img class="math" src="_images/math/ade781a6a9cee455ac14bbf032a4054024700bde.png" alt="H_{ij}({\bf R})"/>. If <em>nspin</em> is <em>2</em>
+then hopping amplitude can be given either as a single
+number, or as an array of four numbers, or as 2x2 matrix. If
+a single number is given, it is interpreted as hopping
+amplitude for both up and down spin component.  If an array
+of four numbers is given, these are the coefficients of I,
+sigma_x, sigma_y, and sigma_z (that is, the 2x2 identity and
+the three Pauli spin matrices) respectively. Finally, full
+2x2 matrix can be given as well.</p></li>
+<li><p><strong>ind_i</strong> – Index of bra orbital from the bracket <img class="math" src="_images/math/9558aa137b566fbdd3c5d41381645fcef8ebded6.png" alt="\langle
+\phi_{{\bf 0} i} \vert H \vert \phi_{{\bf R},j} \rangle"/>. This
+orbital is assumed to be in the home unit cell.</p></li>
+<li><p><strong>ind_j</strong> – Index of ket orbital from the bracket <img class="math" src="_images/math/9558aa137b566fbdd3c5d41381645fcef8ebded6.png" alt="\langle
+\phi_{{\bf 0} i} \vert H \vert \phi_{{\bf R},j} \rangle"/>. This
+orbital does not have to be in the home unit cell; its unit cell
+position is determined by parameter <em>ind_R</em>.</p></li>
+<li><p><strong>ind_R</strong> – Lattice vector (integer array, in reduced
+coordinates) pointing to the unit cell where the ket
+orbital is located.  The number of coordinates must equal
+the dimensionality in real space (<em>dim_r</em> parameter) for
+consistency, but only the periodic directions of ind_R are
+used. If reciprocal space is zero-dimensional (as in a
+molecule), this parameter does not need to be specified.</p></li>
+<li><p><strong>mode</strong> – <p>Similar to parameter <em>mode</em> in function <em>set_onsite</em>. 
+Speficies way in which parameter <em>hop_amp</em> is
+used. It can either set value of hopping term from scratch,
+reset it, or add to it.</p>
+<ul>
+<li><p>”set” – Default value. Hopping term is set to value of
+<em>hop_amp</em> parameter. One can use “set” for each triplet of
+<em>ind_i</em>, <em>ind_j</em>, <em>ind_R</em> only once.</p></li>
+<li><p>”reset” – Specifies on-site energy to given value. This
+function can be called multiple times for the same triplet
+<em>ind_i</em>, <em>ind_j</em>, <em>ind_R</em>.</p></li>
+<li><p>”add” – Adds to the previous value of hopping term This
+function can be called multiple times for the same triplet
+<em>ind_i</em>, <em>ind_j</em>, <em>ind_R</em>.</p></li>
+</ul>
+<p>If <em>set_hop</em> was ever called with <em>allow_conjugate_pair</em> set
+to True, then it is possible that user has specified both
+<img class="math" src="_images/math/84d2b29816a1fbf74ec02294ef30d797fdddf0c7.png" alt="i \rightarrow j+R"/> and conjugate pair <img class="math" src="_images/math/59a951371e1571c9b5a9e908d07d45616275284e.png" alt="j
+\rightarrow i-R"/>.  In this case, “set”, “reset”, and “add”
+parameters will treat triplet <em>ind_i</em>, <em>ind_j</em>, <em>ind_R</em> and
+conjugate triplet <em>ind_j</em>, <em>ind_i</em>, <em>-ind_R</em> as distinct.</p>
+</p></li>
+<li><p><strong>allow_conjugate_pair</strong> – Default value is <em>False</em>. If set
+to <em>True</em> code will allow user to specify hopping
+<img class="math" src="_images/math/84d2b29816a1fbf74ec02294ef30d797fdddf0c7.png" alt="i \rightarrow j+R"/> even if conjugate-pair hopping
+<img class="math" src="_images/math/ab036bcbb63a977da4c1865cd057cd326a686664.png" alt="j \rightarrow i-R"/> has been
+specified. If both terms are specified, code will
+still count each term two times.</p></li>
+</ul>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Specifies complex hopping amplitude between first orbital in home</span>
+<span class="c1"># unit cell and third orbital in neigbouring unit cell.</span>
+<span class="n">tb</span><span class="o">.</span><span class="n">set_hop</span><span class="p">(</span><span class="mf">0.3</span><span class="o">+</span><span class="mf">0.4</span><span class="n">j</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+<span class="c1"># change value of this hopping</span>
+<span class="n">tb</span><span class="o">.</span><span class="n">set_hop</span><span class="p">(</span><span class="mf">0.1</span><span class="o">+</span><span class="mf">0.2</span><span class="n">j</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">)</span>
+<span class="c1"># add to previous value (after this function call below,</span>
+<span class="c1"># hopping term amplitude is 100.1+0.2j)</span>
+<span class="n">tb</span><span class="o">.</span><span class="n">set_hop</span><span class="p">(</span><span class="mf">100.0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;add&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.display">
+<span class="sig-name descname"><span class="pre">display</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.display"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.display" title="Link to this definition">¶</a></dt>
+<dd><p>Prints on the screen some information about this tight-binding
+model. This function doesn’t take any parameters.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.visualize">
+<span class="sig-name descname"><span class="pre">visualize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dir_first</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dir_second</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eig_dr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draw_hoppings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ph_color</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'black'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.visualize"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.visualize" title="Link to this definition">¶</a></dt>
+<dd><p>Rudimentary function for visualizing tight-binding model geometry,
+hopping between tight-binding orbitals, and electron eigenstates.</p>
+<p>If eigenvector is not drawn, then orbitals in home cell are drawn
+as red circles, and those in neighboring cells are drawn with
+different shade of red. Hopping term directions are drawn with
+green lines connecting two orbitals. Origin of unit cell is
+indicated with blue dot, while real space unit vectors are drawn
+with blue lines.</p>
+<p>If eigenvector is drawn, then electron eigenstate on each orbital
+is drawn with a circle whose size is proportional to wavefunction
+amplitude while its color depends on the phase. There are various
+coloring schemes for the phase factor; see more details under
+<em>ph_color</em> parameter. If eigenvector is drawn and coloring scheme
+is “red-blue” or “wheel”, all other elements of the picture are
+drawn in gray or black.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dir_first</strong> – First index of Cartesian coordinates used for
+plotting.</p></li>
+<li><p><strong>dir_second</strong> – Second index of Cartesian coordinates used for
+plotting. For example if dir_first=0 and dir_second=2, and
+Cartesian coordinates of some orbital is [2.0,4.0,6.0] then it
+will be drawn at coordinate [2.0,6.0]. If dimensionality of real
+space (<em>dim_r</em>) is zero or one then dir_second should not be
+specified.</p></li>
+<li><p><strong>eig_dr</strong> – Optional parameter specifying eigenstate to
+plot. If specified, this should be one-dimensional array of
+complex numbers specifying wavefunction at each orbital in
+the tight-binding basis. If not specified, eigenstate is not
+drawn.</p></li>
+<li><p><strong>draw_hoppings</strong> – Optional parameter specifying whether to
+draw all allowed hopping terms in the tight-binding
+model. Default value is True.</p></li>
+<li><p><strong>ph_color</strong> – <p>Optional parameter determining the way
+eigenvector phase factors are translated into color. Default
+value is “black”. Convention of the wavefunction phase is as
+in convention 1 in section 3.1 of <a class="reference download internal" download="" href="_downloads/e39c23ce476d399b268efa520e7a9091/pythtb-formalism.pdf"><code class="xref download docutils literal notranslate"><span class="pre">notes</span> <span class="pre">on</span>
+<span class="pre">tight-binding</span> <span class="pre">formalism</span></code></a>.  In
+other words, these wavefunction phases are in correspondence
+with cell-periodic functions <img class="math" src="_images/math/3d265d022e32f85f1be1f4e09c19c03e748e63cb.png" alt="u_{n {\bf k}} ({\bf r})"/>
+not <img class="math" src="_images/math/2626c724d7005eb2a78d9125d8c244849a858ece.png" alt="\Psi_{n {\bf k}} ({\bf r})"/>.</p>
+<ul>
+<li><p>”black” – phase of eigenvectors are ignored and wavefunction
+is always colored in black.</p></li>
+<li><p>”red-blue” – zero phase is drawn red, while phases or pi or
+-pi are drawn blue. Phases in between are interpolated between
+red and blue. Some phase information is lost in this coloring
+becase phase of +phi and -phi have same color.</p></li>
+<li><p>”wheel” – each phase is given unique color. In steps of pi/3
+starting from 0, colors are assigned (in increasing hue) as:
+red, yellow, green, cyan, blue, magenta, red.</p></li>
+</ul>
+</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>fig</strong> – Figure object from matplotlib.pyplot module
+that can be used to save the figure in PDF, EPS or similar
+format, for example using fig.savefig(“name.pdf”) command.</p></li>
+<li><p><strong>ax</strong> – Axes object from matplotlib.pyplot module that can be
+used to tweak the plot, for example by adding a plot title
+ax.set_title(“Title goes here”).</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Draws x-y projection of tight-binding model</span>
+<span class="c1"># tweaks figure and saves it as a PDF.</span>
+<span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="n">ax</span><span class="p">)</span> <span class="o">=</span> <span class="n">tb</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Title goes here&quot;</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;model.pdf&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>See also these examples: <a class="reference internal" href="examples.html#edge-example"><span class="std std-ref">Edge states</span></a>,
+<a class="reference internal" href="examples.html#visualize-example"><span class="std std-ref">Visualization example</span></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.get_num_orbitals">
+<span class="sig-name descname"><span class="pre">get_num_orbitals</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.get_num_orbitals"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.get_num_orbitals" title="Link to this definition">¶</a></dt>
+<dd><p>Returns number of orbitals in the model.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.get_orb">
+<span class="sig-name descname"><span class="pre">get_orb</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.get_orb"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.get_orb" title="Link to this definition">¶</a></dt>
+<dd><p>Returns reduced coordinates of orbitals in format [orbital,coordinate.]</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.get_lat">
+<span class="sig-name descname"><span class="pre">get_lat</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.get_lat"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.get_lat" title="Link to this definition">¶</a></dt>
+<dd><p>Returns lattice vectors in format [vector,coordinate].</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.solve_all">
+<span class="sig-name descname"><span class="pre">solve_all</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">k_list</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eig_vectors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.solve_all"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.solve_all" title="Link to this definition">¶</a></dt>
+<dd><p>Solves for eigenvalues and (optionally) eigenvectors of the
+tight-binding model on a given one-dimensional list of k-vectors.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Eigenvectors (wavefunctions) returned by this
+function and used throughout the code are exclusively given
+in convention 1 as described in section 3.1 of
+<a class="reference download internal" download="" href="_downloads/e39c23ce476d399b268efa520e7a9091/pythtb-formalism.pdf"><code class="xref download docutils literal notranslate"><span class="pre">notes</span> <span class="pre">on</span> <span class="pre">tight-binding</span> <span class="pre">formalism</span></code></a>.  In other words, they
+are in correspondence with cell-periodic functions
+<img class="math" src="_images/math/3d265d022e32f85f1be1f4e09c19c03e748e63cb.png" alt="u_{n {\bf k}} ({\bf r})"/> not
+<img class="math" src="_images/math/2626c724d7005eb2a78d9125d8c244849a858ece.png" alt="\Psi_{n {\bf k}} ({\bf r})"/>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In some cases class <a class="reference internal" href="#pythtb.wf_array" title="pythtb.wf_array"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.wf_array</span></code></a> provides a more
+elegant way to deal with eigensolutions on a regular mesh of
+k-vectors.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>k_list</strong> – One-dimensional array of k-vectors. Each k-vector
+is given in reduced coordinates of the reciprocal space unit
+cell. For example, for real space unit cell vectors [1.0,0.0]
+and [0.0,2.0] and associated reciprocal space unit vectors
+[2.0*pi,0.0] and [0.0,pi], k-vector with reduced coordinates
+[0.25,0.25] corresponds to k-vector [0.5*pi,0.25*pi].
+Dimensionality of each vector must equal to the number of
+periodic directions (i.e. dimensionality of reciprocal space,
+<em>dim_k</em>).
+This parameter shouldn’t be specified for system with
+zero-dimensional k-space (<em>dim_k</em> =0).</p></li>
+<li><p><strong>eig_vectors</strong> – Optional boolean parameter, specifying whether
+eigenvectors should be returned. If <em>eig_vectors</em> is True, then
+both eigenvalues and eigenvectors are returned, otherwise only
+eigenvalues are returned.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul>
+<li><p><strong>eval</strong> – Two dimensional array of eigenvalues for
+all bands for all kpoints. Format is eval[band,kpoint] where
+first index (band) corresponds to the electron band in
+question and second index (kpoint) corresponds to the k-point
+as listed in the input parameter <em>k_list</em>. Eigenvalues are
+sorted from smallest to largest at each k-point seperately.</p>
+<p>In the case when reciprocal space is zero-dimensional (as in a
+molecule) kpoint index is dropped and <em>eval</em> is of the format
+eval[band].</p>
+</li>
+<li><p><strong>evec</strong> – Three dimensional array of eigenvectors for
+all bands and all kpoints. If <em>nspin</em> equals 1 the format
+of <em>evec</em> is evec[band,kpoint,orbital] where “band” is the
+electron band in question, “kpoint” is index of k-vector
+as given in input parameter <em>k_list</em>. Finally, “orbital”
+refers to the tight-binding orbital basis function.
+Ordering of bands is the same as in <em>eval</em>.</p>
+<p>Eigenvectors evec[n,k,j] correspond to <img class="math" src="_images/math/6eae90e9527e3c74f17d7f349b254f0b272641db.png" alt="C^{n {\bf
+k}}_{j}"/> from section 3.1 equation 3.5 and 3.7 of the
+<a class="reference download internal" download="" href="_downloads/e39c23ce476d399b268efa520e7a9091/pythtb-formalism.pdf"><code class="xref download docutils literal notranslate"><span class="pre">notes</span> <span class="pre">on</span> <span class="pre">tight-binding</span> <span class="pre">formalism</span></code></a>.</p>
+<p>In the case when reciprocal space is zero-dimensional (as in a
+molecule) kpoint index is dropped and <em>evec</em> is of the format
+evec[band,orbital].</p>
+<p>In the spinfull calculation (<em>nspin</em> equals 2) evec has
+additional component evec[…,spin] corresponding to the
+spin component of the wavefunction.</p>
+</li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Returns eigenvalues for three k-vectors</span>
+<span class="nb">eval</span> <span class="o">=</span> <span class="n">tb</span><span class="o">.</span><span class="n">solve_all</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">]])</span>
+<span class="c1"># Returns eigenvalues and eigenvectors for two k-vectors</span>
+<span class="p">(</span><span class="nb">eval</span><span class="p">,</span> <span class="n">evec</span><span class="p">)</span> <span class="o">=</span> <span class="n">tb</span><span class="o">.</span><span class="n">solve_all</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">]],</span> <span class="n">eig_vectors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.solve_one">
+<span class="sig-name descname"><span class="pre">solve_one</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">k_point</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eig_vectors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.solve_one"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.solve_one" title="Link to this definition">¶</a></dt>
+<dd><p>Similar to <a class="reference internal" href="#pythtb.tb_model.solve_all" title="pythtb.tb_model.solve_all"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.tb_model.solve_all()</span></code></a> but solves tight-binding
+model for only one k-vector.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.cut_piece">
+<span class="sig-name descname"><span class="pre">cut_piece</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fin_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">glue_edgs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.cut_piece"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.cut_piece" title="Link to this definition">¶</a></dt>
+<dd><p>Constructs a (d-1)-dimensional tight-binding model out of a
+d-dimensional one by repeating the unit cell a given number of
+times along one of the periodic lattice vectors. The real-space
+lattice vectors of the returned model are the same as those of
+the original model; only the dimensionality of reciprocal space
+is reduced.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>num</strong> – How many times to repeat the unit cell.</p></li>
+<li><p><strong>fin_dir</strong> – Index of the real space lattice vector along
+which you no longer wish to maintain periodicity.</p></li>
+<li><p><strong>glue_edgs</strong> – Optional boolean parameter specifying whether to
+allow hoppings from one edge to the other of a cut model.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>fin_model</strong> – Object of type
+<a class="reference internal" href="#pythtb.tb_model" title="pythtb.tb_model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.tb_model</span></code></a> representing a cutout
+tight-binding model. Orbitals in <em>fin_model</em> are
+numbered so that the i-th orbital of the n-th unit
+cell has index i+norb*n (here norb is the number of
+orbitals in the original model).</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">A</span> <span class="o">=</span> <span class="n">tb_model</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+<span class="c1"># Construct two-dimensional model B out of three-dimensional</span>
+<span class="c1"># model A by repeating model along second lattice vector ten times</span>
+<span class="n">B</span> <span class="o">=</span> <span class="n">A</span><span class="o">.</span><span class="n">cut_piece</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="c1"># Further cut two-dimensional model B into one-dimensional model</span>
+<span class="c1"># A by repeating unit cell twenty times along third lattice</span>
+<span class="c1"># vector and allow hoppings from one edge to the other</span>
+<span class="n">C</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">cut_piece</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">glue_edgs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>See also these examples: <a class="reference internal" href="examples.html#haldane-fin-example"><span class="std std-ref">Finite Haldane model</span></a>,
+<a class="reference internal" href="examples.html#edge-example"><span class="std std-ref">Edge states</span></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.reduce_dim">
+<span class="sig-name descname"><span class="pre">reduce_dim</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">remove_k</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_k</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.reduce_dim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.reduce_dim" title="Link to this definition">¶</a></dt>
+<dd><p>Reduces dimensionality of the model by taking a reciprocal-space
+slice of the Bloch Hamiltonian <img class="math" src="_images/math/8dc56ddb86baf6348614f9eecfdb0bfa1f5dfa2c.png" alt="{\cal H}_{\bf k}"/>. The Bloch
+Hamiltonian (defined in <a class="reference download internal" download="" href="_downloads/e39c23ce476d399b268efa520e7a9091/pythtb-formalism.pdf"><code class="xref download docutils literal notranslate"><span class="pre">notes</span> <span class="pre">on</span> <span class="pre">tight-binding</span>
+<span class="pre">formalism</span></code></a> in section 3.1 equation 3.7) of a
+d-dimensional model is a function of d-dimensional k-vector.</p>
+<p>This function returns a d-1 dimensional tight-binding model obtained
+by constraining one of k-vector components in <img class="math" src="_images/math/4a14cb5c565392357d799cac9e75b1e01b98b069.png" alt="{\cal H}_{\bf
+k}"/> to be a constant.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>remove_k</strong> – Which reciprocal space unit vector component
+you wish to keep constant.</p></li>
+<li><p><strong>value_k</strong> – Value of the k-vector component to which you are
+constraining this model. Must be given in reduced coordinates.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>red_tb</strong> – Object of type <a class="reference internal" href="#pythtb.tb_model" title="pythtb.tb_model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.tb_model</span></code></a>
+representing a reduced tight-binding model.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Constrains second k-vector component to equal 0.3</span>
+<span class="n">red_tb</span> <span class="o">=</span> <span class="n">tb</span><span class="o">.</span><span class="n">reduce_dim</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.change_nonperiodic_vector">
+<span class="sig-name descname"><span class="pre">change_nonperiodic_vector</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">np_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_latt_vec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">to_home</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">to_home_suppress_warning</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.change_nonperiodic_vector"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.change_nonperiodic_vector" title="Link to this definition">¶</a></dt>
+<dd><p>Returns tight-binding model <a class="reference internal" href="#pythtb.tb_model" title="pythtb.tb_model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.tb_model</span></code></a> in which one of
+the nonperiodic “lattice vectors” is changed.  Nonperiodic
+vectors are those elements of <em>lat</em> that are not listed as
+periodic with the <em>per</em> parameter.  (See more information on
+<em>lat</em> and <em>per</em> in <a class="reference internal" href="#pythtb.tb_model" title="pythtb.tb_model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.tb_model</span></code></a>). The returned object
+also has modified reduced coordinates of orbitals, consistent
+with the new choice of <em>lat</em>.  Therefore, the actual (Cartesian)
+coordinates of orbitals in original and returned tb_model are
+the same.</p>
+<p>This function is especially useful after using <em>cut_piece</em> to 
+create slabs, rods, or ribbons.</p>
+<p>By default, the new nonperiodic vector is constructed
+from the original by removing all components in the periodic 
+space.  This ensures that the Berry phases computed in the 
+periodic space correspond to the usual expectations.  For 
+example, after this change, the Berry phase computed for a 
+ribbon depends only on the location of the Wannier center 
+in the extended direction, not on its location in the 
+transverse direction. Alternatively, the new nonperiodic 
+vector can be set explicitly via the <em>new_latt_vec</em> parameter.</p>
+<p>See example <a class="reference internal" href="examples.html#bn-ribbon-berry"><span class="std std-ref">BN ribbon with change of nonperiodic vector</span></a> for more 
+detail.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>np_dir</strong> – Integer specifying which nonperiodic
+lattice vector to change.</p></li>
+<li><p><strong>new_latt_vec</strong> – Optional parameter. If <em>None</em> (default),
+the new nonperiodic lattice vector is the same as the
+original one except that all components in the periodic
+space have been projected out (so that the new
+nonperiodic vector is perpendicular to all periodic
+vectors).  Otherwise, array of integers with size <em>dim_r</em>
+defining the desired new nonperiodic lattice vector.</p></li>
+<li><p><strong>to_home</strong> – Optional parameter. If <em>True</em> (default),
+will shift all orbitals to the home cell along non-periodic directions.</p></li>
+<li><p><strong>to_home_suppress_warning</strong> – Optional parameter, if <em>False</em> code
+will print a warning message whenever returned object has an orbital with
+at least one reduced coordinate smaller than 0 or larger than 1
+along a non-periodic direction.  If <em>True</em> the warning message
+will not be printed.  Note that this parameter has no
+effect on the model; it only determines whether a warning
+message is printed or not.  Default value is <em>False</em>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>nnp_tb</strong> – Object of type <a class="reference internal" href="#pythtb.tb_model" title="pythtb.tb_model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.tb_model</span></code></a>
+representing an equivalent tight-binding model with
+one redefined nonperiodic lattice vector.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Modify slab model so that nonperiodic third vector is perpendicular to the slab</span>
+<span class="n">nnp_tb</span> <span class="o">=</span> <span class="n">tb</span><span class="o">.</span><span class="n">change_nonperiodic_vector</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.make_supercell">
+<span class="sig-name descname"><span class="pre">make_supercell</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sc_red_lat</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_sc_vectors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">to_home</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">to_home_suppress_warning</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.make_supercell"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.make_supercell" title="Link to this definition">¶</a></dt>
+<dd><p>Returns tight-binding model <a class="reference internal" href="#pythtb.tb_model" title="pythtb.tb_model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.tb_model</span></code></a>
+representing a super-cell of a current object. This function
+can be used together with <em>cut_piece</em> in order to create slabs
+with arbitrary surfaces.</p>
+<p>By default all orbitals will be shifted to the home cell after
+unit cell has been created. That way all orbitals will have
+reduced coordinates between 0 and 1. If you wish to avoid this
+behavior, you need to set, <em>to_home</em> argument to <em>False</em>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sc_red_lat</strong> – Array of integers with size <em>dim_r*dim_r</em>
+defining a super-cell lattice vectors in terms of reduced
+coordinates of the original tight-binding model. First index
+in the array specifies super-cell vector, while second index
+specifies coordinate of that super-cell vector.  If
+<em>dim_k&lt;dim_r</em> then still need to specify full array with
+size <em>dim_r*dim_r</em> for consistency, but non-periodic
+directions must have 0 on off-diagonal elemets s and 1 on
+diagonal.</p></li>
+<li><p><strong>return_sc_vectors</strong> – Optional parameter. Default value is
+<em>False</em>. If <em>True</em> returns also lattice vectors inside the
+super-cell. Internally, super-cell tight-binding model will
+have orbitals repeated in the same order in which these
+super-cell vectors are given, but if argument <em>to_home</em>
+is set <em>True</em> (which it is by default) then additionally,
+orbitals will be shifted to the home cell.</p></li>
+<li><p><strong>to_home</strong> – Optional parameter, if <em>True</em> will shift all orbitals 
+to the home cell along non-periodic directions. Default value is <em>True</em>.</p></li>
+<li><p><strong>to_home_suppress_warning</strong> – Optional parameter, if <em>False</em> code
+will print a warning message whenever returned object has an orbital with
+at least one reduced coordinate smaller than 0 or larger than 1
+along a non-periodic direction.  If <em>True</em> the warning message
+will not be printed.  Note that setting this parameter to <em>True</em>
+or <em>False</em> has no effect on resulting coordinates of the model.
+The only difference between this parameter set to <em>True</em> or <em>False</em>
+is whether a warning message is printed or not.  Default value
+is <em>False</em>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>sc_tb</strong> – Object of type <a class="reference internal" href="#pythtb.tb_model" title="pythtb.tb_model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.tb_model</span></code></a>
+representing a tight-binding model in a super-cell.</p></li>
+<li><p><strong>sc_vectors</strong> – Super-cell vectors, returned only if
+<em>return_sc_vectors</em> is set to <em>True</em> (default value is
+<em>False</em>).</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Creates super-cell out of 2d tight-binding model tb</span>
+<span class="n">sc_tb</span> <span class="o">=</span> <span class="n">tb</span><span class="o">.</span><span class="n">make_supercell</span><span class="p">([[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]])</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.remove_orb">
+<span class="sig-name descname"><span class="pre">remove_orb</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">to_remove</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.remove_orb"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.remove_orb" title="Link to this definition">¶</a></dt>
+<dd><p>Returns a model with some orbitals removed.  Note that this
+will reindex the orbitals with indices higher than those that
+are removed.  For example.  If model has 6 orbitals and one
+wants to remove 2nd orbital, then returned model will have 5
+orbitals indexed as 0,1,2,3,4.  In the returned model orbital
+indexed as 2 corresponds to the one indexed as 3 in the
+original model.  Similarly 3 and 4 correspond to 4 and 5.
+Indices of first two orbitals (0 and 1) are unaffected.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>to_remove</strong> – List of orbital indices to be removed, or 
+index of single orbital to be removed</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>del_tb</strong> – Object of type <a class="reference internal" href="#pythtb.tb_model" title="pythtb.tb_model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.tb_model</span></code></a> 
+representing a model with removed orbitals.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># if original_model has say 10 orbitals then</span>
+<span class="c1"># returned small_model will have only 8 orbitals.</span>
+
+<span class="n">small_model</span><span class="o">=</span><span class="n">original_model</span><span class="o">.</span><span class="n">remove_orb</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="mi">5</span><span class="p">])</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.k_uniform_mesh">
+<span class="sig-name descname"><span class="pre">k_uniform_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh_size</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.k_uniform_mesh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.k_uniform_mesh" title="Link to this definition">¶</a></dt>
+<dd><p>Returns a uniform grid of k-points that can be passed to
+passed to function <a class="reference internal" href="#pythtb.tb_model.solve_all" title="pythtb.tb_model.solve_all"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.tb_model.solve_all()</span></code></a>.  This
+function is useful for plotting density of states histogram
+and similar.</p>
+<p>Returned uniform grid of k-points always contains the origin.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>mesh_size</strong> – Number of k-points in the mesh in each
+periodic direction of the model.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>k_vec</strong> – Array of k-vectors on the mesh that can be
+directly passed to function  <a class="reference internal" href="#pythtb.tb_model.solve_all" title="pythtb.tb_model.solve_all"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.tb_model.solve_all()</span></code></a>.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># returns a 10x20x30 mesh of a tight binding model</span>
+<span class="c1"># with three periodic directions</span>
+<span class="n">k_vec</span> <span class="o">=</span> <span class="n">my_model</span><span class="o">.</span><span class="n">k_uniform_mesh</span><span class="p">([</span><span class="mi">10</span><span class="p">,</span><span class="mi">20</span><span class="p">,</span><span class="mi">30</span><span class="p">])</span>
+<span class="c1"># solve model on the uniform mesh</span>
+<span class="n">my_model</span><span class="o">.</span><span class="n">solve_all</span><span class="p">(</span><span class="n">k_vec</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.k_path">
+<span class="sig-name descname"><span class="pre">k_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">kpts</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nk</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">report</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.k_path"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.k_path" title="Link to this definition">¶</a></dt>
+<dd><p>Interpolates a path in reciprocal space between specified
+k-points.  In 2D or 3D the k-path can consist of several
+straight segments connecting high-symmetry points (“nodes”),
+and the results can be used to plot the bands along this path.</p>
+<p>The interpolated path that is returned contains as
+equidistant k-points as possible.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>kpts</strong> – <p>Array of k-vectors in reciprocal space between
+which interpolated path should be constructed. These
+k-vectors must be given in reduced coordinates.  As a
+special case, in 1D k-space kpts may be a string:</p>
+<ul>
+<li><p><em>”full”</em>  – Implies  <em>[ 0.0, 0.5, 1.0]</em>  (full BZ)</p></li>
+<li><p><em>”fullc”</em> – Implies  <em>[-0.5, 0.0, 0.5]</em>  (full BZ, centered)</p></li>
+<li><p><em>”half”</em>  – Implies  <em>[ 0.0, 0.5]</em>  (half BZ)</p></li>
+</ul>
+</p></li>
+<li><p><strong>nk</strong> – Total number of k-points to be used in making the plot.</p></li>
+<li><p><strong>report</strong> – Optional parameter specifying whether printout
+is desired (default is True).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>k_vec</strong> – Array of (nearly) equidistant interpolated
+k-points. The distance between the points is calculated in
+the Cartesian frame, however coordinates themselves are
+given in dimensionless reduced coordinates!  This is done
+so that this array can be directly passed to function
+<a class="reference internal" href="#pythtb.tb_model.solve_all" title="pythtb.tb_model.solve_all"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.tb_model.solve_all()</span></code></a>.</p></li>
+<li><p><strong>k_dist</strong> – Array giving accumulated k-distance to each
+k-point in the path.  Unlike array <em>k_vec</em> this one has
+dimensions! (Units are defined here so that for an
+one-dimensional crystal with lattice constant equal to for
+example <em>10</em> the length of the Brillouin zone would equal
+<em>1/10=0.1</em>.  In other words factors of <img class="math" src="_images/math/2ef04e0a4bcc5f1840308dabe353cfe6e48632c4.png" alt="2\pi"/> are
+absorbed into <em>k</em>.) This array can be used to plot path in
+the k-space so that the distances between the k-points in
+the plot are exact.</p></li>
+<li><p><strong>k_node</strong> – Array giving accumulated k-distance to each
+node on the path in Cartesian coordinates.  This array is
+typically used to plot nodes (typically special points) on
+the path in k-space.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Construct a path connecting four nodal points in k-space</span>
+<span class="c1"># Path will contain 401 k-points, roughly equally spaced</span>
+<span class="n">path</span> <span class="o">=</span> <span class="p">[[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]</span>
+<span class="p">(</span><span class="n">k_vec</span><span class="p">,</span><span class="n">k_dist</span><span class="p">,</span><span class="n">k_node</span><span class="p">)</span> <span class="o">=</span> <span class="n">my_model</span><span class="o">.</span><span class="n">k_path</span><span class="p">(</span><span class="n">path</span><span class="p">,</span><span class="mi">401</span><span class="p">)</span>
+<span class="c1"># solve for eigenvalues on that path</span>
+<span class="n">evals</span> <span class="o">=</span> <span class="n">tb</span><span class="o">.</span><span class="n">solve_all</span><span class="p">(</span><span class="n">k_vec</span><span class="p">)</span>
+<span class="c1"># then use evals, k_dist, and k_node to plot bandstructure</span>
+<span class="c1"># (see examples)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.ignore_position_operator_offdiagonal">
+<span class="sig-name descname"><span class="pre">ignore_position_operator_offdiagonal</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.ignore_position_operator_offdiagonal"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.ignore_position_operator_offdiagonal" title="Link to this definition">¶</a></dt>
+<dd><p>Call to this function enables one to approximately compute
+Berry-like objects from tight-binding models that were
+obtained from Wannier90.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.position_matrix">
+<span class="sig-name descname"><span class="pre">position_matrix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">evec</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dir</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.position_matrix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.position_matrix" title="Link to this definition">¶</a></dt>
+<dd><p>Returns matrix elements of the position operator along
+direction <em>dir</em> for eigenvectors <em>evec</em> at a single k-point.
+Position operator is defined in reduced coordinates.</p>
+<p>The returned object <img class="math" src="_images/math/ed38fa24f1c94891bd312012aab3f6673be3eb83.png" alt="X"/> is</p>
+<div class="math">
+<p><img src="_images/math/e8db5e60fd2312c33839e0168045e6c19357ea82.png" alt="X_{m n {\bf k}}^{\alpha} = \langle u_{m {\bf k}} \vert
+r^{\alpha} \vert u_{n {\bf k}} \rangle"/></p>
+</div><p>Here <img class="math" src="_images/math/35fd404269ab890ff34eb0accbbc4f73926892b5.png" alt="r^{\alpha}"/> is the position operator along direction
+<img class="math" src="_images/math/2f5aa019312e1bbc969deab8dca8b00f76025404.png" alt="\alpha"/> that is selected by <em>dir</em>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>evec</strong> – Eigenvectors for which we are computing matrix
+elements of the position operator.  The shape of this array
+is evec[band,orbital] if <em>nspin</em> equals 1 and
+evec[band,orbital,spin] if <em>nspin</em> equals 2.</p></li>
+<li><p><strong>dir</strong> – Direction along which we are computing the center.
+This integer must not be one of the periodic directions
+since position operator matrix element in that case is not
+well defined.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>pos_mat</strong> – Position operator matrix <img class="math" src="_images/math/1e6b53f3805d1ffc34530a865664defd88a99665.png" alt="X_{m n}"/> as defined 
+above. This is a square matrix with size determined by number of bands
+given in <em>evec</em> input array.  First index of <em>pos_mat</em> corresponds to
+bra vector (<em>m</em>) and second index to ket (<em>n</em>).</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># diagonalizes Hamiltonian at some k-points</span>
+<span class="p">(</span><span class="n">evals</span><span class="p">,</span> <span class="n">evecs</span><span class="p">)</span> <span class="o">=</span> <span class="n">my_model</span><span class="o">.</span><span class="n">solve_all</span><span class="p">(</span><span class="n">k_vec</span><span class="p">,</span><span class="n">eig_vectors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="c1"># computes position operator matrix elements for 3-rd kpoint </span>
+<span class="c1"># and bottom five bands along first coordinate</span>
+<span class="n">pos_mat</span> <span class="o">=</span> <span class="n">my_model</span><span class="o">.</span><span class="n">position_matrix</span><span class="p">(</span><span class="n">evecs</span><span class="p">[:</span><span class="mi">5</span><span class="p">,</span><span class="mi">2</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>See also this example: <a class="reference internal" href="examples.html#haldane-hwf-example"><span class="std std-ref">Hybrid Wannier centers in Haldane model</span></a>,</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.position_expectation">
+<span class="sig-name descname"><span class="pre">position_expectation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">evec</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dir</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.position_expectation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.position_expectation" title="Link to this definition">¶</a></dt>
+<dd><p>Returns diagonal matrix elements of the position operator.
+These elements <img class="math" src="_images/math/97a04263c97fa7ef670b4a22535feea4249cdb83.png" alt="X_{n n}"/> can be interpreted as an
+average position of n-th Bloch state <em>evec[n]</em> along
+direction <em>dir</em>.  Generally speaking these centers are <em>not</em>
+hybrid Wannier function centers (which are instead
+returned by <a class="reference internal" href="#pythtb.tb_model.position_hwf" title="pythtb.tb_model.position_hwf"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.tb_model.position_hwf()</span></code></a>).</p>
+<p>See function <a class="reference internal" href="#pythtb.tb_model.position_matrix" title="pythtb.tb_model.position_matrix"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.tb_model.position_matrix()</span></code></a> for
+definition of matrix <img class="math" src="_images/math/ed38fa24f1c94891bd312012aab3f6673be3eb83.png" alt="X"/>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>evec</strong> – Eigenvectors for which we are computing matrix
+elements of the position operator.  The shape of this array
+is evec[band,orbital] if <em>nspin</em> equals 1 and
+evec[band,orbital,spin] if <em>nspin</em> equals 2.</p></li>
+<li><p><strong>dir</strong> – Direction along which we are computing matrix
+elements.  This integer must not be one of the periodic
+directions since position operator matrix element in that
+case is not well defined.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>pos_exp</strong> – Diagonal elements of the position operator matrix <img class="math" src="_images/math/ed38fa24f1c94891bd312012aab3f6673be3eb83.png" alt="X"/>.
+Length of this vector is determined by number of bands given in <em>evec</em> input 
+array.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># diagonalizes Hamiltonian at some k-points</span>
+<span class="p">(</span><span class="n">evals</span><span class="p">,</span> <span class="n">evecs</span><span class="p">)</span> <span class="o">=</span> <span class="n">my_model</span><span class="o">.</span><span class="n">solve_all</span><span class="p">(</span><span class="n">k_vec</span><span class="p">,</span><span class="n">eig_vectors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="c1"># computes average position for 3-rd kpoint </span>
+<span class="c1"># and bottom five bands along first coordinate</span>
+<span class="n">pos_exp</span> <span class="o">=</span> <span class="n">my_model</span><span class="o">.</span><span class="n">position_expectation</span><span class="p">(</span><span class="n">evecs</span><span class="p">[:</span><span class="mi">5</span><span class="p">,</span><span class="mi">2</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>See also this example: <a class="reference internal" href="examples.html#haldane-hwf-example"><span class="std std-ref">Hybrid Wannier centers in Haldane model</span></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.tb_model.position_hwf">
+<span class="sig-name descname"><span class="pre">position_hwf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">evec</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hwf_evec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">basis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'orbital'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#tb_model.position_hwf"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.tb_model.position_hwf" title="Link to this definition">¶</a></dt>
+<dd><p>Returns eigenvalues and optionally eigenvectors of the
+position operator matrix <img class="math" src="_images/math/ed38fa24f1c94891bd312012aab3f6673be3eb83.png" alt="X"/> in basis of the orbitals
+or, optionally, of the input wave functions (typically Bloch
+functions).  The returned eigenvectors can be interpreted as
+linear combinations of the input states <em>evec</em> that have
+minimal extent (or spread <img class="math" src="_images/math/8b79605e88e6ebb950c74a1319cdc046dae2069c.png" alt="\Omega"/> in the sense of
+maximally localized Wannier functions) along direction
+<em>dir</em>. The eigenvalues are average positions of these
+localized states.</p>
+<p>Note that these eigenvectors are not maximally localized
+Wannier functions in the usual sense because they are
+localized only along one direction.  They are also not the
+average positions of the Bloch states <em>evec</em>, which are
+instead computed by <a class="reference internal" href="#pythtb.tb_model.position_expectation" title="pythtb.tb_model.position_expectation"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.tb_model.position_expectation()</span></code></a>.</p>
+<p>See function <a class="reference internal" href="#pythtb.tb_model.position_matrix" title="pythtb.tb_model.position_matrix"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.tb_model.position_matrix()</span></code></a> for
+the definition of the matrix <img class="math" src="_images/math/ed38fa24f1c94891bd312012aab3f6673be3eb83.png" alt="X"/>.</p>
+<p>See also Fig. 3 in Phys. Rev. Lett. 102, 107603 (2009) for a
+discussion of the hybrid Wannier function centers in the
+context of a Chern insulator.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>evec</strong> – Eigenvectors for which we are computing matrix
+elements of the position operator.  The shape of this array
+is evec[band,orbital] if <em>nspin</em> equals 1 and
+evec[band,orbital,spin] if <em>nspin</em> equals 2.</p></li>
+<li><p><strong>dir</strong> – Direction along which we are computing matrix
+elements.  This integer must not be one of the periodic
+directions since position operator matrix element in that
+case is not well defined.</p></li>
+<li><p><strong>hwf_evec</strong> – Optional boolean variable.  If set to <em>True</em> 
+this function will return not only eigenvalues but also 
+eigenvectors of <img class="math" src="_images/math/ed38fa24f1c94891bd312012aab3f6673be3eb83.png" alt="X"/>. Default value is <em>False</em>.</p></li>
+<li><p><strong>basis</strong> – Optional parameter. If basis=”wavefunction”, the hybrid
+Wannier function <em>hwf_evec</em> is returned in the basis of the input
+wave functions.  That is, the elements of hwf[i,j] give the amplitudes
+of the i-th hybrid Wannier function on the j-th input state.
+Note that option basis=”bloch” is a synonym for basis=”wavefunction”.
+If basis=”orbital”, the elements of hwf[i,orb] (or hwf[i,orb,spin]
+if nspin=2) give the amplitudes of the i-th hybrid Wannier function on
+the specified basis function.  Default is basis=”orbital”.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>hwfc</strong> – Eigenvalues of the position operator matrix <img class="math" src="_images/math/ed38fa24f1c94891bd312012aab3f6673be3eb83.png" alt="X"/>
+(also called hybrid Wannier function centers).
+Length of this vector equals number of bands given in <em>evec</em> input 
+array.  Hybrid Wannier function centers are ordered in ascending order.
+Note that in general <em>n</em>-th hwfc does not correspond to <em>n</em>-th electronic
+state <em>evec</em>.</p></li>
+<li><p><strong>hwf</strong> – Eigenvectors of the position operator matrix <img class="math" src="_images/math/ed38fa24f1c94891bd312012aab3f6673be3eb83.png" alt="X"/>.
+(also called hybrid Wannier functions).  These are returned only if
+parameter <em>hwf_evec</em> is set to <em>True</em>.
+The shape of this array is [h,x] or [h,x,s] depending on value of <em>basis</em>
+and <em>nspin</em>.  If <em>basis</em> is “bloch” then x refers to indices of 
+Bloch states <em>evec</em>.  If <em>basis</em> is “orbital” then <em>x</em> (or <em>x</em> and <em>s</em>)
+correspond to orbital index (or orbital and spin index if <em>nspin</em> is 2).</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># diagonalizes Hamiltonian at some k-points</span>
+<span class="p">(</span><span class="n">evals</span><span class="p">,</span> <span class="n">evecs</span><span class="p">)</span> <span class="o">=</span> <span class="n">my_model</span><span class="o">.</span><span class="n">solve_all</span><span class="p">(</span><span class="n">k_vec</span><span class="p">,</span><span class="n">eig_vectors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="c1"># computes hybrid Wannier centers (and functions) for 3-rd kpoint </span>
+<span class="c1"># and bottom five bands along first coordinate</span>
+<span class="p">(</span><span class="n">hwfc</span><span class="p">,</span> <span class="n">hwf</span><span class="p">)</span> <span class="o">=</span> <span class="n">my_model</span><span class="o">.</span><span class="n">position_hwf</span><span class="p">(</span><span class="n">evecs</span><span class="p">[:</span><span class="mi">5</span><span class="p">,</span><span class="mi">2</span><span class="p">],</span> <span class="mi">0</span><span class="p">,</span> <span class="n">hwf_evec</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">basis</span><span class="o">=</span><span class="s2">&quot;orbital&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>See also this example: <a class="reference internal" href="examples.html#haldane-hwf-example"><span class="std std-ref">Hybrid Wannier centers in Haldane model</span></a>,</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pythtb.wf_array">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pythtb.</span></span><span class="sig-name descname"><span class="pre">wf_array</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mesh_arr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nsta_arr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#wf_array"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.wf_array" title="Link to this definition">¶</a></dt>
+<dd><p>This class is used to store and manipulate an array of
+wavefunctions of a tight-binding model
+<a class="reference internal" href="#pythtb.tb_model" title="pythtb.tb_model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.tb_model</span></code></a> on a regular or non-regular grid
+These are typically the Bloch energy eigenstates of the
+model, but this class can also be used to store a subset
+of Bloch bands, a set of hybrid Wannier functions for a
+ribbon or slab, or any other set of wavefunctions that
+are expressed in terms of the underlying basis orbitals.
+It provides methods that can be used to calculate Berry 
+phases, Berry curvatures, 1st Chern numbers, etc.</p>
+<p><em>Regular k-space grid</em>:
+If the grid is a regular k-mesh (no parametric dimensions),
+a single call to the function
+<a class="reference internal" href="#pythtb.wf_array.solve_on_grid" title="pythtb.wf_array.solve_on_grid"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.wf_array.solve_on_grid()</span></code></a> will both construct a
+k-mesh that uniformly covers the Brillouin zone, and populate
+it with wavefunctions (eigenvectors) computed on this grid.
+The last point in each k-dimension is set so that it represents
+the same Bloch function as the first one (this involves the
+insertion of some orbital-position-dependent phase factors).</p>
+<p>Example <a class="reference internal" href="examples.html#haldane-bp-example"><span class="std std-ref">Berry phases in Haldane model</span></a> shows how to use wf_array on
+a regular grid of points in k-space. Examples <a class="reference internal" href="examples.html#cone-example"><span class="std std-ref">Berry phase around Dirac cone in graphene</span></a>
+and <a class="reference internal" href="examples.html#site-cycle-example"><span class="std std-ref">One-dimensional cycle of 1D tight-binding model</span></a> show how to use non-regular grid of
+points.</p>
+<p><em>Parametric or irregular k-space grid grid</em>:
+An irregular grid of points, or a grid that includes also
+one or more parametric dimensions, can be populated manually
+with the help of the <em>[]</em> operator.  For example, to copy
+eigenvectors <em>evec</em> into coordinate (2,3) in the <em>wf_array</em>
+object <em>wf</em> one can simply do:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">wf</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span><span class="o">=</span><span class="n">evec</span>
+</pre></div>
+</div>
+<p>The wavefunctions (here the eigenvectors) <em>evec</em> above
+are expected to be in the format <em>evec[state,orbital]</em>
+(or <em>evec[state,orbital,spin]</em> for the spinfull calculation),
+where <em>state</em> typically runs over all bands.
+This is the same format as returned by
+<a class="reference internal" href="#pythtb.tb_model.solve_one" title="pythtb.tb_model.solve_one"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.tb_model.solve_one()</span></code></a> or
+<a class="reference internal" href="#pythtb.tb_model.solve_all" title="pythtb.tb_model.solve_all"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.tb_model.solve_all()</span></code></a> (in the latter case one
+needs to restrict it to a single k-point as <em>evec[:,kpt,:]</em>
+if the model has <em>dim_k&gt;=1</em>).</p>
+<p>If wf_array is used for closed paths, either in a
+reciprocal-space or parametric direction, then one needs to
+include both the starting and ending eigenfunctions even though
+they are physically equivalent.  If the array dimension in
+question is a k-vector direction and the path traverses the
+Brillouin zone in a primitive reciprocal-lattice direction,
+<a class="reference internal" href="#pythtb.wf_array.impose_pbc" title="pythtb.wf_array.impose_pbc"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.wf_array.impose_pbc()</span></code></a> can be used to associate
+the starting and ending points with each other; if it is a
+non-winding loop in k-space or a loop in parameter space,
+then <a class="reference internal" href="#pythtb.wf_array.impose_loop" title="pythtb.wf_array.impose_loop"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.wf_array.impose_loop()</span></code></a> can be used instead.
+(These may not be necessary if only Berry fluxes are needed.)</p>
+<p>Example <a class="reference internal" href="examples.html#site-cycle-example"><span class="std std-ref">One-dimensional cycle of 1D tight-binding model</span></a> shows how one
+of the directions of <em>wf_array</em> object need not be a k-vector
+direction, but can instead be a Hamiltonian parameter <img class="math" src="_images/math/cefc603e5658facb747581f9567192993f21c7ab.png" alt="\lambda"/>
+(see also discussion after equation 4.1 in <a class="reference download internal" download="" href="_downloads/e39c23ce476d399b268efa520e7a9091/pythtb-formalism.pdf"><code class="xref download docutils literal notranslate"><span class="pre">notes</span> <span class="pre">on</span>
+<span class="pre">tight-binding</span> <span class="pre">formalism</span></code></a>).</p>
+<p>The wavevectors stored in <em>wf_array</em> are typically Hamiltonian
+eigenstates (e.g., Bloch functions for k-space arrays),
+with the <em>state</em> index running over all bands.  However, a
+<em>wf_array</em> object can also be used for other purposes, such
+as to store only a restricted set of Bloch states (e.g.,
+just the occupied ones); a set of modified Bloch states
+(e.g., premultiplied by a position, velocity, or Hamiltonian
+operator); or for hybrid Wannier functions (i.e., eigenstates
+of a position operator in a nonperiodic direction).  For an
+example of this kind, see <a class="reference internal" href="examples.html#cubic-slab-hwf"><span class="std std-ref">Hybrid Wannier functions on a cubic slab</span></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model</strong> – Object of type <a class="reference internal" href="#pythtb.tb_model" title="pythtb.tb_model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.tb_model</span></code></a> representing
+tight-binding model associated with this array of eigenvectors.</p></li>
+<li><p><strong>mesh_arr</strong> – List of dimensions of the mesh of the <em>wf_array</em>,
+in order of reciprocal-space and/or parametric directions.</p></li>
+<li><p><strong>nsta_arr</strong> – Optional parameter specifying the number of states
+packed into the <em>wf_array</em> at each point on the mesh.  Defaults
+to all states (i.e., norb*nspin).</p></li>
+</ul>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Construct wf_array capable of storing an 11x21 array of</span>
+<span class="c1"># wavefunctions      </span>
+<span class="n">wf</span> <span class="o">=</span> <span class="n">wf_array</span><span class="p">(</span><span class="n">tb</span><span class="p">,</span> <span class="p">[</span><span class="mi">11</span><span class="p">,</span> <span class="mi">21</span><span class="p">])</span>
+<span class="c1"># populate this wf_array with regular grid of points in</span>
+<span class="c1"># Brillouin zone</span>
+<span class="n">wf</span><span class="o">.</span><span class="n">solve_on_grid</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+
+<span class="c1"># Compute set of eigenvectors at one k-point</span>
+<span class="p">(</span><span class="nb">eval</span><span class="p">,</span> <span class="n">evec</span><span class="p">)</span> <span class="o">=</span> <span class="n">tb</span><span class="o">.</span><span class="n">solve_one</span><span class="p">([</span><span class="n">kx</span><span class="p">,</span> <span class="n">ky</span><span class="p">],</span> <span class="n">eig_vectors</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+<span class="c1"># Store it manually into a specified location in the array</span>
+<span class="n">wf</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">evec</span>
+<span class="c1"># To access the eigenvectors from the same position</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">wf</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">])</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.wf_array.solve_on_grid">
+<span class="sig-name descname"><span class="pre">solve_on_grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">start_k</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#wf_array.solve_on_grid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.wf_array.solve_on_grid" title="Link to this definition">¶</a></dt>
+<dd><p>Solve a tight-binding model on a regular mesh of k-points covering
+the entire reciprocal-space unit cell. Both points at the opposite
+sides of reciprocal-space unit cell are included in the array.</p>
+<p>This function also automatically imposes periodic boundary
+conditions on the eigenfunctions. See also the discussion in
+<a class="reference internal" href="#pythtb.wf_array.impose_pbc" title="pythtb.wf_array.impose_pbc"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.wf_array.impose_pbc()</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>start_k</strong> – Origin of a regular grid of points in the reciprocal space.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><dl class="simple">
+<dt><strong>gaps</strong> – returns minimal direct bandgap between n-th and n+1-th </dt><dd><p>band on all the k-points in the mesh.  Note that in the case of band
+crossings one may have to use very dense k-meshes to resolve
+the crossing.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Solve eigenvectors on a regular grid anchored</span>
+<span class="c1"># at a given point</span>
+<span class="n">wf</span><span class="o">.</span><span class="n">solve_on_grid</span><span class="p">([</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.5</span><span class="p">])</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.wf_array.solve_on_one_point">
+<span class="sig-name descname"><span class="pre">solve_on_one_point</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">kpt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mesh_indices</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#wf_array.solve_on_one_point"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.wf_array.solve_on_one_point" title="Link to this definition">¶</a></dt>
+<dd><p>Solve a tight-binding model on a single k-point and store the eigenvectors
+in the <em>wf_array</em> object in the location specified by <em>mesh_indices</em>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>kpt</strong> – List specifying desired k-point</p></li>
+<li><p><strong>mesh_indices</strong> – List specifying associated set of mesh indices</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Solve eigenvectors on a sphere of radius kappa surrounding</span>
+<span class="c1"># point k_0 in 3d k-space and pack into a predefined 2d wf_array</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">[</span><span class="n">n</span><span class="o">+</span><span class="mi">1</span><span class="p">]:</span>
+  <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">[</span><span class="n">m</span><span class="o">+</span><span class="mi">1</span><span class="p">]:</span>
+    <span class="n">theta</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">i</span><span class="o">/</span><span class="n">n</span>
+    <span class="n">phi</span><span class="o">=</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">j</span><span class="o">/</span><span class="n">m</span>
+    <span class="n">kx</span><span class="o">=</span><span class="n">k_0</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="n">kappa</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">phi</span><span class="p">)</span>
+    <span class="n">ky</span><span class="o">=</span><span class="n">k_0</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="n">kappa</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">phi</span><span class="p">)</span>
+    <span class="n">kz</span><span class="o">=</span><span class="n">k_0</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">+</span><span class="n">kappa</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span>
+    <span class="n">wf</span><span class="o">.</span><span class="n">solve_on_one_point</span><span class="p">([</span><span class="n">kx</span><span class="p">,</span><span class="n">ky</span><span class="p">,</span><span class="n">kz</span><span class="p">],[</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">])</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.wf_array.choose_states">
+<span class="sig-name descname"><span class="pre">choose_states</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">subset</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#wf_array.choose_states"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.wf_array.choose_states" title="Link to this definition">¶</a></dt>
+<dd><p>Create a new <em>wf_array</em> object containing a subset of the
+states in the original one.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>subset</strong> – List of integers specifying states to keep</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><dl class="simple">
+<dt><strong>wf_new</strong> – returns a <em>wf_array</em> that is identical in all</dt><dd><p>respects except that a subset of states have been kept.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Make new *wf_array* object containing only two states</span>
+<span class="n">wf_new</span><span class="o">=</span><span class="n">wf</span><span class="o">.</span><span class="n">choose_states</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span><span class="mi">5</span><span class="p">])</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.wf_array.empty_like">
+<span class="sig-name descname"><span class="pre">empty_like</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nsta_arr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#wf_array.empty_like"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.wf_array.empty_like" title="Link to this definition">¶</a></dt>
+<dd><p>Create a new empty <em>wf_array</em> object based on the original,
+optionally modifying the number of states carried in the array.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>nsta_arr</strong> – Optional parameter specifying the number
+of states (or bands) to be carried in the array.
+Defaults to the same as the original <em>wf_array</em> object.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><dl class="simple">
+<dt><strong>wf_new</strong> – returns a similar wf_array except that array</dt><dd><p>elements are unitialized and the number of states may have
+changed.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Make new empty wf_array object containing 6 bands per k-point</span>
+<span class="n">wf_new</span><span class="o">=</span><span class="n">wf</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">nsta_arr</span><span class="o">=</span><span class="mi">6</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.wf_array.impose_pbc">
+<span class="sig-name descname"><span class="pre">impose_pbc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k_dir</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#wf_array.impose_pbc"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.wf_array.impose_pbc" title="Link to this definition">¶</a></dt>
+<dd><p>If the <em>wf_array</em> object was populated using the
+<a class="reference internal" href="#pythtb.wf_array.solve_on_grid" title="pythtb.wf_array.solve_on_grid"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.wf_array.solve_on_grid()</span></code></a> method, this function
+should not be used since it will be called automatically by
+the code.</p>
+<p>The eigenfunctions <img class="math" src="_images/math/f3ea06f3015b13de4e0e9fa71f40ee8fa14db576.png" alt="\Psi_{n {\bf k}}"/> are by convention
+chosen to obey a periodic gauge, i.e.,
+<img class="math" src="_images/math/6f950368beb18c119f9c34de3f476d30fd97a2da.png" alt="\Psi_{n,{\bf k+G}}=\Psi_{n {\bf k}}"/> not only up to a
+phase, but they are also equal in phase.  It follows that
+the cell-periodic Bloch functions are related by
+<img class="math" src="_images/math/3ffffa668cc3bcd80e18fed73eccbc4d526dbcdc.png" alt="u_{n,{\bf k+G}}=e^{-i{\bf G}\cdot{\bf r}} u_{n {\bf k}}"/>.
+See <a class="reference download internal" download="" href="_downloads/e39c23ce476d399b268efa520e7a9091/pythtb-formalism.pdf"><code class="xref download docutils literal notranslate"><span class="pre">notes</span> <span class="pre">on</span> <span class="pre">tight-binding</span> <span class="pre">formalism</span></code></a> section 4.4 and equation 4.18 for
+more detail.  This routine sets the cell-periodic Bloch function
+at the end of the string in direction <img class="math" src="_images/math/94d94e77225de95bf008c6c57560dfbb01d04bb7.png" alt="{\bf G}"/> according
+to this formula, overwriting the previous value.</p>
+<p>This function will impose these periodic boundary conditions along
+one direction of the array. We are assuming that the k-point
+mesh increases by exactly one reciprocal lattice vector along
+this direction. This is currently <strong>not</strong> checked by the code;
+it is the responsibility of the user. Currently <em>wf_array</em>
+does not store the k-vectors on which the model was solved;
+it only stores the eigenvectors (wavefunctions).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>mesh_dir</strong> – Direction of wf_array along which you wish to
+impose periodic boundary conditions.</p></li>
+<li><p><strong>k_dir</strong> – Corresponding to the periodic k-vector direction
+in the Brillouin zone of the underlying <em>tb_model</em>.  Since
+version 1.7.0 this parameter is defined so that it is
+specified between 0 and <em>dim_r-1</em>.</p></li>
+</ul>
+</dd>
+</dl>
+<p>See example <a class="reference internal" href="examples.html#site-cycle-example"><span class="std std-ref">One-dimensional cycle of 1D tight-binding model</span></a>, where the periodic boundary
+condition is applied only along one direction of <em>wf_array</em>.</p>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Imposes periodic boundary conditions along the mesh_dir=0</span>
+<span class="c1"># direction of the wf_array object, assuming that along that</span>
+<span class="c1"># direction the k_dir=1 component of the k-vector is increased</span>
+<span class="c1"># by one reciprocal lattice vector.  This could happen, for</span>
+<span class="c1"># example, if the underlying tb_model is two dimensional but</span>
+<span class="c1"># wf_array is a one-dimensional path along k_y direction.          </span>
+<span class="n">wf</span><span class="o">.</span><span class="n">impose_pbc</span><span class="p">(</span><span class="n">mesh_dir</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">k_dir</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.wf_array.impose_loop">
+<span class="sig-name descname"><span class="pre">impose_loop</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh_dir</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#wf_array.impose_loop"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.wf_array.impose_loop" title="Link to this definition">¶</a></dt>
+<dd><p>If the user knows that the first and last points along the
+<em>mesh_dir</em> direction correspond to the same Hamiltonian (this
+is <strong>not</strong> checked), then this routine can be used to set the
+eigenvectors equal (with equal phase), by replacing the last
+eigenvector with the first one (for each band, and for each
+other mesh direction, if any).</p>
+<p>This routine should not be used if the first and last points
+are related by a reciprocal lattice vector; in that case,
+<a class="reference internal" href="#pythtb.wf_array.impose_pbc" title="pythtb.wf_array.impose_pbc"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.wf_array.impose_pbc()</span></code></a> should be used instead.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>mesh_dir</strong> – Direction of wf_array along which you wish to
+impose periodic boundary conditions.</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Suppose the wf_array object is three-dimensional</span>
+<span class="c1"># corresponding to (kx,ky,lambda) where (kx,ky) are</span>
+<span class="c1"># wavevectors of a 2D insulator and lambda is an</span>
+<span class="c1"># adiabatic parameter that goes around a closed loop.</span>
+<span class="c1"># Then to insure that the states at the ends of the lambda</span>
+<span class="c1"># path are equal (with equal phase) in preparation for</span>
+<span class="c1"># computing Berry phases in lambda for given (kx,ky),</span>
+<span class="c1"># do wf.impose_loop(mesh_dir=2)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.wf_array.position_matrix">
+<span class="sig-name descname"><span class="pre">position_matrix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">occ</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dir</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#wf_array.position_matrix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.wf_array.position_matrix" title="Link to this definition">¶</a></dt>
+<dd><p>Similar to <a class="reference internal" href="#pythtb.tb_model.position_matrix" title="pythtb.tb_model.position_matrix"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.tb_model.position_matrix()</span></code></a>.  Only
+difference is that, in addition to specifying <em>dir</em>, one also
+has to specify <em>key</em> (k-point of interest) and <em>occ</em> (list of
+states to be included, which can optionally be ‘All’).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.wf_array.position_expectation">
+<span class="sig-name descname"><span class="pre">position_expectation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">occ</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dir</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#wf_array.position_expectation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.wf_array.position_expectation" title="Link to this definition">¶</a></dt>
+<dd><p>Similar to <a class="reference internal" href="#pythtb.tb_model.position_expectation" title="pythtb.tb_model.position_expectation"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.tb_model.position_expectation()</span></code></a>.  Only
+difference is that, in addition to specifying <em>dir</em>, one also
+has to specify <em>key</em> (k-point of interest) and <em>occ</em> (list of
+states to be included, which can optionally be ‘All’).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.wf_array.position_hwf">
+<span class="sig-name descname"><span class="pre">position_hwf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">occ</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hwf_evec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">basis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'wavefunction'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#wf_array.position_hwf"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.wf_array.position_hwf" title="Link to this definition">¶</a></dt>
+<dd><p>Similar to <a class="reference internal" href="#pythtb.tb_model.position_hwf" title="pythtb.tb_model.position_hwf"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.tb_model.position_hwf()</span></code></a>, except that
+in addition to specifying <em>dir</em>, one also has to specify
+<em>key</em>, the k-point of interest, and <em>occ</em>, a list of states to
+be included (typically the occupied states).</p>
+<p>For backwards compatibility the default value of <em>basis</em> here is different
+from that in <a class="reference internal" href="#pythtb.tb_model.position_hwf" title="pythtb.tb_model.position_hwf"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.tb_model.position_hwf()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.wf_array.berry_phase">
+<span class="sig-name descname"><span class="pre">berry_phase</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">occ</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'All'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">contin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">berry_evals</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#wf_array.berry_phase"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.wf_array.berry_phase" title="Link to this definition">¶</a></dt>
+<dd><p>Computes the Berry phase along a given array direction
+and for a given set of states.  These are typically the
+occupied Bloch states, in which case <em>occ</em> should range
+over all occupied bands.  In this context, the occupied
+and unoccupied bands should be well separated in energy;
+it is the responsibility of the user to check that this
+is satisfied.  If <em>occ</em> is not specified or is specified
+as ‘All’, all states are selected. By default, the
+function returns the Berry phase traced over the
+specified set of bands, but optionally the individual
+phases of the eigenvalues of the global unitary rotation
+matrix (corresponding to “maximally localized Wannier
+centers” or “Wilson loop eigenvalues”) can be requested
+(see parameter <em>berry_evals</em> for more details).</p>
+<p>For an array of size <em>N</em> in direction $dir$, the Berry phase
+is computed from the <em>N-1</em> inner products of neighboring
+eigenfunctions.  This corresponds to an “open-path Berry
+phase” if the first and last points have no special
+relation.  If they correspond to the same physical
+Hamiltonian, and have been properly aligned in phase using
+<a class="reference internal" href="#pythtb.wf_array.impose_pbc" title="pythtb.wf_array.impose_pbc"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.wf_array.impose_pbc()</span></code></a> or
+<a class="reference internal" href="#pythtb.wf_array.impose_loop" title="pythtb.wf_array.impose_loop"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.wf_array.impose_loop()</span></code></a>, then a closed-path
+Berry phase will be computed.</p>
+<p>For a one-dimensional wf_array (i.e., a single string), the
+computed Berry phases are always chosen to be between -pi and pi.
+For a higher dimensional wf_array, the Berry phase is computed
+for each one-dimensional string of points, and an array of
+Berry phases is returned. The Berry phase for the first string
+(with lowest index) is always constrained to be between -pi and
+pi. The range of the remaining phases depends on the value of
+the input parameter <em>contin</em>.</p>
+<p>The discretized formula used to compute Berry phase is described
+in Sec. 4.5 of <a class="reference download internal" download="" href="_downloads/e39c23ce476d399b268efa520e7a9091/pythtb-formalism.pdf"><code class="xref download docutils literal notranslate"><span class="pre">notes</span> <span class="pre">on</span> <span class="pre">tight-binding</span> <span class="pre">formalism</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>occ</strong> – Optional array of indices of states to be included
+in the subsequent calculations, typically the indices of
+bands considered occupied.  Default is all bands.</p></li>
+<li><p><strong>dir</strong> – Index of wf_array direction along which Berry phase is
+computed. This parameters needs not be specified for
+a one-dimensional wf_array.</p></li>
+<li><p><strong>contin</strong> – Optional boolean parameter. If True then the
+branch choice of the Berry phase (which is indeterminate
+modulo 2*pi) is made so that neighboring strings (in the
+direction of increasing index value) have as close as
+possible phases. The phase of the first string (with lowest
+index) is always constrained to be between -pi and pi. If
+False, the Berry phase for every string is constrained to be
+between -pi and pi. The default value is True.</p></li>
+<li><p><strong>berry_evals</strong> – Optional boolean parameter. If True then
+will compute and return the phases of the eigenvalues of the
+product of overlap matrices. (These numbers correspond also
+to hybrid Wannier function centers.) These phases are either
+forced to be between -pi and pi (if <em>contin</em> is <em>False</em>) or
+they are made to be continuous (if <em>contin</em> is True).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>pha</strong> – If <em>berry_evals</em> is False (default value) then
+returns the Berry phase for each string. For a
+one-dimensional wf_array this is just one number. For a
+higher-dimensional wf_array <em>pha</em> contains one phase for
+each one-dimensional string in the following format. For
+example, if <em>wf_array</em> contains k-points on mesh with
+indices [i,j,k] and if direction along which Berry phase
+is computed is <em>dir=1</em> then <em>pha</em> will be two dimensional
+array with indices [i,k], since Berry phase is computed
+along second direction. If <em>berry_evals</em> is True then for
+each string returns phases of all eigenvalues of the
+product of overlap matrices. In the convention used for
+previous example, <em>pha</em> in this case would have indices
+[i,k,n] where <em>n</em> refers to index of individual phase of
+the product matrix eigenvalue.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Computes Berry phases along second direction for three lowest</span>
+<span class="c1"># occupied states. For example, if wf is threedimensional, then</span>
+<span class="c1"># pha[2,3] would correspond to Berry phase of string of states</span>
+<span class="c1"># along wf[2,:,3]</span>
+<span class="n">pha</span> <span class="o">=</span> <span class="n">wf</span><span class="o">.</span><span class="n">berry_phase</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>See also these examples: <a class="reference internal" href="examples.html#haldane-bp-example"><span class="std std-ref">Berry phases in Haldane model</span></a>,
+<a class="reference internal" href="examples.html#cone-example"><span class="std std-ref">Berry phase around Dirac cone in graphene</span></a>, <a class="reference internal" href="examples.html#site-cycle-example"><span class="std std-ref">One-dimensional cycle of 1D tight-binding model</span></a>,</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.wf_array.berry_flux">
+<span class="sig-name descname"><span class="pre">berry_flux</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">occ</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'All'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dirs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">individual_phases</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#wf_array.berry_flux"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.wf_array.berry_flux" title="Link to this definition">¶</a></dt>
+<dd><p>In the case of a 2-dimensional <em>wf_array</em> array calculates the
+integral of Berry curvature over the entire plane.  In higher
+dimensional case (3 or 4) it will compute integrated curvature
+over all 2-dimensional slices of a higher-dimensional
+<em>wf_array</em>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>occ</strong> – Optional array of indices of states to be included
+in the subsequent calculations, typically the indices of
+bands considered occupied.  If not specified or specified as
+‘All’, all bands are included.</p></li>
+<li><p><strong>dirs</strong> – Array of indices of two wf_array directions on which
+the Berry flux is computed. This parameter needs not be
+specified for a two-dimensional wf_array.  By default <em>dirs</em> takes
+first two directions in the array.</p></li>
+<li><p><strong>individual_phases</strong> – If <em>True</em> then returns Berry phase
+for each plaquette (small square) in the array. Default
+value is <em>False</em>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>flux</strong> – In a 2-dimensional case returns and integral
+of Berry curvature (if <em>individual_phases</em> is <em>True</em> then
+returns integral of Berry phase around each plaquette).
+In higher dimensional case returns integral of Berry
+curvature over all slices defined with directions <em>dirs</em>.
+Returned value is an array over the remaining indices of
+<em>wf_array</em>.  (If <em>individual_phases</em> is <em>True</em> then it
+returns again phases around each plaquette for each
+slice. First indices define the slice, last two indices
+index the plaquette.)</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Computes integral of Berry curvature of first three bands</span>
+<span class="n">flux</span> <span class="o">=</span> <span class="n">wf</span><span class="o">.</span><span class="n">berry_flux</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pythtb.w90">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pythtb.</span></span><span class="sig-name descname"><span class="pre">w90</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#w90"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.w90" title="Link to this definition">¶</a></dt>
+<dd><p>This class of the PythTB package imports tight-binding model
+parameters from an output of a <a class="reference external" href="http://www.wannier.org">Wannier90</a> code.</p>
+<p>The <a class="reference external" href="http://www.wannier.org">Wannier90</a> code is a
+post-processing tool that takes as an input electron wavefunctions
+and energies computed from first-principles using any of the
+following codes: Quantum-Espresso (PWscf), AbInit, SIESTA, FLEUR,
+Wien2k, VASP.  As an output Wannier90 will create files that
+contain parameters for a tight-binding model that exactly
+reproduces the first-principles calculated electron band
+structure.</p>
+<p>The interface from Wannier90 to PythTB will use only the following
+files created by Wannier90:</p>
+<ul class="simple">
+<li><p><em>prefix</em>.win</p></li>
+<li><p><em>prefix</em>_hr.dat</p></li>
+<li><p><em>prefix</em>_centres.xyz</p></li>
+<li><p><em>prefix</em>_band.kpt (optional)</p></li>
+<li><p><em>prefix</em>_band.dat (optional)</p></li>
+</ul>
+<p>The first file (<em>prefix</em>.win) is an input file to Wannier90 itself. This
+file is needed so that PythTB can read in the unit cell vectors.</p>
+<p>To correctly create the second and the third file (<em>prefix</em>_hr.dat and
+<em>prefix</em>_centres.dat) one needs to include the following flags in the win
+file:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">hr_plot</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">write_xyz</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">translate_home_cell</span> <span class="o">=</span> <span class="kc">False</span>
+</pre></div>
+</div>
+<p>These lines ensure that <em>prefix</em>_hr.dat and <em>prefix</em>_centres.dat
+are written and that the centers of the Wannier functions written
+in the <em>prefix</em>_centres.dat file are not translated to the home
+cell.  The <em>prefix</em>_hr.dat file contains the onsite and hopping
+terms.</p>
+<p>The final two files (<em>prefix</em>_band.kpt and <em>prefix</em>_band.dat)
+are optional.  Please see documentation of function
+<a class="reference internal" href="#pythtb.w90.w90_bands_consistency" title="pythtb.w90.w90_bands_consistency"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.w90.w90_bands_consistency()</span></code></a> for more detail.</p>
+<p>So far we tested only Wannier90 version 2.0.1.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>For the time being PythTB is not optimized to be used
+with very large tight-binding models.  Therefore it is not
+advisable to use the interface to Wannier90 with large
+first-principles calculations that contain many k-points and/or
+electron bands.  One way to reduce the computational cost is to
+wannierize with Wannier90 only the bands of interest (for
+example, bands near the Fermi level).</p>
+</div>
+<p>Units used throught this interface with Wannier90 are
+electron-volts (eV) and Angstroms.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>User needs to make sure that the Wannier functions
+computed using Wannier90 code are well localized.  Otherwise the
+tight-binding model might not interpolate well the band
+structure.  To ensure that the Wannier functions are well
+localized it is often enough to check that the total spread at
+the beginning of the minimization procedure (first total spread
+printed in .wout file) is not more than 20% larger than the
+total spread at the end of the minimization procedure.  If those
+spreads differ by much more than 20% user needs to specify
+better initial projection functions.</p>
+<p>In addition, please note that the interpolation is valid only
+within the frozen energy window of the disentanglement
+procedure.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>So far PythTB assumes that the position operator is
+diagonal in the tight-binding basis.  This is discussed in the
+<a class="reference download internal" download="" href="_downloads/e39c23ce476d399b268efa520e7a9091/pythtb-formalism.pdf"><code class="xref download docutils literal notranslate"><span class="pre">notes</span> <span class="pre">on</span> <span class="pre">tight-binding</span> <span class="pre">formalism</span></code></a> in Eq. 2.7.,
+<img class="math" src="_images/math/e9d767404c318be27e10410a402b97c9035a5e37.png" alt="\langle\phi_{{\bf R} i} \vert {\bf r} \vert \phi_{{\bf
+R}' j} \rangle = ({\bf R} + {\bf t}_j) \delta_{{\bf R} {\bf R}'}
+\delta_{ij}"/>.  However, this relation does not hold for Wannier
+functions!  Therefore, if you use tight-binding model derived
+from this class in computing Berry-like objects that involve
+position operator such as Berry phase or Berry flux, you would
+not get the same result as if you computed those objects
+directly from the first-principles code!  Nevertheless, this
+approximation does not affect other properties such as band
+structure dispersion.</p>
+</div>
+<p>For the testing purposes user can download the following
+<a class="reference download internal" download="" href="_downloads/6736bace7dc882b319959de08e71a1fe/wannier90_example.tar.gz"><code class="xref download docutils literal notranslate"><span class="pre">wannier90</span> <span class="pre">output</span> <span class="pre">example</span></code></a> and use the following
+<a class="reference internal" href="examples.html#w90-quick"><span class="std std-ref">script</span></a> to test the functionality of the interface to
+PythTB. Run the following command in unix terminal to decompress
+the tarball:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">tar</span> <span class="o">-</span><span class="n">zxf</span> <span class="n">wannier90_example</span><span class="o">.</span><span class="n">tar</span><span class="o">.</span><span class="n">gz</span>
+</pre></div>
+</div>
+<p>and then run the following <a class="reference internal" href="examples.html#w90-quick"><span class="std std-ref">script</span></a> in the same
+folder.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> – Relative path to the folder that contains Wannier90
+files.  These are <em>prefix</em>.win, <em>prefix</em>_hr.dat,
+<em>prefix</em>_centres.dat and optionally <em>prefix</em>_band.kpt and
+<em>prefix</em>_band.dat.</p></li>
+<li><p><strong>prefix</strong> – This is the prefix used by Wannier90 code.
+Typically the input to the Wannier90 code is name <em>prefix</em>.win.</p></li>
+</ul>
+</dd>
+</dl>
+<p>Initially this function will read in the entire Wannier90 output.
+To create <a class="reference internal" href="#pythtb.tb_model" title="pythtb.tb_model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.tb_model</span></code></a> object user needs to call
+<a class="reference internal" href="#pythtb.w90.model" title="pythtb.w90.model"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.w90.model()</span></code></a>.</p>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># reads Wannier90 from folder called *example_a*</span>
+<span class="c1"># it assumes that that folder contains files &quot;silicon.win&quot; and so on</span>
+<span class="n">silicon</span><span class="o">=</span><span class="n">w90</span><span class="p">(</span><span class="s2">&quot;example_a&quot;</span><span class="p">,</span> <span class="s2">&quot;silicon&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.w90.model">
+<span class="sig-name descname"><span class="pre">model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">zero_energy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_hopping_norm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_distance</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ignorable_imaginary_part</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#w90.model"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.w90.model" title="Link to this definition">¶</a></dt>
+<dd><p>This function returns <a class="reference internal" href="#pythtb.tb_model" title="pythtb.tb_model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.tb_model</span></code></a> object that can
+be used to interpolate the band structure at arbitrary
+k-point, analyze the wavefunction character, etc.</p>
+<p>The tight-binding basis orbitals in the returned object are
+maximally localized Wannier functions as computed by
+Wannier90.  The orbital character of these functions can be
+inferred either from the <em>projections</em> block in the
+<em>prefix</em>.win or from the <em>prefix</em>.nnkp file.  Please note that
+the character of the maximally localized Wannier functions is
+not exactly the same as that specified by the initial
+projections.  One way to ensure that the Wannier functions are
+as close to the initial projections as possible is to first
+choose a good set of initial projections (for these initial
+and final spread should not differ more than 20%) and then
+perform another Wannier90 run setting <em>num_iter=0</em> in the
+<em>prefix</em>.win file.</p>
+<p>Number of spin components is always set to 1, even if the
+underlying DFT calculation includes spin.  Please refer to the
+<em>projections</em> block or the <em>prefix</em>.nnkp file to see which
+orbitals correspond to which spin.</p>
+<p>Locations of the orbitals in the returned
+<a class="reference internal" href="#pythtb.tb_model" title="pythtb.tb_model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.tb_model</span></code></a> object are equal to the centers of
+the Wannier functions computed by Wannier90.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>zero_energy</strong> – Sets the zero of the energy in the band
+structure.  This value is typically set to the Fermi level
+computed by the density-functional code (or to the top of the
+valence band).  Units are electron-volts.</p></li>
+<li><p><strong>min_hopping_norm</strong> – Hopping terms read from Wannier90 with
+complex norm less than <em>min_hopping_norm</em> will not be included
+in the returned tight-binding model.  This parameters is
+specified in electron-volts.  By default all terms regardless
+of their norm are included.</p></li>
+<li><p><strong>max_distance</strong> – Hopping terms from site <em>i</em> to site <em>j+R</em> will
+be ignored if the distance from orbital <em>i</em> to <em>j+R</em> is larger
+than <em>max_distance</em>.  This parameter is given in Angstroms.
+By default all terms regardless of the distance are included.</p></li>
+<li><p><strong>ignorable_imaginary_part</strong> – The hopping term will be assumed to
+be exactly real if the absolute value of the imaginary part as
+computed by Wannier90 is less than <em>ignorable_imaginary_part</em>.
+By default imaginary terms are not ignored.  Units are again
+eV.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><dl class="simple">
+<dt><strong>tb</strong> –  The object of type <a class="reference internal" href="#pythtb.tb_model" title="pythtb.tb_model"><code class="xref py py-class docutils literal notranslate"><span class="pre">pythtb.tb_model</span></code></a> that can be used to</dt><dd><p>interpolate Wannier90 band structure to an arbitrary k-point as well
+as to analyze the character of the wavefunctions.  Please note</p>
+</dd>
+</dl>
+</li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># returns tb_model with all hopping parameters</span>
+<span class="n">my_model</span><span class="o">=</span><span class="n">silicon</span><span class="o">.</span><span class="n">model</span><span class="p">()</span>
+
+<span class="c1"># simplified model that contains only hopping terms above 0.01 eV</span>
+<span class="n">my_model_simple</span><span class="o">=</span><span class="n">silicon</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">min_hopping_norm</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span>
+<span class="n">my_model_simple</span><span class="o">.</span><span class="n">display</span><span class="p">()</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.w90.dist_hop">
+<span class="sig-name descname"><span class="pre">dist_hop</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#w90.dist_hop"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.w90.dist_hop" title="Link to this definition">¶</a></dt>
+<dd><p>This is one of the diagnostic tools that can be used to help
+in determining <em>min_hopping_norm</em> and <em>max_distance</em> parameter in
+<a class="reference internal" href="#pythtb.w90.model" title="pythtb.w90.model"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.w90.model()</span></code></a> function call.</p>
+<p>This function returns all hopping terms (from orbital <em>i</em> to
+<em>j+R</em>) as well as the distances between the <em>i</em> and <em>j+R</em>
+orbitals.  For well localized Wannier functions hopping term
+should decay exponentially with distance.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><strong>dist</strong> –  Distances between Wannier function centers (<em>i</em> and <em>j+R</em>) in Angstroms.</p></li>
+<li><p><strong>ham</strong> –  Corresponding hopping terms in eV.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># get distances and hopping terms</span>
+<span class="p">(</span><span class="n">dist</span><span class="p">,</span><span class="n">ham</span><span class="p">)</span><span class="o">=</span><span class="n">silicon</span><span class="o">.</span><span class="n">dist_hop</span><span class="p">()</span>
+
+<span class="c1"># plot logarithm of the hopping term as a function of distance</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">dist</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">ham</span><span class="p">)))</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;localization.pdf&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.w90.shells">
+<span class="sig-name descname"><span class="pre">shells</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num_digits</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#w90.shells"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.w90.shells" title="Link to this definition">¶</a></dt>
+<dd><p>This is one of the diagnostic tools that can be used to help
+in determining <em>max_distance</em> parameter in
+<a class="reference internal" href="#pythtb.w90.model" title="pythtb.w90.model"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.w90.model()</span></code></a> function call.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>num_digits</strong> – Distances will be rounded up to these many
+digits.  Default value is 2.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>shells</strong> –  All distances between all Wannier function centers (<em>i</em> and <em>j+R</em>) in Angstroms.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># prints on screen all shells</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">silicon</span><span class="o">.</span><span class="n">shells</span><span class="p">())</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pythtb.w90.w90_bands_consistency">
+<span class="sig-name descname"><span class="pre">w90_bands_consistency</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pythtb.html#w90.w90_bands_consistency"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pythtb.w90.w90_bands_consistency" title="Link to this definition">¶</a></dt>
+<dd><p>This function reads in band structure as interpolated by
+Wannier90.  Please note that this is not the same as the band
+structure calculated by the underlying DFT code.  The two will
+agree only on the coarse set of k-points that were used in
+Wannier90 generation.</p>
+<p>The purpose of this function is to compare the interpolation
+in Wannier90 with that in PythTB.  If no terms were ignored in
+the call to <a class="reference internal" href="#pythtb.w90.model" title="pythtb.w90.model"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.w90.model()</span></code></a> then the two should
+be exactly the same (up to numerical precision).  Otherwise
+one should expect deviations.  However, if one carefully
+chooses the cutoff parameters in <a class="reference internal" href="#pythtb.w90.model" title="pythtb.w90.model"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.w90.model()</span></code></a>
+it is likely that one could reproduce the full band-structure
+with only few dominant hopping terms.  Please note that this
+tests only the eigenenergies, not eigenvalues (wavefunctions).</p>
+<p>The code assumes that the following files were generated by
+Wannier90,</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><em>prefix</em>_band.kpt</p></li>
+<li><p><em>prefix</em>_band.dat</p></li>
+</ul>
+</div></blockquote>
+<p>These files will be generated only if the <em>prefix</em>.win file
+contains the <em>kpoint_path</em> block.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><strong>kpts</strong> – k-points in reduced coordinates used in the
+interpolation in Wannier90 code.  The format of <em>kpts</em> is
+the same as the one used by the input to
+<a class="reference internal" href="#pythtb.tb_model.solve_all" title="pythtb.tb_model.solve_all"><code class="xref py py-func docutils literal notranslate"><span class="pre">pythtb.tb_model.solve_all()</span></code></a>.</p></li>
+<li><p><strong>ene</strong> – energies interpolated by Wannier90 in
+eV. Format is ene[band,kpoint].</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+<p>Example usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># get band structure from wannier90</span>
+<span class="p">(</span><span class="n">w90_kpt</span><span class="p">,</span><span class="n">w90_evals</span><span class="p">)</span><span class="o">=</span><span class="n">silicon</span><span class="o">.</span><span class="n">w90_bands_consistency</span><span class="p">()</span>
+
+<span class="c1"># get simplified model</span>
+<span class="n">my_model_simple</span><span class="o">=</span><span class="n">silicon</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">min_hopping_norm</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span>
+
+<span class="c1"># solve simplified model on the same k-path as in wannier90</span>
+<span class="n">evals</span><span class="o">=</span><span class="n">my_model</span><span class="o">.</span><span class="n">solve_all</span><span class="p">(</span><span class="n">w90_kpt</span><span class="p">)</span>
+
+<span class="c1"># plot comparison of the two</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span> 
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">evals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">evals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span><span class="n">evals</span><span class="p">[</span><span class="n">i</span><span class="p">],</span><span class="s2">&quot;r-&quot;</span><span class="p">,</span><span class="n">zorder</span><span class="o">=-</span><span class="mi">50</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">w90_evals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">w90_evals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span><span class="n">w90_evals</span><span class="p">[</span><span class="n">i</span><span class="p">],</span><span class="s2">&quot;k-&quot;</span><span class="p">,</span><span class="n">zorder</span><span class="o">=-</span><span class="mi">100</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;comparison.pdf&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h3><a href="index.html">PythTB</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="formalism.html">Formalism</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="resources.html">Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="citation.html">Citation</a></li>
+</ul>
+
+  <h3><a href="index.html">This page</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Usage</a><ul>
+<li><a class="reference internal" href="#pythtb.tb_model"><code class="docutils literal notranslate"><span class="pre">tb_model</span></code></a><ul>
+<li><a class="reference internal" href="#pythtb.tb_model.set_onsite"><code class="docutils literal notranslate"><span class="pre">tb_model.set_onsite()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.set_hop"><code class="docutils literal notranslate"><span class="pre">tb_model.set_hop()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.display"><code class="docutils literal notranslate"><span class="pre">tb_model.display()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.visualize"><code class="docutils literal notranslate"><span class="pre">tb_model.visualize()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.get_num_orbitals"><code class="docutils literal notranslate"><span class="pre">tb_model.get_num_orbitals()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.get_orb"><code class="docutils literal notranslate"><span class="pre">tb_model.get_orb()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.get_lat"><code class="docutils literal notranslate"><span class="pre">tb_model.get_lat()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.solve_all"><code class="docutils literal notranslate"><span class="pre">tb_model.solve_all()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.solve_one"><code class="docutils literal notranslate"><span class="pre">tb_model.solve_one()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.cut_piece"><code class="docutils literal notranslate"><span class="pre">tb_model.cut_piece()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.reduce_dim"><code class="docutils literal notranslate"><span class="pre">tb_model.reduce_dim()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.change_nonperiodic_vector"><code class="docutils literal notranslate"><span class="pre">tb_model.change_nonperiodic_vector()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.make_supercell"><code class="docutils literal notranslate"><span class="pre">tb_model.make_supercell()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.remove_orb"><code class="docutils literal notranslate"><span class="pre">tb_model.remove_orb()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.k_uniform_mesh"><code class="docutils literal notranslate"><span class="pre">tb_model.k_uniform_mesh()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.k_path"><code class="docutils literal notranslate"><span class="pre">tb_model.k_path()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.ignore_position_operator_offdiagonal"><code class="docutils literal notranslate"><span class="pre">tb_model.ignore_position_operator_offdiagonal()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.position_matrix"><code class="docutils literal notranslate"><span class="pre">tb_model.position_matrix()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.position_expectation"><code class="docutils literal notranslate"><span class="pre">tb_model.position_expectation()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.tb_model.position_hwf"><code class="docutils literal notranslate"><span class="pre">tb_model.position_hwf()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#pythtb.wf_array"><code class="docutils literal notranslate"><span class="pre">wf_array</span></code></a><ul>
+<li><a class="reference internal" href="#pythtb.wf_array.solve_on_grid"><code class="docutils literal notranslate"><span class="pre">wf_array.solve_on_grid()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.wf_array.solve_on_one_point"><code class="docutils literal notranslate"><span class="pre">wf_array.solve_on_one_point()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.wf_array.choose_states"><code class="docutils literal notranslate"><span class="pre">wf_array.choose_states()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.wf_array.empty_like"><code class="docutils literal notranslate"><span class="pre">wf_array.empty_like()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.wf_array.impose_pbc"><code class="docutils literal notranslate"><span class="pre">wf_array.impose_pbc()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.wf_array.impose_loop"><code class="docutils literal notranslate"><span class="pre">wf_array.impose_loop()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.wf_array.position_matrix"><code class="docutils literal notranslate"><span class="pre">wf_array.position_matrix()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.wf_array.position_expectation"><code class="docutils literal notranslate"><span class="pre">wf_array.position_expectation()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.wf_array.position_hwf"><code class="docutils literal notranslate"><span class="pre">wf_array.position_hwf()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.wf_array.berry_phase"><code class="docutils literal notranslate"><span class="pre">wf_array.berry_phase()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.wf_array.berry_flux"><code class="docutils literal notranslate"><span class="pre">wf_array.berry_flux()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#pythtb.w90"><code class="docutils literal notranslate"><span class="pre">w90</span></code></a><ul>
+<li><a class="reference internal" href="#pythtb.w90.model"><code class="docutils literal notranslate"><span class="pre">w90.model()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.w90.dist_hop"><code class="docutils literal notranslate"><span class="pre">w90.dist_hop()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.w90.shells"><code class="docutils literal notranslate"><span class="pre">w90.shells()</span></code></a></li>
+<li><a class="reference internal" href="#pythtb.w90.w90_bands_consistency"><code class="docutils literal notranslate"><span class="pre">w90.w90_bands_consistency()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="resources.html" title="Resources"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="formalism.html" title="Formalism"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">PythTB 1.8.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Usage</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2016, Sinisa Coh and David Vanderbilt.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    </div>
+  </body>
+</html>

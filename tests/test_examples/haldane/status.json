@@ -1,26 +1,26 @@
 {
+    "haldane": {
+        "last_pass": "2025-11-11T00:20:34.080444",
+        "pythtb_version": "2.0.0.post421+gd76ad73cc.d20251108",
+        "python_version": "3.12.11",
+        "status": "pass"
+    },
     "haldane_bp": {
-        "status": "unknown",
-        "created": "2025-06-18T18:05:13.975323",
-        "pythtb_version": "2.0.0",
-        "python_version": "3.11.11"
+        "last_pass": "2025-11-11T00:20:34.220898",
+        "pythtb_version": "2.0.0.post421+gd76ad73cc.d20251108",
+        "python_version": "3.12.11",
+        "status": "pass"
     },
     "haldane_fin": {
-        "status": "unknown",
-        "created": "2025-06-18T18:05:17.611118",
-        "pythtb_version": "2.0.0",
-        "python_version": "3.11.11"
+        "last_pass": "2025-11-11T00:20:34.792440",
+        "pythtb_version": "2.0.0.post421+gd76ad73cc.d20251108",
+        "python_version": "3.12.11",
+        "status": "pass"
     },
     "haldane_hwf": {
-        "status": "unknown",
-        "created": "2025-06-18T18:05:21.752607",
-        "pythtb_version": "2.0.0",
-        "python_version": "3.11.11"
-    },
-    "haldane": {
-        "status": "unknown",
-        "created": "2025-06-18T18:05:23.921174",
-        "pythtb_version": "2.0.0",
-        "python_version": "3.11.11"
+        "last_pass": "2025-11-11T00:20:35.042082",
+        "pythtb_version": "2.0.0.post421+gd76ad73cc.d20251108",
+        "python_version": "3.12.11",
+        "status": "pass"
     }
 }

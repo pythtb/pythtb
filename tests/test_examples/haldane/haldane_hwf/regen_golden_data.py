@@ -9,14 +9,15 @@ from run import run
 
 OUTPUTDIR = "golden_outputs"
 FILENAMES = ["phi1.npy", "rib_eval.npy", "jump_k.npy", "pos_exps.npy", "hwfcs.npy"]
-
 LOGFILE = os.path.join(os.path.dirname(__file__), OUTPUTDIR, "golden_log.json")
+
 
 def get_version(pkg):
     try:
         return importlib.metadata.version(pkg)
     except importlib.metadata.PackageNotFoundError:
         return "unknown"
+
 
 def regenerate():
     os.makedirs(OUTPUTDIR, exist_ok=True)
@@ -26,7 +27,7 @@ def regenerate():
 
     for result, fname in zip(results, FILENAMES):
         path = os.path.join(OUTPUTDIR, fname)
-        np.save(path, result, allow_pickle=True)
+        np.save(path, result)
 
     metadata = {
         "group": os.path.basename(os.path.dirname(os.path.dirname(__file__))),
@@ -34,12 +35,13 @@ def regenerate():
         "filenames": FILENAMES,
         "generated_at": datetime.datetime.now().isoformat(),
         "python_version": platform.python_version(),
-        "pythtb_version": get_version("pythtb")
+        "pythtb_version": get_version("pythtb"),
     }
     with open(LOGFILE, "w") as f:
         json.dump(metadata, f, indent=4)
 
     print("✅ Golden data regenerated:", FILENAMES)
+
 
 if __name__ == "__main__":
     regenerate()
