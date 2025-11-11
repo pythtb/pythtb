@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pythtb"
 dynamic = ["version"]
-description = "Solver for tight binding models in condensed matter physics and materials science."
+description = "Solver for tight-binding models in condensed matter physics and materials science."
 readme = { file = "README.md", content-type = "text/markdown" } 
 requires-python = ">=3.12"
 authors = [
@@ -70,9 +70,8 @@ notebooks = [
 ]
 
 [project.urls]
-homepage = "https://github.com/pythtb/pythtb"
+homepage = "https://www.physics.rutgers.edu/pythtb/"
 documentation = "https://pythtb.readthedocs.io/en/latest/"
-repository = "https://github.com/pythtb/pythtb"
 source = "https://github.com/pythtb/pythtb"
 issues = "https://github.com/pythtb/pythtb/issues"
 changelog = "https://github.com/pythtb/pythtb/blob/main/CHANGELOG.md"
