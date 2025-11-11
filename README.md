@@ -12,19 +12,16 @@ https://pypi.org/project/pythtb/)
 [![SPEC 0 — Minimum Supported Dependencies](https://img.shields.io/badge/SPEC-0-green?labelColor=%23004811&color=%235CA038)](https://scientific-python.org/specs/spec-0000/)
 [![Run examples on Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/pythtb/pythtb/dev?urlpath=lab/tree/docs/source/examples/)
 
-PythTB is a Python library for constructing and analyzing tight-binding models with an emphasis on clarity, flexibility, and modern band-topology workflows. With just a few lines of code, you can define lattices, add hoppings, diagonalize Hamiltonians, and extract geometric and topological observables across arbitrary parameter spaces.
+PythTB is a Python library for constructing and analyzing tight-binding models, built for modern topological band theory applications. It provides a streamlined path from model specification to physical interpretation, making it useful for both learning electronic structure and conducting research-level studies. With only a few lines of code, you can define lattice models, build tight-binding Hamiltonians, and compute electronic properties.
 
-PythTB supports systems ranging from textbook toy models to research-grade simulations. You can mix periodic and open directions to model crystals, slabs, ribbons, and molecules; sweep adiabatic parameters; and evaluate a wide range of electronic-structure quantities, including:
-
+PythTB provides tools for:
 - Band structures and density of states
 - Berry phases and Berry curvature
 - Chern numbers, Wilson loops, and related invariants
 - Quantum geometric tensors and local Chern markers
-- Axion response in 3D
+- Chern-Simons axion angle
 - Maximally localized Wannier functions
 - Wannier-based tight-binding models generated through Wannier90
-
-The package is designed to be readable and extensible, making it easy to explore new models, automate workflows, and integrate with first-principles calculations. Whether you are learning the basics of topological band theory or running high-throughput studies, PythTB gives you a transparent and lightweight framework to experiment, prototype, and investigate.
 
 📘 [Documentation](https://pythtb.readthedocs.io/en/latest/)
 
