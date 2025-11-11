@@ -13,6 +13,10 @@ authors = [
   { name = "Sinisa Coh", email = "sinisacoh@gmail.com" },
   { name = "David Vanderbilt", email = "dhv@physics.rutgers.edu" }
 ]
+maintainers = [
+  { name = "Trey Cole", email = "trey@treycole.me" },
+  { name = "David Vanderbilt", email = "dhv@physics.rutgers.edu" }
+]
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"] 
 keywords = ["physics", "tight binding", "solid state physics", "condensed matter physics", "materials science"]
