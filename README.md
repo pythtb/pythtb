@@ -1,5 +1,5 @@
 <p align="center">
- <img src="docs/source/_static/pythtb_logo.svg" width="300"/>
+ <img src="https://raw.githubusercontent.com/pythtb/pythtb/main/docs/source/_static/pythtb_logo.svg" width="300"/>
 </p>
 
 --------
