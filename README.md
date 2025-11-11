@@ -12,15 +12,21 @@ https://pypi.org/project/pythtb/)
 [![SPEC 0 — Minimum Supported Dependencies](https://img.shields.io/badge/SPEC-0-green?labelColor=%23004811&color=%235CA038)](https://scientific-python.org/specs/spec-0000/)
 [![Run examples on Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/pythtb/pythtb/dev?urlpath=lab/tree/docs/source/examples/)
 
-PythTB is a Python toolkit for constructing and analyzing tight-binding models. It provides a flexible interface for exploring electronic structure and band topology in both simple and research-scale systems. With PythTB, you can:
+PythTB is a Python library for constructing and analyzing tight-binding models with an emphasis on clarity, flexibility, and modern band-topology workflows. With just a few lines of code, you can define lattices, add hoppings, diagonalize Hamiltonians, and extract geometric and topological observables across arbitrary parameter spaces.
 
-- Build models for crystals, slabs, ribbons, and molecules - any combination of periodic and open directions.
-- Sweep adiabatic parameters and evaluate band structure, quantum geometric tensors, local Chern markers, and axion angles.
-- Compute Berry phases, Berry curvature, Chern numbers, Wilson loops, and other band-topology diagnostics on structured meshes.
-- Interface with Wannier90 to construct tight-binding models from first-principles calculations.
+PythTB supports systems ranging from textbook toy models to research-grade simulations. You can mix periodic and open directions to model crystals, slabs, ribbons, and molecules; sweep adiabatic parameters; and evaluate a wide range of electronic-structure quantities, including:
 
-Whether you are prototyping a textbook model or conducting research, PythTB is designed to remain readable, reproducible, and easy to extend.
-For more details, please refer to the [documentation](https://pythtb.readthedocs.io/en/latest/).
+- Band structures and density of states
+- Berry phases and Berry curvature
+- Chern numbers, Wilson loops, and related invariants
+- Quantum geometric tensors and local Chern markers
+- Axion response in 3D
+- Maximally localized Wannier functions
+- Wannier-based tight-binding models generated through Wannier90
+
+The package is designed to be readable and extensible, making it easy to explore new models, automate workflows, and integrate with first-principles calculations. Whether you are learning the basics of topological band theory or running high-throughput studies, PythTB gives you a transparent and lightweight framework to experiment, prototype, and investigate.
+
+📘 [Documentation](https://pythtb.readthedocs.io/en/latest/)
 
 ## Installation
 
