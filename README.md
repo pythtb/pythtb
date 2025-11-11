@@ -27,17 +27,17 @@ PythTB provides tools for:
 
 ## Installation
 
-PythTB can be installed from **Conda-Forge** (PythTB ≥ 1.8.0) or **PyPI**:
+PythTB is available through conda-forge (recommended) and PyPI.
 
 ```bash
-# via Conda for pythtb >= v1.8.0
+# Conda (pythtb >= 1.8.0)
 conda install -c conda-forge pythtb
 
-# or via pip
+# pip
 pip install pythtb
 ```
 
-Or install from source (editable) after cloning the repository:
+To install from source in editable mode:
 
 ```bash
 git clone https://github.com/pythtb/pythtb.git
@@ -49,15 +49,15 @@ PythTB ≥ 2.0.0 requires Python ≥ 3.12 and the core dependencies:
 - numpy ≥ 2.0
 - matplotlib ≥ 3.9
 
-Optional extras (install with `pip install .[group]`):
+Optional extras can be installed via `pip install .[group]`:
 
-- `[plotting]`: plotly (interactive 3D plots)
-- `[speedup]`: tensorflow (GPU-assisted routines)
-- `[notebooks]`: ipython ≥ 8.17, ipykernel, notebook, jupyter, jupyterlab (Jupyter support)
-- `[docs]`: sphinx toolchain (build the documentation)
+- `[plotting]`: Plotly for interactive visualization
+- `[speedup]`: TensorFlow for GPU-accelerated routines
+- `[notebooks]`: Jupyter support (IPython ≥ 8.17, ipykernel, notebook, jupyter, jupyterlab)
+- `[docs]`: Sphinx toolchain for documentation
 - `[tests]`: pytest
-- `[dev]`: pytest, black, pre-commit
+- `[dev]`: developer tools (pytest, ruff, pre-commit)
 
-For detailed installation instructions, editable/development setup, and troubleshooting, see:
+For more detailed instructions, see:
 - [Full Installation Guide](https://pythtb.readthedocs.io/en/latest/install.html)
 - [Wiki](https://github.com/pythtb/pythtb/wiki/Installation-Instructions-for-Developers)
