@@ -1,38 +1,41 @@
-name: Publish to PyPI (Trusted Publishing)
+name: Publish to TestPyPI
 
 on:
   push:
     tags:
-      - "v*"          # trigger on any v-tag; we'll filter rc below
+      - 'v[0-9]+.[0-9]+.[0-9]+rc[0-9]+'   # rc only
   workflow_dispatch:
 
 permissions:
   contents: read
-  id-token: write   # REQUIRED for OIDC
+  id-token: write
 
 jobs:
-  build-and-publish:
-    # Only run for non-rc tags like v2.0.0
-    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'rc')
+  validate-tag:
     runs-on: ubuntu-latest
-    environment:
-      name: pypi-prod
-      url: https://pypi.org/project/pythtb/
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Check pre-release tag format
+        run: |
+          TAG="${GITHUB_REF##*/}"
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+rc[0-9]+$ ]] || \
+            (echo "Invalid pre-release tag: $TAG" && exit 1)
+
+  build-and-publish:
+    runs-on: ubuntu-latest
+    needs: validate-tag
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0        # setuptools-scm needs tags
-
+        with: { fetch-depth: 0 }
       - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
+        with: { python-version: "3.12" }
       - name: Build
         run: |
           python -m pip install --upgrade pip build twine
           python -m build
           twine check dist/*
-
-      - name: Publish to PyPI
+      - name: Publish to TestPyPI (OIDC)
         uses: pypa/gh-action-pypi-publish@v1.12.4
-        # no `with:` block needed for Trusted Publishing
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
