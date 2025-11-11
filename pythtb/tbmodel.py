@@ -2942,7 +2942,7 @@ class TBModel:
         ham,
         return_eigvecs=False,
         flatten_spin_axis=False,
-        tf_speedup=False,
+        use_tensorflow=False,
         use_32_bit=False,
     ):
         """Solves Hamiltonian and returns eigenvectors, eigenvalues"""
@@ -2951,8 +2951,13 @@ class TBModel:
         if not np.allclose(ham, ham.swapaxes(-1, -2).conj()):
             raise ValueError("Hamiltonian matrix is not Hermitian.")
 
-        if tf_speedup:
-            import tensorflow as tf
+        if use_tensorflow:
+            try:
+                import tensorflow as tf
+            except ImportError as e:
+                raise ImportError(
+                    "TensorFlow is not installed. Please install TensorFlow or set use_tensorflow=False."
+                ) from e
 
             if use_32_bit:
                 ham_tf = tf.convert_to_tensor(ham, dtype=tf.complex64)
@@ -3000,7 +3005,7 @@ class TBModel:
         k_pts: list | np.ndarray | None = None,
         return_eigvecs: bool = False,
         flatten_spin_axis: bool = True,
-        tf_speedup: bool = False,
+        use_tensorflow: bool = False,
         **params,
     ) -> tuple[np.ndarray, np.ndarray] | np.ndarray:
         r"""Diagonalize the Hamiltonian
@@ -3037,7 +3042,7 @@ class TBModel:
 
             .. versionadded:: 2.0.0
 
-        tf_speedup : bool, optional
+        use_tensorflow : bool, optional
             If True, use TensorFlow to accelerate the diagonalization.
             This requires TensorFlow to be installed. Default is False.
 
@@ -3110,7 +3115,7 @@ class TBModel:
                 ham,
                 return_eigvecs=return_eigvecs,
                 flatten_spin_axis=flatten_spin_axis,
-                tf_speedup=tf_speedup,
+                use_tensorflow=use_tensorflow,
             )
             if self.dim_k != 0:
                 # if only one k_point, remove that redundant axis (reproduces solve_one)
@@ -3790,13 +3795,16 @@ class TBModel:
         cond_idxs = np.setdiff1d(np.arange(n_eigs), occ_idxs)
 
         if use_tensorflow:
-            # tensorflow optimization
-            import tensorflow as tf
-            from tensorflow import constant as const
+            try:
+                import tensorflow as tf
+            except ImportError as e:
+                raise ImportError(
+                    "TensorFlow is not installed. Please install TensorFlow to use this feature."
+                ) from e
 
-            v_tf = const(v, dtype=tf.complex64)
-            evals_tf = const(eigvals, dtype=tf.complex64)
-            evecs_tf = const(eigvecs, dtype=tf.complex64)
+            v_tf = tf.constant(v, dtype=tf.complex64)
+            evals_tf = tf.constant(eigvals, dtype=tf.complex64)
+            evecs_tf = tf.constant(eigvecs, dtype=tf.complex64)
 
             # Transpose eigenvectors for matmul
             r = tf.rank(evecs_tf)  # number of axes
@@ -3985,6 +3993,7 @@ class TBModel:
             This parameter is only relevant when passing varying parameters.
         use_tensorflow: bool, optional
             If True, will use TensorFlow to speed up linear algebra routines.
+            Requires TensorFlow to be installed. Default is False.
         **params :
             Keyword arguments mapping parameter names to value(s). Each value can be a scalar
             or a 1D array of values. If any values are array-like,
@@ -4040,7 +4049,10 @@ class TBModel:
             )
 
         eigvals, eigvecs = self._sol_ham(
-            ham, return_eigvecs=True, flatten_spin_axis=True, tf_speedup=use_tensorflow
+            ham,
+            return_eigvecs=True,
+            flatten_spin_axis=True,
+            use_tensorflow=use_tensorflow,
         )
 
         return self._quantum_geometric_tensor(

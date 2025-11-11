@@ -1135,7 +1135,7 @@ class WFArray:
             k_pts=k_flat,
             return_eigvecs=True,
             flatten_spin_axis=True,
-            tf_speedup=use_tensorflow,
+            use_tensorflow=use_tensorflow,
             **params,
         )
 
