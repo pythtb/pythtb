@@ -193,6 +193,7 @@ class TBModel:
 
     def __init__(self, lattice: Lattice, spinful: bool = False):
         self._lattice = lattice
+        self._spinful = spinful
         self._nspin = 2 if spinful else 1
 
         # By default, assume model did not come from w90 object and that
@@ -201,9 +202,9 @@ class TBModel:
         self._from_w90 = False
 
         # Initialize onsite energies to zero
-        if self._nspin == 1:
+        if not spinful:
             self._site_energies = np.zeros((self.norb), dtype=float)
-        elif self._nspin == 2:
+        else:
             self._site_energies = np.zeros((self.norb, 2, 2), dtype=complex)
 
         # The onsite energies and hoppings are not specified
@@ -308,7 +309,7 @@ class TBModel:
         bool
             Whether the model includes spin degrees of freedom.
         """
-        return self._nspin == 2
+        return self._spinful
 
     @property
     def periodic_dirs(self) -> list[int]:
@@ -334,7 +335,7 @@ class TBModel:
         int
             Number of tight-binding orbitals per unit cell.
         """
-        return copy.copy(self.lattice.norb)
+        return self.lattice.norb
 
     @property
     def nstate(self) -> int:
@@ -361,7 +362,7 @@ class TBModel:
             A copy of the orbital positions in reduced coordinates.
             Shape is ``(norb, dim_r)``.
         """
-        return copy.copy(self.lattice.orb_vecs)
+        return self.lattice.orb_vecs.copy()
 
     @property
     def lat_vecs(self) -> np.ndarray:
@@ -375,7 +376,7 @@ class TBModel:
             A copy of the lattice vectors in Cartesian coordinates.
             Shape is ``(dim_r, dim_r)``.
         """
-        return copy.copy(self.lattice.lat_vecs)
+        return self.lattice.lat_vecs.copy()
 
     @property
     def recip_lat_vecs(self) -> np.ndarray:
@@ -387,9 +388,9 @@ class TBModel:
         -------
         np.ndarray
             A copy of the reciprocal lattice vectors in inverse Cartesian units.
-            Shape is ``(dim_k, dim_k)``.
+            Shape is ``(dim_k, dim_r)``.
         """
-        return copy.copy(self.lattice.recip_lat_vecs)
+        return self.lattice.recip_lat_vecs.copy()
 
     @property
     def recip_volume(self) -> float:
@@ -452,7 +453,7 @@ class TBModel:
         formatted: list[dict] = []
         for hop_idx in range(self.nhops):
             amp = amps[hop_idx]
-            if self._nspin == 2:
+            if self.spinful:
                 amplitude = np.asarray(amp).copy()
             else:
                 amplitude = complex(amp)
@@ -628,7 +629,7 @@ class TBModel:
                     )
                     continue
 
-                if self._nspin == 1:
+                if not self.spinful:
                     energy_str = f"{site:^7.3f}"
                 else:
                     energy_str = str(site).replace("\n", " ")
@@ -894,7 +895,7 @@ class TBModel:
         - Symbolic and callable inputs automatically register their parameter names. 
           For callables with multiple parameters, each parameter is registered.
         - Parameter evaluation is **scalar only**. Spinful on-site blocks
-          must then be then be set with callables so that the returned values match 
+          must then be set with callables so that the returned values match 
           the expected spinful structure. 
         
           Example:
@@ -1052,7 +1053,7 @@ class TBModel:
 
     def set_hop(
         self,
-        hop_amp,
+        hop_amp: float | complex | list | np.ndarray | str | Callable,
         ind_i: int,
         ind_j: int,
         ind_R=None,
@@ -1086,7 +1087,7 @@ class TBModel:
 
             - **Spinless models**  (``spinful=False``)
 
-              - Real scalar.
+              - Complex scalar.
 
             - **Spinful models**  (``spinful=True``)
 
@@ -1378,23 +1379,23 @@ class TBModel:
         --------
         Nearest- and next-nearest-neighbor hopping:
 
-        >>> tb.set_nn_hops({1: 1.0, 2: 0.5})
+        >>> tb.set_shell_hops({1: 1.0, 2: 0.5})
 
         Only nearest‐neighbor hopping:
 
-        >>> tb.set_nn_hops({1: 1.0})
+        >>> tb.set_shell_hops({1: 1.0})
 
         Spinful shell assignment via 4-vector:
 
-        >>> tb.set_nn_hops({1: [1.0, 0.1, 0.0, -0.1]})
+        >>> tb.set_shell_hops({1: [1.0, 0.1, 0.0, -0.1]})
 
         Symbolic parameterized NN hopping:
 
-        >>> tb.set_nn_hops({1: "t"})
+        >>> tb.set_shell_hops({1: "t"})
 
         Callable hopping:
 
-        >>> tb.set_nn_hops({1: lambda t: 0.2 * np.cos(t)})
+        >>> tb.set_shell_hops({1: lambda t: 0.2 * np.cos(t)})
 
         Evaluate later:
 
@@ -1498,15 +1499,6 @@ class TBModel:
         if isinstance(provider, str):
             return (provider,)
         raise TypeError(f"Unsupported {ctx} provider type: {type(provider)}")
-
-    def _check_parameter_exists(self, params: dict):
-        """Check if any parameters are defined in the model."""
-        required = {name for entry in self.parameters for name in entry["names"]}
-        provided = set(params.keys())
-
-        unknown = provided - required
-        if unknown:
-            raise ValueError("Unknown parameter name(s): " + ", ".join(sorted(unknown)))
 
     def _check_missing_parameters(self, params: dict):
         """Check for missing parameters in the provided dictionary."""
@@ -2100,7 +2092,7 @@ class TBModel:
             for amp, ind_i, ind_j, ind_R in zip(
                 amps, from_idx, to_idx, R_vecs, strict=True
             ):
-                hop_amp = amp.copy() if self._nspin == 2 else complex(amp)
+                hop_amp = amp.copy() if self.spinful else complex(amp)
                 R_vec = ind_R.copy()
                 jump_fin = int(R_vec[periodic_dir])
 
@@ -2457,7 +2449,7 @@ class TBModel:
                 hi = int(ind_i) + base
                 hj = int(ind_j) + pair_idx * self.norb
 
-                if self._nspin == 2:
+                if self.spinful:
                     amp_use = amp.copy()
                 else:
                     amp_use = complex(amp)
@@ -5245,7 +5237,7 @@ class TBModel:
             if basis.lower().strip() in ["wavefunction", "bloch"]:
                 return (hwfc, hwf)
             elif basis.lower().strip() == "orbital":
-                if self._nspin == 1:
+                if not self.spinful:
                     ret_hwf = np.zeros((hwf.shape[0], self.norb), dtype=complex)
                     # sum over bloch states to get hwf in orbital basis
                     for i in range(ret_hwf.shape[0]):
