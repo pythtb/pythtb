@@ -66,15 +66,16 @@ notebooks = [
 ]
 
 [project.urls]
-Homepage = "http://www.physics.rutgers.edu/pythtb"
-Documentation = "https://pythtb.readthedocs.io/en/latest/"
-Repository = "https://github.com/pythtb/pythtb"
-Issues = "https://github.com/pythtb/pythtb/issues"
-Changelog = "https://github.com/pythtb/pythtb/blob/main/CHANGELOG.md"
+homepage = "https://github.com/pythtb/pythtb"
+documentation = "https://pythtb.readthedocs.io/en/latest/"
+repository = "https://github.com/pythtb/pythtb"
+source = "https://github.com/pythtb/pythtb"
+issues = "https://github.com/pythtb/pythtb/issues"
+changelog = "https://github.com/pythtb/pythtb/blob/main/CHANGELOG.md"
 
 [tool.setuptools_scm]
-version_scheme = "post-release"
-local_scheme = "node-and-date"
+version_scheme = "guess-next-dev"
+local_scheme = "no-local-version"
 fallback_version = "0.0.0"
 
 [tool.setuptools.packages.find]
