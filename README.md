@@ -4,6 +4,7 @@
 
 --------
 
+[![Zenodo](https://zenodo.org/badge/DOI/10.5281/zenodo.12721315.svg)](https://doi.org/10.5281/zenodo.12721315)
 [![PyPI](https://img.shields.io/pypi/v/pythtb.svg)](https://pypi.org/project/pythtb/)
 [![Conda Version](https://img.shields.io/conda/vn/conda-forge/pythtb.svg)](https://anaconda.org/conda-forge/pythtb)
 [![Conda Downloads](https://anaconda.org/conda-forge/pythtb/badges/downloads.svg)](https://anaconda.org/conda-forge/pythtb/) 
