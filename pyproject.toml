@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pythtb"
 dynamic = ["version"]
-description = "Solver for tight-binding models in condensed matter physics and materials science."
+description = "Python library for constructing and analyzing tight-binding models."
 readme = { file = "README.md", content-type = "text/markdown" } 
 requires-python = ">=3.12"
 authors = [
