@@ -172,20 +172,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `TBModel.recip_volume`: read-only property returning reciprocal unit cell volume
 
 **New methods in `WFArray`**
-- `WFArray.overlap_matrix()`: Computes overlap matrix of the states in the `WFArray` with their nearest neighbors on a k-`Mesh`.
-- `WFArray.links()`: Computes the unitary part of the overlap between states and their nearest neighbors in each mesh direction
-- `WFArray.berry_connection()`: Computes Berry connection from the links between nearest neighbor states in the mesh
-- `WFArray.wilson_loop()`: Static method that computes the Wilson loop unitary matrix for a loop of states
-- `WFArray.berry_curvature()`: Computes dimensionful Berry curvature by divinding Berry flux by mesh cell area/volume
-- `WFArray.chern_number()`: Returns the Chern number for a given plane in the parameter mesh
-- `WFArray.solve_model()`: Populates `WFArray` with energy eigenstates from a given `TBModel` along the `Mesh`
+- Added `WFArray.overlap_matrix()`: Computes overlap matrix of the states in the `WFArray` with their nearest neighbors on a k-`Mesh`.
+- Added `WFArray.links()`: Computes the unitary part of the overlap between states and their nearest neighbors in each mesh direction
+- Added `WFArray.berry_connection()`: Computes Berry connection from the links between nearest neighbor states in the mesh
+- Added `WFArray.wilson_loop()`: Static method that computes the Wilson loop unitary matrix for a loop of states
+- Added `WFArray.berry_curvature()`: Computes dimensionful Berry curvature by divinding Berry flux by mesh cell area/volume
+- Added `WFArray.chern_number()`: Returns the Chern number for a given plane in the parameter mesh
+- Added `WFArray.solve_model()`: Populates `WFArray` with energy eigenstates from a given `TBModel` along the `Mesh`
   - Replaces deprecated `solve_on_grid()` and `solve_on_one_point()` methods
-- `WFArray.projectors()`: Returns band projectors and optionally their complements as NumPy arrays
-- `WFArray.states()`: Returns states as a NumPy array, optionally the full Bloch states including phase factors
-- `WFArray.get_k_shell()`: Generates vectors connecting nearest neighboring k-points in the mesh. 
-- `WFArray.get_shell_weights()`: Returns the finite-difference weights for a given shell of k-neighbors.
-- `WFArray.roll_states_with_pbc()`: Rolls states along a given mesh axis with periodic boundary conditions.
-- `WFArray.copy()`: Creates a deep copy of the `WFArray` instance
+- Added `WFArray.projectors()`: Returns band projectors and optionally their complements as NumPy arrays
+- Added `WFArray.states()`: Returns states as a NumPy array, optionally the full Bloch states including phase factors
+- Added `WFArray.roll_states_with_pbc()`: Rolls states along a given mesh axis with periodic boundary conditions.
+- Added `WFArray.copy()`: Creates a deep copy of the `WFArray` instance
 - Added parameter `non_abelian` to `WFArray.berry_flux()` to compute non-Abelian Berry flux for a manifold of states
 
 **New methods in `W90`**
