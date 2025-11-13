@@ -22,11 +22,24 @@ PythTB is a pure-Python toolbox for building and analyzing tight-binding models.
 - {doc}`API <api>` - detailed API reference
 - {doc}`Tutorials <tutorials>` - Jupyter notebooks demonstrating key features
 - {doc}`Development <development>` - contributing guidelines and developer docs
-- {doc}`Release Notes <release>` - detailed version history
-- {doc}`Changelog <CHANGELOG>` - summary of changes by version
+- {doc}`Release Notes <release>` - highlighted version history
+- {doc}`Changelog <CHANGELOG>` - list of changes by version
 - {doc}`Formalism <formalism>` - theoretical background 
 - {doc}`Citation <citation>` - how to cite PythTB in publications
 ```
+
+```{admonition} PythTB 2.0.0 Released!
+:class: important
+
+Version 2.0 introduces new classes, new topological and quantum-geometric functionality, and improved performance.
+
+[📄 Release Notes](release/2.0.0-notes)  
+[📦 Install Instructions](install)  
+[💻 GitHub Repository](https://github.com/pythtb/pythtb)
+
+```
+
+
 
 ## Core functionality
 

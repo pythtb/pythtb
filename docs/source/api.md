@@ -17,7 +17,7 @@ PythTB centers on a small set of core classes for constructing and analyzing tig
    {py:class}`TBModel`. 
 
 :::{versionadded} 2.0.0
-These classes were introduced in PythTB version 2.0.0.
+The classes below were introduced in PythTB version 2.0.0.
 :::
 
 - {py:class}`pythtb.Mesh` 
@@ -32,7 +32,6 @@ These classes were introduced in PythTB version 2.0.0.
    perform projections, disentanglement and maximal localization, and analyze 
    spreads and centers.
 
-The class-level autosummary below links to detailed API pages.
 
 ```{eval-rst}
 .. autosummary::
