@@ -26,9 +26,8 @@ PythTB provides tools for:
 - Maximally localized Wannier functions
 - Wannier-based tight-binding models generated through Wannier90
 
----
 
-Resources:
+## Resources
 - **Documentation**: https://pythtb.readthedocs.io/en/latest/
 - **Contributing**: https://pythtb.readthedocs.io/en/latest/development.html
 - **Formalism**: https://pythtb.readthedocs.io/en/latest/formalism.html
