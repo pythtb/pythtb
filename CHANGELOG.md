@@ -172,7 +172,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `TBModel.recip_volume`: read-only property returning reciprocal unit cell volume
 
 **New methods in `WFArray`**
-- Added `WFArray.overlap_matrix()`: Computes overlap matrix of the states in the `WFArray` with their nearest neighbors on a k-`Mesh`.
+- Added `WFArray.overlap_matrix()`: Computes overlap matrix of the states in the `WFArray` with their nearest neighbors on a `Mesh`.
 - Added `WFArray.links()`: Computes the unitary part of the overlap between states and their nearest neighbors in each mesh direction
 - Added `WFArray.berry_connection()`: Computes Berry connection from the links between nearest neighbor states in the mesh
 - Added `WFArray.wilson_loop()`: Static method that computes the Wilson loop unitary matrix for a loop of states
