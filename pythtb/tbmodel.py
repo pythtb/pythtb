@@ -126,11 +126,11 @@ class TBModel:
     - Beyond constructing and diagonalizing the Hamiltonian, this class provides
       methods for computing topological and quantum-geometric observables, including:
 
-      - Quantum geometric tensor (QGT)
-      - Berry curvature and quantum metric
-      - Chern number
-      - Axion angle (Chern-Simons contribution)
-      - Bianco-Resta local Chern marker (real-space topology)
+      - Quantum geometric tensor (QGT) (in ≥ 2D periodic systems)
+      - Berry curvature and quantum metric (in ≥ 2D periodic systems)
+      - Chern number (in ≥ 2D periodic systems)
+      - Axion angle (in 3D periodic models + 1 varying parameter)
+      - Bianco-Resta local Chern marker (in 2D finite systems)
 
     - Hamiltonians may depend on external parameters (e.g. strain, adiabatic
       parameters), and can be registered by setting onsite or hopping terms
@@ -4377,12 +4377,11 @@ class TBModel:
         use_tensorflow: bool = False,
         **params,
     ):
-        r"""Chern-Simons axion angle.
+        r"""Axion angle via the second Chern form.
 
-        Computes the Chern-Simons contribution to the axion angle for
-        a 3D bulk model that depends on a single adiabatic parameter
-        :math:`\lambda`. This is computed using the gauge-invariant 4-curvature
-        formulation:
+        Computes the axion angle for a 3D bulk model that depends
+        on a single adiabatic parameter :math:`\lambda`. This is computed
+        using the gauge-invariant 4-curvature formulation:
 
         .. math::
             \theta(\lambda) = \frac{1}{16\pi} \int_0^{\lambda} d\lambda'
@@ -4397,7 +4396,7 @@ class TBModel:
         :math:`\Omega_{\mu\nu}` is the non-Abelian Berry curvature
         tensor over the occupied states.
 
-        When the parameter :math:`\lambda` is periodic (e.g., an angle variable),
+        When the parameter :math:`\lambda` is cyclic (e.g., an angle variable),
         the change in :math:`\theta` over one full cycle is quantized
         in units of :math:`2\pi`, with the integer multiple given by the
         second Chern number :math:`C_2`:
@@ -4463,7 +4462,7 @@ class TBModel:
         - The k-grid is constructed uniformly in reduced coordinates over the
           full Brillouin zone.
         - The axion angle is computed using the gauge-invariant 4-curvature formulation,
-          which is numerically more stable than the Chern-Simons 3-form approach.
+          which doesn't require fixing a smooth gauge like the Chern-Simons 3-form approach.
         """
         if self.dim_k != 3:
             raise ValueError(
