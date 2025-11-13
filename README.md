@@ -4,7 +4,7 @@
 
 --------
 
-[![Zenodo](https://zenodo.org/badge/DOI/10.5281/zenodo.12721315.svg)](https://doi.org/10.5281/zenodo.12721315)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17595433.svg)](https://doi.org/10.5281/zenodo.17595433)
 [![PyPI](https://img.shields.io/pypi/v/pythtb.svg)](https://pypi.org/project/pythtb/)
 [![Conda Version](https://img.shields.io/conda/vn/conda-forge/pythtb.svg)](https://anaconda.org/conda-forge/pythtb)
 [![PyPI Downloads](https://img.shields.io/pypi/dm/pythtb.svg?label=PyPI%20downloads)](
