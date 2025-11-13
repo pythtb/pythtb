@@ -81,7 +81,7 @@ If you use the code in your paper, please cite us
 author = {Cole, Trey and Coh, Sinisa and Vanderbilt, David},
 doi = {10.5281/zenodo.12721315},
 license = {GPL-3.0-or-later},
-month = oct,
+month = nov,
 title = {{Python Tight Binding (PythTB)}},
 url = {https://zenodo.org/records/12721315},
 version = {2.0.0},
