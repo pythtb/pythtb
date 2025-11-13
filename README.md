@@ -30,6 +30,7 @@ PythTB provides tools for:
 ## Resources
 - **Documentation**: https://pythtb.readthedocs.io/en/latest/
 - **Contributing**: https://pythtb.readthedocs.io/en/latest/development.html
+- **Tutorials**: https://pythtb.readthedocs.io/en/latest/tutorials.html
 - **Formalism**: https://pythtb.readthedocs.io/en/latest/formalism.html
 - **Source**: https://github.com/pythtb/pythtb
 - **Report Issues**: https://github.com/pythtb/pythtb/issues
