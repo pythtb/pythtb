@@ -89,7 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Published `pythtb` package to [conda-forge](https://anaconda.org/conda-forge/pythtb) for easy installation via `conda install -c conda-forge pythtb`
 - Optional TensorFlow backend for linear algebra acceleration on compatible hardware (GPUs/TPUs) in `TBModel` and `WFArray`
-  - Enable by passing `use_tensorflow=True` on some methods
+  - Enable by passing `use_tensorflow=True` on compatible methods
 - Comprehensive unit tests added using `pytest` to cover core functionality
 - New examples and tutorials added to documentation website covering new features and workflows
 
@@ -137,6 +137,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `TBModel.with_parameters()`: Returns model at specific parameter values for parameterized models 
 - Added `TBModel.set_parameters()`: Resolves parameterized terms with scalar values
 - Added `TBModel.set_shell_hops()`: Bulk setting of n'th nearest-neighbor hoppings for faster model construction
+- Added `TBModel.nn_bonds()`: Returns information about nearest-neighbor bonds in the model, useful for manually setting hoppings on shells
 - Added `TBModel.hamiltonian()`: constructs Hamiltonians for finite and periodic systems
 - Added `TBModel.velocity()`: computes velocity operator $dH/dk$ in orbital basis
 - Added `TBModel.quantum_geometric_tensor()`: quantum geometric tensor using Kubo formula
