@@ -63,3 +63,22 @@ Optional extras can be installed via `pip install .[group]`:
 For more detailed instructions, see:
 - [Full Installation Guide](https://pythtb.readthedocs.io/en/latest/install.html)
 - [Wiki](https://github.com/pythtb/pythtb/wiki/Installation-Instructions-for-Developers)
+
+## Citation
+
+If you use the code in your paper, please cite us
+
+```bibtex
+@software{Cole_Python_Tight_Binding_2025,
+author = {Cole, Trey and Coh, Sinisa and Vanderbilt, David},
+doi = {10.5281/zenodo.12721315},
+license = {GPL-3.0-or-later},
+month = oct,
+title = {{Python Tight Binding (PythTB)}},
+url = {https://zenodo.org/records/12721315},
+version = {2.0.0},
+year = {2025}
+}
+```
+
+
