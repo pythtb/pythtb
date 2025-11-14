@@ -3974,7 +3974,7 @@ class TBModel:
         non_abelian : bool, optional
             If True, returns the full tensor (non-abelian case).
             If False, returns the band-trace of the tensor (abelian case).
-            Default is False.
+            Default is False. This will affect the shape of the returned array.
         param_periods : dict[str, float], optional
             Optional map ``{param_name: period}`` for swept parameters. When supplied,
             assumes the parameter is cyclic and trims any duplicated endpoints, or endpoints
@@ -4004,13 +4004,15 @@ class TBModel:
         Returns
         -------
         Q : array
-            Quantum geometric tensor at the specified k-points.
-            If ``plane`` is None, shape is ``(dim_k, dim_k, Nk, n_orb, n_orb)``.
-            If ``plane`` is a tuple, shape is ``(Nk, n_orb, n_orb)`` and the returned
-            tensor is restricted to the specified directions. If ``non_abelian=False``,
-            returns the band-trace of the quantum geometric tensor and the last
-            two axes are not present. If parameter sweeps are performed via ``params``,
-            parameter axes are added after the k-point axis.
+            Quantum geometric tensor. Full shape is
+            ``(dim_tot, dim_tot, Nk, Nparam1, Nparam2, ..., n_orb, n_orb)``,
+            where ``dim_tot = dim_k + n_params`` is the total number of
+            independent coordinates (crystal momenta plus varying parameters). If ``plane``
+            is specified, the first two axes are indexed by the specified directions, and the
+            shape is ``(Nk, Nparam1, Nparam2, ..., n_orb, n_orb)``. If ``non_abelian=False``,
+            the returned array is the band-trace of the full tensor and the last
+            two dimensions are contracted. The order of the parameter axes follows the order
+            of the parameter names in ``**params``.
 
         See Also
         --------
@@ -4105,22 +4107,21 @@ class TBModel:
         Parameters
         ----------
         k_pts : (Nk, dim_k) array-like
-            Array of k-points with shape (Nk, dim_k), where Nk is the number of points
-            and dim_k is the dimensionality of the k-space.
+            Array of k-points with shape ``(Nk, dim_k)``, where ``Nk`` is the number of points
+            and ``dim_k`` is the dimensionality of the k-space.
         occ_idxs : 1D array, optional
             Indices of the occupied bands. Defaults to the first half of the states.
         plane : tuple of int, optional
             Tuple of two integers specifying the plane in k-space for which to compute
-            the curvature. If None (default),
-            computes all components of the Berry curvature tensor. This
-            will affect the shape of the returned array.
+            the curvature. If None (default), computes all components of the Berry
+            curvature tensor. This will affect the shape of the returned array.
         cartesian : bool, optional
             If True, computes the velocity operator in Cartesian coordinates.
             Default is False (reduced coordinates). See :meth:`velocity` for details.
         non_abelian : bool, optional
             If True, returns the full Berry curvature tensor (non-abelian case).
             If False, returns the band-trace of the Berry curvature tensor (abelian case).
-            Default is False.
+            Default is False. This will affect the shape of the returned array.
         param_periods : dict[str, float], optional
             Optional map ``{param_name: period}`` for swept parameters. When supplied,
             assumes the parameter is cyclic and trims any duplicated endpoints, or endpoints
@@ -4139,6 +4140,7 @@ class TBModel:
             This parameter is only relevant when passing varying parameters.
         use_tensorflow: bool, optional
             If True, will use TensorFlow to speed up linear algebra routines.
+            Requires TensorFlow to be installed. Default is False.
         **params :
             Keyword arguments mapping parameter names to value(s). Each value can be a scalar
             or a 1D array of values. If any values are array-like,
@@ -4149,12 +4151,15 @@ class TBModel:
         Returns
         -------
         b_curv : np.ndarray
-            Berry curvature tensor. If ``plane`` is None, shape is (dim_k, dim_k, Nk, n_orb, n_orb).
-            If ``plane`` is a tuple, shape is (Nk, n_orb, n_orb) and the returned tensor is restricted
-            to the specified directions.
-            If ``non_abelian=False``, returns the band-trace of the Berry curvature tensor and the last
-            two dimensions are not present. If parameter sweeps are performed via ``params``,
-            parameter axes are added after the k-point axis.
+            Berry curvature tensor. Full shape is
+            ``(dim_tot, dim_tot, Nk, Nparam1, Nparam2, ..., n_orb, n_orb)``,
+            where ``dim_tot = dim_k + n_params`` is the total number of
+            independent coordinates (crystal momenta plus varying parameters). If ``plane``
+            is specified, the first two axes are indexed by the specified directions, and the
+            shape is ``(Nk, Nparam1, Nparam2, ..., n_orb, n_orb)``. If ``non_abelian=False``,
+            the returned array is the band-trace of the full tensor and the last
+            two dimensions are contracted. The order of the parameter axes follows the order
+            of the parameter names in ``**params``.
 
         See Also
         --------
@@ -4271,7 +4276,7 @@ class TBModel:
         non_abelian : bool, optional
             If True, returns the full Berry curvature tensor (non-abelian case).
             If False, returns the band-trace of the Berry curvature tensor (abelian case).
-            Default is False.
+            Default is False. This will affect the shape of the returned array.
         param_periods : dict[str, float], optional
             Optional map ``{param_name: period}`` for swept parameters. When supplied,
             assumes the parameter is cyclic and trims any duplicated endpoints, or endpoints
@@ -4290,6 +4295,7 @@ class TBModel:
             This parameter is only relevant when passing varying parameters.
         use_tensorflow: bool, optional
             If True, will use TensorFlow to speed up linear algebra routines.
+            Requires TensorFlow to be installed. Default is False.
         **params :
             Keyword arguments mapping parameter names to value(s). Each value can be a scalar
             or a 1D array of values. If any values are array-like,
@@ -4300,10 +4306,15 @@ class TBModel:
         Returns
         -------
         g : np.ndarray
-            Quantum metric tensor at the specified k-points. If ``plane`` is None,
-            returns the full quantum metric tensor. If ``plane`` is specified,
-            returns the quantum metric component for that plane. If ``non_abelian=False``,
-            returns the band-trace of the quantum metric tensor (abelian case).
+            Quantum metric tensor. Full shape is
+            ``(dim_tot, dim_tot, Nk, Nparam1, Nparam2, ..., n_orb, n_orb)``,
+            where ``dim_tot = dim_k + n_params`` is the total number of
+            independent coordinates (crystal momenta plus varying parameters). If ``plane``
+            is specified, the first two axes are indexed by the specified directions, and the
+            shape is ``(Nk, Nparam1, Nparam2, ..., n_orb, n_orb)``. If ``non_abelian=False``,
+            the returned array is the band-trace of the full tensor and the last
+            two dimensions are contracted. The order of the parameter axes follows the order
+            of the parameter names in ``**params``.
 
         See Also
         --------
@@ -4453,6 +4464,7 @@ class TBModel:
         See Also
         --------
         berry_curvature : Computes the Berry curvature tensor used in the integrand.
+        :ref:`axion-fkm-nb` : Example notebook demonstrating axion angle calculation.
 
         Notes
         -----
