@@ -3093,8 +3093,10 @@ class TBModel:
         - The returned wavefunctions correspond to the cell-periodic part
           :math:`u_{n \mathbf{k}}(\mathbf{r})` and not the full Bloch function
           :math:`\psi_{n \mathbf{k}}(\mathbf{r})`.
-        - In many cases, using the :class:`pythtb.wf_array.WFArray` class offers a more
-          elegant interface for handling eigenstates on a regular k-mesh.
+        - In many cases, using the :class:`WFArray` class offers a more
+          elegant interface for handling eigenstates on a mesh of k and parameter points.
+          This class will automatically manage the periodic gauge of the wavefunctions
+          and provide additional methods for computing observables such as the Berry curvature.
 
         Examples
         --------
@@ -4019,11 +4021,21 @@ class TBModel:
         velocity : Computes the velocity operator used in the Kubo formula.
         berry_curvature : Computes the Berry curvature from the quantum geometric tensor.
         quantum_metric : Computes the quantum metric from the quantum geometric tensor.
+        :ref:`quantum-geom-tens-nb` : Jupyter notebook tutorial on quantum geometric tensor.
 
         Notes
         -----
         - The quantum geometric tensor captures both the Berry curvature (imaginary part)
           and the quantum metric (real part) of the occupied bands.
+        - The plane indices use the combined coordinate ordering of k-space
+          dimensions followed by swept parameters
+          :math:`[k_0, ..., k_{\text{dim_k}}, \lambda_0, \lambda_1, ...]`.
+          For example, in a 2D model with one swept parameter, the valid plane indices
+          are ``0``, ``1``, and ``2``, where ``0`` and ``1`` refer to the two k-space
+          dimensions, and ``2`` refers to the swept parameter axis. Swept parameters
+          are those provided as array-like values in ``**params``. The order of
+          swept parameters is determined by the order in which they appear
+          in the ``**params`` keyword arguments.
 
         .. warning::
             - This requires a global energy gap between occupied and unoccupied bands.
@@ -4166,6 +4178,7 @@ class TBModel:
         quantum_geometric_tensor : Computes the quantum geometric tensor.
         quantum_metric : Computes the quantum metric tensor.
         velocity : Computes the velocity operator used in the Kubo formula.
+        :ref:`quantum-geom-tens-nb` : Jupyter notebook tutorial on quantum geometric tensor.
 
         Notes
         -----
@@ -4190,6 +4203,15 @@ class TBModel:
         - When using parameter sweeps via ``params``, the Berry curvature is computed
           at all combinations of parameter values, and the resulting array has
           parameter axes added after the k-point axis in the output.
+        - The plane indices use the combined coordinate ordering of k-space
+          dimensions followed by swept parameters
+          :math:`[k_0, ..., k_{\text{dim_k}}, \lambda_0, \lambda_1, ...]`.
+          For example, in a 2D model with one swept parameter, the valid plane indices
+          are ``0``, ``1``, and ``2``, where ``0`` and ``1`` refer to the two k-space
+          dimensions, and ``2`` refers to the swept parameter axis. Swept parameters
+          are those provided as array-like values in ``**params``. The order of
+          swept parameters is determined by the order in which they appear
+          in the ``**params`` keyword arguments.
 
         .. warning::
             - This requires a global energy gap between occupied and unoccupied bands.
@@ -4321,6 +4343,7 @@ class TBModel:
         quantum_geometric_tensor
         berry_curvature
         velocity
+        :ref:`quantum-geom-tens-nb` : Jupyter notebook tutorial on quantum geometric tensor.
 
         Notes
         -----
@@ -4346,6 +4369,15 @@ class TBModel:
         - When using parameter sweeps via ``params``, the quantum metric is computed
           at all combinations of parameter values, and the resulting array has
           parameter axes added after the k-point axis in the output.
+        - The plane indices use the combined coordinate ordering of k-space
+          dimensions followed by swept parameters
+          :math:`[k_0, ..., k_{\text{dim_k}}, \lambda_0, \lambda_1, ...]`.
+          For example, in a 2D model with one swept parameter, the valid plane indices
+          are ``0``, ``1``, and ``2``, where ``0`` and ``1`` refer to the two k-space
+          dimensions, and ``2`` refers to the swept parameter axis. Swept parameters
+          are those provided as array-like values in ``**params``. The order of
+          swept parameters is determined by the order in which they appear
+          in the ``**params`` keyword arguments.
 
         .. warning::
             - This requires a global energy gap between occupied and unoccupied bands.
@@ -4475,6 +4507,15 @@ class TBModel:
           full Brillouin zone.
         - The axion angle is computed using the gauge-invariant 4-curvature formulation,
           which doesn't require fixing a smooth gauge like the Chern-Simons 3-form approach.
+        - The plane indices use the combined coordinate ordering of k-space
+          dimensions followed by swept parameters
+          :math:`[k_0, ..., k_{\text{dim_k}}, \lambda_0, \lambda_1, ...]`.
+          For example, in a 2D model with one swept parameter, the valid plane indices
+          are ``0``, ``1``, and ``2``, where ``0`` and ``1`` refer to the two k-space
+          dimensions, and ``2`` refers to the swept parameter axis. Swept parameters
+          are those provided as array-like values in ``**params``. The order of
+          swept parameters is determined by the order in which they appear
+          in the ``**params`` keyword arguments.
         """
         if self.dim_k != 3:
             raise ValueError(
@@ -4856,6 +4897,11 @@ class TBModel:
         C_bulk_avg : float, optional
             Bulk-averaged Chern number computed from local Chern marker.
             Returned only if `return_bulk_avg` is True.
+
+        See Also
+        --------
+        chern_number : Computes the total Chern number via Berry curvature integration.
+        :ref:`local-chern-nb` : Jupyter notebook tutorial on local Chern marker.
 
         References
         ----------
