@@ -220,6 +220,7 @@ If problems persist, open an issue on the [GitHub repository](https://github.com
 See [changelog](CHANGELOG) for a complete list of changes.
 
 ### Version 2.0.0 (current)
+11 November 2025: [pythtb-2.0.0.tar.gz](_static/versions/v2.0.0/pythtb-2.0.0.tar.gz)
 
 ### Version 1.8.0
 
