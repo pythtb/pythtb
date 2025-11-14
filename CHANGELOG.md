@@ -119,7 +119,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - This enables passing kwargs specifying parameter values as scalars or arrays to methods like `TBModel.hamiltonian()` or any other method that uses the tight-binding Hamiltonian (e.g., `TBModel.velocity()`, `TBModel.berry_curvature()`, etc.)
 
 **New methods in `TBModel`**
-- `TBModel.__str__`: Allows printing a `TBModel` instance using `print(TBModel)`, which prints `TBModel.info()`
+- Added `TBModel.__str__`: Allows printing a `TBModel` instance using `print(TBModel)`, which prints `TBModel.info()`
 - Added `TBModel.info()`: Replaces `display()` for printing model summary
 - Added `TBModel.copy()`: Creates a deep copy of the `TBModel` instance
 - Added `TBModel.get_lat_vecs()`: Replaces `get_lat()` for clarity
@@ -172,6 +172,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `TBModel.recip_volume`: read-only property returning reciprocal unit cell volume
 
 **New methods in `WFArray`**
+- Added `WFArray.set_states()`: Sets wavefunction data from NumPy array
+- Added `WFArray.remove_states()`: Removes specified states from the `WFArray`
 - Added `WFArray.overlap_matrix()`: Computes overlap matrix of the states in the `WFArray` with their nearest neighbors on a `Mesh`.
 - Added `WFArray.links()`: Computes the unitary part of the overlap between states and their nearest neighbors in each mesh direction
 - Added `WFArray.berry_connection()`: Computes Berry connection from the links between nearest neighbor states in the mesh
@@ -186,10 +188,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `WFArray.copy()`: Creates a deep copy of the `WFArray` instance
 - Added parameter `non_abelian` to `WFArray.berry_flux()` to compute non-Abelian Berry flux for a manifold of states
 
+**New attributes in `WFArray`**
+- Added `WFArray.model`: read-only property returning associated `TBModel` instance (if provided with `solve_model()`)
+- Added `WFArray.mesh`: read-only property returning associated `Mesh` instance
+- Added `WFArray.lattice`: read-only property returning associated `Lattice` instance
+- Added `WFArray.filled`: read-only property returning whether states have been populated
+- Added `WFArray.wfs`: read-only property returning wavefunction data as NumPy array
+- Added `WFArray.energies`: read-only property returning energies as NumPy array (if populated via `solve_model()`)
+- Added `WFArray.u_nk`: read-only property returning cell-periodic parts of Bloch states as NumPy array (if populated via `set_states()` or `solve_model()` and system is periodic)
+- Added `WFArray.psi_nk`: read-only property returning full Bloch states including phase factors as NumPy array (if populated via `set_states()` or `solve_model()` and system is periodic)
+- Added `WFArray.Mmn`: read-only property returning overlap matrices between states and their nearest neighbors on the mesh (if computed via `overlap_matrix()`)
+- Added `WFArray.hamiltonian` : read-only property returning Hamiltonian matrices at each mesh point (if populated via `solve_model()`)
+- Added `WFArray.shape`: read-only property returning shape of the stored wavefunction array
+- Added `WFArray.nstates`: read-only property returning number of states stored
+- Added `WFArray.spinful`: read-only property returning spinful/spinless status
+- Added `WFArray.nspins`: read-only property returning number of spin components (1 or 2)
+- Added `WFArray.norb`: read-only property returning number of orbitals in the underlying `Lattice`
+- Added `WFArray.shape_mesh`: number of points along each mesh axis
+- Added `WFArray.dim_k`: read-only property returning k-space dimension of the underlying `Lattice`
+- Added `WFArray.dim_lambda`: read-only property returning number of swept parameters in the `Mesh`
+- Added `WFArray.naxes`: read-only property returning total number of mesh axes
+- Added `WFArray.k_points`: read-only property returning k-points stored in the `Meshe` in reduced coordinates as NumPy array
+- Added `WFArray.param_points`: read-only property returning parameter points stored in the `Mesh` as NumPy array
+
 **New methods in `W90`**
-- `W90.bands_w90()`: Replaces `w90_bands_consistency()` for clarity
+- Added `W90.bands_w90()`: Renaming of `w90_bands_consistency()` for consistency
   - Returns energy array with shape `(kpts, band)` consistent with `TBModel.solve_ham()`
-- `W90.bands_qe()`: Reads band structure from Quantum ESPRESSO `prefix_bands.out` output files
+- Added `W90.bands_qe()`: Reads band structure from Quantum ESPRESSO `prefix_bands.out` output files
 
 ### Deprecated
 
