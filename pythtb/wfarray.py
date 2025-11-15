@@ -92,7 +92,7 @@ class WFArray:
       and (if present) spin indices. When setting the wavefunctions manually, ensure the input
       array matches this convention.
     - :class:`WFArray` cooperates with :class:`Wannier` to construct smooth Wannier gauges:
-      pass the diagonalized array to ``Wannier(wfarray)`` and use
+      pass the populated array to ``Wannier(wfarray)`` and use
       :meth:`Wannier.single_shot_projection`.
     - Some features are only defined for regular grids and/or in the energy eigenstate gauge.
       Check the documentation of individual methods for details.
