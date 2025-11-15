@@ -1,38 +1,54 @@
 <p align="center">
- <img src="docs/source/_static/pythtb_logo.svg" width="300"/>
+ <img src="https://raw.githubusercontent.com/pythtb/pythtb/main/docs/source/_static/pythtb_logo.svg" width="300"/>
 </p>
 
 --------
 
-[![Conda Version](https://anaconda.org/conda-forge/pythtb/badges/version.svg)](https://anaconda.org/conda-forge/pythtb/) 
-[![Conda Downloads](https://anaconda.org/conda-forge/pythtb/badges/downloads.svg)](https://anaconda.org/conda-forge/pythtb/) 
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.12721315-blue.svg)](https://doi.org/10.5281/zenodo.12721315)
+[![PyPI](https://img.shields.io/pypi/v/pythtb.svg)](https://pypi.org/project/pythtb/)
+[![Conda Version](https://img.shields.io/conda/vn/conda-forge/pythtb.svg)](https://anaconda.org/conda-forge/pythtb)
+[![PyPI Downloads](https://img.shields.io/pypi/dm/pythtb.svg?label=PyPI%20downloads)](
+https://pypi.org/project/pythtb/)
+[![Conda Downloads](https://img.shields.io/conda/dn/conda-forge/pythtb.svg?label=Conda%20downloads)](
+https://anaconda.org/conda-forge/pythtb)
 [![readthedocs status](https://app.readthedocs.org/projects/pythtb/badge/?version=dev)](https://pythtb.readthedocs.io/en/dev/) 
 [![SPEC 0 — Minimum Supported Dependencies](https://img.shields.io/badge/SPEC-0-green?labelColor=%23004811&color=%235CA038)](https://scientific-python.org/specs/spec-0000/)
 [![Run examples on Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/pythtb/pythtb/dev?urlpath=lab/tree/docs/source/examples/)
 
-PythTB is a Python toolkit for constructing and analyzing tight-binding models. It provides a flexible interface for exploring electronic structure and band topology in both simple and research-scale systems. With PythTB, you can:
+PythTB is a Python library for constructing and analyzing tight-binding models, built for modern topological band theory applications. It provides a streamlined path from model specification to physical interpretation, making it useful for both learning electronic structure and conducting research-level studies. With only a few lines of code, you can define lattice models, build tight-binding Hamiltonians, and compute electronic properties.
 
-- Build models for crystals, slabs, ribbons, and molecules - any combination of periodic and open directions.
-- Sweep adiabatic parameters and evaluate band structure, quantum geometric tensors, local Chern markers, and axion angles.
-- Compute Berry phases, Berry curvature, Chern numbers, Wilson loops, and other band-topology diagnostics on structured meshes.
-- Interface with Wannier90 to construct tight-binding models from first-principles calculations.
+PythTB provides tools for:
+- Band structures and density of states
+- Berry phases and Berry curvature
+- Chern numbers, Wilson loops, and related invariants
+- Quantum geometric tensors and local Chern markers
+- Chern-Simons axion angle
+- Maximally localized Wannier functions
+- Wannier-based tight-binding models generated through Wannier90
 
-Whether you are prototyping a textbook model or conducting research, PythTB is designed to remain readable, reproducible, and easy to extend.
-For more details, please refer to the [documentation](https://pythtb.readthedocs.io/en/latest/).
+
+## Resources
+- **Documentation**: https://pythtb.readthedocs.io/en/latest/
+- **Contributing**: https://pythtb.readthedocs.io/en/latest/development.html
+- **Tutorials**: https://pythtb.readthedocs.io/en/latest/tutorials.html
+- **Formalism**: https://pythtb.readthedocs.io/en/latest/formalism.html
+- **Source**: https://github.com/pythtb/pythtb
+- **Report Issues**: https://github.com/pythtb/pythtb/issues
+
 
 ## Installation
 
-PythTB can be installed from **Conda-Forge** (PythTB ≥ 1.8.0) or **PyPI**:
+PythTB is available through conda-forge (recommended) and PyPI.
 
 ```bash
-# via Conda for pythtb >= v1.8.0
+# Conda (pythtb >= 1.8.0)
 conda install -c conda-forge pythtb
 
-# or via pip
+# pip
 pip install pythtb
 ```
 
-Or install from source (editable) after cloning the repository:
+To install from source in editable mode:
 
 ```bash
 git clone https://github.com/pythtb/pythtb.git
@@ -44,15 +60,34 @@ PythTB ≥ 2.0.0 requires Python ≥ 3.12 and the core dependencies:
 - numpy ≥ 2.0
 - matplotlib ≥ 3.9
 
-Optional extras (install with `pip install .[group]`):
+Optional extras can be installed via `pip install .[group]`:
 
-- `[plotting]`: plotly (interactive 3D plots)
-- `[speedup]`: tensorflow (GPU-assisted routines)
-- `[notebooks]`: ipython ≥ 8.17, ipykernel, notebook, jupyter, jupyterlab (Jupyter support)
-- `[docs]`: sphinx toolchain (build the documentation)
+- `[plotting]`: Plotly for interactive visualization
+- `[speedup]`: TensorFlow for GPU-accelerated routines
+- `[notebooks]`: Jupyter support (IPython ≥ 8.17, ipykernel, notebook, jupyter, jupyterlab)
+- `[docs]`: Sphinx toolchain for documentation
 - `[tests]`: pytest
-- `[dev]`: pytest, black, pre-commit
+- `[dev]`: developer tools (pytest, ruff, pre-commit)
 
-For detailed installation instructions, editable/development setup, and troubleshooting, see:
+For more detailed instructions, see:
 - [Full Installation Guide](https://pythtb.readthedocs.io/en/latest/install.html)
 - [Wiki](https://github.com/pythtb/pythtb/wiki/Installation-Instructions-for-Developers)
+
+## Citation
+
+If you use the code in your paper, please cite us
+
+```bibtex
+@software{Cole_Python_Tight_Binding_2025,
+author = {Cole, Trey and Coh, Sinisa and Vanderbilt, David},
+doi = {10.5281/zenodo.12721315},
+license = {GPL-3.0-or-later},
+month = nov,
+title = {{Python Tight Binding (PythTB)}},
+url = {https://zenodo.org/records/12721315},
+version = {2.0.0},
+year = {2025}
+}
+```
+
+

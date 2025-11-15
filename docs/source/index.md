@@ -13,20 +13,29 @@ myst:
 (_pythtb_mainpage)=
 # Python Tight Binding (PythTB)
 
-PythTB is a pure-Python toolbox for building and analyzing tight-binding models. With a few lines of code, you can define lattices, assign hopping parameters, diagonalize the Hamiltonians on custom meshes, plot band structures, and evaluate quantum-geometry objects such as Berry phases, curvatures, and Chern numbers. The package also reads Wannier90 output so you can work directly with Wannierized models coming from first-principles calculations.
+PythTB is a Python library for constructing and analyzing tight-binding models, built for modern topological band theory applications. It provides a streamlined path from model specification to physical interpretation, making it useful for both learning electronic structure and conducting research-level studies. With only a few lines of code, you can define lattice models, build tight-binding Hamiltonians, and compute electronic properties.
+
+```{admonition} PythTB 2.0.0 Released!
+:class: important
+
+[Release Notes](release/2.0.0-notes)  
+[Changelog](CHANGELOG.md)
+```
 
 ```{admonition} Quick Links
 :class: seealso
 
+- [GitHub](https://github.com/pythtb/pythtb) - source code and issue tracker
 - {doc}`Installation <install>` - install instructions and dependencies
 - {doc}`API <api>` - detailed API reference
 - {doc}`Tutorials <tutorials>` - Jupyter notebooks demonstrating key features
 - {doc}`Development <development>` - contributing guidelines and developer docs
-- {doc}`Release Notes <release>` - detailed version history
-- {doc}`Changelog <CHANGELOG>` - summary of changes by version
+- {doc}`Release Notes <release>` - discussion of new features by version
+- {doc}`Changelog <CHANGELOG>` - list of changes by version
 - {doc}`Formalism <formalism>` - theoretical background 
 - {doc}`Citation <citation>` - how to cite PythTB in publications
 ```
+
 
 ## Core functionality
 

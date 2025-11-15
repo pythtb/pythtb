@@ -126,11 +126,11 @@ class TBModel:
     - Beyond constructing and diagonalizing the Hamiltonian, this class provides
       methods for computing topological and quantum-geometric observables, including:
 
-      - Quantum geometric tensor (QGT)
-      - Berry curvature and quantum metric
-      - Chern number
-      - Axion angle (Chern-Simons contribution)
-      - Bianco-Resta local Chern marker (real-space topology)
+      - Quantum geometric tensor (QGT) (in ≥ 2D periodic systems)
+      - Berry curvature and quantum metric (in ≥ 2D periodic systems)
+      - Chern number (in ≥ 2D periodic systems)
+      - Axion angle (in 3D periodic models + 1 varying parameter)
+      - Bianco-Resta local Chern marker (in 2D finite systems)
 
     - Hamiltonians may depend on external parameters (e.g. strain, adiabatic
       parameters), and can be registered by setting onsite or hopping terms
@@ -193,6 +193,7 @@ class TBModel:
 
     def __init__(self, lattice: Lattice, spinful: bool = False):
         self._lattice = lattice
+        self._spinful = spinful
         self._nspin = 2 if spinful else 1
 
         # By default, assume model did not come from w90 object and that
@@ -201,9 +202,9 @@ class TBModel:
         self._from_w90 = False
 
         # Initialize onsite energies to zero
-        if self._nspin == 1:
+        if not spinful:
             self._site_energies = np.zeros((self.norb), dtype=float)
-        elif self._nspin == 2:
+        else:
             self._site_energies = np.zeros((self.norb, 2, 2), dtype=complex)
 
         # The onsite energies and hoppings are not specified
@@ -308,7 +309,7 @@ class TBModel:
         bool
             Whether the model includes spin degrees of freedom.
         """
-        return self._nspin == 2
+        return self._spinful
 
     @property
     def periodic_dirs(self) -> list[int]:
@@ -334,7 +335,7 @@ class TBModel:
         int
             Number of tight-binding orbitals per unit cell.
         """
-        return copy.copy(self.lattice.norb)
+        return self.lattice.norb
 
     @property
     def nstate(self) -> int:
@@ -361,7 +362,7 @@ class TBModel:
             A copy of the orbital positions in reduced coordinates.
             Shape is ``(norb, dim_r)``.
         """
-        return copy.copy(self.lattice.orb_vecs)
+        return self.lattice.orb_vecs.copy()
 
     @property
     def lat_vecs(self) -> np.ndarray:
@@ -375,7 +376,7 @@ class TBModel:
             A copy of the lattice vectors in Cartesian coordinates.
             Shape is ``(dim_r, dim_r)``.
         """
-        return copy.copy(self.lattice.lat_vecs)
+        return self.lattice.lat_vecs.copy()
 
     @property
     def recip_lat_vecs(self) -> np.ndarray:
@@ -387,9 +388,9 @@ class TBModel:
         -------
         np.ndarray
             A copy of the reciprocal lattice vectors in inverse Cartesian units.
-            Shape is ``(dim_k, dim_k)``.
+            Shape is ``(dim_k, dim_r)``.
         """
-        return copy.copy(self.lattice.recip_lat_vecs)
+        return self.lattice.recip_lat_vecs.copy()
 
     @property
     def recip_volume(self) -> float:
@@ -452,7 +453,7 @@ class TBModel:
         formatted: list[dict] = []
         for hop_idx in range(self.nhops):
             amp = amps[hop_idx]
-            if self._nspin == 2:
+            if self.spinful:
                 amplitude = np.asarray(amp).copy()
             else:
                 amplitude = complex(amp)
@@ -628,7 +629,7 @@ class TBModel:
                     )
                     continue
 
-                if self._nspin == 1:
+                if not self.spinful:
                     energy_str = f"{site:^7.3f}"
                 else:
                     energy_str = str(site).replace("\n", " ")
@@ -894,7 +895,7 @@ class TBModel:
         - Symbolic and callable inputs automatically register their parameter names. 
           For callables with multiple parameters, each parameter is registered.
         - Parameter evaluation is **scalar only**. Spinful on-site blocks
-          must then be then be set with callables so that the returned values match 
+          must then be set with callables so that the returned values match 
           the expected spinful structure. 
         
           Example:
@@ -1052,7 +1053,7 @@ class TBModel:
 
     def set_hop(
         self,
-        hop_amp,
+        hop_amp: float | complex | list | np.ndarray | str | Callable,
         ind_i: int,
         ind_j: int,
         ind_R=None,
@@ -1086,7 +1087,7 @@ class TBModel:
 
             - **Spinless models**  (``spinful=False``)
 
-              - Real scalar.
+              - Complex scalar.
 
             - **Spinful models**  (``spinful=True``)
 
@@ -1378,23 +1379,23 @@ class TBModel:
         --------
         Nearest- and next-nearest-neighbor hopping:
 
-        >>> tb.set_nn_hops({1: 1.0, 2: 0.5})
+        >>> tb.set_shell_hops({1: 1.0, 2: 0.5})
 
         Only nearest‐neighbor hopping:
 
-        >>> tb.set_nn_hops({1: 1.0})
+        >>> tb.set_shell_hops({1: 1.0})
 
         Spinful shell assignment via 4-vector:
 
-        >>> tb.set_nn_hops({1: [1.0, 0.1, 0.0, -0.1]})
+        >>> tb.set_shell_hops({1: [1.0, 0.1, 0.0, -0.1]})
 
         Symbolic parameterized NN hopping:
 
-        >>> tb.set_nn_hops({1: "t"})
+        >>> tb.set_shell_hops({1: "t"})
 
         Callable hopping:
 
-        >>> tb.set_nn_hops({1: lambda t: 0.2 * np.cos(t)})
+        >>> tb.set_shell_hops({1: lambda t: 0.2 * np.cos(t)})
 
         Evaluate later:
 
@@ -1498,15 +1499,6 @@ class TBModel:
         if isinstance(provider, str):
             return (provider,)
         raise TypeError(f"Unsupported {ctx} provider type: {type(provider)}")
-
-    def _check_parameter_exists(self, params: dict):
-        """Check if any parameters are defined in the model."""
-        required = {name for entry in self.parameters for name in entry["names"]}
-        provided = set(params.keys())
-
-        unknown = provided - required
-        if unknown:
-            raise ValueError("Unknown parameter name(s): " + ", ".join(sorted(unknown)))
 
     def _check_missing_parameters(self, params: dict):
         """Check for missing parameters in the provided dictionary."""
@@ -2100,7 +2092,7 @@ class TBModel:
             for amp, ind_i, ind_j, ind_R in zip(
                 amps, from_idx, to_idx, R_vecs, strict=True
             ):
-                hop_amp = amp.copy() if self._nspin == 2 else complex(amp)
+                hop_amp = amp.copy() if self.spinful else complex(amp)
                 R_vec = ind_R.copy()
                 jump_fin = int(R_vec[periodic_dir])
 
@@ -2457,7 +2449,7 @@ class TBModel:
                 hi = int(ind_i) + base
                 hj = int(ind_j) + pair_idx * self.norb
 
-                if self._nspin == 2:
+                if self.spinful:
                     amp_use = amp.copy()
                 else:
                     amp_use = complex(amp)
@@ -2950,7 +2942,7 @@ class TBModel:
         ham,
         return_eigvecs=False,
         flatten_spin_axis=False,
-        tf_speedup=False,
+        use_tensorflow=False,
         use_32_bit=False,
     ):
         """Solves Hamiltonian and returns eigenvectors, eigenvalues"""
@@ -2959,8 +2951,13 @@ class TBModel:
         if not np.allclose(ham, ham.swapaxes(-1, -2).conj()):
             raise ValueError("Hamiltonian matrix is not Hermitian.")
 
-        if tf_speedup:
-            import tensorflow as tf
+        if use_tensorflow:
+            try:
+                import tensorflow as tf
+            except ImportError as e:
+                raise ImportError(
+                    "TensorFlow is not installed. Please install TensorFlow or set use_tensorflow=False."
+                ) from e
 
             if use_32_bit:
                 ham_tf = tf.convert_to_tensor(ham, dtype=tf.complex64)
@@ -3008,7 +3005,7 @@ class TBModel:
         k_pts: list | np.ndarray | None = None,
         return_eigvecs: bool = False,
         flatten_spin_axis: bool = True,
-        tf_speedup: bool = False,
+        use_tensorflow: bool = False,
         **params,
     ) -> tuple[np.ndarray, np.ndarray] | np.ndarray:
         r"""Diagonalize the Hamiltonian
@@ -3045,7 +3042,7 @@ class TBModel:
 
             .. versionadded:: 2.0.0
 
-        tf_speedup : bool, optional
+        use_tensorflow : bool, optional
             If True, use TensorFlow to accelerate the diagonalization.
             This requires TensorFlow to be installed. Default is False.
 
@@ -3096,8 +3093,10 @@ class TBModel:
         - The returned wavefunctions correspond to the cell-periodic part
           :math:`u_{n \mathbf{k}}(\mathbf{r})` and not the full Bloch function
           :math:`\psi_{n \mathbf{k}}(\mathbf{r})`.
-        - In many cases, using the :class:`pythtb.wf_array.WFArray` class offers a more
-          elegant interface for handling eigenstates on a regular k-mesh.
+        - In many cases, using the :class:`WFArray` class offers a more
+          elegant interface for handling eigenstates on a mesh of k and parameter points.
+          This class will automatically manage the periodic gauge of the wavefunctions
+          and provide additional methods for computing observables such as the Berry curvature.
 
         Examples
         --------
@@ -3118,7 +3117,7 @@ class TBModel:
                 ham,
                 return_eigvecs=return_eigvecs,
                 flatten_spin_axis=flatten_spin_axis,
-                tf_speedup=tf_speedup,
+                use_tensorflow=use_tensorflow,
             )
             if self.dim_k != 0:
                 # if only one k_point, remove that redundant axis (reproduces solve_one)
@@ -3798,13 +3797,16 @@ class TBModel:
         cond_idxs = np.setdiff1d(np.arange(n_eigs), occ_idxs)
 
         if use_tensorflow:
-            # tensorflow optimization
-            import tensorflow as tf
-            from tensorflow import constant as const
+            try:
+                import tensorflow as tf
+            except ImportError as e:
+                raise ImportError(
+                    "TensorFlow is not installed. Please install TensorFlow to use this feature."
+                ) from e
 
-            v_tf = const(v, dtype=tf.complex64)
-            evals_tf = const(eigvals, dtype=tf.complex64)
-            evecs_tf = const(eigvecs, dtype=tf.complex64)
+            v_tf = tf.constant(v, dtype=tf.complex64)
+            evals_tf = tf.constant(eigvals, dtype=tf.complex64)
+            evecs_tf = tf.constant(eigvecs, dtype=tf.complex64)
 
             # Transpose eigenvectors for matmul
             r = tf.rank(evecs_tf)  # number of axes
@@ -3974,7 +3976,7 @@ class TBModel:
         non_abelian : bool, optional
             If True, returns the full tensor (non-abelian case).
             If False, returns the band-trace of the tensor (abelian case).
-            Default is False.
+            Default is False. This will affect the shape of the returned array.
         param_periods : dict[str, float], optional
             Optional map ``{param_name: period}`` for swept parameters. When supplied,
             assumes the parameter is cyclic and trims any duplicated endpoints, or endpoints
@@ -3993,6 +3995,7 @@ class TBModel:
             This parameter is only relevant when passing varying parameters.
         use_tensorflow: bool, optional
             If True, will use TensorFlow to speed up linear algebra routines.
+            Requires TensorFlow to be installed. Default is False.
         **params :
             Keyword arguments mapping parameter names to value(s). Each value can be a scalar
             or a 1D array of values. If any values are array-like,
@@ -4003,24 +4006,36 @@ class TBModel:
         Returns
         -------
         Q : array
-            Quantum geometric tensor at the specified k-points.
-            If ``plane`` is None, shape is ``(dim_k, dim_k, Nk, n_orb, n_orb)``.
-            If ``plane`` is a tuple, shape is ``(Nk, n_orb, n_orb)`` and the returned
-            tensor is restricted to the specified directions. If ``non_abelian=False``,
-            returns the band-trace of the quantum geometric tensor and the last
-            two axes are not present. If parameter sweeps are performed via ``params``,
-            parameter axes are added after the k-point axis.
+            Quantum geometric tensor. Full shape is
+            ``(dim_tot, dim_tot, Nk, Nparam1, Nparam2, ..., n_orb, n_orb)``,
+            where ``dim_tot = dim_k + n_params`` is the total number of
+            independent coordinates (crystal momenta plus varying parameters). If ``plane``
+            is specified, the first two axes are indexed by the specified directions, and the
+            shape is ``(Nk, Nparam1, Nparam2, ..., n_orb, n_orb)``. If ``non_abelian=False``,
+            the returned array is the band-trace of the full tensor and the last
+            two dimensions are contracted. The order of the parameter axes follows the order
+            of the parameter names in ``**params``.
 
         See Also
         --------
         velocity : Computes the velocity operator used in the Kubo formula.
         berry_curvature : Computes the Berry curvature from the quantum geometric tensor.
         quantum_metric : Computes the quantum metric from the quantum geometric tensor.
+        :ref:`quantum-geom-tens-nb` : Jupyter notebook tutorial on quantum geometric tensor.
 
         Notes
         -----
         - The quantum geometric tensor captures both the Berry curvature (imaginary part)
           and the quantum metric (real part) of the occupied bands.
+        - The plane indices use the combined coordinate ordering of k-space
+          dimensions followed by swept parameters
+          :math:`[k_0, ..., k_{\text{dim_k}}, \lambda_0, \lambda_1, ...]`.
+          For example, in a 2D model with one swept parameter, the valid plane indices
+          are ``0``, ``1``, and ``2``, where ``0`` and ``1`` refer to the two k-space
+          dimensions, and ``2`` refers to the swept parameter axis. Swept parameters
+          are those provided as array-like values in ``**params``. The order of
+          swept parameters is determined by the order in which they appear
+          in the ``**params`` keyword arguments.
 
         .. warning::
             - This requires a global energy gap between occupied and unoccupied bands.
@@ -4048,7 +4063,10 @@ class TBModel:
             )
 
         eigvals, eigvecs = self._sol_ham(
-            ham, return_eigvecs=True, flatten_spin_axis=True, tf_speedup=use_tensorflow
+            ham,
+            return_eigvecs=True,
+            flatten_spin_axis=True,
+            use_tensorflow=use_tensorflow,
         )
 
         return self._quantum_geometric_tensor(
@@ -4101,22 +4119,21 @@ class TBModel:
         Parameters
         ----------
         k_pts : (Nk, dim_k) array-like
-            Array of k-points with shape (Nk, dim_k), where Nk is the number of points
-            and dim_k is the dimensionality of the k-space.
+            Array of k-points with shape ``(Nk, dim_k)``, where ``Nk`` is the number of points
+            and ``dim_k`` is the dimensionality of the k-space.
         occ_idxs : 1D array, optional
             Indices of the occupied bands. Defaults to the first half of the states.
         plane : tuple of int, optional
             Tuple of two integers specifying the plane in k-space for which to compute
-            the curvature. If None (default),
-            computes all components of the Berry curvature tensor. This
-            will affect the shape of the returned array.
+            the curvature. If None (default), computes all components of the Berry
+            curvature tensor. This will affect the shape of the returned array.
         cartesian : bool, optional
             If True, computes the velocity operator in Cartesian coordinates.
             Default is False (reduced coordinates). See :meth:`velocity` for details.
         non_abelian : bool, optional
             If True, returns the full Berry curvature tensor (non-abelian case).
             If False, returns the band-trace of the Berry curvature tensor (abelian case).
-            Default is False.
+            Default is False. This will affect the shape of the returned array.
         param_periods : dict[str, float], optional
             Optional map ``{param_name: period}`` for swept parameters. When supplied,
             assumes the parameter is cyclic and trims any duplicated endpoints, or endpoints
@@ -4135,6 +4152,7 @@ class TBModel:
             This parameter is only relevant when passing varying parameters.
         use_tensorflow: bool, optional
             If True, will use TensorFlow to speed up linear algebra routines.
+            Requires TensorFlow to be installed. Default is False.
         **params :
             Keyword arguments mapping parameter names to value(s). Each value can be a scalar
             or a 1D array of values. If any values are array-like,
@@ -4145,18 +4163,22 @@ class TBModel:
         Returns
         -------
         b_curv : np.ndarray
-            Berry curvature tensor. If ``plane`` is None, shape is (dim_k, dim_k, Nk, n_orb, n_orb).
-            If ``plane`` is a tuple, shape is (Nk, n_orb, n_orb) and the returned tensor is restricted
-            to the specified directions.
-            If ``non_abelian=False``, returns the band-trace of the Berry curvature tensor and the last
-            two dimensions are not present. If parameter sweeps are performed via ``params``,
-            parameter axes are added after the k-point axis.
+            Berry curvature tensor. Full shape is
+            ``(dim_tot, dim_tot, Nk, Nparam1, Nparam2, ..., n_orb, n_orb)``,
+            where ``dim_tot = dim_k + n_params`` is the total number of
+            independent coordinates (crystal momenta plus varying parameters). If ``plane``
+            is specified, the first two axes are indexed by the specified directions, and the
+            shape is ``(Nk, Nparam1, Nparam2, ..., n_orb, n_orb)``. If ``non_abelian=False``,
+            the returned array is the band-trace of the full tensor and the last
+            two dimensions are contracted. The order of the parameter axes follows the order
+            of the parameter names in ``**params``.
 
         See Also
         --------
         quantum_geometric_tensor : Computes the quantum geometric tensor.
         quantum_metric : Computes the quantum metric tensor.
         velocity : Computes the velocity operator used in the Kubo formula.
+        :ref:`quantum-geom-tens-nb` : Jupyter notebook tutorial on quantum geometric tensor.
 
         Notes
         -----
@@ -4181,6 +4203,15 @@ class TBModel:
         - When using parameter sweeps via ``params``, the Berry curvature is computed
           at all combinations of parameter values, and the resulting array has
           parameter axes added after the k-point axis in the output.
+        - The plane indices use the combined coordinate ordering of k-space
+          dimensions followed by swept parameters
+          :math:`[k_0, ..., k_{\text{dim_k}}, \lambda_0, \lambda_1, ...]`.
+          For example, in a 2D model with one swept parameter, the valid plane indices
+          are ``0``, ``1``, and ``2``, where ``0`` and ``1`` refer to the two k-space
+          dimensions, and ``2`` refers to the swept parameter axis. Swept parameters
+          are those provided as array-like values in ``**params``. The order of
+          swept parameters is determined by the order in which they appear
+          in the ``**params`` keyword arguments.
 
         .. warning::
             - This requires a global energy gap between occupied and unoccupied bands.
@@ -4267,7 +4298,7 @@ class TBModel:
         non_abelian : bool, optional
             If True, returns the full Berry curvature tensor (non-abelian case).
             If False, returns the band-trace of the Berry curvature tensor (abelian case).
-            Default is False.
+            Default is False. This will affect the shape of the returned array.
         param_periods : dict[str, float], optional
             Optional map ``{param_name: period}`` for swept parameters. When supplied,
             assumes the parameter is cyclic and trims any duplicated endpoints, or endpoints
@@ -4286,6 +4317,7 @@ class TBModel:
             This parameter is only relevant when passing varying parameters.
         use_tensorflow: bool, optional
             If True, will use TensorFlow to speed up linear algebra routines.
+            Requires TensorFlow to be installed. Default is False.
         **params :
             Keyword arguments mapping parameter names to value(s). Each value can be a scalar
             or a 1D array of values. If any values are array-like,
@@ -4296,16 +4328,22 @@ class TBModel:
         Returns
         -------
         g : np.ndarray
-            Quantum metric tensor at the specified k-points. If ``plane`` is None,
-            returns the full quantum metric tensor. If ``plane`` is specified,
-            returns the quantum metric component for that plane. If ``non_abelian=False``,
-            returns the band-trace of the quantum metric tensor (abelian case).
+            Quantum metric tensor. Full shape is
+            ``(dim_tot, dim_tot, Nk, Nparam1, Nparam2, ..., n_orb, n_orb)``,
+            where ``dim_tot = dim_k + n_params`` is the total number of
+            independent coordinates (crystal momenta plus varying parameters). If ``plane``
+            is specified, the first two axes are indexed by the specified directions, and the
+            shape is ``(Nk, Nparam1, Nparam2, ..., n_orb, n_orb)``. If ``non_abelian=False``,
+            the returned array is the band-trace of the full tensor and the last
+            two dimensions are contracted. The order of the parameter axes follows the order
+            of the parameter names in ``**params``.
 
         See Also
         --------
         quantum_geometric_tensor
         berry_curvature
         velocity
+        :ref:`quantum-geom-tens-nb` : Jupyter notebook tutorial on quantum geometric tensor.
 
         Notes
         -----
@@ -4331,6 +4369,15 @@ class TBModel:
         - When using parameter sweeps via ``params``, the quantum metric is computed
           at all combinations of parameter values, and the resulting array has
           parameter axes added after the k-point axis in the output.
+        - The plane indices use the combined coordinate ordering of k-space
+          dimensions followed by swept parameters
+          :math:`[k_0, ..., k_{\text{dim_k}}, \lambda_0, \lambda_1, ...]`.
+          For example, in a 2D model with one swept parameter, the valid plane indices
+          are ``0``, ``1``, and ``2``, where ``0`` and ``1`` refer to the two k-space
+          dimensions, and ``2`` refers to the swept parameter axis. Swept parameters
+          are those provided as array-like values in ``**params``. The order of
+          swept parameters is determined by the order in which they appear
+          in the ``**params`` keyword arguments.
 
         .. warning::
             - This requires a global energy gap between occupied and unoccupied bands.
@@ -4373,12 +4420,11 @@ class TBModel:
         use_tensorflow: bool = False,
         **params,
     ):
-        r"""Chern-Simons axion angle.
+        r"""Axion angle via the second Chern form.
 
-        Computes the Chern-Simons contribution to the axion angle for
-        a 3D bulk model that depends on a single adiabatic parameter
-        :math:`\lambda`. This is computed using the gauge-invariant 4-curvature
-        formulation:
+        Computes the axion angle for a 3D bulk model that depends
+        on a single adiabatic parameter :math:`\lambda`. This is computed
+        using the gauge-invariant 4-curvature formulation:
 
         .. math::
             \theta(\lambda) = \frac{1}{16\pi} \int_0^{\lambda} d\lambda'
@@ -4393,7 +4439,7 @@ class TBModel:
         :math:`\Omega_{\mu\nu}` is the non-Abelian Berry curvature
         tensor over the occupied states.
 
-        When the parameter :math:`\lambda` is periodic (e.g., an angle variable),
+        When the parameter :math:`\lambda` is cyclic (e.g., an angle variable),
         the change in :math:`\theta` over one full cycle is quantized
         in units of :math:`2\pi`, with the integer multiple given by the
         second Chern number :math:`C_2`:
@@ -4450,6 +4496,7 @@ class TBModel:
         See Also
         --------
         berry_curvature : Computes the Berry curvature tensor used in the integrand.
+        :ref:`axion-fkm-nb` : Example notebook demonstrating axion angle calculation.
 
         Notes
         -----
@@ -4459,7 +4506,16 @@ class TBModel:
         - The k-grid is constructed uniformly in reduced coordinates over the
           full Brillouin zone.
         - The axion angle is computed using the gauge-invariant 4-curvature formulation,
-          which is numerically more stable than the Chern-Simons 3-form approach.
+          which doesn't require fixing a smooth gauge like the Chern-Simons 3-form approach.
+        - The plane indices use the combined coordinate ordering of k-space
+          dimensions followed by swept parameters
+          :math:`[k_0, ..., k_{\text{dim_k}}, \lambda_0, \lambda_1, ...]`.
+          For example, in a 2D model with one swept parameter, the valid plane indices
+          are ``0``, ``1``, and ``2``, where ``0`` and ``1`` refer to the two k-space
+          dimensions, and ``2`` refers to the swept parameter axis. Swept parameters
+          are those provided as array-like values in ``**params``. The order of
+          swept parameters is determined by the order in which they appear
+          in the ``**params`` keyword arguments.
         """
         if self.dim_k != 3:
             raise ValueError(
@@ -4841,6 +4897,11 @@ class TBModel:
         C_bulk_avg : float, optional
             Bulk-averaged Chern number computed from local Chern marker.
             Returned only if `return_bulk_avg` is True.
+
+        See Also
+        --------
+        chern_number : Computes the total Chern number via Berry curvature integration.
+        :ref:`local-chern-nb` : Jupyter notebook tutorial on local Chern marker.
 
         References
         ----------
@@ -5245,7 +5306,7 @@ class TBModel:
             if basis.lower().strip() in ["wavefunction", "bloch"]:
                 return (hwfc, hwf)
             elif basis.lower().strip() == "orbital":
-                if self._nspin == 1:
+                if not self.spinful:
                     ret_hwf = np.zeros((hwf.shape[0], self.norb), dtype=complex)
                     # sum over bloch states to get hwf in orbital basis
                     for i in range(ret_hwf.shape[0]):

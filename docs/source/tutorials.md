@@ -16,7 +16,7 @@ that were developed in connection with David Vanderbilt's book [`Berry Phases in
    
 ```{admonition} v2.0 Upgrade Notice
 :class: attention
-For tips on upgrading to v2.0, first see the {doc}`release notes <release/2.0.0-notes>`. After that, you can explore the tutorials below, particularly those in the **New to v2.0** section.
+For tips on upgrading to v2.0, see the {doc}`release notes <release/2.0.0-notes>`. For a full list of changes, see the {doc}`changelog <CHANGELOG>`. Explore the new features with the **New to v2.0 tutorials**.
 ```
 
 ```{toctree}

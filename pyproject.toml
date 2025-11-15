@@ -5,12 +5,16 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pythtb"
 dynamic = ["version"]
-description = "Solver for tight binding models in condensed matter physics and materials science."
+description = "Python library for constructing and analyzing tight-binding models."
 readme = { file = "README.md", content-type = "text/markdown" } 
 requires-python = ">=3.12"
 authors = [
   { name = "Trey Cole", email = "trey@treycole.me" },
   { name = "Sinisa Coh", email = "sinisacoh@gmail.com" },
+  { name = "David Vanderbilt", email = "dhv@physics.rutgers.edu" }
+]
+maintainers = [
+  { name = "Trey Cole", email = "trey@treycole.me" },
   { name = "David Vanderbilt", email = "dhv@physics.rutgers.edu" }
 ]
 license = "GPL-3.0-or-later"
@@ -66,15 +70,15 @@ notebooks = [
 ]
 
 [project.urls]
-Homepage = "http://www.physics.rutgers.edu/pythtb"
-Documentation = "https://pythtb.readthedocs.io/en/latest/"
-Repository = "https://github.com/pythtb/pythtb"
-Issues = "https://github.com/pythtb/pythtb/issues"
-Changelog = "https://github.com/pythtb/pythtb/blob/main/CHANGELOG.md"
+homepage = "https://www.physics.rutgers.edu/pythtb/"
+documentation = "https://pythtb.readthedocs.io/en/latest/"
+source = "https://github.com/pythtb/pythtb"
+issues = "https://github.com/pythtb/pythtb/issues"
+changelog = "https://github.com/pythtb/pythtb/blob/main/CHANGELOG.md"
 
 [tool.setuptools_scm]
-version_scheme = "post-release"
-local_scheme = "node-and-date"
+version_scheme = "guess-next-dev"
+local_scheme = "no-local-version"
 fallback_version = "0.0.0"
 
 [tool.setuptools.packages.find]

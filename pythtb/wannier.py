@@ -1047,9 +1047,7 @@ class Wannier:
 
         if tf_speedup:
             try:
-                from tensorflow import convert_to_tensor
-                from tensorflow import complex64 as tfcomplex64
-                from tensorflow.linalg import eigh as tfeigh
+                import tensorflow as tf
             except ImportError:
                 raise ImportError(
                     "TensorFlow must be installed to use tf_speedup option."
@@ -1061,14 +1059,14 @@ class Wannier:
             Z = min_states.conj() @ P_avg @ np.transpose(min_states, axes=(0, 1, 3, 2))
 
             if tf_speedup:
-                Z_tf = convert_to_tensor(Z, dtype=tfcomplex64)
-                eigvals, eigvecs = tfeigh(Z_tf)  # [..., val, idx]
+                Z_tf = tf.convert_to_tensor(Z, dtype=tf.complex64)
+                eigvals, eigvecs = tf.linalg.eigh(Z_tf)  # [..., val, idx]
                 eigvals = eigvals.numpy()
                 eigvecs = eigvecs.numpy()
-                eigvecs = np.swapaxes(eigvecs, axis1=-1, axis2=-2)  # [..., idx, val]
             else:
                 eigvals, eigvecs = np.linalg.eigh(Z)  # [..., val, idx]
-                eigvecs = np.swapaxes(eigvecs, axis1=-1, axis2=-2)  # [..., idx, val]
+
+            eigvecs = np.swapaxes(eigvecs, axis1=-1, axis2=-2)  # [..., idx, val]
 
             # eigvals = 0 correspond to states outside the minimization manifold. Mask these out.
             zero_mask = eigvals.round(10) == 0
@@ -1090,7 +1088,6 @@ class Wannier:
 
             states_min = np.einsum("...ji, ...ik->...jk", sorted_eigvecs, min_states)
             keep_states_ma = np.ma.masked_array(states_min, mask=keep_mask)
-            # keep_states_np = np.ma.filled(keep_states_ma, fill_value=0)
 
             # need to concatenate with frozen states
             if inner_window is not None:
@@ -1274,9 +1271,12 @@ class Wannier:
         P_nbr_min = np.copy(P_nbr)  # for start of iteration
 
         if tf_speedup:
-            from tensorflow import convert_to_tensor
-            from tensorflow import complex64 as tfcomplex64
-            from tensorflow.linalg import eigh as tfeigh
+            try:
+                import tensorflow as tf
+            except ImportError:
+                raise ImportError(
+                    "TensorFlow must be installed to use tf_speedup option."
+                )
 
         for i in range(iter_num):
             # states spanning optimal subspace minimizing gauge invariant spread
@@ -1284,8 +1284,8 @@ class Wannier:
             Z = comp_states.conj() @ P_avg @ np.swapaxes(comp_states, -1, -2)
 
             if tf_speedup:
-                Z_tf = convert_to_tensor(Z, dtype=tfcomplex64)
-                _, eigvecs_tf = tfeigh(Z_tf)
+                Z_tf = tf.convert_to_tensor(Z, dtype=tf.complex64)
+                _, eigvecs_tf = tf.linalg.eigh(Z_tf)
                 eigvecs = eigvecs_tf.numpy()
             else:
                 _, eigvecs = np.linalg.eigh(Z)  # [val, idx]
