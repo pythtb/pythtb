@@ -2196,9 +2196,9 @@ class WFArray:
             return berry_phase
 
     def wilson_loop(self, axis_idx: int, state_idx=None, wilson_evals: bool = False):
-        r"""Wilson loop along a chosen mesh axis.
+        r"""Wilson loop along a specified mesh axis.
 
-        The Wilson is defined as the ordered product of *unitary link matrices*
+        The Wilson loop is defined as the ordered product of *unitary link matrices*
         along a closed loop string of points in parameter space. For a direction
         :math:`\mu` in the mesh, this routine computes the Wilson loop unitary
         matrix along that direction,
@@ -2345,7 +2345,7 @@ class WFArray:
         return_unitaries: bool = False,
         cartesian: bool = False,
     ):
-        r"""Compute the (non-Abelian) Berry connection from parallel-transport links.
+        r"""Berry connection from parallel-transport links.
 
         This routine evaluates the gauge-covariant Berry connection on the
         reduced parameter mesh. For each mesh direction :math:`\mu` in
@@ -2492,8 +2492,7 @@ class WFArray:
         berry_evals: bool = False,
         contin: bool = True,
     ):
-        r"""
-        Compute the discretized Berry phase along a specified mesh axis.
+        r"""Berry phase accumulated along a specified mesh axis.
 
         This routine evaluates the geometric phase accumulated by a set of
         states transported along a closed loop in parameter space. The phase
@@ -3050,7 +3049,7 @@ class WFArray:
         non_abelian: bool = False,
         return_flux: bool = False,
     ):
-        r"""Berry curvature tensor using the Fukui-Hatsugai-Suzuki formalism.
+        r"""Berry curvature tensor using the Fukui-Hatsugai-Suzuki plaquette method.
 
         The Berry curvature tensor :math:`\Omega_{\mu\nu}(\mathbf{k})`
         is computed using a discretized formula based on the
