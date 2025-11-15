@@ -21,14 +21,14 @@ The classes below were introduced in PythTB version 2.0.0.
 :::
 
 - {py:class}`pythtb.Mesh` 
-   Describes k-space grids, paths, and parameter sweeps. Encodes topology 
-   (loops, endpoints, adiabatic cycles) so {py:class}`WFArray` can apply appropriate 
+   Describes combined crystal momentum and parameter meshes, $(k, \lambda)$. Can construct uniform grids, paths, and meshes defined on a custom set of points. Encodes boundary conditions 
+   (loops, endpoints, adiabatic cycles) for {py:class}`WFArray` to apply appropriate 
    gauge conditions downstream.
 - {py:class}`pythtb.Lattice`
-   Holds real- and reciprocal-space geometry, orbital positions, and nearest-neighbour shells. 
+   Holds real- and reciprocal-space geometry, orbital positions, and nearest-neighbor shells. 
    Every model and wavefunction array references the same lattice instance to ensure consistent coordinates.
 - {py:class}`pythtb.Wannier` 
-   Build Wannier gauges directly inside PythTB from a {py:class}WFArray, 
+   Build Wannier gauges directly inside PythTB from a {py:class}`WFArray`, 
    perform projections, disentanglement and maximal localization, and analyze 
    spreads and centers.
 
