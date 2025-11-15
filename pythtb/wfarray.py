@@ -101,32 +101,47 @@ class WFArray:
     --------
     Populate Mesh with a uniform Monkhorst-Pack grid of k-points
 
-    >>> mesh = Mesh(dim_k=2, axis_types=['k', 'k'])
+    >>> mesh = Mesh(['k', 'k'])
     >>> mesh.build_grid(shape=(20, 20), gamma_centered=True)
     >>> wfa = WFArray(lattice, mesh, spinful=True, nstates=4)
-    >>> wfa.wfs.shape
-    (20, 20, 4, norb, 2)
+    >>> wfa.shape
+    (20, 20, ...)
+
+    The WFArray is initially empty
+
+    >>> wfa.filled
+    False
 
     Solve a :class:`TBModel` on the mesh and store the eigenstates
 
     >>> wfa.solve_model(tb_model)
     >>> wfa.energies.shape
-    (20, 20, 4)
+    (20, 20, ...)
 
-    Compute the Berry curvature on the grid
+    Now we can use downstream functions, such as computing the Berry curvature on the grid
 
     >>> curv = wfa.berry_curvature(non_abelian=False)
 
-    Store a 1D parameter sweep (no k-axes)
+    We can also store states from a finite model on a parameter sweep (no k-axes)
 
-    >>> mesh = Mesh(dim_k=0, dim_lambda=1, axis_types=['l'])
+    >>> mesh = Mesh(['l'])
     >>> mesh.build_grid(shape=(101,), lambda_start=0.0, lambda_stop=2*np.pi)
+
+    If the parameter points in the mesh are adiabatic cycles, ensure the
+    boundary conditions are set correctly in the Mesh
+
+    >>> mesh.loop(axis_idx=0, loop_idx=0)
     >>> wfa = WFArray(lattice, mesh)
     >>> wfa.set_states(eigenvectors_lambda, is_cell_periodic=False)
+    >>> np.allclose(wfa[0], wfa[-1])
+    True  # states at the endpoints match due to adiabatic cycle
 
-    Access/replace a single mesh point
+    Even if we set the states manually with the indexer, periodic boundary conditions
+    are still enforced automatically using the topology of the Mesh
 
-    >>> wfa[kx, ky, lam] = eigenvectors  # shape (nstates, norb[, nspin])
+    >>> wfa[-1] = eigvecs  # shape (nstates, norb[, nspin])
+    >>> np.allclose(wfa[0], wfa[-1])
+    True  # states at the endpoints still match due to adiabatic cycle
     """
 
     @deprecated("Looping is handled automatically by Mesh.")
