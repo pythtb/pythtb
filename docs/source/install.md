@@ -1,42 +1,46 @@
 (installation)=
 # Install
 
-**PythTB ≥ 2.0.0** supports **Python ≥ 3.12** (see [SPEC-0](https://scientific-python.org/specs/spec-0000/#support-window)).  
-Versions up to v1.8.0 are compatible with **Python 2.7–3.10**, while v1.7.0 and below are limited to **Python 2.x**. Although other versions may work, they are not officially supported.
+PythTB can be installed in a variety of ways depending on your workflow. This page covers system requirements, quick installation methods, and optional
+developer setups.
 
-To check your Python version, run:
+
+## Dependencies
+
+PythTB follows the [SPEC-0](https://scientific-python.org/specs/spec-0000/#support-window) support window for scientific Python packages.
+
+**Required dependencies**:
+
+- [Python](https://www.python.org/) ≥ 3.12
+- [NumPy](https://numpy.org/) ≥ 2.0
+- [Matplotlib](https://matplotlib.org/stable/) ≥ 3.9
+
+**Optional extras** (install via `pip install .[$GROUP]`):
+
+- `[plotting]`: plotly (interactive 3D plots)
+- `[speedup]`: tensorflow
+- `[notebooks]`: ipython ≥ 8.17, ipykernel, notebook ≥ 7.0, jupyter, jupyterlab
+- `[docs]`: sphinx toolchain for building documentation
+- `[tests]`: pytest
+- `[dev]`: pytest, black, ruff, pre-commit, nbstripout
+
+Check your Python version by running:
 
 ```bash
 python -V
 ```
 
-If you do not have Python 3.12 or higher, see [Installing or Upgrading Python](#install-python) below. If you are unfamiliar with Python see our [resources](resources).
-
-## Dependencies
-
-PythTB requires:
-
-- [NumPy](https://numpy.org/) ≥ 2.0
-- [Matplotlib](https://matplotlib.org/stable/) ≥ 3.9
-
-Optional extras (install via `pip install .[group]`):
-
-- `[plotting]`: plotly (interactive 3D plots)
-- `[speedup]`: tensorflow
-- `[notebooks]`: ipython ≥ 8.17, ipykernel, notebook, jupyter, jupyterlab
-- `[docs]`: sphinx toolchain for building documentation
-- `[tests]`: pytest
-- `[dev]`: pytest, black, pre-commit
+If you need to upgrade Python, see [Installing or Upgrading Python](#install-python) below. If you are new to Python see our [resources](resources).
 
 ## Quick Installation
 
-You can install PythTB directly from either **PyPI** or **Conda-Forge**.
+Install PythTB from **PyPI** or **conda-forge**.
 
 ```bash
 # Using pip
 pip install pythtb --upgrade
 
-# Or using conda
+# Using conda
 conda install -c conda-forge pythtb
 ```
 
@@ -45,34 +49,13 @@ Verify installation:
 ```bash
 python -c "import pythtb; print(pythtb.__version__)"
 ```
-If you encounter issues or missing dependencies, see [Troubleshooting](install-troubleshooting).
+
+If you encounter issues, see [Troubleshooting](install-troubleshooting).
 
 (install-source)=
 ## Installing from Source
 
-If you'd like to install PythTB from source, you can do so by cloning the repository from [GitHub](https://github.com/pythtb/pythtb). This is useful if you want to contribute to the project or if you want to use the latest development version. 
-
-1. Clone the repository:
-```bash
-git clone https://github.com/pythtb/pythtb.git
-cd pythtb
-```
-
-2. Install the package:
-
-```bash
-pip install .
-```
-
-This installs PythTB and its dependencies into your current Python environment. If you want to install PythTB with optional dependencies, you can run
-
-```bash
-pip install .[group] # replace [group] with optional groups as needed
-```
-
-### Editable (Development) Installation
-For contributors or developers who wish to modify the source code and see 
-changes take effect immediately, install in **editable mode**:
+Installing from source is recommended for contributors or for using the latest development version.
 
 1. Create a virtual environment using `conda` (recommended):
 
@@ -81,29 +64,35 @@ conda create -n pythtb-dev python=3.12
 conda activate pythtb-dev
 ```
 
-2. Clone and install in editable mode by using the `-e` flag:
+2. Clone the repository:
 
 ```bash
 git clone https://github.com/pythtb/pythtb.git
 cd pythtb
-pip install -e .[group]  # replace [group] with optional groups as needed
 ```
 
-3. Verify installation:
+3. Install the package along with any optional dependencies you need:
 
-```python
-import pythtb
-print(pythtb.__version__)
+```bash
+pip install .  # or pip install .[$GROUP] for optional dependencies
 ```
-If you modify the source code, those changes will immediately take effect in your local environment. If you don't see updates reflected, restart the interpreter or Jupyter kernel.
 
-For more details, see the [Developer Installation Wiki](https://github.com/pythtb/pythtb/wiki/Installation-Instructions-for-Developers).
+For an editable install, 
 
+```bash
+pip install -e .
+```
+
+Editable installs allow immediate reflection of code changes. If you modify the source code, those changes will immediately take effect in your local environment. If you don't see updates reflected, restart the interpreter or Jupyter kernel.
+
+For more details about setting up your development environment, see the [Developer Installation Wiki](https://github.com/pythtb/pythtb/wiki/Installation-Instructions-for-Developers).
 
 ## Older Versions
 
-PyPI and Conda-Forge always host the latest stable release of PythTB.
-Conda-Forge allows installing specific versions using:
+The latest stable release is always available on PyPI and conda-forge.
+
+
+Install a specific version using conda:
 
 ```bash
 conda install -c conda-forge pythtb=X.Y.Z
@@ -119,20 +108,24 @@ Using pip, you can install all older versions from PyPI:
 pip install pythtb==X.Y.Z
 ```
 
-To list installed versions:
+Check the installed version with:
 
 ```bash
 pip show pythtb
 ```
 
-Or in Python:
+The source code of all previous releases of PythTB can be downloaded below in [Version List](install-index). 
+
+## Verify installation
+
+After installation, verify by running:
 
 ```python
 import pythtb
 print(pythtb.__version__)
 ```
 
-All previous releases of PythTB can be found below in [Version List](install-index) and the source code can be downloaded from the links provided there. 
+This should print the installed version of PythTB without errors.
 
 (install-python)=
 ## Installing or Upgrading Python
