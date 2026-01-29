@@ -314,137 +314,286 @@ class Mesh:
         self._nodes = None
 
     @property
-    def points(self):
-        r"""Mesh point array of shape ``(N1, ..., Nd, dim_k + dim_lambda)``."""
+    def points(self) -> np.ndarray:
+        r"""Mesh point array of shape ``(N1, ..., Nd, dim_k + dim_lambda)``.
+
+        Returns
+        -------
+        np.ndarray
+            Mesh points reshaped to include axis dimensions.
+        """
         return self._flat.reshape(*self.shape)
 
     @property
-    def flat(self):
+    def flat(self) -> np.ndarray:
         r"""Mesh point array of shape ``(N1*N2*...*Nd, dim_k + dim_lambda)``.
 
-        Alias for `points` property.
+        Returns
+        -------
+        np.ndarray
+            Mesh points flattened to 2D array.
         """
         return self._flat
 
     @property
-    def nodes(self):
-        r"""For path meshes, the original nodes used to build the path."""
+    def nodes(self) -> Optional[np.ndarray]:
+        r"""For path meshes, the original nodes used to build the path.
+
+        Returns
+        -------
+        np.ndarray or None
+            The original nodes used to build the path, or None if not a path mesh.
+        """
         return self._nodes
 
     @property
-    def filled(self):
-        """True if the mesh is filled (i.e., contains points)."""
+    def filled(self) -> bool:
+        """True if the mesh is filled (i.e., contains points).
+
+        Returns
+        -------
+        bool
+            True if the mesh contains points, False otherwise.
+        """
         return not self.flat.size == 0
 
     # ---- Axis properties ----
     @property
     def axes(self) -> list[Axis]:
-        """List of ``Axis`` objects defining the mesh axes."""
+        """List of ``Axis`` objects defining the mesh axes.
+
+        Returns
+        -------
+        list[Axis]
+            List of ``Axis`` objects defining the mesh axes.
+        """
         return self._axes
 
     @property
     def k_axes(self) -> list[Axis]:
-        """List of ``Axis`` objects of k-type."""
+        """List of ``Axis`` objects of k-type.
+
+        Returns
+        -------
+        list[Axis]
+            List of ``Axis`` objects of k-type.
+        """
         return [ax for ax in self.axes if ax.type == "k"]
 
     @property
     def lambda_axes(self) -> list[Axis]:
-        """List of ``Axis`` objects of lambda-type."""
+        """List of ``Axis`` objects of lambda-type.
+
+        Returns
+        -------
+        list[Axis]
+            List of ``Axis`` objects of lambda-type.
+        """
         return [ax for ax in self.axes if ax.type == "l"]
 
     @property
     def k_axis_indices(self) -> list[int]:
-        """List of indices of the k-axes."""
+        """List of indices of the k-axes.
+
+        Returns
+        -------
+        list[int]
+            List of indices of the k-axes.
+        """
         return [i for i, ax in enumerate(self.axes) if ax.type == "k"]
 
     @property
     def lambda_axis_indices(self) -> list[int]:
-        """List of indices of the lambda-axes."""
+        """List of indices of the lambda-axes.
+
+        Returns
+        -------
+        list[int]
+            List of indices of the lambda-axes.
+        """
         return [i for i, ax in enumerate(self.axes) if ax.type == "l"]
 
     @property
     def axis_names(self) -> list[str]:
-        """List of axis names."""
+        """List of axis names.
+
+        Returns
+        -------
+        list[str]
+            List of axis names.
+        """
         axis_names = [ax.name for ax in self.axes]
         return axis_names
 
     @property
     def axis_types(self) -> list[str]:
-        """List of axis types."""
+        """List of axis types.
+
+        Returns
+        -------
+        list[str]
+            List of axis types. Each entry is either 'k' or 'l'.
+        """
         axis_types = [ax.type for ax in self.axes]
         return axis_types
 
     @property
     def npoints(self) -> int:
-        """Number of mesh points."""
+        """Number of mesh points.
+
+        Returns
+        -------
+        int
+            Total number of mesh points.
+        """
         return int(np.prod(self.shape_axes))
 
     @property
     def shape_k(self) -> tuple[int]:
-        """Size of each k-axis."""
+        """Size of each k-axis.
+
+        Returns
+        -------
+        tuple[int]
+            Size of each k-axis.
+        """
         shape_k = tuple([ax.size for ax in self.axes if ax.type == "k"])
         return shape_k
 
     @property
     def shape_lambda(self) -> tuple[int]:
-        """Size of each lambda-axis."""
+        """Size of each lambda-axis.
+
+        Returns
+        -------
+        tuple[int]
+            Size of each lambda-axis.
+        """
         shape_lambda = tuple([ax.size for ax in self._axes if ax.type == "l"])
         return shape_lambda
 
     @property
     def shape(self) -> tuple[int]:
-        r"""Shape of mesh points ``(*shape_axes, dim_k + dim_lambda)``."""
+        r"""Shape of mesh points ``(*shape_axes, dim_k + dim_lambda)``.
+
+        Returns
+        -------
+        tuple[int]
+            Overall shape of the mesh points array.
+        """
         return self.shape_axes + (self.dim_k + self.dim_lambda,)
 
     @property
     def shape_axes(self) -> tuple[int]:
-        r"""Tuple of axis sizes ``(N1, N2, ..., Nd)``."""
+        r"""Tuple of axis sizes ``(N1, N2, ..., Nd)``.
+
+        Returns
+        -------
+        tuple[int]
+            Sizes of each mesh axis.
+        """
         return tuple([ax.size for ax in self.axes])
 
     @property
     def nk_axes(self) -> int:
-        """Number of k-axes."""
+        """Number of k-axes.
+
+        Returns
+        -------
+        int
+            Number of k-axes.
+        """
         return len(self.k_axes)
 
     @property
     def nl_axes(self) -> int:
-        """Number of lambda-axes."""
+        """Number of lambda-axes.
+
+        Returns
+        -------
+        int
+            Number of lambda-axes.
+        """
         return len(self.lambda_axes)
 
     @property
     def naxes(self) -> int:
-        """Total number of axes."""
+        """Total number of axes.
+
+        Returns
+        -------
+        int
+            Total number of axes.
+        """
         return self.nk_axes + self.nl_axes
 
     # ---- Vector component properties ----
     @property
     def dim_lambda(self) -> int:
-        """Dimension of lambda-space."""
+        """Dimension of lambda-space.
+
+        Returns
+        -------
+        int
+            Dimension of lambda-space.
+        """
         return self._dim_lambda
 
     @property
     def dim_k(self) -> int:
-        """Dimension of k-space."""
+        """Dimension of k-space.
+
+        Returns
+        -------
+        int
+            Dimension of k-space.
+        """
         return self._dim_k
 
     @property
     def dim_total(self) -> int:
-        """Dimension of the full mesh space (:meth:`dim_k` + :meth:`dim_lambda`)."""
+        """Dimension of the full mesh space.
+
+        Returns
+        -------
+        int
+            Dimension of the full mesh space.
+            Is equal to :meth:`dim_k` + :meth:`dim_lambda`.
+        """
         return self.dim_k + self.dim_lambda
 
     @property
     def component_types(self) -> tuple[str]:
-        """Tuple of length :meth:`dim_total` labeling vector components as 'k' or 'l'."""
+        """Tuple labeling vector components as 'k' or 'l'.
+
+        Returns
+        -------
+        tuple[str]
+            Tuple labeling vector components as 'k' or 'l'.
+            Length is :meth:`dim_total`.
+        """
         return self._component_types
 
     @property
     def lambda_component_indices(self) -> list[int]:
-        """List of indices of lambda components of the vector."""
+        """Indices of lambda components of the vector.
+
+        Returns
+        -------
+        list[int]
+            List of indices of lambda components of the vector.
+        """
         return list(range(self.dim_k, self.dim_total))
 
     @property
     def k_component_indices(self) -> list[int]:
-        """List of indices of k components of the vector."""
+        """Indices of k components of the vector.
+
+        Returns
+        -------
+        list[int]
+            List of indices of k components of the vector.
+        """
         return list(range(self.dim_k))
 
     # ---- Topology properties ----
@@ -452,12 +601,25 @@ class Mesh:
     # loop
     @property
     def loop_axes(self) -> list[Axis]:
-        """List of Axis objects that wind to form a loop."""
+        """Axis objects that wind to form a loop.
+
+        Returns
+        -------
+        list[Axis]
+            List of Axis objects that wind to form a loop.
+        """
         return [ax for ax in self.axes if ax.is_loop]
 
     @property
     def loop_mask(self) -> np.ndarray:
-        """Boolean array of shape (naxes, dim_total) marking which axes wind to form a loop."""
+        """Boolean array marking which axes wind to form a loop.
+
+        Returns
+        -------
+        np.ndarray
+            Boolean array marking which axes wind to form a loop.
+            Shape is ``(naxes, dim_total)``.
+        """
         loop_mask = np.zeros((self.naxes, self.dim_total), dtype=bool)
         for i, ax in enumerate(self.axes):
             for c in ax.loop_components:
@@ -465,7 +627,13 @@ class Mesh:
         return loop_mask
 
     def _get_loop_ax_comp(self) -> list[tuple[int, int]]:
-        """List of (mesh_axis, component_index) pairs that wind to form a loop."""
+        """List of (mesh_axis, component_index) pairs that wind to form a loop.
+
+        Returns
+        -------
+        list[tuple[int, int]]
+            List of (mesh_axis, component_index) pairs that wind to form a loop.
+        """
         if not self.filled:
             return []
 
@@ -480,12 +648,25 @@ class Mesh:
     # endpoints
     @property
     def endpoint_axes(self) -> list[Axis]:
-        """List of Axis objects that have equal endpoints."""
+        """Axis objects that have equal endpoints.
+
+        Returns
+        -------
+        list[Axis]
+            List of Axis objects that have equal endpoints.
+        """
         return [ax for ax in self.axes if ax.has_endpoint]
 
     @property
     def endpoint_mask(self) -> np.ndarray:
-        """Boolean array of shape (naxes, dim_total) marking which axes have equal endpoints."""
+        """Boolean array marking which axes have equal endpoints.
+
+        Returns
+        -------
+        np.ndarray
+            Boolean array marking which axes have equal endpoints.
+            Shape is ``(naxes, dim_total)``.
+        """
         endpt_mask = np.zeros((self.naxes, self.dim_total), dtype=bool)
         for i, ax in enumerate(self.axes):
             for c in ax.endpoint_components:
@@ -508,12 +689,25 @@ class Mesh:
     # BZ winding
     @property
     def bz_winding_axes(self) -> list[Axis]:
-        """List of Axis objects that wind around the BZ to form a loop."""
+        """List of Axis objects that wind around the BZ to form a loop.
+
+        Returns
+        -------
+        list[Axis]
+            List of Axis objects that wind around the BZ to form a loop.
+        """
         return [ax for ax in self.axes if ax.winds_bz and ax.is_k_axis]
 
     @property
     def bz_winding_mask(self) -> np.ndarray:
-        """Boolean array of shape (naxes, dim_total) marking which axes wind around the BZ."""
+        """Boolean array marking which axes wind around the BZ.
+
+        Returns
+        -------
+        np.ndarray
+            Boolean array marking which axes wind around the BZ.
+            Shape is ``(naxes, dim_total)``.
+        """
         winds_bz_mask = np.zeros((self.naxes, self.dim_total), dtype=bool)
         for i, ax in enumerate(self.axes):
             for c in ax.winds_bz_components:
@@ -521,7 +715,13 @@ class Mesh:
         return winds_bz_mask
 
     def _get_bz_wind_ax_comp(self) -> list[tuple[int, int]]:
-        """List of (mesh_axis, component_index) pairs that wind around the BZ."""
+        """List of (mesh_axis, component_index) pairs that wind around the BZ."
+
+        Returns
+        -------
+        list[tuple[int, int]]
+            List of (mesh_axis, component_index) pairs that wind around the BZ.
+        """
         if not self.filled:
             return []
 
@@ -538,6 +738,11 @@ class Mesh:
         r"""True if the mesh is a grid (as opposed to a path).
 
         A grid mesh has an axis for each dimension of the mesh.
+
+        Returns
+        -------
+        bool
+            True if the mesh is a grid, False otherwise.
         """
         return self.naxes == self.dim_total
 
@@ -547,6 +752,11 @@ class Mesh:
 
         A torus mesh has an axis for each k-dimension and winds around the BZ
         in each k-direction.
+
+        Returns
+        -------
+        bool
+            True if the mesh winds around the BZ in all k-directions, False otherwise.
 
         Notes
         -----
