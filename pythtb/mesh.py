@@ -1105,11 +1105,8 @@ class Mesh:
         r"""
         Build a k-path in the Brillouin zone.
 
-        The number of points along the path is determined by the number of
-        interpolation points specified. For `N` nodes, there will be `N-1`
-        segments, each with `n_interp` points, plus the endpoints. Thus, the
-        total number of points will be
-        `N-1 + 1 + (N-1) * n_interp = N + (N-1) * n_interp`.
+        A path mesh has a single axis that traces a path through
+        a higher-dimensional :math:`(k, \lambda)`-space.
 
         Parameters
         ----------
@@ -1120,6 +1117,14 @@ class Mesh:
             dimensions in the mesh defined by ``dim_total = dim_k + dim_lambda``.
         n_interp : int
             The number of interpolation points between each pair of nodes.
+
+        Notes
+        -----
+        The number of points along the path is determined by the number of
+        interpolation points specified. For ``N`` nodes, there will be ``N-1``
+        segments, each with ``n_interp`` points, plus the endpoints. Thus, the
+        total number of points will be
+        ``N-1 + 1 + (N-1) * n_interp = N + (N-1) * n_interp``.
 
         Examples
         --------
