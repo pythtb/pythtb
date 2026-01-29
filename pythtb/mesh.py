@@ -715,7 +715,7 @@ class Mesh:
         return winds_bz_mask
 
     def _get_bz_wind_ax_comp(self) -> list[tuple[int, int]]:
-        """List of (mesh_axis, component_index) pairs that wind around the BZ."
+        """List of (mesh_axis, component_index) pairs that wind around the BZ.
 
         Returns
         -------
