@@ -458,8 +458,10 @@ class Wannier:
         """
         self._trial_wfs = self._get_trial_wfs(tf_list)
         self._tilde_states: WFArray = WFArray(
-            self.lattice, self.mesh, nstates=self.num_twfs,
-            spinful=self.bloch_states.spinful
+            self.lattice,
+            self.mesh,
+            nstates=self.num_twfs,
+            spinful=self.bloch_states.spinful,
         )
 
     def set_tilde_states(self, states, is_cell_periodic=True, is_spin_axis_flat=False):
@@ -504,7 +506,9 @@ class Wannier:
         if not isinstance(states, np.ndarray):
             raise ValueError("Bloch-like states must be a numpy array.")
 
-        if not is_spin_axis_flat and (states.ndim != self.mesh.nk_axes + 2 + (self.bloch_states.nspin - 1)):
+        if not is_spin_axis_flat and (
+            states.ndim != self.mesh.nk_axes + 2 + (self.bloch_states.nspin - 1)
+        ):
             raise ValueError(
                 f"Bloch-like states must have shape (nk1, ..., nstates, n_orbs[, n_spins]), "
                 f"but got {states.shape}."
@@ -683,12 +687,10 @@ class Wannier:
             if band_idxs is None:  # assume we are projecting onto all tilde states
                 band_idxs = list(range(self.tilde_states.nstates))
 
-            psi_til = self.tilde_states.states(
-                flatten_spin_axis=True, return_psi=True
-            )[1]
-            psi_til_til = self._single_shot_project(
-                psi_til, twfs, state_idx=band_idxs
-            )
+            psi_til = self.tilde_states.states(flatten_spin_axis=True, return_psi=True)[
+                1
+            ]
+            psi_til_til = self._single_shot_project(psi_til, twfs, state_idx=band_idxs)
             self.set_tilde_states(
                 psi_til_til, is_cell_periodic=False, is_spin_axis_flat=True
             )
@@ -699,12 +701,12 @@ class Wannier:
                 n_occ = int(self.bloch_states.nstates / 2)  # assuming half filled
                 band_idxs = list(range(0, n_occ))
 
-            psi_nk = self.bloch_states.states(flatten_spin_axis=True, return_psi=True)[1]
+            psi_nk = self.bloch_states.states(flatten_spin_axis=True, return_psi=True)[
+                1
+            ]
 
             # shape: (*nks, states, orbs*n_spin])
-            psi_tilde = self._single_shot_project(
-                psi_nk, twfs, state_idx=band_idxs
-            )
+            psi_tilde = self._single_shot_project(psi_nk, twfs, state_idx=band_idxs)
             self.set_tilde_states(
                 psi_tilde, is_cell_periodic=False, is_spin_axis_flat=True
             )
@@ -1588,10 +1590,10 @@ class Wannier:
                 # we initialize tilde states with previous trial wavefunctions
                 n_occ = int(self.bloch_states.nstates / 2)  # assuming half filled
                 band_idxs = list(range(0, n_occ))  # project onto occ manifold
-                psi_nk = self.bloch_states.states(flatten_spin_axis=True)[1]
-                self._single_shot_project(
-                    psi_nk, self._twfs, state_idx=band_idxs
-                )
+                psi_nk = self.bloch_states.states(
+                    flatten_spin_axis=True, return_psi=True
+                )[1]
+                self._single_shot_project(psi_nk, self._twfs, state_idx=band_idxs)
 
         # Minimizing Omega_I via disentanglement
         util_min = self._optimal_subspace(
