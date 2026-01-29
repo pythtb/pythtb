@@ -1,12 +1,29 @@
 name: pythtb-env
-channels: [conda-forge]
+channels:
+  - conda-forge
 dependencies:
   - python=3.12
-  - pip
+
+  # core
   - numpy
   - matplotlib
   - plotly
+
+  # jupyter
+  - jupyterlab
+  - ipykernel
+  - notebook
+  - jupyter_client
+  - nbclient
+  - jupyter-server-proxy
+
+  # pip only for things you truly need from pip
+  - pip
   - pip:
+      # install your repo so tutorials can import it
+      - -e .
+
+      # docs tooling (OK via pip, but many are also available on conda-forge)
       - sphinx
       - pydata-sphinx-theme
       - sphinx-copybutton
@@ -14,8 +31,4 @@ dependencies:
       - sphinxcontrib-programoutput
       - nbconvert
       - sphinx_design
-      - ipykernel
-      - notebook
-      - jupyter_client
-      - nbclient
-      - jupyter-server-proxy
+      - sphinx_thebe
