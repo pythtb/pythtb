@@ -1790,7 +1790,9 @@ class Wannier:
         # if we need a smaller number of twfs b.c. of subspace selec
         if twfs_2 is not None:
             twfs = self._get_trial_wfs(twfs_2)
-            psi_til = self.tilde_states.states(flatten_spin_axis=True)[1]
+            psi_til = self.tilde_states.states(flatten_spin_axis=True, return_psi=True)[
+                1
+            ]
             psi_til_til = self._single_shot_project(
                 psi_til,
                 twfs,
@@ -1798,7 +1800,9 @@ class Wannier:
             )
         # choose same twfs as in subspace selection
         else:
-            psi_til = self.tilde_states.states(flatten_spin_axis=True)[1]
+            psi_til = self.tilde_states.states(flatten_spin_axis=True, return_psi=True)[
+                1
+            ]
             psi_til_til = self._single_shot_project(
                 psi_til,
                 self.trial_wfs,
