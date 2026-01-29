@@ -5,7 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ------
 
-## [Unreleased]
+## [2.0.1] - 2026-01-29
+
+### Fixed
+- Fixed bug in `Wannier.project` where the projection procedure improperly reshaped spinful wavefunctions leading to an error when projecting onto trial orbitals.
+- Fixed bug in `models.ssh` where the intercell hopping was not set between neighboring unit cells as intended.
 
 ## [2.0.0] - 2025-11-11
 
@@ -265,7 +269,6 @@ The following functionality has been removed. Users should update their code acc
     - `empty_like`
 - Added function change_nonperiodic_vector and changed the way
   `to_home` parameter works.
-
 
 ### Removed
 - Removed some functions that were kept for backwards compatibility
