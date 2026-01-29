@@ -1,6 +1,6 @@
 # 📋 Test Status Report
 
-Last updated on **2025-11-11 at 01:49:32**
+Last updated on **2026-01-28 at 19:46:05**
 
 ---
 
@@ -126,6 +126,9 @@ Last updated on **2025-11-11 at 01:49:32**
       - ✅ `test_set_onsite[True]` — *2025-11-11 01:49:32*
     - **test_spin/**
       - ✅ `test_spin` — *2025-11-11 01:49:32*
+  - **test_wannier/**
+    - **test_spinful/**
+      - ❌ `test_spinful_project` — *2026-01-28 19:46:05*
   - **test_wfarray/**
     - **test_invariants_wfa/**
       - ✅ `test_chern_haldane[False]` — *2025-11-11 01:49:32*

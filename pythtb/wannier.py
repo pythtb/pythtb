@@ -458,7 +458,8 @@ class Wannier:
         """
         self._trial_wfs = self._get_trial_wfs(tf_list)
         self._tilde_states: WFArray = WFArray(
-            self.lattice, self.mesh, nstates=self.num_twfs
+            self.lattice, self.mesh, nstates=self.num_twfs,
+            spinful=self.bloch_states.spinful
         )
 
     def set_tilde_states(self, states, is_cell_periodic=True, is_spin_axis_flat=False):
@@ -503,9 +504,14 @@ class Wannier:
         if not isinstance(states, np.ndarray):
             raise ValueError("Bloch-like states must be a numpy array.")
 
-        if states.ndim != self.mesh.nk_axes + 2 + (self.bloch_states.nspin - 1):
+        if not is_spin_axis_flat and (states.ndim != self.mesh.nk_axes + 2 + (self.bloch_states.nspin - 1)):
             raise ValueError(
                 f"Bloch-like states must have shape (nk1, ..., nstates, n_orbs[, n_spins]), "
+                f"but got {states.shape}."
+            )
+        elif is_spin_axis_flat and (states.ndim != self.mesh.nk_axes + 2):
+            raise ValueError(
+                f"Bloch-like states must have shape (nk1, ..., nstates, n_orbs*n_spins), "
                 f"but got {states.shape}."
             )
 
@@ -550,16 +556,18 @@ class Wannier:
 
         Parameters
         -----------
-         band_idxs : list
-             Band indices to take from the Bloch states. May choose a subset of bands.
-         psi_nk : np.ndarray, optional
-             The Bloch states to form the overlap matrix with. By default this will
-             choose the energy eigenstates.
+        psi_nk : np.ndarray, optional
+            The Bloch states to form the overlap matrix with. By default this will
+            choose the energy eigenstates. Shape: ``(*shape_mesh, states, orbs*n_spin])``
+        twfs : np.ndarray
+            Trial wavefunctions, shape: (n_trial_wfs, orbs[, n_spin])
+        band_idxs : list
+            Indices of energy bands to project.
 
-         Returns
-         --------
-         A : np.ndarray
-             Overlap matrix with shape ``(*shape_mesh, n_bands, n_trial_wfs)``
+        Returns
+        --------
+        A : np.ndarray
+            Overlap matrix with shape ``(*shape_mesh, n_bands, n_trial_wfs)``
         """
 
         if psi_nk is None:
@@ -581,13 +589,18 @@ class Wannier:
     def _single_shot_project(self, psi_nk, twfs, state_idx):
         """
         Performs optimal alignment of psi_nk with trial wavefunctions.
+
+        Parameters
+        ----------
+        psi_nk : np.ndarray
+            Bloch states to be projected, shape: (*mesh_shape, states, orbs*n_spin])
+        twfs : np.ndarray
+            Trial wavefunctions, shape: (n_trial_wfs, orbs[, n_spin])
+        state_idx : list
+            Indices of energy bands to project.
         """
         A_k = self._compute_Amn(psi_nk, twfs, state_idx)
         V_k, _, Wh_k = np.linalg.svd(A_k, full_matrices=False)
-
-        if self.bloch_states.spinful:
-            # flatten spin dimensions
-            psi_nk = psi_nk.reshape((*psi_nk.shape[:-2], -1))
 
         # take only state_idxs
         psi_nk = np.take(psi_nk, state_idx, axis=-2)
@@ -670,8 +683,11 @@ class Wannier:
             if band_idxs is None:  # assume we are projecting onto all tilde states
                 band_idxs = list(range(self.tilde_states.nstates))
 
+            psi_til = self.tilde_states.states(
+                flatten_spin_axis=True, return_psi=True
+            )[1]
             psi_til_til = self._single_shot_project(
-                self.tilde_states.psi_nk, twfs, state_idx=band_idxs
+                psi_til, twfs, state_idx=band_idxs
             )
             self.set_tilde_states(
                 psi_til_til, is_cell_periodic=False, is_spin_axis_flat=True
@@ -683,9 +699,11 @@ class Wannier:
                 n_occ = int(self.bloch_states.nstates / 2)  # assuming half filled
                 band_idxs = list(range(0, n_occ))
 
+            psi_nk = self.bloch_states.states(flatten_spin_axis=True, return_psi=True)[1]
+
             # shape: (*nks, states, orbs*n_spin])
             psi_tilde = self._single_shot_project(
-                self.bloch_states.psi_nk, twfs, state_idx=band_idxs
+                psi_nk, twfs, state_idx=band_idxs
             )
             self.set_tilde_states(
                 psi_tilde, is_cell_periodic=False, is_spin_axis_flat=True
@@ -1570,9 +1588,9 @@ class Wannier:
                 # we initialize tilde states with previous trial wavefunctions
                 n_occ = int(self.bloch_states.nstates / 2)  # assuming half filled
                 band_idxs = list(range(0, n_occ))  # project onto occ manifold
-
+                psi_nk = self.bloch_states.states(flatten_spin_axis=True)[1]
                 self._single_shot_project(
-                    self.bloch_states.psi_nk, self._twfs, state_idx=band_idxs
+                    psi_nk, self._twfs, state_idx=band_idxs
                 )
 
         # Minimizing Omega_I via disentanglement
@@ -1770,15 +1788,17 @@ class Wannier:
         # if we need a smaller number of twfs b.c. of subspace selec
         if twfs_2 is not None:
             twfs = self._get_trial_wfs(twfs_2)
+            psi_til = self.tilde_states.states(flatten_spin_axis=True)[1]
             psi_til_til = self._single_shot_project(
-                self.tilde_states.psi_nk,
+                psi_til,
                 twfs,
                 state_idx=list(range(self.tilde_states.nstates)),
             )
         # choose same twfs as in subspace selection
         else:
+            psi_til = self.tilde_states.states(flatten_spin_axis=True)[1]
             psi_til_til = self._single_shot_project(
-                self.tilde_states.psi_nk,
+                psi_til,
                 self.trial_wfs,
                 state_idx=list(range(self.tilde_states.nstates)),
             )
