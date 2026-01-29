@@ -18,9 +18,9 @@ def ssh(v, w):
     Parameters
     ----------
     v : float
-        The intercell hopping within the unit cell.
+        The intracell hopping within the unit cell.
     w : float
-        The intracell hopping to neighboring unit cells.
+        The intercell hopping to neighboring unit cells.
 
     Returns
     -------
@@ -34,6 +34,6 @@ def ssh(v, w):
     my_model = TBModel(lattice=lat, spinful=False)
 
     my_model.set_hop(v, 0, 1, [0])
-    my_model.set_hop(w, 1, 0, [0])
+    my_model.set_hop(w, 1, 0, [1])
 
     return my_model

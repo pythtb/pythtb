@@ -2347,7 +2347,7 @@ class WFArray:
     ):
         r"""Berry connection from parallel-transport links.
 
-        This routine evaluates the gauge-covariant Berry connection on the
+        This routine evaluates the (non-Abelian) Berry connection on the
         reduced parameter mesh. For each mesh direction :math:`\mu` in
         ``axis_idx``, the connection is obtained from the parallel-transport link
         unitaries :math:`U_{\mu}(\boldsymbol{\kappa})` returned by
@@ -3097,8 +3097,20 @@ class WFArray:
         -------
         berry_curv : np.ndarray
             Berry curvature tensor with shape depending on input parameters.
+            Shape is
+
+            - ``non_abelian=True``, ``plane=None``:
+              ``(naxes, naxes, *mesh_shape, nstates, nstates)``,
+            - ``non_abelian=True``, ``plane=(mu, nu)``:
+              ``(*mesh_shape, nstates, nstates)``,
+            - ``non_abelian=False``, ``plane=None``:
+              ``(naxes, naxes, *mesh_shape)``,
+            - ``non_abelian=False``, ``plane=(mu, nu)``:
+              ``(*mesh_shape,)``,
         berry_flux : np.ndarray, optional
             Berry flux tensor with shape depending on input parameters.
+            Returned only if ``return_flux=True``. Shape is same as that of
+            ``berry_curv``.
 
         See Also
         --------

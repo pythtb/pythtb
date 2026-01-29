@@ -27,7 +27,7 @@ def haldane(delta: float, t1: float, t2: float, phi: float = np.pi / 2) -> TBMod
     .. math::
 
         H = \Delta \sum_i (-)^i c_i^\dagger c_i + t_1 \sum_{\langle i,j \rangle} (c_i^\dagger c_j
-        + \text{h.c.}) + t_2 \sum_{\langle\langle i,j \rangle\rangle} (ic_i^\dagger c_j + \text{h.c.})
+        + \text{h.c.}) + t_2 \sum_{\langle\langle i,j \rangle\rangle} (e^{i \phi} c_i^\dagger c_j + \text{h.c.})
 
     Parameters
     ----------
@@ -37,7 +37,8 @@ def haldane(delta: float, t1: float, t2: float, phi: float = np.pi / 2) -> TBMod
         Nearest neighbor hopping amplitude.
     t2 : float
         Next-nearest neighbor hopping amplitude. Peierls phase is included.
-
+    phi : float, optional
+        Peierls phase for the next-nearest neighbor hopping, by default np.pi/2
     Returns
     -------
     TBModel
