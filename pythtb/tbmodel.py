@@ -4195,7 +4195,7 @@ class TBModel:
                 \langle u_{mk} | \partial_{\mu} H_k | u_{lk} \rangle
                 \langle u_{lk} | \partial_{\nu} H_k | u_{nk} \rangle
                 -
-                m \leftrightarrow n
+                \mu \leftrightarrow \nu
             }{
                 (E_{nk} - E_{lk})(E_{mk} - E_{lk})
             }
@@ -4360,7 +4360,7 @@ class TBModel:
                 \langle u_{mk} | \partial_{\mu} H_k | u_{lk} \rangle
                 \langle u_{lk} | \partial_{\nu} H_k | u_{nk} \rangle
                 +
-                m \leftrightarrow n
+                \mu \leftrightarrow \nu
             }{
                 (E_{nk} - E_{lk})(E_{mk} - E_{lk})
             }
