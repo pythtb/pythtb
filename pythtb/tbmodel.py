@@ -1048,8 +1048,146 @@ class TBModel:
         else:
             raise ValueError("Mode should be either 'set' or 'add'.")
 
-    def _get_flattened_indices(self):
-        return self._hoptable.flatten_cache(self.norb)
+    def _get_flattened_indices(self, *, nspin: int = 1):
+        return self._hoptable.flatten_cache(self.norb, nspin=nspin)
+
+    def _get_spinful_flattened_indices(self, i_idx: np.ndarray, j_idx: np.ndarray):
+        """Return flattened index grouping for spinful matrix assembly.
+
+        Uses cached base-table indices when possible; otherwise computes a
+        per-call grouping (needed for parameterized hopping providers, which add
+        dynamic entries not present in the base hopping table).
+        """
+        nspin = self.nspin
+        M = self.norb * nspin
+
+        _, base_i, base_j, _ = self._hoptable.components()
+        if (
+            i_idx.size == base_i.size
+            and j_idx.size == base_j.size
+            and np.array_equal(i_idx, base_i)
+            and np.array_equal(j_idx, base_j)
+        ):
+            return self._get_flattened_indices(nspin=nspin)
+
+        spin_out = np.repeat(np.arange(nspin), nspin)
+        spin_in = np.tile(np.arange(nspin), nspin)
+        row_flat = (i_idx[:, None] * nspin + spin_out[None, :]).reshape(-1)
+        col_flat = (j_idx[:, None] * nspin + spin_in[None, :]).reshape(-1)
+        pair_flat = row_flat * M + col_flat
+
+        order = np.argsort(pair_flat, kind="stable")
+        uniq, starts = np.unique(pair_flat[order], return_index=True)
+        cols_transposed = (uniq % M) * M + (uniq // M)
+
+        return {
+            "order": order,
+            "starts": starts,
+            "uniq": uniq,
+            "cols_transposed": cols_transposed,
+        }
+
+    @staticmethod
+    def _accumulate_grouped_hermitian(
+        target_flat: np.ndarray, contrib: np.ndarray, cache: dict[str, np.ndarray]
+    ) -> None:
+        """Accumulate grouped contributions and their Hermitian partners.
+
+        Parameters
+        ----------
+        target_flat : np.ndarray
+            Output flattened matrix view (..., M*M) receiving the accumulated sums.
+        contrib : np.ndarray
+            Contribution tensor with the grouped index on the last axis.
+        cache : dict[str, np.ndarray]
+            Grouping cache with keys ``order``, ``starts``, ``uniq``,
+            and ``cols_transposed``.
+        """
+        order = cache["order"]
+        starts = cache["starts"]
+        uniq = cache["uniq"]
+        cols_transposed = cache["cols_transposed"]
+
+        grouped = contrib[..., order]
+        sums = np.add.reduceat(grouped, starts, axis=-1)
+        target_flat[..., uniq] += sums
+        target_flat[..., cols_transposed] += sums.conj()
+
+    @staticmethod
+    def _accumulate_grouped_hermitian_chunked(
+        target_flat: np.ndarray,
+        cache: dict[str, np.ndarray],
+        contrib_getter: Callable[[np.ndarray], np.ndarray],
+        *,
+        max_terms: int,
+    ) -> None:
+        """Chunked variant of grouped Hermitian accumulation.
+
+        Parameters
+        ----------
+        target_flat : np.ndarray
+            Output flattened matrix view (..., M*M).
+        cache : dict[str, np.ndarray]
+            Grouping cache with keys ``order``, ``starts``, ``uniq``,
+            and ``cols_transposed``.
+        contrib_getter : Callable[[np.ndarray], np.ndarray]
+            Function that receives a slice of sorted term indices and returns
+            contributions with matching last-axis length.
+        max_terms : int
+            Maximum number of sorted terms to process per chunk.
+        """
+        order = cache["order"]
+        starts = cache["starts"]
+        uniq = cache["uniq"]
+        cols_transposed = cache["cols_transposed"]
+
+        n_terms = order.size
+        if n_terms == 0:
+            return
+
+        if max_terms <= 0 or n_terms <= max_terms:
+            grouped = contrib_getter(order)
+            sums = np.add.reduceat(grouped, starts, axis=-1)
+            target_flat[..., uniq] += sums
+            target_flat[..., cols_transposed] += sums.conj()
+            return
+
+        n_groups = starts.size
+        g0 = 0
+        while g0 < n_groups:
+            s0 = starts[g0]
+            term_limit = s0 + max_terms
+            g1 = np.searchsorted(starts, term_limit, side="left")
+            if g1 <= g0:
+                g1 = g0 + 1
+
+            s1 = starts[g1] if g1 < n_groups else n_terms
+
+            ord_chunk = order[s0:s1]
+            grouped = contrib_getter(ord_chunk)
+            local_starts = starts[g0:g1] - s0
+            sums = np.add.reduceat(grouped, local_starts, axis=-1)
+
+            uniq_chunk = uniq[g0:g1]
+            trans_chunk = cols_transposed[g0:g1]
+            target_flat[..., uniq_chunk] += sums
+            target_flat[..., trans_chunk] += sums.conj()
+            g0 = g1
+
+    @staticmethod
+    def _chunk_term_limit(n_batch: int, *, target_mib: int = 64, min_terms: int = 4096):
+        """Choose a term chunk size so temporary complex tensors stay bounded."""
+        itemsize = np.dtype(np.complex128).itemsize
+        denom = max(1, n_batch) * itemsize
+        max_terms = (target_mib * 1024 * 1024) // denom
+        return max(min_terms, int(max_terms))
+
+    def _add_spinful_onsite_blocks(
+        self, ham: np.ndarray, site_energies: np.ndarray
+    ) -> None:
+        """Add onsite 2x2 spin blocks on orbital-diagonal positions."""
+        rows = np.arange(self.norb * self.nspin).reshape(self.norb, self.nspin)
+        ham[:, rows[:, :, None], rows[:, None, :]] += site_energies[None, :, :, :]
 
     def set_hop(
         self,
@@ -2722,16 +2860,14 @@ class TBModel:
             ham = np.zeros((n_kpts, norb, norb), dtype=complex)
             if n_hops:
                 cache = self._get_flattened_indices()
-                order = cache["order"]
-                starts = cache["starts"]
-                uniq = cache["uniq"]
-                cols_transposed = cache["cols_transposed"]
-
                 ham_flat = ham.reshape(n_kpts, -1)
-                contrib = phases[:, order] * hop_amps[order]
-                sums = np.add.reduceat(contrib, starts, axis=1)
-                ham_flat[:, uniq] += sums
-                ham_flat[:, cols_transposed] += sums.conj()
+                max_terms = self._chunk_term_limit(n_kpts, target_mib=128)
+                self._accumulate_grouped_hermitian_chunked(
+                    ham_flat,
+                    cache,
+                    lambda ord_idx: phases[:, ord_idx] * hop_amps[ord_idx],
+                    max_terms=max_terms,
+                )
 
             diag = np.arange(norb)
             ham[:, diag, diag] += site_energies
@@ -2741,31 +2877,23 @@ class TBModel:
         nspin = self.nspin
         M = norb * nspin
         hop_blocks = np.asarray(hop_amps, dtype=complex).reshape(n_hops, -1)
+        spin_pairs = nspin * nspin
+        hop_blocks_flat = hop_blocks.reshape(-1)
 
         ham = np.zeros((n_kpts, M, M), dtype=complex)
         if n_hops:
-            # flattened indices for every spin pair
-            spin_out = np.repeat(np.arange(nspin), nspin)  # [0, 0, 1, 1]
-            spin_in = np.tile(np.arange(nspin), nspin)  # [0, 1, 0, 1]
-
-            row_flat = (i_idx[:, None] * nspin + spin_out[None, :]).reshape(-1)
-            col_flat = (j_idx[:, None] * nspin + spin_in[None, :]).reshape(-1)
-
-            pair_flat = row_flat * M + col_flat
-            order = np.argsort(pair_flat, kind="stable")
-            uniq, starts = np.unique(pair_flat[order], return_index=True)
-            cols_transposed = (uniq % M) * M + (uniq // M)
-
+            cache = self._get_spinful_flattened_indices(i_idx, j_idx)
             ham_flat = ham.reshape(n_kpts, -1)
-            contrib = (phases[:, :, None] * hop_blocks[None, :, :]).reshape(n_kpts, -1)
-            contrib = contrib[:, order]
+            max_terms = self._chunk_term_limit(n_kpts, target_mib=128)
+            self._accumulate_grouped_hermitian_chunked(
+                ham_flat,
+                cache,
+                lambda ord_idx: phases[:, ord_idx // spin_pairs]
+                * hop_blocks_flat[ord_idx],
+                max_terms=max_terms,
+            )
 
-            sums = np.add.reduceat(contrib, starts, axis=1)
-            ham_flat[:, uniq] += sums
-            ham_flat[:, cols_transposed] += sums.conj()
-
-        rows = np.arange(norb * nspin).reshape(norb, nspin)
-        ham[:, rows[:, :, None], rows[:, None, :]] += site_energies[None, :, :, :]
+        self._add_spinful_onsite_blocks(ham, site_energies)
 
         if not flatten_spin:
             ham = ham.reshape(n_kpts, norb, nspin, norb, nspin)
@@ -3250,36 +3378,61 @@ class TBModel:
 
         if cartesian:
             lattice = self.get_lat_vecs()[self.periodic_dirs, :]
-            coeff = (1j * delta_r_per @ lattice).T[:, None, :]
+            coeff = (1j * delta_r_per @ lattice).T
         else:
-            coeff = (1j * 2 * np.pi * delta_r_per).T[:, None, :]
-
-        deriv_phase = coeff * phases[None, ...] if n_hops else coeff[:, :, :0]
+            coeff = (1j * 2 * np.pi * delta_r_per).T
 
         if not self.spinful:
             amps_use = np.asarray(hop_amps, dtype=complex)
             vel = np.zeros((dim_k, k_arr.shape[0], norb, norb), dtype=complex)
+            if return_ham:
+                ham = np.zeros((k_arr.shape[0], norb, norb), dtype=complex)
+                ham_flat = ham.reshape(k_arr.shape[0], -1)
             if n_hops:
                 cache = self._get_flattened_indices()
                 order = cache["order"]
                 starts = cache["starts"]
                 uniq = cache["uniq"]
                 cols_transposed = cache["cols_transposed"]
-
                 vel_flat = vel.reshape(dim_k, k_arr.shape[0], -1)
 
-                if return_ham:
-                    ham = np.zeros((k_arr.shape[0], norb, norb), dtype=complex)
-                    ham_flat = ham.reshape(k_arr.shape[0], -1)
-                    contrib_ham = phases[:, order] * amps_use[order]
-                    sums_ham = np.add.reduceat(contrib_ham, starts, axis=1)
-                    ham_flat[:, uniq] += sums_ham
-                    ham_flat[:, cols_transposed] += sums_ham.conj()
+                # Fuse phase/amplitude work for ham+vel and avoid materializing
+                # the full deriv_phase tensor (dim_k, Nk, n_hops).
+                n_groups = starts.size
+                n_terms = order.size
+                max_terms = self._chunk_term_limit(
+                    dim_k * k_arr.shape[0], target_mib=128
+                )
+                g0 = 0
+                while g0 < n_groups:
+                    s0 = starts[g0]
+                    term_limit = s0 + max_terms
+                    g1 = np.searchsorted(starts, term_limit, side="left")
+                    if g1 <= g0:
+                        g1 = g0 + 1
 
-                contrib_sorted = deriv_phase[:, :, order] * amps_use[order]
-                sums = np.add.reduceat(contrib_sorted, starts, axis=2)
-                vel_flat[..., uniq] += sums
-                vel_flat[..., cols_transposed] += sums.conj()
+                    s1 = starts[g1] if g1 < n_groups else n_terms
+                    ord_chunk = order[s0:s1]
+                    local_starts = starts[g0:g1] - s0
+
+                    phase_chunk = phases[:, ord_chunk]
+                    phase_amp = phase_chunk * amps_use[ord_chunk]
+
+                    if return_ham:
+                        sums_ham = np.add.reduceat(phase_amp, local_starts, axis=1)
+                        uniq_chunk = uniq[g0:g1]
+                        trans_chunk = cols_transposed[g0:g1]
+                        ham_flat[:, uniq_chunk] += sums_ham
+                        ham_flat[:, trans_chunk] += sums_ham.conj()
+
+                    vel_terms = coeff[:, ord_chunk][:, None, :] * phase_amp[None, :, :]
+                    sums_vel = np.add.reduceat(vel_terms, local_starts, axis=2)
+                    uniq_chunk = uniq[g0:g1]
+                    trans_chunk = cols_transposed[g0:g1]
+                    vel_flat[:, :, uniq_chunk] += sums_vel
+                    vel_flat[:, :, trans_chunk] += sums_vel.conj()
+
+                    g0 = g1
 
             if return_ham:
                 diag = np.arange(norb)
@@ -3296,71 +3449,41 @@ class TBModel:
         #   s_out = s // nspin
         #   s_in  = s % nspin
         hop_blocks = np.asarray(hop_amps, dtype=complex).reshape(n_hops, -1)
+        spin_pairs = nspin * nspin
+        hop_blocks_flat = hop_blocks.reshape(-1)
 
         vel = np.zeros((dim_k, k_arr.shape[0], M, M), dtype=complex)
+        if return_ham:
+            ham = np.zeros((k_arr.shape[0], M, M), dtype=complex)
+            ham_flat = ham.reshape(k_arr.shape[0], -1)
         if n_hops:
-            # spin_out, spin_in shape: (nspin^2,)
-            # Creates all (s_out, s_in) pairs in a fixed order
-            spin_out = np.repeat(np.arange(nspin), nspin)  # [0,0,1,1] for nspin=2
-            spin_in = np.tile(np.arange(nspin), nspin)  # [0,1,0,1] for nspin=2
-
-            # For hop h and spin pair (s_out, s_in), the big M×M index is
-            #   row = s_out*norb + i_indices[h]
-            #   col = s_in *norb + j_indices[h]
-            # Build them as (n_hops * nspin^2,) arrays, then flatten to 1D of
-            # length n_hops*nspin^2
-            row_flat = (i_indices[:, None] * nspin + spin_out[None, :]).reshape(-1)
-            col_flat = (j_indices[:, None] * nspin + spin_in[None, :]).reshape(-1)
-
-            # Convert (row, col) to a single flat index in [0 .. M*M-1].
-            # pair_flat uniquely identifies each matrix element touched by a hop×spin pair.
-            pair_flat = row_flat * M + col_flat
-            # Sorting by pair_flat lets us use reduceat to sum contiguous groups efficiently.
-            order = np.argsort(pair_flat, kind="stable")
-
-            # uniq: the unique flat matrix positions; starts: the start indices of each group.
-            uniq, starts = np.unique(pair_flat[order], return_index=True)
-            # Hermitian partner flat positions (swap row/col): (r,c) -> (c,r)
-            cols_transposed = (uniq % M) * M + (uniq // M)
+            cache = self._get_spinful_flattened_indices(i_indices, j_indices)
+            max_terms_vel = self._chunk_term_limit(dim_k * n_kpts)
+            deriv_phase = coeff[:, None, :] * phases[None, :, :]
 
             if return_ham:
-                ham = np.zeros((k_arr.shape[0], M, M), dtype=complex)
-                ham_flat = ham.reshape(k_arr.shape[0], -1)
+                max_terms_ham = self._chunk_term_limit(n_kpts)
+                self._accumulate_grouped_hermitian_chunked(
+                    ham_flat,
+                    cache,
+                    lambda ord_idx: phases[:, ord_idx // spin_pairs]
+                    * hop_blocks_flat[ord_idx],
+                    max_terms=max_terms_ham,
+                )
 
-                # Broadcast multiply to get contribution per (hop, spin): shape (Nk, n_hops, S)
-                contrib_ham = phases[:, :, None] * hop_blocks[None, :, :]
-                # Flatten the last two axes to match pair_flat ordering, then reorder by 'order'
-                contrib_ham = contrib_ham.reshape(n_kpts, -1)  # (Nk, n_hops*nspin^2)
-                contrib_ham = contrib_ham[:, order]  # align with pair_sorted
-
-                # Sum within each group of identical matrix elements
-                sums_ham = np.add.reduceat(
-                    contrib_ham, starts, axis=1
-                )  # (Nk, len(uniq))
-
-                # Scatter once per unique element (and its Hermitian partner)
-                ham_flat[:, uniq] += sums_ham
-                ham_flat[:, cols_transposed] += sums_ham.conj()
-
-            # Broadcast multiply to get contribution per (hop, spin): shape (dim_k, Nk, n_hops, S)
-            terms = deriv_phase[:, :, :, None] * hop_blocks[None, None, :, :]
-            # Flatten the last two axes to match pair_flat ordering, then reorder by 'order'
-            terms = terms.reshape(dim_k, n_kpts, -1)  # (dim_k, Nk, n_hops*nspin^2)
-            terms = terms[..., order]  # align with pair_sorted
-
-            # Sum within each group of identical matrix elements
-            sums = np.add.reduceat(terms, starts, axis=2)  # (dim_k, Nk, len(uniq))
-
-            # Scatter once per unique element (and its Hermitian partner)
             vel_flat = vel.reshape(
                 dim_k, n_kpts, -1
             )  # flatten (M,M) -> M*M as last axis
-            vel_flat[:, :, uniq] += sums
-            vel_flat[:, :, cols_transposed] += sums.conj()
+            self._accumulate_grouped_hermitian_chunked(
+                vel_flat,
+                cache,
+                lambda ord_idx: deriv_phase[:, :, ord_idx // spin_pairs]
+                * hop_blocks_flat[ord_idx],
+                max_terms=max_terms_vel,
+            )
 
         if return_ham:
-            rows = np.arange(norb * nspin).reshape(norb, nspin)
-            ham[:, rows[:, :, None], rows[:, None, :]] += site_energies[None, :, :, :]
+            self._add_spinful_onsite_blocks(ham, site_energies)
 
             if not flatten_spin_axis:
                 ham = ham.reshape(n_kpts, norb, nspin, norb, nspin)

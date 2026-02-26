@@ -25,7 +25,7 @@ class HoppingTable:
     _index: dict[tuple[int, int, tuple[int, ...]], int] = field(
         init=False, default_factory=dict
     )
-    _flatten_cache: dict[tuple[int, int], dict[str, np.ndarray]] = field(
+    _flatten_cache: dict[tuple[int, int, int], dict[str, np.ndarray]] = field(
         init=False, default_factory=dict
     )
 
@@ -327,13 +327,16 @@ class HoppingTable:
     # ------------------------------------------------------------------
     # cached utilities
     # ------------------------------------------------------------------
-    def flatten_cache(self, norb: int) -> dict[str, np.ndarray]:
+    def flatten_cache(self, norb: int, *, nspin: int = 1) -> dict[str, np.ndarray]:
         """Return (and cache) index arrays useful for block-building Hamiltonians.
 
         Parameters
         ----------
         norb : int
             Number of orbitals in the model; used to compute flattened indices.
+        nspin : int, optional
+            Spin multiplicity used to flatten spin blocks. ``nspin=1`` reproduces
+            the spinless orbital-only cache.
 
         Returns
         -------
@@ -345,7 +348,7 @@ class HoppingTable:
             - "cols_transposed": Flattened (j, i) indices corresponding to "uniq".
             - "inverse_order": Indices that invert the "order" array.
         """
-        key = (norb, len(self))
+        key = (norb, nspin, len(self))
         cache = self._flatten_cache.get(key)
         if cache is not None:
             return cache
@@ -364,15 +367,25 @@ class HoppingTable:
             self._flatten_cache[key] = cache
             return cache
 
-        flat_idx = i_indices * norb + j_indices
+        if nspin == 1:
+            matrix_dim = norb
+            flat_idx = i_indices * matrix_dim + j_indices
+        else:
+            matrix_dim = norb * nspin
+            spin_out = np.repeat(np.arange(nspin), nspin)
+            spin_in = np.tile(np.arange(nspin), nspin)
+            rows = (i_indices[:, None] * nspin + spin_out[None, :]).reshape(-1)
+            cols = (j_indices[:, None] * nspin + spin_in[None, :]).reshape(-1)
+            flat_idx = rows * matrix_dim + cols
+
         order = np.argsort(flat_idx, kind="mergesort")
         flat_sorted = flat_idx[order]
         starts = np.concatenate(([0], np.flatnonzero(np.diff(flat_sorted)) + 1))
         uniq = flat_sorted[starts]
 
-        rows = uniq // norb
-        cols = uniq % norb
-        cols_transposed = cols * norb + rows
+        rows = uniq // matrix_dim
+        cols = uniq % matrix_dim
+        cols_transposed = cols * matrix_dim + rows
 
         inverse_order = np.empty_like(order)
         inverse_order[order] = np.arange(order.size)
