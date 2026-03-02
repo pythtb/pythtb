@@ -115,6 +115,7 @@ pygments_dark_style = "monokai"  # for dark theme compatibility
 
 html_theme = "pydata_sphinx_theme"  #'sphinx_book_theme' #'classic' pydata_sphinx_theme
 html_title = f"{project} Docs"
+html_favicon = "_static/pythtb_favicon.ico"
 templates_path = ["_templates"]
 html_static_path = ["_static"]
 html_js_files = [("custom-icons.js", {"defer": "defer"})]
