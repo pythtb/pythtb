@@ -212,7 +212,6 @@ class W90:
         ignorable_imaginary_part=None,
         *,
         onsite_imag_tol: float = 1e-9,
-        fill_hermitian: bool = False,
     ) -> TBModel:
         r"""Get TBModel associated with this Wannier90 calculation.
 
@@ -312,7 +311,7 @@ class W90:
         # Divide by degeneracy only once and assert onsite is (numerically) real
         diag = np.diag(hr0["h"]) / deg0
         # sanity check: imaginary part should be tiny
-        if np.max(np.abs(diag.imag)) > 1e-9:
+        if np.max(np.abs(diag.imag)) > onsite_imag_tol:
             raise ValueError(f"Onsite terms should be real (|Im|>{onsite_imag_tol})")
         tb.set_onsite(diag.real - zero_energy)
 
@@ -385,18 +384,6 @@ class W90:
                 ii_all.append(ii)
                 jj_all.append(jj)
                 R_all.append(R_arr)
-
-            if fill_hermitian and R != (0, 0, 0):
-                # explicitly add the conjugate partners at -R
-                Hc = H.conj().T
-                ii2, jj2 = np.nonzero(keep.T)
-                if ii2.size:
-                    amps2 = Hc[ii2, jj2]
-                    Rm = np.repeat((-np.array(R, dtype=int))[None, :], ii2.size, axis=0)
-                    amps_all.append(amps2)
-                    ii_all.append(ii2)
-                    jj_all.append(jj2)
-                    R_all.append(Rm)
 
         if amps_all:
             amps = np.concatenate(amps_all)

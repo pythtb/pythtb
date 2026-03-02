@@ -7,7 +7,7 @@
    version="1.1"
    viewBox="0 0 39.345888 14.638594"
    id="svg20"
-   sodipodi:docname="pythtb_logo2_dark.svg"
+   sodipodi:docname="pythtb_logo.svg"
    inkscape:version="1.4.2 (ebf0e940, 2025-05-08)"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
@@ -25,15 +25,15 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="in"
-     inkscape:zoom="2.4245442"
-     inkscape:cx="71.353618"
-     inkscape:cy="49.493839"
+     inkscape:zoom="1.568951"
+     inkscape:cx="68.835801"
+     inkscape:cy="62.143432"
      inkscape:window-width="1512"
-     inkscape:window-height="945"
-     inkscape:window-x="241"
-     inkscape:window-y="1117"
+     inkscape:window-height="854"
+     inkscape:window-x="150"
+     inkscape:window-y="1106"
      inkscape:window-maximized="0"
-     inkscape:current-layer="g6" />
+     inkscape:current-layer="g20" />
   <g
      transform="translate(-314.37371,-231.512)"
      id="g20">
@@ -163,36 +163,6 @@
        ry="2.5467999"
        fill="#cd002f"
        id="ellipse12" />
-    <g
-       transform="translate(235.12,96.552)"
-       id="g15">
-      <path
-         d="m 80.422,110.08 c 0,0 1.6385,-4.0388 3.4666,-4.7338 1.6965,-0.64499 5.323,1.1462 5.323,1.1462"
-         fill="none"
-         stroke="#000000"
-         stroke-width="0.365"
-         id="path13" />
-      <path
-         d="m 80.706,110.61 c 0,0 4.4586,1.754 6.2413,0.96083 1.7827,-0.79317 2.57,-4.3952 2.57,-4.3952"
-         fill="none"
-         stroke="#000000"
-         stroke-width="0.365"
-         id="path14" />
-      <ellipse
-         cx="89.342003"
-         cy="106.88"
-         rx="1.2258"
-         ry="1.2557"
-         fill="#cd002f"
-         id="ellipse14" />
-      <ellipse
-         cx="80.512001"
-         cy="110.38"
-         rx="1.2258"
-         ry="1.2557"
-         fill="#cd002f"
-         id="ellipse15" />
-    </g>
     <g
        transform="translate(205.75,78.632)"
        id="g19">
