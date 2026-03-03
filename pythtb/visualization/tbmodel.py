@@ -20,7 +20,6 @@ def plot_tbmodel(
     annotate_onsite=False,
     ph_color="black",
     orb_color="red",
-    show: bool | str = True,
 ):
     r"""Visualizes the tight-binding model geometry.
 
@@ -55,13 +54,13 @@ def plot_tbmodel(
         .. versionchanged:: 2.0.0
             Replaced previous parameters ``dir_first`` and ``dir_second``.
 
-    eig_dr : Optional parameter specifying eigenstate to
-        plot. If specified, this should be one-dimensional array of
+    eig_dr : array like of complex, optional
+        If specified, this should be one-dimensional array of
         complex numbers specifying wavefunction at each orbital in
         the tight-binding basis. If not specified, eigenstate is not
         drawn.
-    draw_hoppings : Optional parameter specifying whether to
-        draw all allowed hopping terms in the tight-binding
+    draw_hoppings : bool, optional
+        Whether to draw all allowed hopping terms in the tight-binding
         model. Default value is True.
     ph_color : {"black", "red-blue", "wheel"}, optional
         Determines the way the eigenvector phase factors are
