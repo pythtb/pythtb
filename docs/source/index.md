@@ -122,7 +122,7 @@ plot of the resulting band structure. Here you can find {doc}`more examples <tut
 ## Feedback
 
 Please send comments or suggestions for improvement to [these email addresses](mailto:trey@treycole.me;dhv@physics.rutgers.edu;sinisacoh@gmail.com) or start
-a discussion on the [GitHub Discussions page](https://github.com/orgs/pythtb/discussions). If you find bugs, please report them on the [GitHub Issues page](https://github.com/pythtb/PythTB/issues). 
+a discussion on the [GitHub Discussions page](https://github.com/orgs/pythtb/discussions). If you find bugs, please report them on the [GitHub Issues page](https://github.com/pythtb/pythtb/issues). 
 
 ```{toctree}
 :maxdepth: 1
