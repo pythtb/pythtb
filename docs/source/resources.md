@@ -15,7 +15,7 @@ Wannier 2022 Summer School on May 19th 2022:
    
 ## Python Web Resources
 
-- [Python Documentation](http://docs.python.org)
+- [Python Documentation](https://docs.python.org)
 - [Python Tutorial](https://docs.python.org/3/tutorial/index.html)
 - [Python for Beginners](https://wiki.python.org/moin/BeginnersGuide/NonProgrammers)
 - [Learn Python in 10 minutes](http://www.korokithakis.net/tutorials/python)
@@ -40,4 +40,4 @@ carefully before use.
 
 ## Related packages
 
--  [kwant](http://kwant-project.org): tight-binding python package for quantum transport 
+-  [kwant](https://kwant-project.org): tight-binding python package for quantum transport 
