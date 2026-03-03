@@ -13,7 +13,7 @@ PythTB centers on a small set of core classes for constructing and analyzing tig
 - {py:class}`pythtb.WFArray` 
    Mesh-aware wavefunction storage. Solve a model across $(k, \lambda)$ grids, then evaluate Wilson loops, Berry phases, Chern numbers, and other objects with consistent periodic boundary conditions.
 - {py:class}`pythtb.W90` 
-   Interface with [Wannier90](http://www.wannier.org) and export a Wannierized tight-binding model in the form of a 
+   Interface with [Wannier90](https://www.wannier.org) and export a Wannierized tight-binding model in the form of a 
    {py:class}`TBModel`. 
 
 :::{versionadded} 2.0.0
