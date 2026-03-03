@@ -62,5 +62,5 @@ All pull requests are reviewed by maintainers. Feedback and iteration help maint
 ## Reporting Issues
 
 If you run into bugs or have ideas for improvements:
-- Open an [issue on GitHub](https://github.com/pythtb/PythTB/issues).
+- Open an [issue on GitHub](https://github.com/pythtb/pythtb/issues).
 - Include relevant details: steps to reproduce, error messages, minimal examples, and system information.
