@@ -222,7 +222,7 @@ def new_function(
    >>> for i in x:
    ...    x[i] -= 1
    >>> x
-   [-1, 0, 1, 2, 3] # ouput line
+   [-1, 0, 1, 2, 3] # output line
 
    """
 
@@ -264,7 +264,7 @@ For guidance on the style of numpy docstrings, see the [numpydoc reference](http
 
 ## Writing .ipynb tutorial notebooks
 
-To add new tutorials, create a new Jupyter notebook in the `docs/source/tutorials/` directory. Ensure that the notebook is well-documented and includes explanations of the code. After adding the notebook, rebuild the documentation to include it in the tutorials section. Upon building, Sphinx with the `myst-nb` extension will convert the notebook into a static HTML page and link it appropriately in the tutorials section of the documentation. See [MyST-nb documenation](https://myst-nb.readthedocs.io/en/latest/authoring/jupyter-notebooks.html) for syntax details.
+To add new tutorials, create a new Jupyter notebook in the `docs/source/tutorials/` directory. Ensure that the notebook is well-documented and includes explanations of the code. After adding the notebook, rebuild the documentation to include it in the tutorials section. Upon building, Sphinx with the `myst-nb` extension will convert the notebook into a static HTML page and link it appropriately in the tutorials section of the documentation. See [MyST-nb documentation](https://myst-nb.readthedocs.io/en/latest/authoring/jupyter-notebooks.html) for syntax details.
 
 We have added a custom template for auto-generating a converted .py script from the .ipynb file, which is stored in the `build/dirhtml/tutorials_py/` directory when building with `dirhtml`. Each notebook will have a link at the top to download the .ipynb and .py script versions.
 We use Binder to host live, interactive versions of the tutorial notebooks. The configuration of Binder is in the root directory under the `.binder/` folder. Each tutorial notebook has a "Launch Binder" button at the top that links to the live version hosted on Binder. See the [Binder documentation](https://mybinder.readthedocs.io/en/latest/) for more details on how this works.
