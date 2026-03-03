@@ -143,7 +143,7 @@ notfound_context = {
 html_context = {
     "github_user": "pythtb",
     "github_repo": "pythtb",
-    "github_version": "dev",
+    "github_version": "main",
     "doc_path": "docs",
 }
 
