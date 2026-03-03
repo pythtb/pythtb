@@ -1,6 +1,6 @@
 # Tutorials
     
-[![Run tutorials on Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/pythtb/pythtb/dev?urlpath=lab/tree/docs/source/tutorials/)
+[![Run tutorials on Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/pythtb/pythtb/main?urlpath=lab/tree/docs/source/tutorials/)
 
 This section contains a collection of tutorials demonstrating how to use PythTB to build and analyze tight-binding models. Each tutorial is provided as a Jupyter notebook (.ipynb) file, which includes both the code and explanatory text.
 
