@@ -69,7 +69,7 @@ __pycache__/
 # *.ipynb
 
 # DATA files #
-*.dat
+# *.dat
 *.h5
 *.hdf
 *.h
