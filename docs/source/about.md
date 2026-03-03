@@ -13,7 +13,7 @@ demonstrate these workflows.
 
 ## Tight-binding models
 
-The [tight binding](http://en.wikipedia.org/wiki/Tight_binding) method is an approximate approach for solving for the electronic wave 
+The [tight binding](https://en.wikipedia.org/wiki/Tight_binding) method is an approximate approach for solving for the electronic wave 
 functions for electrons in solids assuming a basis of localized atomic-like orbitals. We assume here that the orbitals are orthonormal, 
 and focus on the “empirical tight binding” approach in which the Hamiltonian matrix elements are simply parametrized, as opposed to being 
 computed ab-initio.
@@ -31,7 +31,7 @@ It provides tools for setting up more complicated tight-binding models, e.g., by
 and for visualizing the connectivity of a tight-binding model once it has been constructed.
 
 As currently written, it is not intended to handle realistic chemical interactions. So for example, the 
-[Slater-Koster forms](http://en.wikipedia.org/wiki/Tight_binding#Table_of_interatomic_matrix_elements) for interactions 
+[Slater-Koster forms](https://en.wikipedia.org/wiki/Tight_binding#Table_of_interatomic_matrix_elements) for interactions 
 between *s*, *p* and *d* orbitals are *not currently coded*, although the addition of such features could be considered for a future release.
 
 ## Topology and quantum geometry
@@ -70,7 +70,7 @@ Once states are stored in a {class}`~pythtb.wfarray.WFArray`, one can use its me
 ## Wannier functions and Wannier90 interface
 
 Starting with Version 1.7, ``PythTB`` provides an interface to the 
-popular [Wannier90](http://www.wannier.org) package via the {class}`~pythtb.w90.W90` class,
+popular [Wannier90](https://www.wannier.org) package via the {class}`~pythtb.w90.W90` class,
 - {class}`~pythtb.w90.W90` reads tight-binding Hamiltonians from Wannier90 output files (``*.win``, ``*_hr.dat``, ``*_centres.xyz``). 
   You can combine imported data with the broader PythTB ecosystem, run band-structure checks, or feed the states into 
   {class}`~pythtb.wfarray.WFArray` and {class}`~pythtb.wannier.Wannier` for further processing.
