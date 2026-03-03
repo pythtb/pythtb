@@ -47,41 +47,44 @@ PythTB is a Python library for constructing and analyzing tight-binding models, 
       :link: generated/pythtb.TBModel
       :link-type: doc
 
-      Define and manipulate tight-binding Hamiltonians using ``TBModel``.
-      Specify on-site terms, hoppings, spin structure, and
-      parameter-dependent contributions.
+      Construct and manipulate tight-binding Hamiltonians with ``TBModel``.
+      Define lattice geometry with ``Lattice``, on-site and hopping terms, spin structure,
+      and parameter-dependent model components.
 
    .. grid-item-card:: :material-outlined:`blur_on` State sampling
       :link: generated/pythtb.WFArray
       :link-type: doc
 
-      Build structured k-space and parameter meshes with ``Mesh``.
-      Sample Hamiltonians and store resulting states defined on the ``Mesh``
-      in ``WFArray`` for further analysis.
+      Create structured k-space and parameter meshes, sample model
+      Hamiltonians, and store eigenstates in ``WFArray`` objects for
+      downstream analysis.
 
    .. grid-item-card:: :material-outlined:`all_inclusive` Topology & quantum geometry
       :link: api
       :link-type: doc
 
-      Compute Berry phases, connections, and curvature; Chern numbers;
-      the axion angle; local Chern markers; hybrid Wannier
-      functions; and other quantum-geometric observables using
-      ``WFArray`` and ``TBModel`` methods.
+      Compute topological invariants and quantum-geometric quantities
+      with ``WFArray`` and ``TBModel``: Berry connection, phases and
+      curvature; quantum metric and geometric tensor; Wilson loops,
+      Chern numbers, local Chern markers, hybrid Wannier centers, and
+      Chern-Simons axion-angle pumping.
 
    .. grid-item-card:: :material-outlined:`extension` Wannier90 Integration
       :link: generated/pythtb.W90
       :link-type: doc
 
       Import Wannier90 tight-binding Hamiltonians via ``W90`` 
-      for post-processing and topological/quantum-geometric analysis.
+      for post-processing, band-structure evaluation, and detailed analysis of
+      topological and quantum-geometric properties.
 
    .. grid-item-card:: :material-outlined:`token` Wannier workflows
       :link: generated/pythtb.Wannier
       :link-type: doc
 
-      Construct maximally localized Wannier functions with ``Wannier``
-      from a ``WFArray``. Perform projections, disentanglement, 
-      evaluate spreads, and analyze centers and localization properties.
+      Perform projection, disentanglement, and construct maximally 
+      localized Wannier functions in a tight-binding framework 
+      using ``Wannier`` and ``WFArray``. Evaluate spreads, centers, 
+      localization properties, and topological obstructions.
    
    .. grid-item-card:: :material-outlined:`image` Visualization
       :link: api
@@ -95,7 +98,7 @@ PythTB is a Python library for constructing and analyzing tight-binding models, 
 ## Get started with PythTB
 
 This is a simple example showing how to define graphene tight-binding
-model with first neighbour hopping only. Below is the source code and
+model with first neighbor hopping only. Below is the source code and
 plot of the resulting band structure. Here you can find {doc}`more examples <tutorials>`.
 
 ```{literalinclude} _static/get_started/graphene_bands.py
@@ -118,7 +121,8 @@ plot of the resulting band structure. Here you can find {doc}`more examples <tut
 
 ## Feedback
 
-Please send comments or suggestions for improvement to [these email addresses](mailto:trey@treycole.me;dhv@physics.rutgers.edu;sinisacoh@gmail.com). If you find bugs, please report them on the [GitHub Issues page](https://github.com/pythtb/PythTB/issues). 
+Please send comments or suggestions for improvement to [these email addresses](mailto:trey@treycole.me;dhv@physics.rutgers.edu;sinisacoh@gmail.com) or start
+a discussion on the [GitHub Discussions page](https://github.com/orgs/pythtb/discussions). If you find bugs, please report them on the [GitHub Issues page](https://github.com/pythtb/PythTB/issues). 
 
 ```{toctree}
 :maxdepth: 1
