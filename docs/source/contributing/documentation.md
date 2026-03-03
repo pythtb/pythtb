@@ -109,11 +109,12 @@ This will open the `index.html` file from the specified build in your default we
 
 ## Writing .rst/.md source files
 
-Each page in `docs/source/` represents a different page of the website. Using the `myst-nb` Sphinx extension, we can write pages in either reStructuredText (.rst) or Myst Markdown (.md). `index.md` is the homepage, and it links to all of the other .md/.rst pages to be included on the site. For example, at the bottom of `index.md` we have
+Each page in `docs/source/` represents a different page of the website. Using the `myst-nb` Sphinx extension, we can write pages in either reStructuredText (.rst) or Myst Markdown (.md). See the [Sphinx documentation](https://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html#rst-primer) for instructions on writing .rst.
+
+`index.md` is the homepage, and it links to all of the other .md/.rst pages to be included on the site. For example, at the bottom of `index.md` we have
 
 ````md
-```{eval-rst}
-.. toctree::å
+```{toctree}
 :maxdepth: 1
 :hidden:
 
@@ -130,14 +131,14 @@ citation
 ```
 ````
 
-Inside the `{eval-rst}` directive (surrounded by triple backticks), we write .rst syntax. Here, we use the `toctree` directive to specify which pages to include in the documentation. These will appear in the sidebar navigation and the top navigation bar.
-What is written in the toctree is the name of the file (omitting the extension), the name that is rendered in the navigation is by default set to the top level header of that file. We can also give the name directly using `Name <file>`. See the [Sphinx documentation](https://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html#rst-primer) for instructions on writing .rst.
+Here, we use the `toctree` directive to specify which pages to include in the documentation. These will appear in the sidebar navigation and the top navigation bar.
+What is written in the toctree is the name of the file (omitting the extension), the name that is rendered in the navigation is by default set to the top level header of that file. We can also give the name directly using `Name <file>`. 
 
 ## Writing Docstrings
 
 The code API is documented using docstrings in the source code. We use NumPy-styled docstrings. Sphinx parses this using `numpydoc` + `autodoc` (see [Sphinx autodoc](https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html) and [numpydoc extension](https://numpydoc.readthedocs.io/en/latest/usage.html#sphinx-extension)).
 
-To update the API documentation, modify the docstrings in the relevant Python files in the `pythtb/` directory. After making changes, rebuild the documentation to reflect the updated API docs. The API reference page is located at `docs/source/usage.md`. This will use Sphinx's `autodoc` feature to pull in the updated docstrings and generate the .rst files in `docs/source/generated/`. Sphinx is very picky with the syntax of the docstrings. Below is an example describing each part of the docstring: 
+To update the API documentation, modify the docstrings in the relevant Python files in the `pythtb/` directory. After making changes, rebuild the documentation to reflect the updated API docs. The API reference page is located at `docs/source/api.md`. This will use Sphinx's `autodoc` feature to pull in the updated docstrings and generate the .rst files in `docs/source/generated/`. Sphinx is very picky with the syntax of the docstrings. Below is an example describing each part of the docstring: 
 
 ### Basic Structure
 ```python

@@ -47,7 +47,7 @@ sphinx-build docs/source docs/build/html
 3. Version number updated in `pythtb/__init__.py`
 4. `CHANGELOG.md` updated
 5. Release notes added 
-- Add release notes in `docs/source/release/` and update toctree in `docs/source/release.rst`
+- Add release notes in `docs/source/release/` and update toctree in `docs/source/release.md`
 
 Once all of the changes are in place, we can proceed to release.
 
