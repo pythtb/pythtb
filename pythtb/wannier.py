@@ -16,116 +16,44 @@ __all__ = ["Wannier"]
 
 
 class Wannier:
-    r"""Construct Wannier functions using the projection method.
+    r"""Construct Wannier functions through the projection method.
 
-    This class provides methods to build Wannier functions from Bloch eigenstates and to
-    evaluate their quadratic spreads. It realizes the Marzari-Vanderbilt maximal localization
-    program on a **toroidal k-mesh without endpoints** by combining
+    This class implements projection, disentanglement [2]_, and maximal-localization [1]_
+    workflows using Bloch states represented in a finite
+    tight-binding orbital basis. The high-level workflow is:
 
-    - **Single-shot projection** via SVD alignment to user-specified trial orbitals, producing
-      Bloch-like states :math:`\tilde{\psi}_{n\mathbf{k}}`.
-    - **Disentanglement** of entangled bands following the Souza-Marzari-Vanderbilt [2]_ scheme,
-      where :meth:`disentangle` optimizes projectors within user-defined outer and inner windows
-      to minimize the gauge-invariant spread :math:`\Omega_I`.
-    - **Maximal localization** thorugh the Marzari-Vanderbilt scheme [1]_ using
-      :meth:`maxloc`, which iteratively rotates the
-      disentangled subspace to minimize the gauge-dependent spread
-      :math:`\widetilde{\Omega}=\Omega_{\mathrm{OD}}+\Omega_{\mathrm{D}}`.
-
-    Together these steps construct Wannier functions from Bloch energy eigenstates and minimize
-    their spreads through disentanglement and maximal localization.
+    1. Single-shot SVD projection to trial functions (:meth:`project`).
+    2. Optional disentanglement in an outer/frozen window (:meth:`disentangle`).
+    3. Unitary gauge optimization for maximal localization (:meth:`maxloc`).
 
     Parameters
     ----------
     bloch_states : WFArray
-        The Bloch wavefunctions to be Wannierized. This should be initialiazed on a toroidal
-        k-mesh without endpoints (open k-axes). They should also have their values filled, either
-        by setting manually or by calling :meth:`WFArray.solve_model`. These can be energy eigenstates
-        or any other set of Bloch-like states on the mesh.
+        Bloch-like states to Wannierize. The mesh must be a torus in k-space
+        (no endpoint duplication), and states must already be populated.
 
     Notes
     -----
-    - The k-mesh must be a torus (no endpoints included).
-    - :attr:`tilde_states` must be set before calling routines that compute Wannier functions
-      or spreads.
-    - **Disentanglement workflow**: :meth:`disentangle` uses outer (candidate) and inner
-      (frozen) windows to optimize projectors that define a smooth subspace with minimal
-      gauge-invariant spread.
-    - **Maximal localization**: :meth:`maxloc` performs a steepest-descent update of
-      the unitary gauge to reduce the gauge-dependent spread and produce maximally localized
-      Wannier functions.
-    - **Wannier construction**: We form Wannier functions by discrete inverse Fourier transform
-      of the Bloch-like states,
+    - :class:`Wannier` performs a *re-Wannierization* relative to
+      typical Wannier90 workflows:
+
+      - Wannier90 commonly starts from first-principles Bloch states and projects
+        onto trial orbitals, typically taking the form of localized atomic orbitals.
+      - :class:`Wannier` works directly with :class:`WFArray` states and trial
+        functions expressed in the same tight-binding orbital/spin basis.
+
+    - Wannier functions are obtained from Bloch-like states
+      :math:`\tilde{\psi}_{n\mathbf{k}}` via inverse FFT over k-axes:
 
       .. math::
-           w_{n\mathbf{R}} = \frac{1}{\sqrt{N_k}} \sum_{\mathbf{k}}
-           e^{i\mathbf{k}\cdot\mathbf{R}}\,\tilde{\psi}_{n\mathbf{k}} .
-
-      In code this is done by ``np.fft.ifftn`` over the k-axes.
-    - **Overlap matrices**: For nearest-neighbor k-shell displacements
-      :math:`\{\mathbf{b}\}` with weights :math:`\{w_b\}`, the code constructs the
-      discrete overlaps
-
-      .. math::
-           M_{mn}^{(\mathbf{b})}(\mathbf{k}) \equiv
-           \langle u_{m\mathbf{k}} \mid u_{n,\mathbf{k}+\mathbf{b}}\rangle ,
-
-      using the cell-periodic parts of the Bloch-like states stored in :attr:`tilde_states`.
-    - **Spread decomposition (MV97)**: The total spread
-      :math:`\Omega=\Omega_I+\widetilde{\Omega}` is decomposed into the gauge-invariant
-      part :math:`\Omega_I` and the gauge-dependent part
-      :math:`\widetilde{\Omega}=\Omega_{\mathrm{OD}}+\Omega_{\mathrm{D}}`. The code computes
-      these using the diagonal and full elements of :math:`M^{(\mathbf{b})}` as in
-      [1]_.
-
-    - **Centers and phases**: The Wannier-center vector for band :math:`n` is obtained from
-      the phases of the diagonal overlaps,
-
-      .. math::
-           \mathbf{r}_n \;=\; -\frac{w_b}{N_k}
-           \sum_{\mathbf{k}} \operatorname{Im}\!\left[\ln M_{nn}^{(\mathbf{b})}(\mathbf{k})\right]
-           \, \mathbf{b} ,
+         w_{n\mathbf{R}} = \frac{1}{\sqrt{N_k}}
+         \sum_{\mathbf{k}} e^{i\mathbf{k}\cdot\mathbf{R}}
+         \tilde{\psi}_{n\mathbf{k}}.
 
     References
     ----------
-    .. [1] Marzari, N., & Vanderbilt, D. Maximally localized generalized
-        Wannier functions for composite energy bands. Phys. Rev. B 56, 12847 (1997).
-    .. [2] Souza, I., Marzari, N., & Vanderbilt, D. Maximally localized
-        Wannier functions for entangled energy bands. Phys. Rev. B 65, 035109 (2001).
-
-    Examples
-    --------
-    Initialize the Bloch :class:`WFArray` on a toroidal k-mesh without endpoints
-
-    >>> from pythtb import TBModel, Lattice, Mesh, WFArray, Wannier
-    >>> lat_vecs = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
-    >>> orb_vecs = [[0, 0, 0]]
-    >>> lat = Lattice(lat_vecs, orb_vecs, periodic_dirs=[0, 1, 2])
-    >>> model = TBModel(lattice=lat, spinful=False)
-    >>> model.set_onsite(0.0)
-    >>> model.set_hop(-1.0, 0, 0, [1, 0, 0]) # along with other hops...
-    >>> mesh = Mesh(dim_k=3, axis_types=['k', 'k', 'k'])
-    >>> mesh.build_grid(shape=(8, 8, 8), k_endpoints=False)
-    >>> wfa = WFArray(lattice=lat, mesh=mesh, nstates=model.nbands, spinful=False)
-    >>> wfa.solve_model(model)
-    >>> wan = Wannier(bloch_states=wfa)
-
-    Set trial wavefunctions and perform single-shot projection
-
-    >>> twf_list = [[(0, 1.0)]]  # single trial wf on orbital 0
-    >>> wan.project(twf_list)
-
-    Perform maximal localization
-
-    >>> wan.maxloc(num_iter=100, conv_tol=1e-6)
-
-    Compute and print Wannier centers and spreads
-
-    >>> wan.info(precision=6)
-
-    Plot Wannier centers
-
-    >>> wan.plot_centers(wan_idx=0)
+    .. [1] Marzari, N., & Vanderbilt, D. Phys. Rev. B 56, 12847 (1997).
+    .. [2] Souza, I., Marzari, N., & Vanderbilt, D. Phys. Rev. B 65, 035109 (2001).
     """
 
     def __init__(self, bloch_states: WFArray):
@@ -152,30 +80,57 @@ class Wannier:
 
     @property
     def mesh(self) -> Mesh:
-        """Mesh object associated with the Wannier functions."""
+        """Mesh associated with this Wannier workflow.
+
+        Returns
+        -------
+        Mesh
+            Mesh used by :attr:`bloch_states`.
+        """
         return self.bloch_states.mesh
 
     @property
     def lattice(self):
-        """Lattice object associated with the Wannier functions."""
+        """Lattice associated with this Wannier workflow.
+
+        Returns
+        -------
+        Lattice
+            Lattice used by :attr:`bloch_states`.
+        """
         return self._wfa.lattice
 
     @property
     def bloch_states(self) -> WFArray:
-        """WFArray object associated with the Bloch states."""
+        """Input Bloch states to be Wannierized.
+
+        Returns
+        -------
+        WFArray
+            Source state container.
+        """
         return self._wfa
 
     @property
     def tilde_states(self) -> WFArray:
-        r"""WFArray corresponding to the Bloch-like (tilde) states.
+        r"""Bloch-like states :math:`\tilde{\psi}_{n\mathbf{k}}`.
 
-        These are the Bloch-like states that are Fourier transformed to
-        form the Wannier functions. They are related to the original energy
-        eigenstates via the (semi-) unitary transformation
+        These states are Fourier transformed to build Wannier functions and are
+        related to reference states by a (semi-)unitary gauge rotation:
 
         .. math::
             |\tilde{\psi}_{n\mathbf{k}} \rangle = \sum_{m=1}^{N}
             U_{mn}^{(\mathbf{k})} |\psi_{m\mathbf{k}} \rangle
+
+        Returns
+        -------
+        WFArray
+            Current Bloch-like states.
+
+        Raises
+        ------
+        ValueError
+            If tilde states have not been initialized.
         """
         if not hasattr(self, "_tilde_states"):
             raise ValueError(
@@ -185,23 +140,36 @@ class Wannier:
         return getattr(self, "_tilde_states", None)
 
     @property
-    def nks(self) -> list:
-        """Number of k-points in each dimension."""
+    def nks(self) -> tuple[int, ...]:
+        """Number of k points along each k-axis.
+
+        Returns
+        -------
+        tuple of int
+            Mesh shape in reciprocal directions.
+        """
         return self.mesh.shape_k
 
     @property
     def wannier(self) -> np.ndarray:
-        r"""Wannier functions.
+        r"""Wannier functions in the supercell implied by the k-grid.
 
-        The Wannier functions are the discrete Fourier transform of the
-        Bloch-like states :math:`\tilde{\psi}`
+        The Wannier functions are discrete inverse Fourier transforms of
+        :math:`\tilde{\psi}`:
 
         .. math::
             w_{n\mathbf{R}} = \frac{1}{\sqrt{N_k}} \sum_{\mathbf{k}} e^{i\mathbf{k} \cdot \mathbf{R}}
             \tilde{\psi}_{n\mathbf{k}}
 
-        where :math:`N_k` is the number of k-points, :math:`\mathbf{R}` is a
-        lattice vector conjugate to the discrete k-mesh.
+        Returns
+        -------
+        np.ndarray
+            Wannier functions with mesh/supercell and orbital/spin axes.
+
+        Raises
+        ------
+        ValueError
+            If tilde states are not initialized.
         """
         if not self.tilde_states.filled:
             raise ValueError("Tilde states are not initialized.")
@@ -209,14 +177,21 @@ class Wannier:
 
     @property
     def spread(self) -> list[float]:
-        r"""Quadratic spread for each Wannier function.
+        r"""Quadratic spread :math:`\Omega_n` for each Wannier function.
 
         .. math::
             \Omega_n = \langle \mathbf{0} n | r^2 | \mathbf{0} n \rangle
             - \langle \mathbf{0} n | \mathbf{r} | \mathbf{0} n \rangle^2
 
-        where :math:`|\mathbf{0} n\rangle` are the Wannier functions in the home unit cell
-        and :math:`\Omega = \sum_n \Omega_n` is the total spread.
+        Returns
+        -------
+        list of float
+            Per-band quadratic spreads.
+
+        Raises
+        ------
+        ValueError
+            If tilde states are not initialized.
         """
         if not self.tilde_states.filled:
             raise ValueError("Tilde states are not initialized.")
@@ -224,7 +199,7 @@ class Wannier:
 
     @property
     def Omega_OD(self) -> float:
-        r"""Off-diagonal part of gauge-dependent spread.
+        r"""Off-diagonal gauge-dependent spread :math:`\Omega_{\mathrm{OD}}`.
 
         Part of the decomposition of the quadratic spread into gauge-invariant (:math:`\widetilde{\Omega}`) and
         gauge-dependent (:math:`\widetilde{\Omega}`) parts,
@@ -238,6 +213,16 @@ class Wannier:
         .. math::
             \Omega_{\rm OD} = \frac{1}{N_k} \sum_{\mathbf{k}, \mathbf{b}} w_b
             \sum_{m\neq n} |M_{mn}^{(\mathbf{b})}(\mathbf{k})|^2
+
+        Returns
+        -------
+        float
+            Off-diagonal spread contribution.
+
+        Raises
+        ------
+        ValueError
+            If tilde states are not initialized.
         """
         if not self.tilde_states.filled:
             raise ValueError("Tilde states are not initialized.")
@@ -245,7 +230,7 @@ class Wannier:
 
     @property
     def Omega_D(self) -> float:
-        r"""Off-diagonal part of gauge-dependent spread.
+        r"""Diagonal gauge-dependent spread :math:`\Omega_{\mathrm{D}}`.
 
         Part of the decomposition of the quadratic spread into gauge-invariant (:math:`\widetilde{\Omega}`) and
         gauge-dependent (:math:`\widetilde{\Omega}`) parts,
@@ -260,6 +245,16 @@ class Wannier:
             \Omega_{\rm D} = \frac{1}{N_k} \sum_{\mathbf{k}, \mathbf{b}} w_b
             \sum_n \left( -\operatorname{Im}\!\left[\ln M_{nn}^{(\mathbf{b})}(\mathbf{k})\right]
             - \mathbf{b}\cdot\mathbf{r}_n \right)^2
+
+        Returns
+        -------
+        float
+            Diagonal spread contribution.
+
+        Raises
+        ------
+        ValueError
+            If tilde states are not initialized.
         """
         if not self.tilde_states.filled:
             raise ValueError("Tilde states are not initialized.")
@@ -267,7 +262,7 @@ class Wannier:
 
     @property
     def Omega_I(self) -> float:
-        r"""Gauge-independent quadratic spread.
+        r"""Gauge-invariant spread :math:`\Omega_I`.
 
         Part of the decomposition of the quadratic spread into gauge-invariant (:math:`\widetilde{\Omega}`) and
         gauge-dependent (:math:`\widetilde{\Omega}`) parts,
@@ -282,6 +277,15 @@ class Wannier:
             \Omega_I = \frac{1}{N_k} \sum_{\mathbf{k}, \mathbf{b}} w_b
             \left( N_{\rm bands} - \sum_{m,n} |M_{mn}^{(\mathbf{b})}(\mathbf{k})|^2 \right)
 
+        Returns
+        -------
+        float
+            Gauge-invariant spread contribution.
+
+        Raises
+        ------
+        ValueError
+            If tilde states are not initialized.
         """
         if not self.tilde_states.filled:
             raise ValueError("Tilde states are not initialized.")
@@ -289,7 +293,7 @@ class Wannier:
 
     @property
     def centers(self) -> np.ndarray:
-        r"""Centers of the Wannier functions in Cartesian coordinates.
+        r"""Wannier centers in Cartesian coordinates.
 
         The Wannier center for band :math:`n` is obtained from the phases of the
         diagonal overlaps,
@@ -298,6 +302,16 @@ class Wannier:
             \mathbf{r}_n \;=\; -\frac{1}{N_k}
             \sum_{\mathbf{k}, \mathbf{b}} w_b \mathbf{b} \operatorname{Im}\!\left[\ln M_{nn}^{(\mathbf{b})}(\mathbf{k})\right]
             \, ,
+
+        Returns
+        -------
+        np.ndarray
+            Array of shape ``(n_wannier, dim_r)``.
+
+        Raises
+        ------
+        ValueError
+            If tilde states are not initialized.
         """
         if not self.tilde_states.filled:
             raise ValueError("Tilde states are not set.")
@@ -305,19 +319,36 @@ class Wannier:
 
     @property
     def trial_wfs(self) -> np.ndarray:
-        """Trial wavefunctions to project onto."""
+        """Trial wavefunctions used for projection.
+
+        Returns
+        -------
+        np.ndarray or None
+            Trial wavefunctions in orbital (and optional spin) basis.
+        """
         return getattr(self, "_trial_wfs", None)
 
     @property
     def num_twfs(self) -> int:
-        """Number of trial wavefunctions."""
+        """Number of trial wavefunctions.
+
+        Returns
+        -------
+        int
+            Number of trial wavefunctions.
+
+        Raises
+        ------
+        ValueError
+            If trial wavefunctions are not initialized.
+        """
         if self.trial_wfs is None:
             raise ValueError("Trial wavefunctions are not set.")
         return self.trial_wfs.shape[0]
 
     @property
     def Amn(self) -> np.ndarray:
-        r"""Overlap matrix between energy eigenstates and trial wavefunctions.
+        r"""Overlap matrix between reference states and trial wavefunctions.
 
         The overlap matrix is defined as
 
@@ -327,16 +358,26 @@ class Wannier:
 
         where :math:`|\psi_{n\mathbf{k}}\rangle` are the Bloch energy eigenstates and
         :math:`|t_j\rangle` are the trial wavefunctions.
+
+        Returns
+        -------
+        np.ndarray or None
+            Last computed overlap matrix, if available.
         """
         return getattr(self, "_A", None)
 
     def info(self, precision=8):
-        """Report of Wannier centers and spreads.
+        """Print a formatted report of Wannier centers and spreads.
 
         Parameters
         ----------
-        precision : int
-            The number of decimal places to include in the report.
+        precision : int, optional
+            Number of decimal places in printed values.
+
+        Raises
+        ------
+        ValueError
+            If tilde states are not initialized.
         """
 
         if not getattr(self.tilde_states, "filled", False):
@@ -385,25 +426,59 @@ class Wannier:
         print(out)
 
     def get_centers(self, cartesian=False):
-        """Get the centers of the Wannier functions.
+        r"""Return Wannier centers in Cartesian or fractional coordinates.
+
+        The center of Wannier function :math:`n` is computed from the phases of
+        diagonal overlap matrices as
+
+        .. math::
+            \mathbf{r}_n = -\frac{1}{N_k}
+            \sum_{\mathbf{k},\mathbf{b}} w_b\,\mathbf{b}\,
+            \operatorname{Im}\!\left[\ln M_{nn}^{(\mathbf{b})}(\mathbf{k})\right],
+
+        where :math:`M_{mn}^{(\mathbf{b})}(\mathbf{k})` are nearest-neighbor
+        overlap matrices of cell-periodic states, :math:`w_b` are shell
+        weights, and :math:`N_k` is the number of k points.
 
         Parameters
         ----------
         cartesian : bool, optional
-            If True, return the centers in Cartesian coordinates.
-            If False, return the centers in fractional coordinates.
+            If ``True``, return Cartesian coordinates. If ``False``, return
+            fractional coordinates in the lattice basis.
 
         Returns
         -------
         np.ndarray
-            The centers of the Wannier functions.
+            Wannier centers with shape ``(n_wannier, dim_r)``.
+
+        Notes
+        -----
+        If ``cartesian=False``, the returned coordinates are fractional
+        components in the lattice basis.
         """
         if cartesian:
             return self.centers
         else:
             return self.centers @ np.linalg.inv(self.lattice.lat_vecs)
 
-    def _get_trial_wfs(self, twf_list=None):
+    def get_trial_wfs(self, twf_list=None):
+        """Build normalized trial-wavefunction array from tuple specifications.
+
+        .. versionadded:: 2.0.2
+
+        Parameters
+        ----------
+        twf_list : list of list of tuple or None, optional
+            Trial-wavefunction specification. For spinless systems each entry is
+            ``(orb, amp)``; for spinful systems each entry is ``(orb, spin, amp)``.
+            If ``None``, return previously stored trial wavefunctions.
+
+        Returns
+        -------
+        np.ndarray
+            Normalized trial wavefunctions with shape
+            ``(n_trial, n_orb[, n_spin])``.
+        """
         if twf_list is None:
             return self._trial_wfs
 
@@ -438,12 +513,13 @@ class Wannier:
 
         Parameters
         ----------
-        tf_list: list[list[tuple]]
-            List of trial wavefunctions. Each trial wavefunction is
-            a list of the form ``[(orb, amp), ...]``, where `orb` is the orbital index
-            and `amp` is the amplitude of the trial wavefunction on that tight-binding
-            orbital. If spin is included, then the form is ``[(orb, spin, amp), ...]``.
-            The states are normalized internally, only the relative weights matter.
+        tf_list : list of list of tuple
+            List of trial wavefunctions.
+            Each trial wavefunction is a list of the form ``[(orb, amp), ...]``,
+            for spinless models, or ``[(orb, spin, amp), ...]`` for spinful models,
+            where ``orb`` is the orbital index, ``spin`` is the spin index, and ``amp``
+            is the complex amplitude. Trial wavefunctions are normalized internally,
+            so only the relative amplitudes matter.
 
         Examples
         --------
@@ -456,7 +532,7 @@ class Wannier:
         0 and 2, and the second is an equal superposition of orbitals 1 and 3 with a relative
         minus sign.
         """
-        self._trial_wfs = self._get_trial_wfs(tf_list)
+        self._trial_wfs = self.get_trial_wfs(tf_list)
         self._tilde_states: WFArray = WFArray(
             self.lattice,
             self.mesh,
@@ -472,7 +548,7 @@ class Wannier:
 
         .. math::
 
-            |\tilde{\psi} \rangle = \sum_{m=1}^{N}
+            |\tilde{\psi}_{n\mathbf{k}} \rangle = \sum_{m=1}^{N}
             U_{mn}^{(\mathbf{k})} |\psi_{m\mathbf{k}} \rangle
 
         Parameters
@@ -480,13 +556,13 @@ class Wannier:
         states : np.ndarray
             The states to set as Bloch-like states. Must have the shape
             ``(nk1, ..., nstates, n_orbs[, n_spins])``.
-        cell_periodic : bool, optional
-            Whether to treat the ``states`` as cell-periodic, by default False.
-        spin_flattened : bool, optional
+        is_cell_periodic : bool, optional
+            Whether to treat ``states`` as cell-periodic parts :math:`u_{n\mathbf{k}}`.
+        is_spin_axis_flat : bool, optional
             Whether the spin dimension is flattened into the orbital dimension.
             If True, ``states`` must have shape ``(nk1, ..., nstates, n_orbs*n_spins)``.
             If False, ``states`` must have shape ``(nk1, ..., nstates, n_orbs, n_spins)``.
-            By default False.
+            Defaults to ``False``.
 
         Raises
         ------
@@ -495,10 +571,10 @@ class Wannier:
 
         Notes
         -----
-        - If ``cell_periodic`` is True, the states are treated as cell-periodic parts of
+        - If ``is_cell_periodic`` is True, the states are treated as cell-periodic parts of
           Bloch functions :math:`u_{n\mathbf{k}}`, otherwise as full Bloch functions
           :math:`\psi_{n\mathbf{k}}`.
-        - If ``spin_flattened`` is False and the wavefunctions have spin, the states are reshaped
+        - If ``is_spin_axis_flat`` is False and wavefunctions have spin, states are reshaped
           to flatten the spin dimension into the orbital dimension.
         - The Wannier functions, spreads, and centers are computed upon setting the
           Bloch-like states.
@@ -549,29 +625,30 @@ class Wannier:
     def _compute_Amn(self, psi_nk, twfs, band_idxs):
         r"""Overlap matrix between Bloch states and trial wavefunctions.
 
-         The overlap matrix is defined as
+        The overlap matrix is defined as
 
-         .. math::
+        .. math::
 
-             A_{k, n, j} = <psi_{n,k} | t_{j}>
+            A_{k, n, j} = \langle \psi_{n,k} \mid t_j \rangle
 
-         where :math:`|\psi_{n\mathbf{k}}\rangle` are the Bloch energy eigenstates and
-         :math:`|t_j\rangle` are the trial wavefunctions.
+        where :math:`|\psi_{n\mathbf{k}}\rangle` are reference states and
+        :math:`|t_j\rangle` are trial wavefunctions.
 
         Parameters
-        -----------
-        psi_nk : np.ndarray, optional
-            The Bloch states to form the overlap matrix with. By default this will
-            choose the energy eigenstates. Shape: ``(*shape_mesh, states, orbs*n_spin])``
+        ----------
+        psi_nk : np.ndarray or None
+            States used for overlaps. If ``None``, use Bloch eigenstates from
+            :attr:`bloch_states`. Expected shape:
+            ``(*shape_mesh, n_states, n_orb*n_spin)``.
         twfs : np.ndarray
-            Trial wavefunctions, shape: (n_trial_wfs, orbs[, n_spin])
-        band_idxs : list
-            Indices of energy bands to project.
+            Trial wavefunctions with shape ``(n_trial, n_orb[, n_spin])``.
+        band_idxs : sequence of int
+            State indices to include from ``psi_nk``.
 
         Returns
-        --------
-        A : np.ndarray
-            Overlap matrix with shape ``(*shape_mesh, n_bands, n_trial_wfs)``
+        -------
+        np.ndarray
+            Overlap matrix with shape ``(*shape_mesh, n_selected, n_trial)``.
         """
 
         if psi_nk is None:
@@ -591,17 +668,23 @@ class Wannier:
         return A_k
 
     def _single_shot_project(self, psi_nk, twfs, state_idx):
-        """
-        Performs optimal alignment of psi_nk with trial wavefunctions.
+        """Perform single-shot SVD projection/alignment onto trial wavefunctions.
 
         Parameters
         ----------
         psi_nk : np.ndarray
-            Bloch states to be projected, shape: (*mesh_shape, states, orbs*n_spin])
+            States to project with shape
+            ``(*mesh_shape, n_states, n_orb*n_spin)``.
         twfs : np.ndarray
-            Trial wavefunctions, shape: (n_trial_wfs, orbs[, n_spin])
-        state_idx : list
-            Indices of energy bands to project.
+            Trial wavefunctions with shape ``(n_trial, n_orb[, n_spin])``.
+        state_idx : sequence of int
+            Indices of states to project.
+
+        Returns
+        -------
+        np.ndarray
+            Projected states with shape
+            ``(*mesh_shape, n_selected, n_orb*n_spin)``.
         """
         A_k = self._compute_Amn(psi_nk, twfs, state_idx)
         V_k, _, Wh_k = np.linalg.svd(A_k, full_matrices=False)
@@ -617,53 +700,70 @@ class Wannier:
         return psi_tilde
 
     def project(self, tf_list: list = None, band_idxs: list = None, use_tilde=False):
-        r"""Perform Wannierization via optimal alignment with trial functions (single-shot SVD).
+        r"""Initialize or update Bloch-like states by projection onto trial functions.
 
-        Constructs Bloch-like states :math:`\tilde{\psi}_{n\mathbf{k}}` by maximizing their overlap
-        with user-specified trial functions using a per-:math:`\mathbf{k}` singular-value decomposition.
-        Specifically, for the overlap matrix
+        This method performs the single-shot projection step used in Wannierization as desribed
+        in [1]_ (Sec. II) and used in the disentanglement initialization of [2]_.
+        For each k-point, it builds the overlap matrix between selected states and the
+        trial wavefunctions, computes its SVD, and applies the optimal unitary (or
+        semi-unitary) alignment to produce projected states :math:`\tilde{\psi}_{n\mathbf{k}}`.
 
-        .. math::
-
-             A_{n j}(\mathbf{k}) \;=\; \langle \psi_{n\mathbf{k}} \mid t_j \rangle ,
-
-        we compute :math:`A(\mathbf{k}) = V(\mathbf{k}) \Sigma(\mathbf{k}) W^\dagger(\mathbf{k})`
-        and rotate the selected energy eigenstates by :math:`U(\mathbf{k}) \equiv V(\mathbf{k})
-        W^\dagger(\mathbf{k})`:
-
-        .. math::
-
-             \tilde{\psi}_{n\mathbf{k}}
-             \;=\; \sum_{m\in \texttt{band_idxs}} U_{nm}(\mathbf{k}) \, \psi_{m\mathbf{k}} .
-
-        This realizes the optimal alignment described in [1]_ (Sec. II) and used
-        in the disentanglement initialization of [2]_.
-
-        Sets the Wannier functions in home unit cell with associated spreads, centers, trial functions
-        and Bloch-like (tilde) states using the single shot projection method.
+        The projected states are passed to :meth:`set_tilde_states`, which also updates
+        derived quantities (Wannier functions, centers, and spreads).
 
         Parameters
         ----------
-        tf_list : list, optional
-            Trial wavefunctions. If omitted, previously set trials are used.
-        band_idxs : list, optional
-            Indices of energy bands to project (defaults to occupied manifold).
-        use_tilde : bool, optional
-            If True, project onto the current Bloch-like subspace instead of the original
-            energy eigenstates. This can be used to re-wannierize a set of Bloch-like states
-            with a different set of trial functions. By default False.
+        tf_list : list of list of tuple, optional
+            Trial-wavefunction specification passed to :meth:`set_trial_wfs`.
+            If ``None``, already stored trial wavefunctions are reused.
+            Each trial wavefunction is a list of the form ``[(orb, amp), ...]``,
+            for spinless models, or ``[(orb, spin, amp), ...]`` for spinful models,
+            where ``orb`` is the orbital index, ``spin`` is the spin index, and ``amp``
+            is the complex amplitude. Trial wavefunctions are normalized internally,
+            so only the relative amplitudes matter.
+        band_idxs : list of int, optional
+            Indices of states to project.
 
-        Returns
-        -------
-        w_0n : np.ndarray
-            Wannier functions in the home unit cell, obtained by inverse FFT of
-            :math:`\tilde{\psi}_{n\mathbf{k}}`.
+            - If ``use_tilde=False`` and ``band_idxs is None``, defaults to the first
+              half of Bloch eigenstates (half-filling assumption).
+            - If ``use_tilde=True`` and ``band_idxs is None``, defaults to all current
+              tilde-state indices.
+
+        use_tilde : bool, optional
+            If ``False`` (default), project from Bloch energy eigenstates.
+            If ``True``, re-project within the current tilde-state manifold.
+
+        Raises
+        ------
+        ValueError
+            If trial wavefunctions are unavailable.
+
+        See Also
+        --------
+        :meth:`set_trial_wfs` : for setting trial wavefunctions.
+        :meth:`set_tilde_states` : for setting the Bloch-like states directly.
 
         Notes
         -----
-        This routine does **not** perform iterative minimization of
-        :math:`\Omega`; it provides a high-quality initial guess via SVD
-        alignment.
+        - Specifically, for the overlap matrix
+
+          .. math::
+
+            A_{n j}(\mathbf{k}) \;=\; \langle \psi_{n\mathbf{k}} \mid t_j \rangle ,
+
+          we compute :math:`A(\mathbf{k}) = V(\mathbf{k}) \Sigma(\mathbf{k}) W^\dagger(\mathbf{k})`
+          and rotate the selected energy eigenstates by :math:`U(\mathbf{k}) \equiv V(\mathbf{k})
+          W^\dagger(\mathbf{k})`:
+
+          .. math::
+
+            \tilde{\psi}_{n\mathbf{k}}
+            \;=\; \sum_{m}^{\texttt{band_idxs}} U_{nm}(\mathbf{k}) \, \psi_{m\mathbf{k}} .
+
+        - Projection can produce at most `len(band_idxs)` independent states.
+          For best stability, use no more trial functions than selected bands
+          (`n_trial <= len(band_idxs)`).
+
 
         References
         ----------
@@ -726,10 +826,12 @@ class Wannier:
 
         Returns
         -------
-        If ``decomp=False``:
-            spread_n, r_n, rsq_n
-        If ``decomp=True``:
-            [spread_n, Omega_I, Omega_D, Omega_OD], r_n, rsq_n
+        tuple
+            Spread-related quantities. Specifically:
+            If ``decomp=False``:
+                spread_n, r_n, rsq_n
+            If ``decomp=True``:
+                [spread_n, Omega_I, Omega_D, Omega_OD], r_n, rsq_n
 
         Notes
         -----
@@ -777,6 +879,22 @@ class Wannier:
             return spread_n, r_n, rsq_n
 
     def _get_omega_til(self, Mmn, wb, k_shell):
+        """Compute :math:`\\widetilde{\\Omega}` from overlap matrices.
+
+        Parameters
+        ----------
+        Mmn : np.ndarray
+            Overlap matrices on nearest-neighbor shell.
+        wb : float
+            Shell weight.
+        k_shell : np.ndarray
+            Neighbor displacement vectors in reduced coordinates.
+
+        Returns
+        -------
+        float
+            Gauge-dependent spread :math:`\\widetilde{\\Omega}`.
+        """
         nks = self.nks
         Nk = np.prod(nks)
         k_axes = tuple(self.mesh.k_axis_indices)
@@ -799,6 +917,22 @@ class Wannier:
         return Omega_tilde
 
     def _get_omega_d(self, Mmn, wb, k_shell):
+        """Compute diagonal gauge-dependent spread :math:`\\Omega_D`.
+
+        Parameters
+        ----------
+        Mmn : np.ndarray
+            Overlap matrices on nearest-neighbor shell.
+        wb : float
+            Shell weight.
+        k_shell : np.ndarray
+            Neighbor displacement vectors in reduced coordinates.
+
+        Returns
+        -------
+        float
+            Diagonal spread term.
+        """
         nks = self.nks
         Nk = np.prod(nks)
         k_axes = tuple(self.mesh.k_axis_indices)
@@ -811,6 +945,20 @@ class Wannier:
         return Omega_d
 
     def _get_omega_od(self, Mmn, wb):
+        """Compute off-diagonal gauge-dependent spread :math:`\\Omega_{OD}`.
+
+        Parameters
+        ----------
+        Mmn : np.ndarray
+            Overlap matrices on nearest-neighbor shell.
+        wb : float
+            Shell weight.
+
+        Returns
+        -------
+        float
+            Off-diagonal spread term.
+        """
         Nk = np.prod(self.nks)
         diag_M = np.diagonal(Mmn, axis1=-1, axis2=-2)
         abs_diag_M_sq = abs(diag_M) ** 2
@@ -819,6 +967,22 @@ class Wannier:
         return Omega_od
 
     def _get_omega_i(self, Mmn, wb, k_shell):
+        """Compute gauge-invariant spread :math:`\\Omega_I`.
+
+        Parameters
+        ----------
+        Mmn : np.ndarray
+            Overlap matrices on nearest-neighbor shell.
+        wb : float
+            Shell weight.
+        k_shell : np.ndarray
+            Neighbor displacement vectors in reduced coordinates.
+
+        Returns
+        -------
+        float
+            Gauge-invariant spread term.
+        """
         Nk = np.prod(self.tilde_states.mesh.shape_k)
         n_states = self.tilde_states.nstates
         Omega_i = wb * n_states * k_shell.shape[0] - (1 / Nk) * wb * np.sum(
@@ -829,9 +993,14 @@ class Wannier:
     def _get_omega_i_k(self):
         r"""Calculate the gauge-independent quadratic spread for the Wannier functions.
 
-        This function computes the quadratic spread :math:`\Omega_I`
-        of the Wannier functions as a function of `k`. This is related to the
-        real part of the quantum metric.
+        This function computes the gauge-invariant spread density related to
+        :math:`\Omega_I` of the Wannier functions as a function of `k`.
+        This is related to the integrated Cartesian-traced quantum metric.
+
+        Returns
+        -------
+        np.ndarray
+            k-resolved contribution to :math:`\Omega_I`.
         """
         P = self.tilde_states.projectors()
         _, Q_nbr = self.tilde_states._nbr_projectors(return_Q=True)
@@ -862,6 +1031,40 @@ class Wannier:
         beta=1,
         tf_speedup=False,
     ):
+        r"""Iteratively optimize a subspace that minimizes :math:`\Omega_I`.
+
+        Parameters
+        ----------
+        n_wfs : int or None, optional
+            Target subspace size.
+        inner_window : str, tuple, list, dict, or None, optional
+            Frozen window specification.
+        outer_window : str, tuple, list, or dict, optional
+            Candidate/disentanglement window specification.
+        iter_num : int, optional
+            Maximum number of iterations.
+        verbose : bool, optional
+            If ``True``, print iteration updates.
+        tol : float, optional
+            Convergence tolerance on :math:`\Delta\Omega_I`.
+        beta : float, optional
+            Linear-mixing factor for projector updates.
+        tf_speedup : bool, optional
+            If ``True``, use TensorFlow eigensolver.
+
+        Returns
+        -------
+        np.ndarray
+            Optimized states spanning the selected subspace.
+
+        Raises
+        ------
+        ValueError
+            If window specifications are invalid or frozen-state count exceeds
+            requested subspace size at any k point.
+        ImportError
+            If ``tf_speedup=True`` and TensorFlow is unavailable.
+        """
         # useful constants
         nks = self.nks
         Nk = np.prod(nks)
@@ -1188,21 +1391,21 @@ class Wannier:
         verbose: bool = True,
         tf_speedup: bool = False,
     ):
-        r"""Obtain the subspace that minimizes the gauge-independent spread.
+        r"""Optimize a subspace (band-index windows) to minimize :math:`\Omega_I`.
 
         This function utilizes the 'disentanglement' technique to find the subspaces
         throughout the BZ that minimizes the gauge-independent spread.
 
         Parameters
         ----------
-        n_wfs : int | None
+        n_wfs : int or None
             Number of states in the optimal subspace. If ``None``, the number
             of trial wavefunctions is used.
-        frozen_bands : list | None, optional
+        frozen_bands : list of int or None, optional
             List of band indices defining the 'frozen window', specifying
             the states totally included within the optimized subspace.
             Defaults to `None`, in which case no bands are frozen.
-        disentang_bands : list | str, optional
+        disentang_bands : list of int or {"occupied"}, optional
             List of band indices defining 'disentanglement window' where
             states are borrowed in order to minimize the gauge independent spread.
             If "occupied", all occupied bands are disentangled. Defaults to "occupied".
@@ -1221,8 +1424,13 @@ class Wannier:
 
         Returns
         -------
-        states_min : np.ndarray
+        np.ndarray
             The states spanning the optimized subspace that minimizes the gauge-independent spread.
+
+        Raises
+        ------
+        ImportError
+            If ``tf_speedup=True`` and TensorFlow is unavailable.
         """
         nks = self.nks
         Nk = np.prod(nks)
@@ -1377,26 +1585,26 @@ class Wannier:
     def _max_loc_unitary(
         self, alpha=1 / 2, iter_num=100, verbose=False, tol=1e-10, grad_min=1e-3
     ):
-        r"""
-        Finds the unitary that minimizes the gauge dependent part of the spread.
+        r"""Find unitary rotations that minimize gauge-dependent spread.
 
         Parameters
         ----------
-        eps : float
-            Step size for gradient descent
+        alpha : float, optional
+            Step-size prefactor for gradient updates.
         iter_num : int
-            Number of iterations
-        verbose : bool
-            Whether to print the spread at each iteration
-        tol : float
-            If difference of spread is lower that tol for consecutive iterations,
-            the loop breaks
+            Maximum number of iterations.
+        verbose : bool, optional
+            If ``True``, print progress.
+        tol : float, optional
+            Convergence tolerance on spread change.
+        grad_min : float, optional
+            Convergence tolerance on gradient norm.
 
         Returns
-        ---------
-        U : np.ndarray
-            The unitary matrix that rotates the tilde states to minimize
-            the gauge-dependent spread.
+        -------
+        np.ndarray
+            Unitary matrix field ``U(k)`` that rotates tilde states toward
+            minimal gauge-dependent spread.
         """
         M = self.tilde_states.Mmn
         w_b, k_shell, idx_shell = self.lattice.k_shell_weights(
@@ -1514,10 +1722,10 @@ class Wannier:
 
         Parameters
         ----------
-        n_wfs : int | None
+        n_wfs : int or None, optional
             Number of states in the optimal subspace. If ``None``, the number
             of trial wavefunctions is used.
-        outer_window : str | tuple | list | dict, optional
+        outer_window : str, tuple, list, or dict, optional
             Defines the "disentanglement window," i.e. the set of candidate
             states from which the optimal subspace is chosen. States outside
             this window are ignored. Options:
@@ -1529,7 +1737,7 @@ class Wannier:
             - ``{"energy": (Emin, Emax)}``: Energy window.
 
             Defaults to ``"all"``.
-        frozen_window : str | tuple | list | dict | None, optional
+        frozen_window : str, tuple, list, dict, or None, optional
             Defines the "frozen window," i.e. states that must be exactly
             included in the subspace. This ensures that, for example, the
             occupied manifold is preserved while disentangling higher states.
@@ -1700,7 +1908,7 @@ class Wannier:
         mix=1,
         verbose=False,
     ):
-        r"""Find the maximally localized Wannier functions using the projection method.
+        r"""Run disentanglement + projection + maximal-localization workflow.
 
         This method performs three steps:
 
@@ -1716,7 +1924,7 @@ class Wannier:
 
         Parameters
         ----------
-        outer_window : str | tuple | list | dict, optional
+        outer_window : str, tuple, list, or dict, optional
             Defines the "disentanglement window," i.e. the set of candidate
             states from which the optimal subspace is chosen. States outside
             this window are ignored. Options:
@@ -1728,17 +1936,17 @@ class Wannier:
             - ``{"energy": (Emin, Emax)}``: Energy window.
 
             Defaults to ``"all"``.
-        inner_window : str | tuple | list | dict, optional
+        inner_window : str, tuple, list, dict, or None, optional
             Defines the "frozen window," i.e. states that must be exactly
             included in the subspace. This ensures that, for example, the
             occupied manifold is preserved while disentangling higher states.
             Options follow the same conventions as ``outer_window``. If
             ``None``, no states are frozen. Defaults to ``None``.
-        twf_list_second : list[list[tuple]], optional
+        twfs_2 : list of list of tuple or None, optional
             A second set of trial wavefunctions for the projection step after
             disentanglement. If ``None``, the original trial wavefunctions are
             used. Defaults to ``None``.
-        n_wfs : int | None, optional
+        n_wfs : int or None, optional
             Number of states in the optimal subspace. If ``None``, the number
             of trial wavefunctions is used. Defaults to ``None``.
         max_iter : int, optional
@@ -1789,7 +1997,7 @@ class Wannier:
         ### Second projection ###
         # if we need a smaller number of twfs b.c. of subspace selec
         if twfs_2 is not None:
-            twfs = self._get_trial_wfs(twfs_2)
+            twfs = self.get_trial_wfs(twfs_2)
             psi_til = self.tilde_states.states(flatten_spin_axis=True, return_psi=True)[
                 1
             ]
@@ -1834,16 +2042,22 @@ class Wannier:
 
         Parameters
         ----------
-        k_nodes : np.ndarray
+        k_nodes : array-like
             Array of k-points defining the path in reciprocal space.
         n_interp : int, optional
             Number of interpolated k-points between each pair of nodes in ``k_nodes``.
             Defaults to 20.
-        wan_idxs : list | np.ndarray | None, optional
+        wan_idxs : list of int or None, optional
             Indices of Wannier functions to include in the interpolation. If None, all Wannier functions
             are used. Defaults to None.
         ret_eigvecs : bool, optional
             If True, return the eigenvectors along with the eigenvalues. Defaults to False.
+
+        Returns
+        -------
+        np.ndarray or tuple[np.ndarray, np.ndarray]
+            Interpolated eigenvalues, and optionally eigenvectors if
+            ``ret_eigvecs=True``.
         """
         u_tilde = self.tilde_states.states(flatten_spin_axis=False)
         if wan_idxs is not None:
@@ -1926,7 +2140,7 @@ class Wannier:
             return eigvals_k_interp.real
 
     def _get_sc_centers(self):
-        r"""Get the positions of the Wannier function centers in the supercell.
+        r"""Collect Wannier-center positions across translated supercells.
         This method computes the positions of the Wannier function centers
         in the supercell defined by ``self.supercell``. It returns a dictionary
         containing the x and y coordinates of the Wannier function centers for
@@ -1934,7 +2148,7 @@ class Wannier:
 
         Returns
         -------
-        positions : dict
+        dict
             A dictionary with keys 'centers all' and 'centers home', each containing
             sub-dictionaries with keys 'xs' and 'ys' for x-coordinates and y-coordinates,
             respectively.
@@ -1968,7 +2182,7 @@ class Wannier:
         return positions
 
     def _get_sc_weights(self, wan_idx, special_sites=None):
-        r"""Get the positions and weights of the Wannier functions in the supercell.
+        r"""Collect Wannier density weights across translated supercells.
         This method computes the positions and weights of the Wannier functions
         in the supercell defined by ``self.supercell``. It returns a dictionary
         containing the x and y coordinates, radial distances from the center,
@@ -1979,13 +2193,13 @@ class Wannier:
         ----------
         wan_idx : int
             Index of the Wannier function to analyze.
-        special_sites : list | None, optional
+        special_sites : sequence of int or None, optional
             List of orbital indices considered as special sites. If provided,
             the method will also compute positions and weights for these sites.
             Defaults to None.
         Returns
         -------
-        positions : dict
+        dict
             A dictionary with keys 'all', 'home', and optionally 'special',
             each containing sub-dictionaries with keys 'xs', 'ys', 'r', and 'wt'
             for x-coordinates, y-coordinates, radial distances, and weights,
