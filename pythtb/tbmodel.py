@@ -2350,6 +2350,7 @@ class TBModel:
         --------
         Construct a two-dimensional finite model by removing periodicity
         along both lattice vectors of a two-dimensional model
+
         >>> lat = Lattice([[1.0, 0.0], [0.0, 1.0]], [[0.0, 0.0]], periodic_dirs=[0,1])
         >>> tb = TBModel(lat)
         >>> fin_tb = tb.make_finite(periodic_dirs=[0, 1], num_cells=[10, 5])
@@ -5461,9 +5462,16 @@ class TBModel:
         draw_hoppings=True,
         annotate_onsite=False,
         ph_color="black",
+        orb_color="red",
     ):
         return plot_tbmodel(
-            self, proj_plane, eig_dr, draw_hoppings, annotate_onsite, ph_color
+            self,
+            proj_plane,
+            eig_dr,
+            draw_hoppings,
+            annotate_onsite,
+            ph_color,
+            orb_color,
         )
 
     @copydoc(plot_tbmodel_3d)
