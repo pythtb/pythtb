@@ -129,6 +129,8 @@
 
 
 
+
+
 Methods
 -------
 .. autosummary::
@@ -137,6 +139,7 @@ Methods
 
    pythtb.Wannier.disentangle
    pythtb.Wannier.get_centers
+   pythtb.Wannier.get_trial_wfs
    pythtb.Wannier.info
    pythtb.Wannier.interp_bands
    pythtb.Wannier.maxloc
