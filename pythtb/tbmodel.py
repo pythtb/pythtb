@@ -4,7 +4,6 @@ import logging
 import warnings
 import numpy as np
 import inspect
-from itertools import product
 from typing import Callable
 from .visualization import plot_bands, plot_tbmodel, plot_tbmodel_3d
 from .utils import (
@@ -1019,7 +1018,7 @@ class TBModel:
                     self._site_energies[idx] = payload
                     self._site_energies_specified[idx] = True
                     # Clear any previous param providers
-                    self._onsite_param_terms[idx] = None
+                    self._onsite_param_terms.pop(idx, None)
                 else:
                     # callable/expr -> store for later evaluation
                     self._site_energies[idx] = (
@@ -1036,7 +1035,7 @@ class TBModel:
                     self._site_energies[idx] += payload
                     self._site_energies_specified[idx] = True
                     # 'add' with a concrete block keeps any prior callable/expr ignored at build time
-                    self._onsite_param_terms[idx] = None
+                    self._onsite_param_terms.pop(idx, None)
                 else:
                     # Adding a callable/expr: we interpret as "replace provider" (cannot 'add' unevaluated safely).
                     logger.warning(
@@ -1060,6 +1059,11 @@ class TBModel:
         """
         nspin = self.nspin
         M = self.norb * nspin
+
+        # Common fast path: no dynamic (parameterized) hoppings means the index
+        # pattern is identical to the base hopping table for every evaluation.
+        if not getattr(self, "_hopping_param_terms", {}):
+            return self._get_flattened_indices(nspin=nspin)
 
         _, base_i, base_j, _ = self._hoptable.components()
         if (
@@ -1109,6 +1113,12 @@ class TBModel:
         cols_transposed = cache["cols_transposed"]
 
         grouped = contrib[..., order]
+        # Fast path when each term maps to a unique matrix entry.
+        if starts.size == order.size:
+            target_flat[..., uniq] += grouped
+            target_flat[..., cols_transposed] += grouped.conj()
+            return
+
         sums = np.add.reduceat(grouped, starts, axis=-1)
         target_flat[..., uniq] += sums
         target_flat[..., cols_transposed] += sums.conj()
@@ -1145,11 +1155,30 @@ class TBModel:
         if n_terms == 0:
             return
 
+        no_duplicates = starts.size == n_terms
+
         if max_terms <= 0 or n_terms <= max_terms:
             grouped = contrib_getter(order)
-            sums = np.add.reduceat(grouped, starts, axis=-1)
-            target_flat[..., uniq] += sums
-            target_flat[..., cols_transposed] += sums.conj()
+            if no_duplicates:
+                target_flat[..., uniq] += grouped
+                target_flat[..., cols_transposed] += grouped.conj()
+            else:
+                sums = np.add.reduceat(grouped, starts, axis=-1)
+                target_flat[..., uniq] += sums
+                target_flat[..., cols_transposed] += sums.conj()
+            return
+
+        if no_duplicates:
+            s0 = 0
+            while s0 < n_terms:
+                s1 = min(s0 + max_terms, n_terms)
+                ord_chunk = order[s0:s1]
+                grouped = contrib_getter(ord_chunk)
+                uniq_chunk = uniq[s0:s1]
+                trans_chunk = cols_transposed[s0:s1]
+                target_flat[..., uniq_chunk] += grouped
+                target_flat[..., trans_chunk] += grouped.conj()
+                s0 = s1
             return
 
         n_groups = starts.size
@@ -1640,6 +1669,9 @@ class TBModel:
 
     def _check_missing_parameters(self, params: dict):
         """Check for missing parameters in the provided dictionary."""
+        if not params and not self._has_parameterized_terms():
+            return
+
         required = {name for entry in self.parameters for name in entry["names"]}
         provided = set(params.keys())
 
@@ -1652,6 +1684,13 @@ class TBModel:
             raise ValueError(
                 "Missing parameter value(s): " + ", ".join(sorted(missing))
             )
+
+    def _has_parameterized_terms(self) -> bool:
+        """Return True if any onsite/hopping provider is parameterized."""
+        if bool(getattr(self, "_hopping_param_terms", {})):
+            return True
+        onsite_terms = getattr(self, "_onsite_param_terms", {})
+        return any(term is not None for term in onsite_terms.values())
 
     def _params_to_sweep(self, params: dict):
         """Partition parameters into scalars and sweeps."""
@@ -1745,31 +1784,54 @@ class TBModel:
         site : np.ndarray
             On-site energies after evaluation.
         """
-        # ---- copy base hops and onsite (immutable per evaluation) ----
+        # ---- copy base hops and onsite only when dynamic providers need it ----
         base_hop_amps, base_i_idx, base_j_idx, base_R_vecs = self._hoptable.components()
+        onsite_terms = getattr(self, "_onsite_param_terms", {})
+        hopping_terms = getattr(self, "_hopping_param_terms", {})
 
-        hop_amps = np.array(base_hop_amps, copy=True)  # copy!
-        i_idx = np.array(base_i_idx, copy=True)
-        j_idx = np.array(base_j_idx, copy=True)
-        R_vecs = np.array(base_R_vecs, copy=True)
+        has_dynamic_onsite = any(term is not None for term in onsite_terms.values())
+        has_dynamic_hops = bool(hopping_terms)
 
-        site = np.asarray(self._site_energies, dtype=complex).copy()  # copy!
-        # ---- onsite providers ----
-        for idx, term in getattr(self, "_onsite_param_terms", {}).items():
-            if term is None:
-                continue
-            if callable(term):
-                val = _call_provider(term, assignments)
-                block = self._val_to_block(val)
-            elif isinstance(term, str):
-                block = self._eval_expr_to_block(term, **assignments)
-            else:
-                raise TypeError("Unsupported onsite provider type.")
-            if self.nspin == 2 and not is_Hermitian(block):
-                raise ValueError(
-                    f"Onsite callable for site {idx} returned non-Hermitian 2×2."
-                )
-            site[idx] = np.asarray(block, dtype=complex)
+        if not has_dynamic_onsite and not has_dynamic_hops:
+            return (
+                base_hop_amps,
+                base_i_idx,
+                base_j_idx,
+                base_R_vecs,
+                self._site_energies,
+            )
+
+        if has_dynamic_hops:
+            hop_amps = np.array(base_hop_amps, copy=True)
+            i_idx = np.array(base_i_idx, copy=True)
+            j_idx = np.array(base_j_idx, copy=True)
+            R_vecs = np.array(base_R_vecs, copy=True)
+        else:
+            hop_amps = base_hop_amps
+            i_idx = base_i_idx
+            j_idx = base_j_idx
+            R_vecs = base_R_vecs
+
+        if has_dynamic_onsite:
+            site = np.asarray(self._site_energies, dtype=complex).copy()
+            # ---- onsite providers ----
+            for idx, term in onsite_terms.items():
+                if term is None:
+                    continue
+                if callable(term):
+                    val = _call_provider(term, assignments)
+                    block = self._val_to_block(val)
+                elif isinstance(term, str):
+                    block = self._eval_expr_to_block(term, **assignments)
+                else:
+                    raise TypeError("Unsupported onsite provider type.")
+                if self.nspin == 2 and not is_Hermitian(block):
+                    raise ValueError(
+                        f"Onsite callable for site {idx} returned non-Hermitian 2×2."
+                    )
+                site[idx] = np.asarray(block, dtype=complex)
+        else:
+            site = self._site_energies
 
         # collect param-dependent hops without mutating arrays in-place
         dyn_blocks = []
@@ -1777,26 +1839,27 @@ class TBModel:
         dyn_j = []
         dyn_R = []
 
-        for key, term in getattr(self, "_hopping_param_terms", {}).items():
-            if callable(term):
-                val = _call_provider(term, assignments)
-                block = self._val_to_block(val)
-            elif isinstance(term, str):
-                block = self._eval_expr_to_block(term, **assignments)
-            else:
-                raise TypeError("Unsupported hopping provider type.")
-            dyn_blocks.append(np.asarray(block, dtype=complex)[None, ...])
-            dyn_i.append(key[0])
-            dyn_j.append(key[1])
-            dyn_R.append(list(key[2]) if len(key) > 2 else [0] * self.dim_k)
+        if has_dynamic_hops:
+            for key, term in hopping_terms.items():
+                if callable(term):
+                    val = _call_provider(term, assignments)
+                    block = self._val_to_block(val)
+                elif isinstance(term, str):
+                    block = self._eval_expr_to_block(term, **assignments)
+                else:
+                    raise TypeError("Unsupported hopping provider type.")
+                dyn_blocks.append(np.asarray(block, dtype=complex)[None, ...])
+                dyn_i.append(key[0])
+                dyn_j.append(key[1])
+                dyn_R.append(list(key[2]) if len(key) > 2 else [0] * self.dim_k)
 
-        if dyn_blocks:
-            hop_amps = np.concatenate([hop_amps] + dyn_blocks, axis=0)
-            i_idx = np.concatenate([i_idx, np.asarray(dyn_i, dtype=i_idx.dtype)])
-            j_idx = np.concatenate([j_idx, np.asarray(dyn_j, dtype=j_idx.dtype)])
-            R_vecs = np.concatenate(
-                [R_vecs, np.asarray(dyn_R, dtype=R_vecs.dtype)], axis=0
-            )
+            if dyn_blocks:
+                hop_amps = np.concatenate([hop_amps] + dyn_blocks, axis=0)
+                i_idx = np.concatenate([i_idx, np.asarray(dyn_i, dtype=i_idx.dtype)])
+                j_idx = np.concatenate([j_idx, np.asarray(dyn_j, dtype=j_idx.dtype)])
+                R_vecs = np.concatenate(
+                    [R_vecs, np.asarray(dyn_R, dtype=R_vecs.dtype)], axis=0
+                )
 
         return hop_amps, i_idx, j_idx, R_vecs, site
 
@@ -2834,9 +2897,10 @@ class TBModel:
         *,
         flatten_spin: bool,
     ):
-        norb = self.norb
-        per = np.asarray(self.periodic_dirs)
-        orb_red = np.asarray(self.orb_vecs)
+        lattice = self._lattice
+        norb = lattice.norb
+        per = np.asarray(lattice.periodic_dirs, dtype=int)
+        orb_red = lattice.orb_vecs
 
         n_kpts = k_vecs.shape[0]
         n_hops = hop_amps.shape[0]
@@ -3026,9 +3090,11 @@ class TBModel:
 
         # param sweeps: cartesian product, then reshape with lambda at the end
         axis_lengths = [len(ax) for ax in sweep_values]
-        blocks, base_shape = [], None
-        for multi in product(*[range(n) for n in axis_lengths]):
-            assign = scalars.copy()
+        n_blocks = int(np.prod(axis_lengths, dtype=int))
+        stacked_flat = None
+        base_shape = None
+        assign = scalars.copy()
+        for flat_idx, multi in enumerate(np.ndindex(*axis_lengths)):
             for a, name in enumerate(sweep_names):
                 assign[name] = sweep_values[a][multi[a]]
 
@@ -3051,10 +3117,10 @@ class TBModel:
 
             if base_shape is None:
                 base_shape = H.shape
-            blocks.append(H[np.newaxis, ...])
+                stacked_flat = np.empty((n_blocks, *base_shape), dtype=H.dtype)
+            stacked_flat[flat_idx] = H
 
-        stacked = np.concatenate(blocks, axis=0)  # (*shape_params, *base_shape)
-        stacked = stacked.reshape(*axis_lengths, *base_shape)
+        stacked = stacked_flat.reshape(*axis_lengths, *base_shape)
 
         if axis_lengths and self.dim_k != 0:
             p = len(axis_lengths)
@@ -3356,16 +3422,17 @@ class TBModel:
           The matrices are built using flattened indices and `np.add.reduceat` for efficiency.
         """
 
-        dim_k = self.dim_k
-        norb = self.norb
+        lattice = self._lattice
+        dim_k = lattice.dim_k
+        norb = lattice.norb
 
         i_indices = i_indices.astype(int)
         j_indices = j_indices.astype(int)
         R_vecs = R_vecs.astype(float)
 
         n_hops = i_indices.size
-        per = np.asarray(self.periodic_dirs)
-        orb_red = np.asarray(self.orb_vecs)
+        per = np.asarray(lattice.periodic_dirs, dtype=int)
+        orb_red = lattice.orb_vecs
         orb_i = orb_red[i_indices]
         orb_j = orb_red[j_indices]
         delta_r = R_vecs - orb_i + orb_j
@@ -3378,8 +3445,8 @@ class TBModel:
             phases = np.zeros((k_arr.shape[0], 0), dtype=complex)
 
         if cartesian:
-            lattice = self.get_lat_vecs()[self.periodic_dirs, :]
-            coeff = (1j * delta_r_per @ lattice).T
+            lat_per = lattice.lat_vecs[per, :]
+            coeff = (1j * delta_r_per @ lat_per).T
         else:
             coeff = (1j * 2 * np.pi * delta_r_per).T
 
@@ -3388,52 +3455,32 @@ class TBModel:
             vel = np.zeros((dim_k, k_arr.shape[0], norb, norb), dtype=complex)
             if return_ham:
                 ham = np.zeros((k_arr.shape[0], norb, norb), dtype=complex)
-                ham_flat = ham.reshape(k_arr.shape[0], -1)
             if n_hops:
                 cache = self._get_flattened_indices()
-                order = cache["order"]
-                starts = cache["starts"]
-                uniq = cache["uniq"]
-                cols_transposed = cache["cols_transposed"]
-                vel_flat = vel.reshape(dim_k, k_arr.shape[0], -1)
+                if return_ham:
+                    ham_flat = ham.reshape(k_arr.shape[0], -1)
+                    max_terms_ham = self._chunk_term_limit(
+                        k_arr.shape[0], target_mib=128
+                    )
+                    self._accumulate_grouped_hermitian_chunked(
+                        ham_flat,
+                        cache,
+                        lambda ord_idx: phases[:, ord_idx] * amps_use[ord_idx],
+                        max_terms=max_terms_ham,
+                    )
 
-                # Fuse phase/amplitude work for ham+vel and avoid materializing
-                # the full deriv_phase tensor (dim_k, Nk, n_hops).
-                n_groups = starts.size
-                n_terms = order.size
-                max_terms = self._chunk_term_limit(
+                vel_flat = vel.reshape(dim_k, k_arr.shape[0], -1)
+                max_terms_vel = self._chunk_term_limit(
                     dim_k * k_arr.shape[0], target_mib=128
                 )
-                g0 = 0
-                while g0 < n_groups:
-                    s0 = starts[g0]
-                    term_limit = s0 + max_terms
-                    g1 = np.searchsorted(starts, term_limit, side="left")
-                    if g1 <= g0:
-                        g1 = g0 + 1
-
-                    s1 = starts[g1] if g1 < n_groups else n_terms
-                    ord_chunk = order[s0:s1]
-                    local_starts = starts[g0:g1] - s0
-
-                    phase_chunk = phases[:, ord_chunk]
-                    phase_amp = phase_chunk * amps_use[ord_chunk]
-
-                    if return_ham:
-                        sums_ham = np.add.reduceat(phase_amp, local_starts, axis=1)
-                        uniq_chunk = uniq[g0:g1]
-                        trans_chunk = cols_transposed[g0:g1]
-                        ham_flat[:, uniq_chunk] += sums_ham
-                        ham_flat[:, trans_chunk] += sums_ham.conj()
-
-                    vel_terms = coeff[:, ord_chunk][:, None, :] * phase_amp[None, :, :]
-                    sums_vel = np.add.reduceat(vel_terms, local_starts, axis=2)
-                    uniq_chunk = uniq[g0:g1]
-                    trans_chunk = cols_transposed[g0:g1]
-                    vel_flat[:, :, uniq_chunk] += sums_vel
-                    vel_flat[:, :, trans_chunk] += sums_vel.conj()
-
-                    g0 = g1
+                self._accumulate_grouped_hermitian_chunked(
+                    vel_flat,
+                    cache,
+                    lambda ord_idx: coeff[:, ord_idx][:, None, :]
+                    * phases[None, :, ord_idx]
+                    * amps_use[None, None, ord_idx],
+                    max_terms=max_terms_vel,
+                )
 
             if return_ham:
                 diag = np.arange(norb)
@@ -3460,7 +3507,6 @@ class TBModel:
         if n_hops:
             cache = self._get_spinful_flattened_indices(i_indices, j_indices)
             max_terms_vel = self._chunk_term_limit(dim_k * n_kpts)
-            deriv_phase = coeff[:, None, :] * phases[None, :, :]
 
             if return_ham:
                 max_terms_ham = self._chunk_term_limit(n_kpts)
@@ -3478,8 +3524,9 @@ class TBModel:
             self._accumulate_grouped_hermitian_chunked(
                 vel_flat,
                 cache,
-                lambda ord_idx: deriv_phase[:, :, ord_idx // spin_pairs]
-                * hop_blocks_flat[ord_idx],
+                lambda ord_idx: coeff[:, ord_idx // spin_pairs][:, None, :]
+                * phases[None, :, ord_idx // spin_pairs]
+                * hop_blocks_flat[None, None, ord_idx],
                 max_terms=max_terms_vel,
             )
 
@@ -3554,11 +3601,11 @@ class TBModel:
 
         param_periods = dict(param_periods or {})
 
-        raw_axes: list[list[float]] = []
+        raw_axes: list[np.ndarray] = []
         sweep_meta: dict[str, tuple[float, bool, bool, list[float]]] = {}
         for idx, name in enumerate(sweep_names):
             axis_array = np.asarray(sweep_values[idx], dtype=float)
-            raw_axes.append(axis_array.tolist())  # preserve the user’s grid
+            raw_axes.append(axis_array.copy())  # preserve the user’s grid
             if axis_array.ndim != 1 or axis_array.size < 2:
                 continue
 
@@ -3596,11 +3643,14 @@ class TBModel:
         # Parameter sweeps: cartesian product,
         # then reshape to (*param_shape, dim_k, Nk, norb, norb) at end
         axis_lengths = [len(ax) for ax in sweep_values]
-        vel_blocks, base_shape = [], None
-        ham_blocks, ham_shape = [], None
+        n_blocks = int(np.prod(axis_lengths, dtype=int))
+        vel_flat = None
+        base_shape = None
+        ham_flat = None
+        ham_shape = None
+        assign = scalars.copy()  # update scalar mappings in-place per point
 
-        for multi in product(*[range(n) for n in axis_lengths]):
-            assign = scalars.copy()  # copy str -> scalar mappings
+        for flat_idx, multi in enumerate(np.ndindex(*axis_lengths)):
             for a, name in enumerate(sweep_names):
                 # Evaluate velocity on user grid, not normalized grid
                 assign[name] = raw_axes[a][multi[a]]
@@ -3629,19 +3679,19 @@ class TBModel:
                 vel, ham = v
                 if ham_shape is None:
                     ham_shape = ham.shape
-                ham_blocks.append(ham[np.newaxis, ...])
+                    ham_flat = np.empty((n_blocks, *ham_shape), dtype=ham.dtype)
+                ham_flat[flat_idx] = ham
             else:
                 vel = v
 
             # Record base shape first time e.g. (dim_k, Nk, norb, norb)
             if base_shape is None:
                 base_shape = vel.shape
-
-            # Append with new leading axis for stacking later
-            vel_blocks.append(vel[np.newaxis, ...])
+                vel_flat = np.empty((n_blocks, *base_shape), dtype=vel.dtype)
+            vel_flat[flat_idx] = vel
 
         # Stack all velocity blocks along new leading axis: (*param_shapes, *base_shape)
-        stacked = np.concatenate(vel_blocks, axis=0).reshape(*axis_lengths, *base_shape)
+        stacked = vel_flat.reshape(*axis_lengths, *base_shape)
         # Move param axes to be after k-axis
         if axis_lengths:
             p = len(axis_lengths)  # number of param axes
@@ -3662,9 +3712,7 @@ class TBModel:
         ham = None
         if needs_ham:
             # Stack all hamiltonian blocks along new leading axis: (*param_shapes, *ham_shape)
-            ham_stacked = np.concatenate(ham_blocks, axis=0).reshape(
-                *axis_lengths, *ham_shape
-            )
+            ham_stacked = ham_flat.reshape(*axis_lengths, *ham_shape)
             # Move param axes to be after k-axis
             if axis_lengths:
                 p = len(axis_lengths)  # number of param axes
