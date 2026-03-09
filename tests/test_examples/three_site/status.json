@@ -6,14 +6,14 @@
         "status": "pass"
     },
     "three_site_cycle": {
-        "last_pass": "2026-01-29T14:17:58.115522",
-        "pythtb_version": "2.0.1.dev38",
+        "last_pass": "2026-03-08T08:36:56.939350",
+        "pythtb_version": "2.0.2.dev3",
         "python_version": "3.12.11",
         "status": "pass"
     },
     "three_site_cycle_fin": {
-        "last_pass": "2026-01-29T14:17:58.406794",
-        "pythtb_version": "2.0.1.dev38",
+        "last_pass": "2026-03-08T08:36:57.238561",
+        "pythtb_version": "2.0.2.dev3",
         "python_version": "3.12.11",
         "status": "pass"
     }
