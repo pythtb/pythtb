@@ -78,6 +78,8 @@ class W90Dataset:
         Interpolated band energies (eV) matching ``bands_k_red``.
     meta : dict | None
         Additional metadata such as spreads or window definitions.
+    win_lines : list[str] | None
+        Raw lines from ``prefix.win`` when requested by the loader.
     """
 
     prefix: str
@@ -93,6 +95,7 @@ class W90Dataset:
     bands_k_red: Optional[np.ndarray] = None
     bands_ene_ev: Optional[np.ndarray] = None
     meta: Optional[dict] = None  # spreads, windows, etc.
+    win_lines: Optional[List[str]] = None
 
 
 # ---------- low-level readers ----------
@@ -217,7 +220,7 @@ def read_hr(root: Path, prefix: str) -> Tuple[int, Dict[Tuple[int, int, int], HR
     remap = np.empty_like(order)
     remap[order] = np.arange(order.size)
     inv = remap[inv]
-    unique_R = np.unique(R, axis=0)[order]
+    unique_R = R[first_idx[order]]
     if deg.size < unique_R.shape[0]:
         raise W90ConsistencyError("Degeneracy list shorter than number of shells.")
     blocks = np.zeros((unique_R.shape[0], num_wan, num_wan), complex)
@@ -312,7 +315,13 @@ def read_kpoint_path(win_lines: List[str], *, latex=True):
 
 
 # convenience: assemble dataset
-def load_w90_dataset(root: Path | str, prefix: str) -> W90Dataset:
+def load_w90_dataset(
+    root: Path | str,
+    prefix: str,
+    *,
+    include_bands: bool = True,
+    include_win_lines: bool = False,
+) -> W90Dataset:
     """Gather lattice, centre, and Hamiltonian data into a :class:`W90Dataset`.
 
     Parameters
@@ -336,10 +345,12 @@ def load_w90_dataset(root: Path | str, prefix: str) -> W90Dataset:
     k_nodes, k_labels = read_kpoint_path(win, latex=True)
     # bands are optional
     bands_k, bands_ene = None, None
-    try:
-        bands_k, bands_ene = read_bands_w90(root, prefix, num_wan)
-    except Exception:
-        pass
+    if include_bands:
+        try:
+            bands_k, bands_ene = read_bands_w90(root, prefix, num_wan)
+        except Exception:
+            pass
+    win_lines = win if include_win_lines else None
     return W90Dataset(
         prefix=prefix,
         root=root,
@@ -353,6 +364,7 @@ def load_w90_dataset(root: Path | str, prefix: str) -> W90Dataset:
         bands_k_red=bands_k,
         bands_ene_ev=bands_ene,
         meta={},
+        win_lines=win_lines,
     )
 
 
