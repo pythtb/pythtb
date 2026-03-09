@@ -135,12 +135,12 @@ class W90:
         self.path = str(self.folder)
         self.prefix = prefix
 
-        ds = load_w90_dataset(self.path, self.prefix)
+        ds = load_w90_dataset(
+            self.path, self.prefix, include_bands=False, include_win_lines=True
+        )
 
-        # stash raw win lines if you still need them for blocks
-        self._win_lines = open(
-            self.folder / f"{self.prefix}.win", "r", encoding="utf-8", errors="ignore"
-        ).readlines()
+        # Raw win lines are needed for optional k-path labels in bands_w90.
+        self._win_lines = ds.win_lines if ds.win_lines is not None else []
 
         # adopt dataset fields (preserve your attribute names)
         self.lat = ds.lat_cart
@@ -151,6 +151,8 @@ class W90:
         self.xyz_cen = ds.centres_xyz
         self.red_cen = ds.centres_red
         self.lattice = Lattice(self.lat, self.red_cen, periodic_dirs=...)
+        self._kpath_nodes_red = ds.kpath_nodes_red
+        self._kpath_labels = ds.kpath_labels
 
         # check if for every non-zero R there is also -R
         self._validate_hr_symmetry()
@@ -600,7 +602,10 @@ class W90:
             k_cart = kpts @ B
             results += (k_cart,)
         if return_k_nodes:
-            k_nodes, k_labels = read_kpoint_path(self._win_lines, latex=True)
+            if self._kpath_nodes_red is None or self._kpath_labels is None:
+                k_nodes, k_labels = read_kpoint_path(self._win_lines, latex=True)
+            else:
+                k_nodes, k_labels = self._kpath_nodes_red, self._kpath_labels
             results += (k_nodes, k_labels)
         return results
 
