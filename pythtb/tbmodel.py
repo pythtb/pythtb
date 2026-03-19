@@ -1058,82 +1058,6 @@ class TBModel:
         else:
             raise ValueError("Mode should be either 'set' or 'add'.")
 
-    def _get_flattened_indices(self, *, nspin: int = 1):
-        return self._hoptable.flatten_cache(self.norb, nspin=nspin)
-
-    def _get_spinful_flattened_indices(self, i_idx: np.ndarray, j_idx: np.ndarray):
-        """Return flattened index grouping for spinful matrix assembly.
-
-        Uses cached base-table indices when possible; otherwise computes a
-        per-call grouping (needed for parameterized hopping providers, which add
-        dynamic entries not present in the base hopping table).
-        """
-        nspin = self.nspin
-        M = self.norb * nspin
-
-        # Common fast path: no dynamic (parameterized) hoppings means the index
-        # pattern is identical to the base hopping table for every evaluation.
-        if not getattr(self, "_hopping_param_terms", {}):
-            return self._get_flattened_indices(nspin=nspin)
-
-        _, base_i, base_j, _ = self._hoptable.components()
-        if (
-            i_idx.size == base_i.size
-            and j_idx.size == base_j.size
-            and np.array_equal(i_idx, base_i)
-            and np.array_equal(j_idx, base_j)
-        ):
-            return self._get_flattened_indices(nspin=nspin)
-
-        spin_out = np.repeat(np.arange(nspin), nspin)
-        spin_in = np.tile(np.arange(nspin), nspin)
-        row_flat = (i_idx[:, None] * nspin + spin_out[None, :]).reshape(-1)
-        col_flat = (j_idx[:, None] * nspin + spin_in[None, :]).reshape(-1)
-        pair_flat = row_flat * M + col_flat
-
-        order = np.argsort(pair_flat, kind="stable")
-        uniq, starts = np.unique(pair_flat[order], return_index=True)
-        cols_transposed = (uniq % M) * M + (uniq // M)
-
-        return {
-            "order": order,
-            "starts": starts,
-            "uniq": uniq,
-            "cols_transposed": cols_transposed,
-        }
-
-    @staticmethod
-    def _accumulate_grouped_hermitian(
-        target_flat: np.ndarray, contrib: np.ndarray, cache: dict[str, np.ndarray]
-    ) -> None:
-        """Accumulate grouped contributions and their Hermitian partners.
-
-        Parameters
-        ----------
-        target_flat : np.ndarray
-            Output flattened matrix view (..., M*M) receiving the accumulated sums.
-        contrib : np.ndarray
-            Contribution tensor with the grouped index on the last axis.
-        cache : dict[str, np.ndarray]
-            Grouping cache with keys ``order``, ``starts``, ``uniq``,
-            and ``cols_transposed``.
-        """
-        order = cache["order"]
-        starts = cache["starts"]
-        uniq = cache["uniq"]
-        cols_transposed = cache["cols_transposed"]
-
-        grouped = contrib[..., order]
-        # Fast path when each term maps to a unique matrix entry.
-        if starts.size == order.size:
-            target_flat[..., uniq] += grouped
-            target_flat[..., cols_transposed] += grouped.conj()
-            return
-
-        sums = np.add.reduceat(grouped, starts, axis=-1)
-        target_flat[..., uniq] += sums
-        target_flat[..., cols_transposed] += sums.conj()
-
     @staticmethod
     def _phases_from_reduced_dot_products(k_dot_r: np.ndarray) -> np.ndarray:
         """Build ``exp(2πi k·r)`` from reduced-coordinate dot products."""
@@ -2832,27 +2756,32 @@ class TBModel:
         lattice = self._lattice
         norb = lattice.norb
         per = np.asarray(lattice.periodic_dirs, dtype=int)
-
         n_kpts = k_vecs.shape[0]
         hop_amps = np.asarray(hop_amps, dtype=complex)
         n_hops = hop_amps.shape[0]
         i_idx = np.asarray(i_idx, dtype=int)
         j_idx = np.asarray(j_idx, dtype=int)
+        R_per = np.asarray(R_vecs, dtype=float)[:, per]
 
-        delta_r_per = (
-            np.asarray(R_vecs, dtype=float)
-            - lattice.orb_vecs[i_idx]
-            + lattice.orb_vecs[j_idx]
-        )[:, per]
+        # Factor: exp(2πi k·δr) = exp(2πi k·R) · exp(-2πi k·r_i) · exp(2πi k·r_j)
+        # This reduces O(Nk * n_hops) trig calls to O(Nk * (n_R + norb)).
+        orb_per = lattice.orb_vecs[:, per]
 
         if not self.spinful:
             ham = np.zeros((n_kpts, norb, norb), dtype=complex)
             if n_hops:
-                phases = self._phases_from_reduced_dot_products(k_vecs @ delta_r_per.T)
-                cache = self._get_flattened_indices()
-                self._accumulate_grouped_hermitian(
-                    ham.reshape(n_kpts, -1), phases * hop_amps, cache
-                )
+                unique_R, R_inv = np.unique(R_per, axis=0, return_inverse=True)
+                n_R = unique_R.shape[0]
+                T_R = np.zeros((n_R, norb, norb), dtype=complex)
+                np.add.at(T_R, (R_inv, i_idx, j_idx), hop_amps)
+
+                R_phases = self._phases_from_reduced_dot_products(k_vecs @ unique_R.T)
+                orb_phases = self._phases_from_reduced_dot_products(k_vecs @ orb_per.T)
+
+                T_inner = (R_phases @ T_R.reshape(n_R, -1)).reshape(n_kpts, norb, norb)
+                T_inner += np.conj(T_inner.swapaxes(-2, -1))
+                ham = np.conj(orb_phases[:, :, None]) * T_inner * orb_phases[:, None, :]
+
             diag = np.arange(norb)
             ham[:, diag, diag] += site_energies
             return ham
@@ -2862,15 +2791,31 @@ class TBModel:
         M = norb * nspin
         ham = np.zeros((n_kpts, M, M), dtype=complex)
         if n_hops:
-            phases = self._phases_from_reduced_dot_products(k_vecs @ delta_r_per.T)
-            spin_pairs = nspin * nspin
-            # Expand phases (Nk, n_hops) and amps (n_hops*spin_pairs,) to match
-            # the spinful flattened index layout: each hop expands to spin_pairs entries
-            phases_exp = np.repeat(phases, spin_pairs, axis=1)
-            hop_blocks_flat = hop_amps.reshape(-1)
-            cache = self._get_spinful_flattened_indices(i_idx, j_idx)
-            self._accumulate_grouped_hermitian(
-                ham.reshape(n_kpts, -1), phases_exp * hop_blocks_flat, cache
+            unique_R, R_inv = np.unique(R_per, axis=0, return_inverse=True)
+            n_R = unique_R.shape[0]
+
+            # Build per-R hopping matrices with spin blocks
+            T_R = np.zeros((n_R, M, M), dtype=complex)
+            spin_out = np.repeat(np.arange(nspin), nspin)
+            spin_in = np.tile(np.arange(nspin), nspin)
+            rows = (i_idx[:, None] * nspin + spin_out[None, :]).reshape(-1)
+            cols = (j_idx[:, None] * nspin + spin_in[None, :]).reshape(-1)
+            np.add.at(
+                T_R,
+                (np.repeat(R_inv, nspin * nspin), rows, cols),
+                hop_amps.reshape(-1),
+            )
+
+            R_phases = self._phases_from_reduced_dot_products(k_vecs @ unique_R.T)
+            orb_phases = self._phases_from_reduced_dot_products(k_vecs @ orb_per.T)
+            orb_phases_exp = np.repeat(orb_phases, nspin, axis=1)
+
+            T_inner = (R_phases @ T_R.reshape(n_R, -1)).reshape(n_kpts, M, M)
+            T_inner += np.conj(T_inner.swapaxes(-2, -1))
+            ham = (
+                np.conj(orb_phases_exp[:, :, None])
+                * T_inner
+                * orb_phases_exp[:, None, :]
             )
 
         self._add_spinful_onsite_blocks(ham, site_energies)
@@ -3297,41 +3242,59 @@ class TBModel:
         i_indices = np.asarray(i_indices, dtype=int)
         j_indices = np.asarray(j_indices, dtype=int)
         n_hops = i_indices.size
-
-        delta_r_per = (
-            np.asarray(R_vecs, dtype=float)
-            - lattice.orb_vecs[i_indices]
-            + lattice.orb_vecs[j_indices]
-        )[:, per]
-
-        # Velocity coefficient: i * δr in chosen coordinate system
-        if cartesian:
-            coeff = (1j * delta_r_per @ lattice.lat_vecs[per, :]).T  # (dim_k, n_hops)
-        else:
-            coeff = (1j * 2 * np.pi * delta_r_per).T  # (dim_k, n_hops)
+        R_per = np.asarray(R_vecs, dtype=float)[:, per]
+        orb_per = lattice.orb_vecs[:, per]
 
         if not self.spinful:
             vel = np.zeros((dim_k, n_kpts, norb, norb), dtype=complex)
             if return_ham:
                 ham = np.zeros((n_kpts, norb, norb), dtype=complex)
             if n_hops:
-                phases = self._phases_from_reduced_dot_products(
-                    k_arr @ delta_r_per.T
-                )  # (Nk, n_hops)
-                cache = self._get_flattened_indices()
+                unique_R, R_inv = np.unique(R_per, axis=0, return_inverse=True)
+                n_R = unique_R.shape[0]
+                T_R = np.zeros((n_R, norb, norb), dtype=complex)
+                np.add.at(T_R, (R_inv, i_indices, j_indices), hop_amps)
+                T_R_flat = T_R.reshape(n_R, -1)
+
+                R_phases = self._phases_from_reduced_dot_products(k_arr @ unique_R.T)
+                orb_phases = self._phases_from_reduced_dot_products(k_arr @ orb_per.T)
+
+                # Forward inner Hamiltonian (before Hermitianization)
+                T_fwd = (R_phases @ T_R_flat).reshape(n_kpts, norb, norb)
 
                 if return_ham:
-                    self._accumulate_grouped_hermitian(
-                        ham.reshape(n_kpts, -1), phases * hop_amps, cache
+                    T_herm = T_fwd + np.conj(T_fwd.swapaxes(-2, -1))
+                    ham = (
+                        np.conj(orb_phases[:, :, None])
+                        * T_herm
+                        * orb_phases[:, None, :]
                     )
 
-                # vel_contrib[α, k, h] = coeff[α, h] * phases[k, h] * amps[h]
-                vel_contrib = (
-                    coeff[:, None, :] * phases[None, :, :] * hop_amps[None, None, :]
+                # Velocity: v_α = Φ† · (dT_α + 2πi·orb_diff_α·T_fwd + h.c.) · Φ
+                # R-derivative: weighted_R_phases[α,k,R] = R_phases[k,R] * R[R,α]
+                weighted_R_phases = R_phases[None, :, :] * unique_R.T[:, None, :]
+                T_deriv = np.matmul(weighted_R_phases, T_R_flat).reshape(
+                    dim_k, n_kpts, norb, norb
                 )
-                self._accumulate_grouped_hermitian(
-                    vel.reshape(dim_k, n_kpts, -1), vel_contrib, cache
+
+                # Orbital position differences: orb_diff[α, i, j] = -r_i[α] + r_j[α]
+                orb_diff = (-orb_per[:, None, :] + orb_per[None, :, :]).transpose(
+                    2, 0, 1
                 )
+
+                vel_fwd = (2j * np.pi) * (
+                    T_deriv + orb_diff[:, None, :, :] * T_fwd[None, :, :, :]
+                )
+                vel_inner = vel_fwd + np.conj(vel_fwd.swapaxes(-2, -1))
+                vel = (
+                    np.conj(orb_phases[None, :, :, None])
+                    * vel_inner
+                    * orb_phases[None, :, None, :]
+                )
+
+                if cartesian:
+                    lat_per = lattice.lat_vecs[per, :]
+                    vel = np.einsum("da,akij->dkij", lat_per.T / (2 * np.pi), vel)
 
             if return_ham:
                 diag = np.arange(norb)
@@ -3342,38 +3305,64 @@ class TBModel:
         # spinful
         nspin = self.nspin
         M = norb * nspin
-        spin_pairs = nspin * nspin
-        hop_blocks_flat = hop_amps.reshape(-1)  # (n_hops * spin_pairs,)
 
         vel = np.zeros((dim_k, n_kpts, M, M), dtype=complex)
         if return_ham:
             ham = np.zeros((n_kpts, M, M), dtype=complex)
         if n_hops:
-            phases = self._phases_from_reduced_dot_products(
-                k_arr @ delta_r_per.T
-            )  # (Nk, n_hops)
-            phases_exp = np.repeat(
-                phases, spin_pairs, axis=1
-            )  # (Nk, n_hops*spin_pairs)
-            cache = self._get_spinful_flattened_indices(i_indices, j_indices)
+            unique_R, R_inv = np.unique(R_per, axis=0, return_inverse=True)
+            n_R = unique_R.shape[0]
+
+            T_R = np.zeros((n_R, M, M), dtype=complex)
+            spin_out = np.repeat(np.arange(nspin), nspin)
+            spin_in = np.tile(np.arange(nspin), nspin)
+            rows = (i_indices[:, None] * nspin + spin_out[None, :]).reshape(-1)
+            cols = (j_indices[:, None] * nspin + spin_in[None, :]).reshape(-1)
+            np.add.at(
+                T_R,
+                (np.repeat(R_inv, nspin * nspin), rows, cols),
+                hop_amps.reshape(-1),
+            )
+            T_R_flat = T_R.reshape(n_R, -1)
+
+            R_phases = self._phases_from_reduced_dot_products(k_arr @ unique_R.T)
+            orb_phases = self._phases_from_reduced_dot_products(k_arr @ orb_per.T)
+            orb_phases_exp = np.repeat(orb_phases, nspin, axis=1)
+
+            T_fwd = (R_phases @ T_R_flat).reshape(n_kpts, M, M)
 
             if return_ham:
-                self._accumulate_grouped_hermitian(
-                    ham.reshape(n_kpts, -1), phases_exp * hop_blocks_flat, cache
+                T_herm = T_fwd + np.conj(T_fwd.swapaxes(-2, -1))
+                ham = (
+                    np.conj(orb_phases_exp[:, :, None])
+                    * T_herm
+                    * orb_phases_exp[:, None, :]
                 )
 
-            # Expand coeff (dim_k, n_hops) to match spinful layout
-            coeff_exp = np.repeat(
-                coeff, spin_pairs, axis=1
-            )  # (dim_k, n_hops*spin_pairs)
-            vel_contrib = (
-                coeff_exp[:, None, :]
-                * phases_exp[None, :, :]
-                * hop_blocks_flat[None, None, :]
+            weighted_R_phases = R_phases[None, :, :] * unique_R.T[:, None, :]
+            T_deriv = np.matmul(weighted_R_phases, T_R_flat).reshape(
+                dim_k, n_kpts, M, M
             )
-            self._accumulate_grouped_hermitian(
-                vel.reshape(dim_k, n_kpts, -1), vel_contrib, cache
+
+            # Orbital diffs expanded for spin: each orbital block is nspin×nspin
+            orb_diff = (-orb_per[:, None, :] + orb_per[None, :, :]).transpose(2, 0, 1)
+            orb_diff_exp = np.repeat(
+                np.repeat(orb_diff, nspin, axis=-2), nspin, axis=-1
             )
+
+            vel_fwd = (2j * np.pi) * (
+                T_deriv + orb_diff_exp[:, None, :, :] * T_fwd[None, :, :, :]
+            )
+            vel_inner = vel_fwd + np.conj(vel_fwd.swapaxes(-2, -1))
+            vel = (
+                np.conj(orb_phases_exp[None, :, :, None])
+                * vel_inner
+                * orb_phases_exp[None, :, None, :]
+            )
+
+            if cartesian:
+                lat_per = lattice.lat_vecs[per, :]
+                vel = np.einsum("da,akij->dkij", lat_per.T / (2 * np.pi), vel)
 
         if return_ham:
             self._add_spinful_onsite_blocks(ham, site_energies)
