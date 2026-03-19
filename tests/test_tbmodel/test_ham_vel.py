@@ -5,7 +5,7 @@ from pythtb.lattice import Lattice
 from pythtb.tbmodel import TBModel
 
 
-def test_phase_helpers_match_direct_exp_and_repeated_columns():
+def test_phases_from_reduced_dot_products():
     frac = np.array([[0.125, 0.25, -0.5], [0.0, -0.375, 0.625]])
     shifts = np.array([[1e8, -1e10, 1e6], [5e7, 2e9, -3e8]])
     k_dot_r = shifts + frac
@@ -13,21 +13,6 @@ def test_phase_helpers_match_direct_exp_and_repeated_columns():
     expected = np.exp(1j * 2 * np.pi * k_dot_r)
     phases = TBModel._phases_from_reduced_dot_products(k_dot_r.copy())
     np.testing.assert_allclose(phases, expected, atol=1e-14, rtol=1e-14)
-
-    cols = np.array([2, 0, 2, 1], dtype=int)
-    phase_cols = TBModel._phase_columns_from_reduced_dot_products(k_dot_r, cols)
-    np.testing.assert_allclose(phase_cols, expected[:, cols], atol=1e-14, rtol=1e-14)
-
-
-def test_cached_periodic_geometry_compresses_duplicate_phase_columns(fkm_model):
-    geometry = fkm_model._get_cached_periodic_hop_geometry()
-    hop_to_phase = geometry["hop_to_phase"]
-
-    assert hop_to_phase is not None
-    assert geometry["phase_delta_r_per"].shape[0] < geometry["delta_r_per"].shape[0]
-    np.testing.assert_allclose(
-        geometry["phase_delta_r_per"][hop_to_phase], geometry["delta_r_per"]
-    )
 
 
 def test_hamiltonian_spinless(ssh_model):
