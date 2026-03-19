@@ -2916,7 +2916,10 @@ class TBModel:
 
         if n_hops:
             k_dot_r = k_vecs @ delta_r_per.T
-            phases = np.exp(1j * 2 * np.pi * k_dot_r)
+            angle = np.multiply(k_dot_r, 2 * np.pi)
+            phases = np.empty(angle.shape, dtype=np.complex128)
+            phases.real = np.cos(angle)
+            phases.imag = np.sin(angle)
         else:
             phases = None
 
@@ -3440,7 +3443,10 @@ class TBModel:
 
         if n_hops:
             k_dot_r = k_arr @ delta_r_per.T
-            phases = np.exp(1j * 2 * np.pi * k_dot_r)
+            angle = np.multiply(k_dot_r, 2 * np.pi)
+            phases = np.empty(angle.shape, dtype=np.complex128)
+            phases.real = np.cos(angle)
+            phases.imag = np.sin(angle)
         else:
             phases = np.zeros((k_arr.shape[0], 0), dtype=complex)
 
