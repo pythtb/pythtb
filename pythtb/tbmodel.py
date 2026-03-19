@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 import copy
+from functools import lru_cache
 import logging
 import warnings
 import numpy as np
@@ -30,23 +31,32 @@ SIGMAY = np.array([[0, -1j], [1j, 0]], dtype=complex)
 SIGMAZ = np.array([[1, 0], [0, -1]], dtype=complex)
 
 
+@lru_cache(maxsize=None)
+def _callable_signature_info(f):
+    sig = inspect.signature(f)
+    accepts_kwargs = any(p.kind == p.VAR_KEYWORD for p in sig.parameters.values())
+    required = tuple(
+        name
+        for name, param in sig.parameters.items()
+        if param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY)
+        and param.default is inspect._empty
+    )
+    return accepts_kwargs, required
+
+
 def _iter_params_of_callable(f):
     """Yield explicit parameter names (ignore *args/**kwargs)."""
-    sig = inspect.signature(f)
-    for name, param in sig.parameters.items():
-        if param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY):
-            if param.default is inspect._empty:  # user must supply
-                yield name
+    yield from _callable_signature_info(f)[1]
 
 
 def _call_provider(prov, params):
     """Call a provider with only the kwargs it actually declares (unless it has **kwargs)."""
     if not callable(prov):
         raise TypeError("Provider is not callable.")
-    sig = inspect.signature(prov)
-    if any(p.kind == p.VAR_KEYWORD for p in sig.parameters.values()):
+    accepts_kwargs, required = _callable_signature_info(prov)
+    if accepts_kwargs:
         return prov(**params)  # accepts anything
-    kwargs = {k: params[k] for k in _iter_params_of_callable(prov) if k in params}
+    kwargs = {k: params[k] for k in required if k in params}
     return prov(**kwargs)
 
 
@@ -219,6 +229,7 @@ class TBModel:
 
         self._onsite_param_terms = {}
         self._hopping_param_terms = {}
+        self._build_cache = {}
 
     def __repr__(self):
         r"""Return a concise representation of the model.
@@ -737,6 +748,7 @@ class TBModel:
         Useful for resetting the model to a state without any hoppings.
         """
         self._hoptable.clear()
+        self._invalidate_build_caches()
         logger.info("Cleared all hoppings.")
 
     def clear_onsite(self):
@@ -1050,6 +1062,50 @@ class TBModel:
     def _get_flattened_indices(self, *, nspin: int = 1):
         return self._hoptable.flatten_cache(self.norb, nspin=nspin)
 
+    def _invalidate_build_caches(self):
+        self._build_cache.clear()
+
+    @staticmethod
+    def _compress_periodic_phase_geometry(
+        delta_r_per: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray | None]:
+        """Collapse duplicate reduced-coordinate hop displacements for phase evaluation."""
+        if delta_r_per.shape[0] < 2:
+            return delta_r_per, None
+
+        phase_delta_r_per, hop_to_phase = np.unique(
+            delta_r_per, axis=0, return_inverse=True
+        )
+        if phase_delta_r_per.shape[0] == delta_r_per.shape[0]:
+            return delta_r_per, None
+        return phase_delta_r_per, hop_to_phase.astype(np.intp, copy=False)
+
+    def _get_cached_periodic_hop_geometry(self) -> dict[str, np.ndarray]:
+        cached = self._build_cache.get("periodic_hop_geometry")
+        if cached is not None:
+            return cached
+
+        lattice = self._lattice
+        per = np.asarray(lattice.periodic_dirs, dtype=int)
+        _, i_idx, j_idx, R_vecs = self._hoptable.components()
+        orb_red = lattice.orb_vecs
+        delta_r_per = (
+            np.asarray(R_vecs, dtype=float) - orb_red[i_idx] + orb_red[j_idx]
+        )[:, per]
+        phase_delta_r_per, hop_to_phase = self._compress_periodic_phase_geometry(
+            delta_r_per
+        )
+
+        cached = {
+            "delta_r_per": delta_r_per,
+            "phase_delta_r_per": phase_delta_r_per,
+            "hop_to_phase": hop_to_phase,
+            "coeff_reduced": (1j * 2 * np.pi * phase_delta_r_per).T,
+            "coeff_cartesian": (1j * phase_delta_r_per @ lattice.lat_vecs[per, :]).T,
+        }
+        self._build_cache["periodic_hop_geometry"] = cached
+        return cached
+
     def _get_spinful_flattened_indices(self, i_idx: np.ndarray, j_idx: np.ndarray):
         """Return flattened index grouping for spinful matrix assembly.
 
@@ -1210,6 +1266,28 @@ class TBModel:
         denom = max(1, n_batch) * itemsize
         max_terms = (target_mib * 1024 * 1024) // denom
         return max(min_terms, int(max_terms))
+
+    @staticmethod
+    def _phases_from_reduced_dot_products(k_dot_r: np.ndarray) -> np.ndarray:
+        """Build ``exp(2πi k·r)`` from reduced-coordinate dot products."""
+        angle = np.multiply(k_dot_r, 2 * np.pi)
+        phases = np.empty(angle.shape, dtype=np.complex128)
+        phases.real = np.cos(angle)
+        phases.imag = np.sin(angle)
+        return phases
+
+    @classmethod
+    def _phase_columns_from_reduced_dot_products(
+        cls, k_dot_r: np.ndarray, hop_idx: np.ndarray, *, deduplicate: bool = False
+    ) -> np.ndarray:
+        """Evaluate phase columns for a hop subset without materializing the full phase matrix."""
+        if deduplicate:
+            hop_idx, inverse = np.unique(hop_idx, return_inverse=True)
+            phase_chunk = cls._phases_from_reduced_dot_products(k_dot_r[:, hop_idx])
+            if hop_idx.size != inverse.size:
+                phase_chunk = phase_chunk[:, inverse]
+            return phase_chunk
+        return cls._phases_from_reduced_dot_products(k_dot_r[:, hop_idx])
 
     def _add_spinful_onsite_blocks(
         self, ham: np.ndarray, site_energies: np.ndarray
@@ -1397,6 +1475,7 @@ class TBModel:
         ValueError: ind_R may only have non-zero components along periodic directions ...
         """
         #### Prechecks and formatting ####
+        self._invalidate_build_caches()
         mode = mode.lower()
         if mode == "reset":
             logger.warning(
@@ -1604,6 +1683,7 @@ class TBModel:
             j_idx.tolist(),
             R_vecs.tolist(),
         )
+        self._invalidate_build_caches()
 
     def _val_to_block(self, val):
         r"""
@@ -1801,16 +1881,10 @@ class TBModel:
                 self._site_energies,
             )
 
-        if has_dynamic_hops:
-            hop_amps = np.array(base_hop_amps, copy=True)
-            i_idx = np.array(base_i_idx, copy=True)
-            j_idx = np.array(base_j_idx, copy=True)
-            R_vecs = np.array(base_R_vecs, copy=True)
-        else:
-            hop_amps = base_hop_amps
-            i_idx = base_i_idx
-            j_idx = base_j_idx
-            R_vecs = base_R_vecs
+        hop_amps = base_hop_amps
+        i_idx = base_i_idx
+        j_idx = base_j_idx
+        R_vecs = base_R_vecs
 
         if has_dynamic_onsite:
             site = np.asarray(self._site_energies, dtype=complex).copy()
@@ -1833,13 +1907,24 @@ class TBModel:
         else:
             site = self._site_energies
 
-        # collect param-dependent hops without mutating arrays in-place
-        dyn_blocks = []
-        dyn_i = []
-        dyn_j = []
-        dyn_R = []
-
         if has_dynamic_hops:
+            n_base = base_i_idx.size
+            n_dyn = len(hopping_terms)
+            total = n_base + n_dyn
+
+            hop_shape = (total, self.nspin, self.nspin) if self.spinful else (total,)
+            hop_amps = np.empty(hop_shape, dtype=complex)
+            i_idx = np.empty(total, dtype=base_i_idx.dtype)
+            j_idx = np.empty(total, dtype=base_j_idx.dtype)
+            R_vecs = np.empty((total, self.dim_r), dtype=base_R_vecs.dtype)
+
+            if n_base:
+                hop_amps[:n_base] = base_hop_amps
+                i_idx[:n_base] = base_i_idx
+                j_idx[:n_base] = base_j_idx
+                R_vecs[:n_base] = base_R_vecs
+
+            out_idx = n_base
             for key, term in hopping_terms.items():
                 if callable(term):
                     val = _call_provider(term, assignments)
@@ -1848,18 +1933,11 @@ class TBModel:
                     block = self._eval_expr_to_block(term, **assignments)
                 else:
                     raise TypeError("Unsupported hopping provider type.")
-                dyn_blocks.append(np.asarray(block, dtype=complex)[None, ...])
-                dyn_i.append(key[0])
-                dyn_j.append(key[1])
-                dyn_R.append(list(key[2]) if len(key) > 2 else [0] * self.dim_k)
-
-            if dyn_blocks:
-                hop_amps = np.concatenate([hop_amps] + dyn_blocks, axis=0)
-                i_idx = np.concatenate([i_idx, np.asarray(dyn_i, dtype=i_idx.dtype)])
-                j_idx = np.concatenate([j_idx, np.asarray(dyn_j, dtype=j_idx.dtype)])
-                R_vecs = np.concatenate(
-                    [R_vecs, np.asarray(dyn_R, dtype=R_vecs.dtype)], axis=0
-                )
+                hop_amps[out_idx] = np.asarray(block, dtype=complex)
+                i_idx[out_idx] = key[0]
+                j_idx[out_idx] = key[1]
+                R_vecs[out_idx] = key[2]
+                out_idx += 1
 
         return hop_amps, i_idx, j_idx, R_vecs, site
 
@@ -2129,6 +2207,7 @@ class TBModel:
             new_block = np.zeros((1, 2, 2), dtype=complex)
             self._site_energies = np.vstack([self._site_energies, new_block])
         self._site_energies_specified = np.append(self._site_energies_specified, False)
+        self._invalidate_build_caches()
         # No hoppings are added by default
 
     def remove_orb(self, to_remove):
@@ -2185,6 +2264,7 @@ class TBModel:
             )
 
         self._hoptable.remove_orbitals(orb_index)
+        self._invalidate_build_caches()
 
     def cut_piece(self, num_cells, periodic_dir, glue_edges=False) -> "TBModel":
         r"""Cut a (d-1)-dimensional piece out of a d-dimensional tight-binding model.
@@ -2543,6 +2623,7 @@ class TBModel:
         if to_home:
             self._shift_hop_to_home()
             self._lattice._shift_orb_to_home()
+        self._invalidate_build_caches()
 
     def make_supercell(
         self,
@@ -2731,6 +2812,7 @@ class TBModel:
 
             if self.dim_k != 0 and np.any(disp_vec):
                 self._hoptable.shift_orbital(i, disp_vec)
+        self._invalidate_build_caches()
 
     @copydoc(Lattice.k_uniform_mesh)
     def k_uniform_mesh(
@@ -2830,8 +2912,8 @@ class TBModel:
         orb_vecs = self._orb_vecs  # reduced units
         orb_vec_diff = orb_vecs[:, None, :] - orb_vecs[None, :, :]
         orb_vec_diff = orb_vec_diff[..., self.periodic_dirs]
-        orb_phase = np.exp(
-            1j * 2 * np.pi * np.matmul(orb_vec_diff, k_vals.T)
+        orb_phase = self._phases_from_reduced_dot_products(
+            np.matmul(orb_vec_diff, k_vals.T)
         ).transpose(2, 0, 1)
         H_per_flat = H_flat * orb_phase
         return H_per_flat
@@ -2899,41 +2981,51 @@ class TBModel:
     ):
         lattice = self._lattice
         norb = lattice.norb
-        per = np.asarray(lattice.periodic_dirs, dtype=int)
-        orb_red = lattice.orb_vecs
 
         n_kpts = k_vecs.shape[0]
+        hop_amps = np.asarray(hop_amps, dtype=complex)
         n_hops = hop_amps.shape[0]
-
-        i_idx = i_idx.astype(int)
-        j_idx = j_idx.astype(int)
-        R_vecs = R_vecs.astype(float)
-
-        orb_i = orb_red[i_idx]
-        orb_j = orb_red[j_idx]
-        delta_r = R_vecs - orb_i + orb_j
-        delta_r_per = delta_r[:, per]
+        hop_to_phase = None
+        _, base_i, base_j, base_R = self._hoptable.components()
+        if i_idx is base_i and j_idx is base_j and R_vecs is base_R:
+            geometry = self._get_cached_periodic_hop_geometry()
+            delta_r_per = geometry["delta_r_per"]
+            phase_delta_r_per = geometry["phase_delta_r_per"]
+            hop_to_phase = geometry["hop_to_phase"]
+        else:
+            per = np.asarray(lattice.periodic_dirs, dtype=int)
+            i_idx = np.asarray(i_idx, dtype=int)
+            j_idx = np.asarray(j_idx, dtype=int)
+            R_vecs = np.asarray(R_vecs, dtype=float)
+            orb_red = lattice.orb_vecs
+            delta_r_per = (R_vecs - orb_red[i_idx] + orb_red[j_idx])[:, per]
+            phase_delta_r_per = delta_r_per
 
         if n_hops:
-            k_dot_r = k_vecs @ delta_r_per.T
-            angle = np.multiply(k_dot_r, 2 * np.pi)
-            phases = np.empty(angle.shape, dtype=np.complex128)
-            phases.real = np.cos(angle)
-            phases.imag = np.sin(angle)
-        else:
-            phases = None
+            k_dot_r = k_vecs @ phase_delta_r_per.T
 
         if not self.spinful:
-            hop_amps = hop_amps.astype(complex)
             ham = np.zeros((n_kpts, norb, norb), dtype=complex)
             if n_hops:
                 cache = self._get_flattened_indices()
                 ham_flat = ham.reshape(n_kpts, -1)
                 max_terms = self._chunk_term_limit(n_kpts, target_mib=128)
+
+                def ham_terms(ord_idx: np.ndarray) -> np.ndarray:
+                    phase_idx = (
+                        ord_idx if hop_to_phase is None else hop_to_phase[ord_idx]
+                    )
+                    return (
+                        self._phase_columns_from_reduced_dot_products(
+                            k_dot_r, phase_idx, deduplicate=hop_to_phase is not None
+                        )
+                        * hop_amps[ord_idx]
+                    )
+
                 self._accumulate_grouped_hermitian_chunked(
                     ham_flat,
                     cache,
-                    lambda ord_idx: phases[:, ord_idx] * hop_amps[ord_idx],
+                    ham_terms,
                     max_terms=max_terms,
                 )
 
@@ -2944,7 +3036,7 @@ class TBModel:
         # spinful
         nspin = self.nspin
         M = norb * nspin
-        hop_blocks = np.asarray(hop_amps, dtype=complex).reshape(n_hops, -1)
+        hop_blocks = hop_amps.reshape(n_hops, -1)
         spin_pairs = nspin * nspin
         hop_blocks_flat = hop_blocks.reshape(-1)
 
@@ -2953,11 +3045,19 @@ class TBModel:
             cache = self._get_spinful_flattened_indices(i_idx, j_idx)
             ham_flat = ham.reshape(n_kpts, -1)
             max_terms = self._chunk_term_limit(n_kpts, target_mib=128)
+
+            def spinful_ham_terms(ord_idx: np.ndarray) -> np.ndarray:
+                hop_idx, inverse = np.unique(ord_idx // spin_pairs, return_inverse=True)
+                phase_idx = hop_idx if hop_to_phase is None else hop_to_phase[hop_idx]
+                phase_chunk = self._phase_columns_from_reduced_dot_products(
+                    k_dot_r, phase_idx, deduplicate=hop_to_phase is not None
+                )
+                return phase_chunk[:, inverse] * hop_blocks_flat[ord_idx]
+
             self._accumulate_grouped_hermitian_chunked(
                 ham_flat,
                 cache,
-                lambda ord_idx: phases[:, ord_idx // spin_pairs]
-                * hop_blocks_flat[ord_idx],
+                spinful_ham_terms,
                 max_terms=max_terms,
             )
 
@@ -3429,35 +3529,41 @@ class TBModel:
         dim_k = lattice.dim_k
         norb = lattice.norb
 
-        i_indices = i_indices.astype(int)
-        j_indices = j_indices.astype(int)
-        R_vecs = R_vecs.astype(float)
-
-        n_hops = i_indices.size
-        per = np.asarray(lattice.periodic_dirs, dtype=int)
-        orb_red = lattice.orb_vecs
-        orb_i = orb_red[i_indices]
-        orb_j = orb_red[j_indices]
-        delta_r = R_vecs - orb_i + orb_j
-        delta_r_per = delta_r[:, per]
+        hop_amps = np.asarray(hop_amps, dtype=complex)
+        _, base_i, base_j, base_R = self._hoptable.components()
+        geometry = None
+        hop_to_phase = None
+        if i_indices is base_i and j_indices is base_j and R_vecs is base_R:
+            geometry = self._get_cached_periodic_hop_geometry()
+            delta_r_per = geometry["delta_r_per"]
+            phase_delta_r_per = geometry["phase_delta_r_per"]
+            hop_to_phase = geometry["hop_to_phase"]
+        else:
+            per = np.asarray(lattice.periodic_dirs, dtype=int)
+            i_indices = np.asarray(i_indices, dtype=int)
+            j_indices = np.asarray(j_indices, dtype=int)
+            R_vecs = np.asarray(R_vecs, dtype=float)
+            orb_red = lattice.orb_vecs
+            delta_r_per = (R_vecs - orb_red[i_indices] + orb_red[j_indices])[:, per]
+            phase_delta_r_per = delta_r_per
+        n_hops = delta_r_per.shape[0]
 
         if n_hops:
-            k_dot_r = k_arr @ delta_r_per.T
-            angle = np.multiply(k_dot_r, 2 * np.pi)
-            phases = np.empty(angle.shape, dtype=np.complex128)
-            phases.real = np.cos(angle)
-            phases.imag = np.sin(angle)
-        else:
-            phases = np.zeros((k_arr.shape[0], 0), dtype=complex)
+            k_dot_r = k_arr @ phase_delta_r_per.T
 
         if cartesian:
-            lat_per = lattice.lat_vecs[per, :]
-            coeff = (1j * delta_r_per @ lat_per).T
+            if geometry is not None:
+                coeff = geometry["coeff_cartesian"]
+            else:
+                coeff = (1j * delta_r_per @ lattice.lat_vecs[per, :]).T
         else:
-            coeff = (1j * 2 * np.pi * delta_r_per).T
+            coeff = (
+                geometry["coeff_reduced"]
+                if geometry is not None
+                else (1j * 2 * np.pi * delta_r_per).T
+            )
 
         if not self.spinful:
-            amps_use = np.asarray(hop_amps, dtype=complex)
             vel = np.zeros((dim_k, k_arr.shape[0], norb, norb), dtype=complex)
             if return_ham:
                 ham = np.zeros((k_arr.shape[0], norb, norb), dtype=complex)
@@ -3468,10 +3574,22 @@ class TBModel:
                     max_terms_ham = self._chunk_term_limit(
                         k_arr.shape[0], target_mib=128
                     )
+
+                    def ham_terms(ord_idx: np.ndarray) -> np.ndarray:
+                        phase_idx = (
+                            ord_idx if hop_to_phase is None else hop_to_phase[ord_idx]
+                        )
+                        return (
+                            self._phase_columns_from_reduced_dot_products(
+                                k_dot_r, phase_idx, deduplicate=hop_to_phase is not None
+                            )
+                            * hop_amps[ord_idx]
+                        )
+
                     self._accumulate_grouped_hermitian_chunked(
                         ham_flat,
                         cache,
-                        lambda ord_idx: phases[:, ord_idx] * amps_use[ord_idx],
+                        ham_terms,
                         max_terms=max_terms_ham,
                     )
 
@@ -3479,12 +3597,24 @@ class TBModel:
                 max_terms_vel = self._chunk_term_limit(
                     dim_k * k_arr.shape[0], target_mib=128
                 )
+
+                def vel_terms(ord_idx: np.ndarray) -> np.ndarray:
+                    phase_idx = (
+                        ord_idx if hop_to_phase is None else hop_to_phase[ord_idx]
+                    )
+                    phase_chunk = self._phase_columns_from_reduced_dot_products(
+                        k_dot_r, phase_idx, deduplicate=hop_to_phase is not None
+                    )
+                    return (
+                        coeff[:, phase_idx][:, None, :]
+                        * phase_chunk[None, :, :]
+                        * hop_amps[None, None, ord_idx]
+                    )
+
                 self._accumulate_grouped_hermitian_chunked(
                     vel_flat,
                     cache,
-                    lambda ord_idx: coeff[:, ord_idx][:, None, :]
-                    * phases[None, :, ord_idx]
-                    * amps_use[None, None, ord_idx],
+                    vel_terms,
                     max_terms=max_terms_vel,
                 )
 
@@ -3502,7 +3632,7 @@ class TBModel:
         # For spin pair index s in [0, ..., nspin^2-1]:
         #   s_out = s // nspin
         #   s_in  = s % nspin
-        hop_blocks = np.asarray(hop_amps, dtype=complex).reshape(n_hops, -1)
+        hop_blocks = hop_amps.reshape(n_hops, -1)
         spin_pairs = nspin * nspin
         hop_blocks_flat = hop_blocks.reshape(-1)
 
@@ -3516,23 +3646,47 @@ class TBModel:
 
             if return_ham:
                 max_terms_ham = self._chunk_term_limit(n_kpts)
+
+                def spinful_ham_terms(ord_idx: np.ndarray) -> np.ndarray:
+                    hop_idx, inverse = np.unique(
+                        ord_idx // spin_pairs, return_inverse=True
+                    )
+                    phase_idx = (
+                        hop_idx if hop_to_phase is None else hop_to_phase[hop_idx]
+                    )
+                    phase_chunk = self._phase_columns_from_reduced_dot_products(
+                        k_dot_r, phase_idx, deduplicate=hop_to_phase is not None
+                    )
+                    return phase_chunk[:, inverse] * hop_blocks_flat[ord_idx]
+
                 self._accumulate_grouped_hermitian_chunked(
                     ham_flat,
                     cache,
-                    lambda ord_idx: phases[:, ord_idx // spin_pairs]
-                    * hop_blocks_flat[ord_idx],
+                    spinful_ham_terms,
                     max_terms=max_terms_ham,
                 )
 
             vel_flat = vel.reshape(
                 dim_k, n_kpts, -1
             )  # flatten (M,M) -> M*M as last axis
+
+            def spinful_vel_terms(ord_idx: np.ndarray) -> np.ndarray:
+                hop_idx, inverse = np.unique(ord_idx // spin_pairs, return_inverse=True)
+                phase_idx = hop_idx if hop_to_phase is None else hop_to_phase[hop_idx]
+                phase_chunk = self._phase_columns_from_reduced_dot_products(
+                    k_dot_r, phase_idx, deduplicate=hop_to_phase is not None
+                )
+                coeff_chunk = coeff[:, phase_idx]
+                return (
+                    coeff_chunk[:, inverse][:, None, :]
+                    * phase_chunk[:, inverse][None, :, :]
+                    * hop_blocks_flat[None, None, ord_idx]
+                )
+
             self._accumulate_grouped_hermitian_chunked(
                 vel_flat,
                 cache,
-                lambda ord_idx: coeff[:, ord_idx // spin_pairs][:, None, :]
-                * phases[None, :, ord_idx // spin_pairs]
-                * hop_blocks_flat[None, None, ord_idx],
+                spinful_vel_terms,
                 max_terms=max_terms_vel,
             )
 
