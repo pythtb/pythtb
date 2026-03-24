@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, Tuple, List
 import numpy as np
 
-BOHRTOANG = 0.52917721092
+from pythtb.constants import BOHRTOANG
 
 
 class QEParseError(RuntimeError):
