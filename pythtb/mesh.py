@@ -97,7 +97,7 @@ class Axis:
     @property
     def is_loop(self) -> bool:
         """True if the axis is a loop (i.e., winds around)."""
-        return False if len(self._loop_comps) == 0 else True
+        return len(self._loop_comps) > 0
 
     @property
     def loop_components(self) -> Optional[list[int]]:
@@ -123,7 +123,7 @@ class Axis:
     @property
     def has_endpoint(self) -> bool:
         """True if the axis has an endpoint (i.e., first and last points are equal)."""
-        return False if len(self._endpt_comps) == 0 else True
+        return len(self._endpt_comps) > 0
 
     @property
     def endpoint_components(self) -> Optional[list[int]]:
@@ -149,7 +149,7 @@ class Axis:
     @property
     def winds_bz(self) -> bool:
         """True if the axis winds the Brillouin zone."""
-        return False if len(self._wind_bz_comps) == 0 else True
+        return len(self._wind_bz_comps) > 0
 
     @property
     def winds_bz_components(self) -> Optional[list[int]]:

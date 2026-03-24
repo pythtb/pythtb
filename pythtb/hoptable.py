@@ -25,9 +25,6 @@ class HoppingTable:
     _index: dict[tuple[int, int, tuple[int, ...]], int] = field(
         init=False, default_factory=dict
     )
-    _flatten_cache: dict[tuple[int, int, int], dict[str, np.ndarray]] = field(
-        init=False, default_factory=dict
-    )
 
     def __post_init__(self):
         # Start with empty arrays so subsequent append/extend operations can
@@ -64,7 +61,6 @@ class HoppingTable:
         self.to_idx = np.empty((0,), dtype=int)
         self.lattice_vecs = np.empty((0, self.dim_r), dtype=int)
         self._index.clear()
-        self._flatten_cache.clear()
 
     def components(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Return the raw storage arrays (amplitudes, from/to indices, lattice vectors)."""
@@ -103,7 +99,6 @@ class HoppingTable:
         idx = len(self) - 1
         # Store mapping (i, j, R) -> index for O(1) lookup later.
         self._index[self._make_key(i, j, R_arr)] = idx
-        self._flatten_cache.clear()
         return idx
 
     def extend(
@@ -158,8 +153,6 @@ class HoppingTable:
         ]
         self._index.update(zip(keys, range(start, start + len(keys))))
 
-        self._flatten_cache.clear()
-
     def update(self, idx: int, *, amplitude=None, R=None) -> None:
         """Update the amplitude and/or lattice vector of an existing hopping."""
         old_key = self._make_key(
@@ -179,7 +172,6 @@ class HoppingTable:
         if new_key != old_key:
             self._index.pop(old_key, None)
             self._index[new_key] = idx
-        self._flatten_cache.clear()
 
     def remove(self, idx: int) -> None:
         """Remove the hopping at index ``idx``."""
@@ -190,7 +182,6 @@ class HoppingTable:
         self.to_idx = np.delete(self.to_idx, idx)
         self.lattice_vecs = np.delete(self.lattice_vecs, idx, axis=0)
         self._rebuild_index()
-        self._flatten_cache.clear()
 
     def add(self, idx: int, delta: np.ndarray) -> None:
         """Increment the hopping amplitude at ``idx`` by ``delta`` (in-place)."""
@@ -198,7 +189,6 @@ class HoppingTable:
             self.amplitudes[idx] += np.asarray(delta, dtype=complex)
         else:
             self.amplitudes[idx] += np.asarray(delta, dtype=complex).reshape(())
-        self._flatten_cache.clear()
 
     def remove_orbitals(self, indices: Sequence[int]) -> None:
         """Remove every hopping that touches any orbital in ``indices``."""
@@ -217,7 +207,6 @@ class HoppingTable:
             self.to_idx[self.to_idx > orb] -= 1
 
         self._rebuild_index()
-        self._flatten_cache.clear()
 
     def shift_orbital(self, orb_idx: int, disp_vec: Sequence[int]) -> None:
         """Apply the lattice displacement ``disp_vec`` to all hoppings touching ``orb_idx``."""
@@ -236,7 +225,6 @@ class HoppingTable:
 
         if np.any(mask_from) or np.any(mask_to):
             self._rebuild_index()
-            self._flatten_cache.clear()
 
     def normalize_entry(
         self,
@@ -323,82 +311,6 @@ class HoppingTable:
     def find(self, i: int, j: int, R: Sequence[int]) -> int | None:
         """Return the row index for hopping (i, j, R) or ``None`` if no such entry exists."""
         return self._index.get(self._make_key(i, j, R))
-
-    # ------------------------------------------------------------------
-    # cached utilities
-    # ------------------------------------------------------------------
-    def flatten_cache(self, norb: int, *, nspin: int = 1) -> dict[str, np.ndarray]:
-        """Return (and cache) index arrays useful for block-building Hamiltonians.
-
-        Parameters
-        ----------
-        norb : int
-            Number of orbitals in the model; used to compute flattened indices.
-        nspin : int, optional
-            Spin multiplicity used to flatten spin blocks. ``nspin=1`` reproduces
-            the spinless orbital-only cache.
-
-        Returns
-        -------
-        dict[str, np.ndarray]
-            A dictionary with the following entries:
-            - "order": Indices that sort the flattened (i, j) hopping indices.
-            - "starts": Start indices of unique flattened (i, j) pairs in the sorted array.
-            - "uniq": Unique flattened (i, j) indices in sorted order.
-            - "cols_transposed": Flattened (j, i) indices corresponding to "uniq".
-            - "inverse_order": Indices that invert the "order" array.
-        """
-        key = (norb, nspin, len(self))
-        cache = self._flatten_cache.get(key)
-        if cache is not None:
-            return cache
-
-        i_indices = self.from_idx
-        j_indices = self.to_idx
-
-        if len(self) == 0:
-            cache = {
-                "order": np.empty((0,), dtype=int),
-                "starts": np.empty((0,), dtype=int),
-                "uniq": np.empty((0,), dtype=int),
-                "cols_transposed": np.empty((0,), dtype=int),
-                "inverse_order": np.empty((0,), dtype=int),
-            }
-            self._flatten_cache[key] = cache
-            return cache
-
-        if nspin == 1:
-            matrix_dim = norb
-            flat_idx = i_indices * matrix_dim + j_indices
-        else:
-            matrix_dim = norb * nspin
-            spin_out = np.repeat(np.arange(nspin), nspin)
-            spin_in = np.tile(np.arange(nspin), nspin)
-            rows = (i_indices[:, None] * nspin + spin_out[None, :]).reshape(-1)
-            cols = (j_indices[:, None] * nspin + spin_in[None, :]).reshape(-1)
-            flat_idx = rows * matrix_dim + cols
-
-        order = np.argsort(flat_idx, kind="mergesort")
-        flat_sorted = flat_idx[order]
-        starts = np.concatenate(([0], np.flatnonzero(np.diff(flat_sorted)) + 1))
-        uniq = flat_sorted[starts]
-
-        rows = uniq // matrix_dim
-        cols = uniq % matrix_dim
-        cols_transposed = cols * matrix_dim + rows
-
-        inverse_order = np.empty_like(order)
-        inverse_order[order] = np.arange(order.size)
-
-        cache = {
-            "order": order,
-            "starts": starts,
-            "uniq": uniq,
-            "cols_transposed": cols_transposed,
-            "inverse_order": inverse_order,
-        }
-        self._flatten_cache[key] = cache
-        return cache
 
     # ------------------------------------------------------------------
     # internal helpers

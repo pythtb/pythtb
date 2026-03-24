@@ -1,8 +1,7 @@
 from .tbmodel import TBModel
 from .mesh import Mesh
 from .lattice import Lattice
-import warnings
-import functools
+from .utils import deprecated
 import logging
 import copy
 import numpy as np
@@ -11,27 +10,6 @@ from numpy.typing import ArrayLike
 logger = logging.getLogger(__name__)
 
 __all__ = ["WFArray"]
-
-
-def deprecated(message: str, category=FutureWarning):
-    """
-    Decorator to mark a function as deprecated.
-    Raises a FutureWarning with the given message when the function is called.
-    """
-
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            warnings.warn(
-                f"{func.__qualname__} is deprecated and will be removed in a future release: {message}",
-                category=category,
-                stacklevel=2,
-            )
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
 
 
 class WFArray:

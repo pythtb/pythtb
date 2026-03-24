@@ -10,7 +10,7 @@ from .utils import _red_to_cart, deprecated, kpath_distance
 
 __all__ = ["W90"]
 
-BOHRTOANG = 0.52917721092  # Bohr radius in Angstroms
+from .constants import BOHRTOANG  # noqa: F401
 
 
 class W90:

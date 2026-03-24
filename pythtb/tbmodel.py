@@ -222,7 +222,6 @@ class TBModel:
 
         # remember which onsite energies user has specified
         self._site_energies_specified = np.zeros(self.norb, dtype=bool)
-        self._site_energies_specified[:] = False
 
         # Initialize hoppings container
         self._hoptable = HoppingTable(self.dim_r, spinful=spinful)

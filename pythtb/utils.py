@@ -695,60 +695,6 @@ def compute_d4k_and_d2k(delta_k):
     return d4k, plaquette_areas
 
 
-# def vel_op_fin_diff(model, H_flat, k_vals, dk, order_eps=1, mode='central'):
-#     """
-#     Compute velocity operators using finite differences.
-
-#     Parameters:
-#         H_mesh: ndarray of shape (Nk, M, M)
-#             The Hamiltonian on the parameter grid.
-#         dk: list of float
-#             Step sizes in each parameter direction.
-
-#     Returns:
-#         v_mu_fd: list of ndarray
-#             Velocity operators for each parameter direction.
-#     # """
-
-#     # recip_lat_vecs = model.get_recip_lat_vecs()
-#     # recip_basis = recip_lat_vecs/ np.linalg.norm(recip_lat_vecs, axis=1, keepdims=True)
-#     # g = recip_basis @ recip_basis.T
-#     # sqrt_mtrc = np.sqrt(np.linalg.det(g))
-#     # g_inv = np.linalg.inv(g)
-
-#     # dk = np.einsum("ij, j -> i", g_inv, dk)
-
-#     # assume only k for now
-#     dim_param = model._dim_k # Number of parameters (dimensions)
-#     # assume equal number of mesh points along each dimension
-#     nks = ( int(H_flat.shape[0]**(1/dim_param)),)*dim_param
-
-#     # Switch to periodic gauge H(k) = H(k+G)
-#     H_flat = get_periodic_H(model, H_flat, k_vals)
-#     H_mesh = H_flat.reshape(*nks, model._norb, model._norb)
-#     v_mu_fd = np.zeros((dim_param, *H_mesh.shape), dtype=complex)
-
-#     # Compute Jacobian
-#     recip_lat_vecs = model.get_recip_lat_vecs()
-#     inv_recip_lat = np.linalg.inv(recip_lat_vecs)
-
-#     for mu in range(dim_param):
-#         coeffs, stencil = finite_diff_coeffs(order_eps=order_eps, mode=mode)
-
-#         derivative_sum = np.zeros_like(H_mesh)
-
-#         for s, c in zip(stencil, coeffs):
-#             H_shifted = np.roll(H_mesh, shift=-s, axis=mu)
-#             derivative_sum += c * H_shifted
-
-#         v_mu_fd[mu] = derivative_sum / (dk[mu])
-
-#         # Ensure Hermitian symmetry
-#         v_mu_fd[mu] = 0.5 * (v_mu_fd[mu] + np.conj(v_mu_fd[mu].swapaxes(-1, -2)))
-
-#     return v_mu_fd
-
-
 def _wf_dpr(wf1, wf2):
     """calculate dot product between two wavefunctions.
     wf1 and wf2 are of the form [orbital,spin]"""

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, Tuple, List, Optional
 import numpy as np
 
-BOHRTOANG = 0.52917721092
+from pythtb.constants import BOHRTOANG
 
 __all__ = [
     "HRBlock",
