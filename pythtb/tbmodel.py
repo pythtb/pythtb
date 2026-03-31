@@ -3065,10 +3065,11 @@ class TBModel:
         use_tensorflow: bool = False,
         **params,
     ) -> tuple[np.ndarray, np.ndarray] | np.ndarray:
-        r"""Diagonalize the Hamiltonian
+        r"""Diagonalize the tight-binding Hamiltonian.
 
-        Solve for eigenvalues and optionally eigenvectors of the tight-binding model
-        at a list of one-dimensional k-vectors.
+        Computes eigenvalues and optionally eigenvectors of
+        the tight-binding Hamiltonian by first constructing the Bloch Hamiltonian
+        using :meth:`hamiltonian` and then diagonalizing it at each k-point.
 
         .. versionadded:: 2.0.0
             Merged :func:`solve_all` and :func:`solve_one` into :func:`solve_ham`.
@@ -3078,7 +3079,7 @@ class TBModel:
         Parameters
         ----------
         k_pts : (Nk, dim_k) list or numpy.ndarray or None, optional
-            One-dimensional list or array of k-vectors, each given in reduced coordinates.
+            k-points in reduced (fractional) coordinates of the reciprocal lattice.
             Shape should be ``(Nk, dim_k)``, where ``dim_k`` is the number of periodic directions.
             Should not be specified for systems with zero-dimensional reciprocal space.
 
@@ -3086,62 +3087,62 @@ class TBModel:
                 Renamed from ``k_list``.
 
         return_eigvecs : bool, optional
-            If True, both eigenvalues and eigenvectors are returned.
-            If False (default), only eigenvalues are returned.
+            If True, return ``(eigenvalues, eigenvectors)``, otherwise return only eigenvalues.
+            Default is False.
 
             .. versionchanged:: 2.0.0
                 Renamed from ``eig_vectors``.
 
         flatten_spin_axis : bool, optional
-            If True (default), the spin axes are flattened into the orbital axes.
-            If False, the spin axes are kept separate. This affects the
-            shape of the returned eigenvectors for spinful models.
+            For spinful models only.
+            If True (default), the spin axes are folded into the orbital index so
+            eigenvectors have shape ``(..., nstates, nstates)`` with
+            ``nstates = norb * 2``. If False, an explicit spin axis of size
+            2 is kept, and eigenvectors have shape ``(..., nstates, norb, 2)``.
 
             .. versionadded:: 2.0.0
 
         use_tensorflow : bool, optional
-            If True, use TensorFlow to accelerate the diagonalization.
-            This requires TensorFlow to be installed. Default is False.
+            If True, use TensorFlow to accelerate the diagonalization (must be installed separately).
+            If False (default), use NumPy for diagonalization.
 
             .. versionadded:: 2.0.0
 
         **params :
-            Keyword arguments mapping parameter names to value(s). Each value can be a scalar
-            or a 1D array of values. If any values are array-like,
-            the Hamiltonian is evaluated at all combinations of parameter values,
-            and the final array is stacked with the k-axis leading, followed by each
-            parameter axis in the order of given parameter names.
+            Named parameter values for parameterized models. Each value may be a scalar or a 1D array;
+            array-valued parameters create sweep axes inserted after the k-point axis in the order
+            of the specified parameters.
 
             .. versionadded:: 2.0.0
 
         Returns
         -------
-        eval : np.ndarray
-            Array of eigenvalues. Shape is:
+        eigenvalues : np.ndarray
+            Sorted eigenvalues. Shape:
 
-            - ``(Nk, nstates)`` for periodic systems
-            - ``(nstates,)`` for zero-dimensional (molecular) systems
-            - ``(Nk, n_param1, n_param2, ..., nstates)`` if parameter sweeps are performed,
-              with parameter axes added after the k-point axis.
+             - ``(nstates,)`` - finite system (``dim_k=0``), no sweeps.
+            - ``(Nk, nstates)`` - periodic system
+            - ``(Nk, n_p1, n_p2, ..., nstates)`` - with parameter sweeps.
 
-        evec : np.ndarray, optional
-            Array of eigenvectors (if ``return_eigvecs=True``). The ordering of bands matches that in ``eval``.
+            If only one k-point is provided the leading k-axis is pruned
+            to return shape ``(nstates,)`` for periodic systems as well.
 
-            For spinless models the shape is:
+        eigenvectors : np.ndarray, optional
+            Returned only when ``return_eigvecs=True``. Band ordering matches that of ``eigenvalues``.
+            Shape:
 
-            - ``(Nk, nstates, norb)``: periodic systems
-            - ``(nstates, norb)``: zero-dimensional systems
-            - ``(nstates, norb)``: If only one k-point is provided, the redundant k-axis is removed.
+            - Spinless: ``(..., nstates, norb)``
+            - Spinful, ``flatten_spin_axis=True``: ``(..., nstates, nstates)``
+            - Spinful, ``flatten_spin_axis=False``: ``(..., nstates, norb, 2)``
 
-            For spinful models the shape is (``nstates = norb * 2``):
+            Leading axes mirror those of *eigenvalues*. The trailing axes are ordered such
+            that the eigenvector corresponding to ``eigenvalues[..., i]``
+            is given by ``eigenvectors[..., i, ...]``.
 
-            - ``(..., nstates, norb, 2)``: If ``flatten_spin_axis=False``, an additional spin axis of size 2 is appended at the end.
-            - ``(..., nstates, nstates)``: If ``flatten_spin_axis=True``, the spin axes are flattened into the orbital axes.
-
-            If parameter sweeps are performed, parameter axes are added after the k-point axis.
-
-            - ``(Nk, n_param1, n_param2, ..., nstates, norb[, 2])`` or
-              ``(Nk, n_param1, n_param2, ..., nstates, nstates)`` depending on ``flatten_spin_axis``.
+        See Also
+        --------
+        hamiltonian : Construct the Bloch Hamiltonian at specified k-points and parameter values.
+        WFArray : Class for handling wavefunctions on a mesh of k and parameter points, with automatic management of periodic gauge and observables.
 
         Notes
         -----
@@ -3150,20 +3151,21 @@ class TBModel:
         - The returned wavefunctions correspond to the cell-periodic part
           :math:`u_{n \mathbf{k}}(\mathbf{r})` and not the full Bloch function
           :math:`\psi_{n \mathbf{k}}(\mathbf{r})`.
-        - In many cases, using the :class:`WFArray` class offers a more
-          elegant interface for handling eigenstates on a mesh of k and parameter points.
-          This class will automatically manage the periodic gauge of the wavefunctions
-          and provide additional methods for computing observables such as the Berry curvature.
 
         Examples
         --------
         Solve for eigenvalues at several k-points:
 
-        >>> eval = tb.solve_ham([[0.0, 0.0], [0.0, 0.2], [0.0, 0.5]])
+        >>> k_pts = [[0.0, 0.0], [0.5, 0.0], [0.5, 0.5]]
+        >>> eval = tb.solve_ham(k_pts)
 
         Solve for eigenvalues and eigenvectors:
 
-        >>> eval, evec = tb.solve_ham([[0.0, 0.0], [0.0, 0.2]], return_eigvecs=True)
+        >>> eval, evec = tb.solve_ham(k_pts, return_eigvecs=True)
+
+        Parameter sweep example:
+
+        >>> eval, evec = tb.solve_ham(k_pts, return_eigvecs=True, t1=[0.0, 1.0, 2.0])
         """
         logger.debug("Initializing Hamiltonian...")
         ham = self.hamiltonian(k_pts, flatten_spin_axis=True, **params)
