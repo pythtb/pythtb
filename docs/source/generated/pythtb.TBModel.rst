@@ -265,12 +265,6 @@
 
 
 
-
-
-
-
-
-
 Methods
 -------
 .. autosummary::
