@@ -1353,16 +1353,17 @@ class TBModel:
         r"""
         Set hopping amplitudes for entire nearest-neighbor shells.
 
-        This assigns :math:`H_{ij}(\mathbf{R})` for **all** orbital pairs
-        whose spatial separation lies in a given nearest-neighbor *shell*.
-        Shells are numbered by increasing distance:
-        shell 1 = nearest neighbors, shell 2 = next-nearest neighbors, etc.
-        All hoppings within the same shell are assigned the same amplitude.
+        This assigns :math:`t_{ij}(\mathbf{R})` for **all** orbital pairs
+        whose spatial separation lies within a specified nearest-neighbor *shell*.
 
-        Shell topology and distances are determined from the orbital positions
-        :math:`\boldsymbol{\tau}_i` in the lattice.  Each key in ``shell_hops`` labels
-        a shell index, and the associated amplitude is applied uniformly to every
-        bond belonging to that shell.
+        Shells are ordered by increasing distance: shell 1 corresponds to nearest neighbors,
+        shell 2 to next-nearest neighbors, and so on. Every hopping in a given
+        shell is assigned the same amplitude.
+
+        The shell classification is determined from the orbital positions
+        :math:`\boldsymbol{\tau}_i` together with the lattice geometry. Each key
+        in ``shell_hops`` specifies a shell index, and the corresponding value is
+        assigned uniformly to every hopping in that shell.
 
         .. versionadded:: 2.0.0
 
