@@ -3120,7 +3120,7 @@ class TBModel:
         eigenvalues : np.ndarray
             Sorted eigenvalues. Shape:
 
-             - ``(nstates,)`` - finite system (``dim_k=0``), no sweeps.
+            - ``(nstates,)`` - finite system (``dim_k=0``), no sweeps.
             - ``(Nk, nstates)`` - periodic system
             - ``(Nk, n_p1, n_p2, ..., nstates)`` - with parameter sweeps.
 
