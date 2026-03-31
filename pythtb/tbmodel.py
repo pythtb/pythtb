@@ -1088,12 +1088,10 @@ class TBModel:
         This assigns matrix elements
 
         .. math::
-            H_{ij}(\mathbf{R}) = \langle \phi_{0,i} | H | \phi_{\mathbf{R},j} \rangle
+            t_{ij}(\mathbf{R}) = \langle \phi_{0,i} | H | \phi_{\mathbf{R},j} \rangle
 
         between orbital ``i`` in the home cell and orbital ``j`` in the cell displaced
         by integer lattice vector :math:`\mathbf{R}` (in reduced coordinates).
-        For periodic directions, hoppings contribute to the Bloch Hamiltonian with
-        phase factors :math:`e^{i\mathbf{k}\cdot\mathbf{R}}`.
 
         Parameters
         ----------
