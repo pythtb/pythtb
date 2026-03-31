@@ -1156,6 +1156,7 @@ class TBModel:
         See Also
         --------
         set_onsite : Define on-site terms.
+        hamiltonian : Evaluate the Hamiltonian at specified k-points and parameter values.
         set_parameters : Permanently register parameter values.
         with_parameters : Return a new :class:`TBModel` with specified parameters.
 
