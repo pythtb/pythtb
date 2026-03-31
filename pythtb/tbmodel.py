@@ -2904,9 +2904,9 @@ class TBModel:
         Compute Hamiltonian while sweeping over a parameter:
 
         >>> model = TBModel(lattice, spinful=False)
-        >>> model.set_hop(-1.0, 0, 1, [0, 0], param_name='t1')
+        >>> model.set_hop('t1', 0, 1, [0, 0])
         >>> k_points = model.k_uniform_mesh([5, 5])
-        >>> ham_param = tb_model.hamiltonian(k_pts=k_points, t1= [0.0, 1.0, 2.0])
+        >>> ham_param = tb_model.hamiltonian(k_pts=k_points, t1=[0.0, 1.0, 2.0])
         """
 
         # Check params includes all parameters
