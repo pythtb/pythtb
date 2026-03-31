@@ -4428,14 +4428,14 @@ class TBModel:
         use_tensorflow: bool = False,
         **params,
     ):
-        r"""Axion angle via the second Chern form.
+        r"""Axion angle change via the second Chern form.
 
-        Computes the axion angle for a 3D bulk model that depends
-        on a single adiabatic parameter :math:`\lambda`. This is computed
+        Computes the **change** in the axion angle for a 3D periodic model that depends
+        on a single swept adiabatic parameter :math:`\lambda`. This is computed
         using the gauge-invariant 4-curvature formulation:
 
         .. math::
-            \theta(\lambda) = \frac{1}{16\pi} \int_0^{\lambda} d\lambda'
+            \theta(\lambda) - \theta(0) = \frac{1}{16\pi} \int_0^{\lambda} d\lambda'
             \int_{\text{BZ}} d^3k \,
             \epsilon^{\mu\nu\rho\sigma} \mathrm{Tr} \left[
                 \Omega_{\mu\nu}(\mathbf{k}, \lambda')
