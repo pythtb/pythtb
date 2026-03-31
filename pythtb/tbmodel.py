@@ -3699,11 +3699,11 @@ class TBModel:
           .. math::
             v_\alpha(\mathbf{k}) = \frac{\partial H(\mathbf{k})}{\partial k_\alpha}
             = \sum_{\mathbf{R}} t_{ij}(\mathbf{R}) \,
-            i(\mathbf{r}_i - \mathbf{r}_j + \mathbf{R})_{\alpha} \,
-            \exp[i \mathbf{k} \cdot (\mathbf{r}_i - \mathbf{r}_j + \mathbf{R})]
+            i(\mathbf{R} + \boldsymbol{\tau}_j - \boldsymbol{\tau}_i)_{\alpha} \,
+            \exp[i \mathbf{k} \cdot (\mathbf{R} + \boldsymbol{\tau}_j - \boldsymbol{\tau}_i)]
 
           where :math:`t_{ij}(\mathbf{R})` are the hopping amplitudes,
-          :math:`\mathbf{r}_i` and :math:`\mathbf{r}_j` are the orbital positions in
+          :math:`\boldsymbol{\tau}_i` and :math:`\boldsymbol{\tau}_j` are the orbital positions in
           Cartesian coordinates, and :math:`\mathbf{R}` are the lattice vectors in
           Cartesian coordinates.
 
@@ -3711,15 +3711,15 @@ class TBModel:
           the derivative with respect to reduced :math:`\mathbf{\kappa}`-coordinates:
 
           .. math::
-            v_\alpha(\mathbf{\kappa})
-            = \frac{\partial H(\mathbf{\kappa})}{\partial \kappa_\alpha}
+            v_\alpha(\boldsymbol{\kappa})
+            = \frac{\partial H(\boldsymbol{\kappa})}{\partial \kappa_\alpha}
             = \sum_{\mathbf{R}} t_{ij}(\mathbf{R}) \,
-            i 2 \pi (\boldsymbol{\tau_i} - \boldsymbol{\tau_j} + \mathbf{R})_{\alpha} \,
-            \exp[i 2 \pi \mathbf{\kappa} \cdot
-            (\boldsymbol{\tau_i}- \boldsymbol{\tau_j} + \mathbf{R})]
+            i 2 \pi (\mathbf{R} + \boldsymbol{\tau_j} - \boldsymbol{\tau_i})_{\alpha} \,
+            \exp[i 2 \pi \boldsymbol{\kappa} \cdot
+            (\mathbf{R} + \boldsymbol{\tau_i}- \boldsymbol{\tau_j})]
 
           where :math:`\boldsymbol{\tau_i}` and :math:`\boldsymbol{\tau_j}` are the orbital
-          positions in reduced coordinates, :math:`\mathbf{\kappa}` are the k-points in
+          positions in reduced coordinates, :math:`\boldsymbol{\kappa}` are the k-points in
           reduced coordinates, and :math:`\mathbf{R}` are the lattice vectors in reduced coordinates.
 
         - Passing a list/array for a parameter means you want derivatives with respect to that
