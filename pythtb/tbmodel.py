@@ -1090,8 +1090,8 @@ class TBModel:
         .. math::
             t_{ij}(\mathbf{R}) = \langle \phi_{0,i} | H | \phi_{\mathbf{R},j} \rangle
 
-        between orbital ``i`` in the home cell and orbital ``j`` in the cell displaced
-        by integer lattice vector :math:`\mathbf{R}` (in reduced coordinates).
+        between orbital :math:`i` in the home cell and orbital :math:`j` in the cell displaced
+        by lattice vector :math:`\mathbf{R}`.
 
         Parameters
         ----------
@@ -1135,9 +1135,10 @@ class TBModel:
             Index of the ket orbital (shifted cell).
         ind_R : array_like of int, optional
             Integer reduced-coordinate lattice vector specifying the cell of orbital ``j``.
-            Components along non-periodic directions **must be zero**.  Attempting to hop
-            across an open direction raises :class:`ValueError`. 
-            If omitted, defaults to the zero vector.
+            If omitted, defaults to the zero vector. 
+            May only carry non-zero values along :attr:`periodic_dirs`.
+            Components along non-periodic directions **must be zero**. 
+            Attempting to hop across an open direction raises :class:`ValueError`. 
         mode : {'set', 'add'}, optional
             Operation mode:
 
@@ -1168,9 +1169,9 @@ class TBModel:
 
           Therefore, it is unnecessary to define both directions unless
           ``allow_conjugate_pair=True``.
-
-        - When ``mode='add'`` the new value accumulates.
-        - ``ind_R`` may only carry non-zero values along :attr:`periodic_dirs`.
+        - ``ind_R`` is defined in reduced coordinates and takes integer values. This means for 
+          a given ``ind_R = [n1, n2, n3]``, the hopping is between the home cell and the cell at position 
+          :math:`n_1 \mathbf{a}_1 + n_2 \mathbf{a}_2 + n_3 \mathbf{a}_3`, where :math:`\mathbf{a}_i` are the lattice vectors.
         - Symbolic and callable inputs automatically register their parameter names. 
           For callables with multiple parameters, each parameter is registered.
         - Parameter evaluation is **scalar only**. Spinful on-site blocks
