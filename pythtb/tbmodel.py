@@ -2836,9 +2836,11 @@ class TBModel:
 
         .. math::
 
-            H_{ij}(k) = \sum_{\mathbf{R}} t_{ij}(\mathbf{R}) \exp[i \mathbf{k} \cdot (\mathbf{r}_i - \mathbf{r}_j + \mathbf{R})]
+            H_{ij}(\mathbf{k}) = \sum_{\mathbf{R}} t_{ij}(\mathbf{R}) \exp[i \mathbf{k} \cdot (\mathbf{R} + \boldsymbol{\tau}_j - \boldsymbol{\tau}_i)]
 
-        where :math:`t_{ij}(R)` is the hopping amplitude from orbital j to i through lattice vector :math:`\mathbf{R}`.
+        where :math:`t_{ij}(\mathbf{R})` is the hopping amplitude from orbital :math:`j` in the cell displaced
+        by :math:`\mathbf{R}` to orbital :math:`i` in the home cell, and :math:`\boldsymbol{\tau}_i` is the position
+        of orbital :math:`i` within the unit cell. The Hamiltonian is Hermitian by construction.
 
         .. versionadded:: 2.0.0
 
