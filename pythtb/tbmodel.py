@@ -1088,7 +1088,7 @@ class TBModel:
         This assigns matrix elements
 
         .. math::
-            t_{ij}(\mathbf{R}) = \langle \phi_{0,i} | H | \phi_{\mathbf{R},j} \rangle
+            H_{ij}(\mathbf{R}) = \langle \phi_{0,i} | H | \phi_{\mathbf{R},j} \rangle
 
         between orbital :math:`i` in the home cell and orbital :math:`j` in the cell displaced
         by lattice vector :math:`\mathbf{R}`.
@@ -1353,7 +1353,7 @@ class TBModel:
         r"""
         Set hopping amplitudes for entire nearest-neighbor shells.
 
-        This assigns :math:`t_{ij}(\mathbf{R})` for **all** orbital pairs
+        This assigns :math:`H_{ij}(\mathbf{R})` for **all** orbital pairs
         whose spatial separation lies within a specified nearest-neighbor *shell*.
 
         Shells are ordered by increasing distance: shell 1 corresponds to nearest neighbors,
@@ -2837,9 +2837,9 @@ class TBModel:
 
         .. math::
 
-            H_{ij}(\mathbf{k}) = \sum_{\mathbf{R}} t_{ij}(\mathbf{R}) \exp[i \mathbf{k} \cdot (\mathbf{R} + \boldsymbol{\tau}_j - \boldsymbol{\tau}_i)]
+            H_{ij}(\mathbf{k}) = \sum_{\mathbf{R}} H_{ij}(\mathbf{R}) \exp[i \mathbf{k} \cdot (\mathbf{R} + \boldsymbol{\tau}_j - \boldsymbol{\tau}_i)]
 
-        where :math:`t_{ij}(\mathbf{R})` is the hopping amplitude from orbital :math:`j` in the cell displaced
+        where :math:`H_{ij}(\mathbf{R})` is the hopping amplitude from orbital :math:`j` in the cell displaced
         by :math:`\mathbf{R}` to orbital :math:`i` in the home cell, and :math:`\boldsymbol{\tau}_i` is the position
         of orbital :math:`i` within the unit cell. The Hamiltonian is Hermitian by construction.
 
@@ -3230,11 +3230,11 @@ class TBModel:
         r"""Compute velocity operator dH/dk at given k-points.
 
         .. math::
-            \hat{v}_\alpha(\mathbf{k}) = \frac{\partial H(\mathbf{k})}{\partial k_\alpha}
-            = \sum_{\mathbf{R}} t_{ij}(\mathbf{R}) \, (i \Delta r_\alpha) \,
-            \exp[i \mathbf{k} \cdot \Delta\mathbf{r}]
+            \hat{v}_\alpha(\boldsymbol{\kappa}) = \frac{\partial H(\boldsymbol{\kappa})}{\partial \kappa_\alpha}
+            = \sum_{\mathbf{R}} H_{ij}(\mathbf{R}) \, (i \Delta \boldsymbol{\tau}_\alpha) \,
+            \exp[i \boldsymbol{\kappa} \cdot \Delta\mathbf{R}]
 
-        where :math:`\Delta\mathbf{r} = \mathbf{R} - \mathbf{r}_i + \mathbf{r}_j`.
+        where :math:`\Delta\mathbf{R} = \mathbf{R} + \boldsymbol{\tau}_j - \boldsymbol{\tau}_i`.
         """
         lattice = self._lattice
         dim_k = lattice.dim_k
@@ -3698,22 +3698,21 @@ class TBModel:
 
           .. math::
             v_\alpha(\mathbf{k}) = \frac{\partial H(\mathbf{k})}{\partial k_\alpha}
-            = \sum_{\mathbf{R}} t_{ij}(\mathbf{R}) \,
+            = \sum_{\mathbf{R}} H_{ij}(\mathbf{R}) \,
             i(\mathbf{R} + \boldsymbol{\tau}_j - \boldsymbol{\tau}_i)_{\alpha} \,
             \exp[i \mathbf{k} \cdot (\mathbf{R} + \boldsymbol{\tau}_j - \boldsymbol{\tau}_i)]
 
-          where :math:`t_{ij}(\mathbf{R})` are the hopping amplitudes,
-          :math:`\boldsymbol{\tau}_i` and :math:`\boldsymbol{\tau}_j` are the orbital positions in
+          where :math:`\boldsymbol{\tau}_i` and :math:`\boldsymbol{\tau}_j` are the orbital positions in
           Cartesian coordinates, and :math:`\mathbf{R}` are the lattice vectors in
           Cartesian coordinates.
 
         - For the k-derivatives, if ``cartesian=False``, the velocity operator is given by
-          the derivative with respect to reduced :math:`\mathbf{\kappa}`-coordinates:
+          the derivative with respect to reduced :math:`\boldsymbol{\kappa}`-coordinates:
 
           .. math::
             v_\alpha(\boldsymbol{\kappa})
             = \frac{\partial H(\boldsymbol{\kappa})}{\partial \kappa_\alpha}
-            = \sum_{\mathbf{R}} t_{ij}(\mathbf{R}) \,
+            = \sum_{\mathbf{R}} H_{ij}(\mathbf{R}) \,
             i 2 \pi (\mathbf{R} + \boldsymbol{\tau_j} - \boldsymbol{\tau_i})_{\alpha} \,
             \exp[i 2 \pi \boldsymbol{\kappa} \cdot
             (\mathbf{R} + \boldsymbol{\tau_i}- \boldsymbol{\tau_j})]
