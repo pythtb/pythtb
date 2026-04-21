@@ -867,31 +867,34 @@ class Lattice:
 
         Returns
         -------
-        dict
-            Dictionary with the following keys:
+        list of dict
+            List of length ``n_shell``. Each entry is a dictionary with keys:
 
-            ``shells``
-                List of length ``n_shell``. Each entry is a dictionary with
-                the keys ``shell`` (1-based shell index), ``radius`` (float),
-                ``distance_sq`` (float), ``degeneracy_total`` (int), and
-                ``orbitals`` (list of per-orbital neighbour data). Each
-                orbital entry contains the indices of the bonded orbital,
-                the lattice translation and the multiplicity.
+            ``radius``
+                Shell radius in Cartesian units (float).
 
-            ``displacements``
-                List of ``n_shell`` entries. Each entry contains, for every
-                orbital in the home cell, an array of Cartesian displacement
-                vectors :math:`\Delta\mathbf{r}` pointing to the neighbours in
-                that shell.
+            ``coordination_number``
+                Dict mapping each orbital index to the number of neighbors it
+                has in this shell (int). For a single-orbital model this is
+                simply ``{0: Z}`` where ``Z`` is the coordination number (e.g.
+                ``{0: 6}`` for the NN shell of a simple cubic lattice). For
+                multi-orbital models each entry gives the per-site count
+                independently, which may differ between inequivalent sites.
 
-            ``indices``
-                Same structure as ``displacements`` but holding integer
-                metadata of the form ``[i, j, R_1, ..., R_{dim_r}]`` where ``i``
-                and ``j`` are orb indices and ``R`` is the lattice translation.
+            ``bonds``
+                List of bonds in this shell. Each bond is a dictionary with:
 
-            ``radii``
-                One-dimensional :class:`numpy.ndarray` of shell radii in
-                Cartesian units.
+                - ``i`` (int): index of the orbital in the home unit cell.
+                - ``j`` (int): index of the neighboring orbital.
+                - ``lattice_vector`` (tuple of int): lattice translation ``R``
+                  such that the neighbor sits at orbital ``j`` in unit cell
+                  ``R``. Pass directly to :meth:`set_hop`.
+                - ``displacement`` (list of float): Cartesian vector
+                  :math:`\Delta\mathbf{r}` from orbital ``i`` to orbital
+                  ``j + R``.
+
+                Only one of each conjugate pair ``(i, j, R)`` / ``(j, i, -R)``
+                is included; :meth:`set_hop` adds the conjugate automatically.
 
         Raises
         ------
@@ -946,13 +949,7 @@ class Lattice:
                     idx_list.append(np.concatenate(([i, j], R)))
 
         if not d2_list:
-            # No neighbors (e.g., single-orbital 0D with no shifts requested)
-            return {
-                "shells": [],
-                "displacements": [],
-                "indices": [],
-                "radii": np.empty(0, dtype=float),
-            }
+            return []  # No neighbors (e.g., single-orbital 0D model)
 
         # Convert to arrays
         dr_arr = np.vstack(dr_list)  # (N, dim_r)
@@ -980,139 +977,78 @@ class Lattice:
         n_take = min(n_shell, len(unique_d2))
         unique_d2 = unique_d2[:n_take]
 
-        # Build per-shell, per-orbital groupings
-        nn_shell = []  # list over shells -> list over orbitals -> (deg_i, dim_r)
-        idx_shell = []  # list over shells -> list over orbitals -> (deg_i, 2+dim_r)
-
-        shell_summaries = []
-        shell_radii = []
-        for s, d2_target in enumerate(unique_d2):
+        # Build one shell dict per unique radius
+        shells = []
+        for d2_target in unique_d2:
             mask_s = d2_sorted == d2_target
             dr_s = dr_sorted[mask_s]
             idx_s = idx_sorted[mask_s]
 
-            # Split by central-orbital index i (idx column 0)
-            shell_R_by_i = []
-            shell_idx_by_i = []
-            per_orbital = {}
-            for i in range(norb):
-                m_i = idx_s[:, 0] == i
-                dr_si = dr_s[m_i]
-                idx_si = idx_s[m_i]
-
-                shell_R_by_i.append(dr_si)
-                shell_idx_by_i.append(idx_si)
-
-                if dr_si.size == 0:
-                    continue
-
-                per_orbital[int(i)] = {
-                    "degeneracy": int(dr_si.shape[0]),
-                    "neighbors": idx_si[:, 1].astype(int).tolist(),
-                    "shifts": idx_si[:, 2:].astype(int).tolist(),
-                    "displacements": dr_si.tolist(),
-                }
-
-            nn_shell.append(shell_R_by_i)
-            idx_shell.append(shell_idx_by_i)
-
             radius = float(np.sqrt(d2_target))
-            total_deg = int(sum(block.shape[0] for block in shell_R_by_i))
-            shell_summaries.append(
-                {
-                    "shell": s + 1,
-                    "radius": radius,
-                    "degeneracy_total": total_deg,
-                    "orbitals": per_orbital,
-                }
-            )
-            shell_radii.append(radius)
 
-        # Optionally print a compact text report
-        if report:
-            lines = []
-            lines.append("nn-shell report (per-orbital)")
-            lines.append("═" * 60)
-            lines.append(f"dim_r: {dim_r}   norb: {norb}   shells: {len(unique_d2)}")
-            for s, d2_target in enumerate(unique_d2, start=1):
-                radius = np.sqrt(d2_target)
-                total_deg = sum(Rs.shape[0] for Rs in nn_shell[s - 1])
-                lines.append(
-                    f"shell {s:>2}: |Δr|={radius:.8g} (degeneracy total={total_deg})"
-                )
-                # Show first few for each i
-                for i in range(norb):
-                    Rs = nn_shell[s - 1][i]
-                    Id = idx_shell[s - 1][i]
-                    if Rs.size == 0:
-                        continue
-                    head = min(Rs.shape[0], 6)
-                    lines.append(f"  i={i}: {Rs.shape[0]} neighbors")
-                    for k in range(head):
-                        j = int(Id[k, 1])
-                        Rvec = Id[k, 2 : 2 + dim_r]
-                        dr_str = np.array2string(
-                            Rs[k],
-                            precision=6,
-                            floatmode="maxprec_equal",
-                            suppress_small=True,
-                        )
-                        R_str = np.array2string(
-                            Rvec,
-                            formatter={"int": lambda x: f"{int(x):>2}"},
-                            separator=", ",
-                        )
-                        lines.append(f"     -> j={j:>2}, R={R_str}   Δr={dr_str}")
-                    if Rs.shape[0] > head:
-                        lines.append(f"     ... (+{Rs.shape[0] - head} more)")
-            print("\n".join(lines))
-
-        S = len(nn_shell)
-        norb = self.norb
-        dim_r = self.dim_r
-
-        radii = np.asarray(shell_radii, dtype=float)
-
-        if radii.shape[0] != S:
-            radii = np.zeros(S, float)
-            for s in range(S):
-                found = False
-                for i in range(norb):
-                    if len(nn_shell[s][i]) > 0:
-                        radii[s] = float(np.linalg.norm(nn_shell[s][i][0]))
-                        found = True
-                        break
-                if not found:
-                    radii[s] = 0.0
-
-        # Strip the redundant 'i' column from idx_shell into pairs_by_orb
-        bonds_by_shell = []
-
-        for s in range(S):
-            # canonical unique set of bonds (i, j, R) per shell
+            # Collect canonical (non-redundant) bonds for this shell.
+            # For each pair (i→j+R) we skip its conjugate (j→i-R) to avoid
+            # double-counting. The conjugate is always added by set_hop automatically.
             seen = set()
             bonds = []
-            for i in range(norb):
-                Id = idx_shell[s][i]  # shape (deg_i, 2+dim_r): [i, j, R...]
-                # [j, R...] without the leading i
-                pairs = Id[:, 1 : 2 + dim_r].astype(int, copy=False)
+            for k in range(idx_s.shape[0]):
+                i = int(idx_s[k, 0])
+                j = int(idx_s[k, 1])
+                R = tuple(int(x) for x in idx_s[k, 2:])
+                conj_key = (j, i, tuple(-x for x in R))
+                if conj_key in seen:
+                    continue
+                key = (i, j, R)
+                if key not in seen:
+                    seen.add(key)
+                    bonds.append(
+                        {
+                            "i": i,
+                            "j": j,
+                            "lattice_vector": R,
+                            "displacement": dr_s[k].tolist(),
+                        }
+                    )
 
-                # Build unique bonds with a canonical orientation:
-                # keep (i, j, R) as-is, and do not add its conjugate (j, i, -R)
-                for k in range(pairs.shape[0]):
-                    j = int(pairs[k, 0])
-                    R = tuple(int(x) for x in pairs[k, 1:])
-                    # define a key that equals for a bond and its conjugate
-                    conj_key = (j, i, tuple(-x for x in R))
-                    if conj_key in seen:
-                        continue
-                    key = (i, j, R)
-                    if key not in seen:
-                        seen.add(key)
-                        bonds.append(key)
-            bonds_by_shell.append(bonds)
+            # Count neighbors seen by each orbital (both directions included).
+            coordination_number = {
+                i: int(np.sum(idx_s[:, 0] == i)) for i in range(norb)
+            }
 
-        return shell_summaries, bonds_by_shell
+            shells.append(
+                {
+                    "radius": radius,
+                    "coordination_number": coordination_number,
+                    "bonds": bonds,
+                }
+            )
+
+        if report:
+            lines = ["nn-shell report", "═" * 60]
+            lines.append(f"dim_r: {dim_r}   norb: {norb}   shells: {len(shells)}")
+            for s, shell in enumerate(shells, start=1):
+                n = len(shell["bonds"])
+                cn = shell["coordination_number"]
+                cn_str = ", ".join(f"orb {i}: {c}" for i, c in cn.items())
+                lines.append(
+                    f"shell {s:>2}: radius={shell['radius']:.8g}   bonds={n}   coordination=({cn_str})"
+                )
+                for bond in shell["bonds"][:6]:
+                    R_str = str(bond["lattice_vector"])
+                    dr_str = np.array2string(
+                        np.array(bond["displacement"]),
+                        precision=6,
+                        floatmode="maxprec_equal",
+                        suppress_small=True,
+                    )
+                    lines.append(
+                        f"  i={bond['i']} -> j={bond['j']},  R={R_str},  Δr={dr_str}"
+                    )
+                if len(shell["bonds"]) > 6:
+                    lines.append(f"  ... (+{len(shell['bonds']) - 6} more)")
+            print("\n".join(lines))
+
+        return shells
 
     def nn_k_shell(self, nks: tuple, n_shell: int, report: bool = False):
         r"""Generates shells of k-points around the :math:`\Gamma` point.
