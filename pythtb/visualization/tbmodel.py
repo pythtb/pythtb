@@ -796,7 +796,9 @@ def plot_bands(
     elif proj_spin:
         if evals is None or evecs is None:
             # diagonalize model on path
-            evals, evecs = model.solve_ham(k_vec, return_eigvecs=True)
+            evals, evecs = model.solve_ham(
+                k_vec, return_eigvecs=True, flatten_spin_axis=False
+            )
 
         n_eigs = evals.shape[-1]
 
