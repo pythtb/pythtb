@@ -5,6 +5,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ------
 
+## [2.0.2] - 2026-04-21
+
+### Fixed
+- Fixed `TBModel.nn_bonds` return type to match documentation (#98)
+- Fixed spin projection in `TBModel.plot_bands()`
+- Removed `W90.model` parameter `fill_hermitian` which unintentionally double-counted hopping parameters
+
+### Improved
+- Significant speedup in `TBModel.hamiltonian()` and `TBModel.velocity()` via factored phase computation
+- Faster `W90` model initialization
+
+### Changed
+- Updated `TBModel.set_hop()` docstring convention to match `TBModel.hamiltonian()` ($H_{ij}$ instead of $t_{ij}$)
+- Updated Berry phase tutorial to accurately reflect mesh endpoints and Berry flux trimming
+
 ## [2.0.1] - 2026-01-29
 
 ### Fixed
