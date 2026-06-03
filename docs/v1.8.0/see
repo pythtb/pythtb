@@ -1,9 +1,0 @@
-#!/bin/bash
-
-# copy file based on machine name
-# insert your own machine if you wish
-if [ "`hostname`" = "coh" ];then
-  firefox build/html/index.html &
-else
-  open build/html/index.html
-fi

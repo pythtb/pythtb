@@ -1,1 +1,0 @@
-../examples/pythtb.py
