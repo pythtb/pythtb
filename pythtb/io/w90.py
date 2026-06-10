@@ -16,9 +16,12 @@ __all__ = [
     "parse_unit_cell_cart",
     "read_centres",
     "read_hr",
+    "read_tb",
+    "read_r",
     "read_kpoint_path",
     "load_w90_dataset",
     "read_bands_w90",
+    "wannier_connection_ft",
 ]
 
 
@@ -50,7 +53,7 @@ class HRBlock:
 
 @dataclass(frozen=True)
 class W90Dataset:
-    """Dataclass for Wannier90 data.
+    r"""Dataclass for Wannier90 data.
 
     Attributes
     ----------
@@ -68,6 +71,12 @@ class W90Dataset:
         Number of Wannier functions in the dataset.
     ham_r : dict[tuple[int, int, int], HRBlock]
         Mapping from lattice vectors ``R`` to their Hamiltonian blocks.
+    pos_r : dict[tuple[int, int, int], numpy.ndarray] | None
+        Mapping from lattice vectors ``R`` to the off-diagonal position
+        matrix :math:`\langle 0n | r_\alpha | Rm \rangle`, stored as a complex
+        array of shape ``(3, num_wan, num_wan)`` in Cartesian coordinates
+        (angstroms). Populated only when ``prefix_tb.dat`` (``write_tb``) or
+        ``prefix_r.dat`` is available; otherwise ``None``.
     kpath_nodes_red : numpy.ndarray | None
         Reduced coordinates of the ``kpoint_path`` nodes, if present.
     kpath_labels : list[str] | None
@@ -90,6 +99,7 @@ class W90Dataset:
     num_wan: int
     ham_r: Dict[Tuple[int, int, int], HRBlock]
     # optional extras
+    pos_r: Optional[Dict[Tuple[int, int, int], np.ndarray]] = None
     kpath_nodes_red: Optional[np.ndarray] = None
     kpath_labels: Optional[List[str]] = None
     bands_k_red: Optional[np.ndarray] = None
@@ -232,6 +242,217 @@ def read_hr(root: Path, prefix: str) -> Tuple[int, Dict[Tuple[int, int, int], HR
     return num_wan, ham_r
 
 
+_INT_RE = re.compile(r"^[+-]?\d+$")
+
+
+def _all_ints(tokens: List[str]) -> bool:
+    return all(_INT_RE.match(t) for t in tokens)
+
+
+def read_tb(
+    root: Path | str, prefix: str
+) -> Tuple[
+    int,
+    Dict[Tuple[int, int, int], HRBlock],
+    Dict[Tuple[int, int, int], np.ndarray],
+    np.ndarray,
+]:
+    r"""Read ``prefix_tb.dat`` produced by Wannier90 ``write_tb = .true.``.
+
+    Unlike ``prefix_hr.dat`` (which only stores the Hamiltonian), the
+    ``prefix_tb.dat`` file additionally contains the **off-diagonal position
+    matrix elements** :math:`\langle 0n | r_\alpha | Rm \rangle`. These encode
+    the true (non-diagonal) position operator of the maximally localized
+    Wannier functions and are required to compute Berry-phase-like quantities
+    that match the underlying first-principles result.
+
+    Parameters
+    ----------
+    root : Path or str
+        Directory containing ``prefix_tb.dat``.
+    prefix : str
+        Prefix used by Wannier90: the file read is ``{prefix}_tb.dat``.
+
+    Returns
+    -------
+    num_wan : int
+        Number of Wannier functions.
+    ham_r : dict
+        Mapping from lattice vector triplet ``R`` to :class:`HRBlock` (eV).
+    pos_r : dict
+        Mapping from lattice vector triplet ``R`` to a complex array of shape
+        ``(3, num_wan, num_wan)`` holding
+        :math:`\langle 0n | r_\alpha | Rm \rangle` for the three Cartesian
+        directions :math:`\alpha \in \{x, y, z\}` (angstroms).
+    lat_cart : numpy.ndarray
+        Cartesian lattice vectors ``(3, 3)`` in angstroms (row ``i`` is
+        :math:`\mathbf{a}_i`).
+
+    Notes
+    -----
+    The Wannier90 file layout is: a comment line, three lattice-vector rows,
+    ``num_wann``, ``nrpts``, the Wigner-Seitz degeneracy list, then ``nrpts``
+    Hamiltonian blocks (rows ``i j Re(H) Im(H)``) followed by ``nrpts``
+    position blocks (rows ``i j Re(x) Im(x) Re(y) Im(y) Re(z) Im(z)``). Each
+    block is preceded by its ``R`` vector on its own line.
+    """
+    p = Path(root).expanduser() / f"{prefix}_tb.dat"
+    if not p.exists():
+        raise W90ParseError(f"Missing file: {p}")
+    lines = _read_text(p)
+    if len(lines) < 6:
+        raise W90ParseError(f"{p} is too short to be a valid _tb.dat file.")
+
+    # Line 0 is a free-form comment/date; lines 1-3 are the lattice vectors.
+    lat = np.zeros((3, 3), float)
+    for i in range(3):
+        parts = lines[1 + i].split()
+        if len(parts) < 3:
+            raise W90ParseError("_tb.dat lattice rows need 3 components.")
+        lat[i] = [float(parts[j]) for j in range(3)]
+
+    try:
+        num_wan = int(lines[4].split()[0])
+        num_ws = int(lines[5].split()[0])
+    except Exception as e:
+        raise W90ParseError("Cannot read num_wann/nrpts in _tb.dat") from e
+
+    # Wigner-Seitz degeneracies (may span multiple lines, 15 per line).
+    idx = 6
+    deg: List[int] = []
+    while len(deg) < num_ws:
+        if idx >= len(lines):
+            raise W90ParseError("Unexpected EOF while reading degeneracies in _tb.dat.")
+        deg.extend(int(x) for x in lines[idx].split())
+        idx += 1
+    deg = np.asarray(deg[:num_ws], int)
+
+    # Group the remaining lines into blocks. A line with exactly three integer
+    # tokens starts a new R block; every data row has >= 4 tokens.
+    blocks: List[Tuple[Tuple[int, int, int], List[List[float]]]] = []
+    cur: Optional[Tuple[Tuple[int, int, int], List[List[float]]]] = None
+    for raw in lines[idx:]:
+        toks = raw.split()
+        if not toks:
+            continue
+        if len(toks) == 3 and _all_ints(toks):
+            cur = ((int(toks[0]), int(toks[1]), int(toks[2])), [])
+            blocks.append(cur)
+        else:
+            if cur is None:
+                raise W90ParseError(
+                    "Data row encountered before any R header in _tb.dat."
+                )
+            cur[1].append([float(t) for t in toks])
+
+    if len(blocks) != 2 * num_ws:
+        raise W90ConsistencyError(
+            f"_tb.dat: expected {2 * num_ws} R-blocks "
+            f"({num_ws} Hamiltonian + {num_ws} position), found {len(blocks)}."
+        )
+
+    nw2 = num_wan * num_wan
+
+    def _check_rows(R, rows, kind):
+        if len(rows) != nw2:
+            raise W90ConsistencyError(
+                f"_tb.dat {kind} block for R={R} has {len(rows)} rows; expected {nw2}."
+            )
+
+    # First num_ws blocks: Hamiltonian H(R).
+    ham_r: Dict[Tuple[int, int, int], HRBlock] = {}
+    for k in range(num_ws):
+        R, rows = blocks[k]
+        _check_rows(R, rows, "Hamiltonian")
+        H = np.zeros((num_wan, num_wan), complex)
+        for row in rows:
+            i = int(row[0]) - 1
+            j = int(row[1]) - 1
+            H[i, j] = row[2] + 1j * row[3]
+        ham_r[R] = HRBlock(h=H, degeneracy=int(deg[k]))
+
+    # Next num_ws blocks: position matrix r(R).
+    pos_r: Dict[Tuple[int, int, int], np.ndarray] = {}
+    for k in range(num_ws):
+        R, rows = blocks[num_ws + k]
+        _check_rows(R, rows, "position")
+        X = np.zeros((3, num_wan, num_wan), complex)
+        for row in rows:
+            if len(row) < 8:
+                raise W90ConsistencyError(
+                    f"_tb.dat position row for R={R} needs 8 numbers, got {len(row)}."
+                )
+            i = int(row[0]) - 1
+            j = int(row[1]) - 1
+            X[0, i, j] = row[2] + 1j * row[3]
+            X[1, i, j] = row[4] + 1j * row[5]
+            X[2, i, j] = row[6] + 1j * row[7]
+        pos_r[R] = X
+
+    return num_wan, ham_r, pos_r, lat
+
+
+def read_r(
+    root: Path | str, prefix: str, num_wan: int
+) -> Dict[Tuple[int, int, int], np.ndarray]:
+    r"""Read the legacy ``prefix_r.dat`` position-matrix file.
+
+    This is the position-only counterpart to :func:`read_hr`, written by older
+    Wannier90 runs (e.g. with ``transl_inv`` / ``write_rmn``). Prefer
+    :func:`read_tb` when ``prefix_tb.dat`` is available.
+
+    Parameters
+    ----------
+    root : Path or str
+        Directory containing ``prefix_r.dat``.
+    prefix : str
+        Prefix used by Wannier90: the file read is ``{prefix}_r.dat``.
+    num_wan : int
+        Number of Wannier functions (used to validate the table).
+
+    Returns
+    -------
+    pos_r : dict
+        Mapping from lattice vector triplet ``R`` to a complex array of shape
+        ``(3, num_wan, num_wan)`` holding
+        :math:`\langle 0n | r_\alpha | Rm \rangle` (angstroms).
+    """
+    p = Path(root).expanduser() / f"{prefix}_r.dat"
+    if not p.exists():
+        raise W90ParseError(f"Missing file: {p}")
+    with p.open("r", encoding="utf-8", errors="ignore") as fh:
+        _ = fh.readline()  # comment/date
+        try:
+            file_num_wan = int(fh.readline())
+            _num_ws = int(fh.readline())
+        except Exception as e:
+            raise W90ParseError("Cannot read num_wann/nrpts in _r.dat") from e
+        data = np.loadtxt(fh)
+    if file_num_wan != num_wan:
+        raise W90ConsistencyError(
+            f"_r.dat reports num_wann={file_num_wan}, expected {num_wan}."
+        )
+    if data.ndim == 1:
+        data = data[None, :]
+    if data.shape[1] != 11:
+        raise W90ParseError("_r.dat must have 11 columns.")
+    R = data[:, :3].astype(int)
+    i = data[:, 3].astype(int) - 1
+    j = data[:, 4].astype(int) - 1
+    rx = data[:, 5] + 1j * data[:, 6]
+    ry = data[:, 7] + 1j * data[:, 8]
+    rz = data[:, 9] + 1j * data[:, 10]
+    pos_r: Dict[Tuple[int, int, int], np.ndarray] = {}
+    for row in range(data.shape[0]):
+        key = (int(R[row, 0]), int(R[row, 1]), int(R[row, 2]))
+        if key not in pos_r:
+            pos_r[key] = np.zeros((3, num_wan, num_wan), complex)
+        pos_r[key][0, i[row], j[row]] = rx[row]
+        pos_r[key][1, i[row], j[row]] = ry[row]
+        pos_r[key][2, i[row], j[row]] = rz[row]
+    return pos_r
+
+
 _KPOINT_LABEL_PATTERN = re.compile(r"^(?P<base>[^\d]+?)(?P<suffix>\d+)?$", re.UNICODE)
 
 
@@ -339,7 +560,20 @@ def load_w90_dataset(
     root = Path(root).expanduser()
     win = read_win(root, prefix)
     lat = parse_unit_cell_cart(win)
-    num_wan, ham_r = read_hr(root, prefix)
+
+    # Prefer prefix_tb.dat (write_tb): it carries both H(R) and the position
+    # matrix <0n|r|Rm>. Fall back to prefix_hr.dat, optionally augmented by a
+    # legacy prefix_r.dat for the position matrix.
+    pos_r: Optional[Dict[Tuple[int, int, int], np.ndarray]] = None
+    if (root / f"{prefix}_tb.dat").exists():
+        num_wan, ham_r, pos_r, _lat_tb = read_tb(root, prefix)
+    else:
+        num_wan, ham_r = read_hr(root, prefix)
+        if (root / f"{prefix}_r.dat").exists():
+            try:
+                pos_r = read_r(root, prefix, num_wan)
+            except (W90ParseError, W90ConsistencyError):
+                pos_r = None
     centres_xyz = read_centres(root, prefix, num_wan)
     centres_red = _cart_to_red(lat[0], lat[1], lat[2], centres_xyz)
     k_nodes, k_labels = read_kpoint_path(win, latex=True)
@@ -359,6 +593,7 @@ def load_w90_dataset(
         centres_red=centres_red,
         num_wan=num_wan,
         ham_r=ham_r,
+        pos_r=pos_r,
         kpath_nodes_red=k_nodes,
         kpath_labels=k_labels,
         bands_k_red=bands_k,
@@ -409,3 +644,75 @@ def read_bands_w90(
             f"got {ene_raw.shape} rows for {kpts_red.shape[0]} k-points"
         ) from e
     return kpts_red, energies_ev
+
+
+def wannier_connection_ft(
+    pos_r_eff: Dict[Tuple[int, int, int], np.ndarray],
+    k_red: np.ndarray,
+    *,
+    lat: Optional[np.ndarray] = None,
+    cartesian: bool = True,
+) -> np.ndarray:
+    r"""Bloch sum of the Wannier position matrix (Wannier-gauge connection).
+
+    Computes
+
+    .. math::
+
+        \mathcal{A}^{(\mathrm{W})}_{\alpha}(\mathbf{k})_{nm}
+        = \sum_{\mathbf{R}} e^{i 2\pi \mathbf{k}\cdot\mathbf{R}}
+          \langle 0n | r_\alpha | \mathbf{R}m \rangle ,
+
+    i.e. the Fourier transform of the off-diagonal position matrix onto a set of
+    reduced k-points. In the theory of Wannier interpolation [Wang2006]_ this is
+    the Berry connection in the **Wannier gauge**; rotating it by the
+    eigenvectors of :math:`H(\mathbf{k})` (and adding the usual gauge-covariant
+    term) yields the smooth Berry connection used for Berry curvature and the
+    anomalous Hall conductivity.
+
+    Parameters
+    ----------
+    pos_r_eff : dict
+        Mapping ``R -> (3, num_wan, num_wan)`` of position matrix elements,
+        already divided by the Wigner-Seitz degeneracy (so the Bloch sum is a
+        plain sum over ``R``).
+    k_red : numpy.ndarray
+        Reduced k-points of shape ``(Nk, 3)``.
+    lat : numpy.ndarray, optional
+        Cartesian lattice vectors ``(3, 3)``, required only when
+        ``cartesian=False`` to project the Cartesian operator index onto the
+        reduced lattice directions.
+    cartesian : bool, optional
+        If True (default) the leading operator index :math:`\alpha` is Cartesian
+        (x, y, z). If False, it is expressed in reduced lattice components.
+
+    Returns
+    -------
+    A : numpy.ndarray
+        Array of shape ``(Nk, 3, num_wan, num_wan)``. For a Hermitian input
+        (``r(-R) = r(R)^\dagger``) each ``A[k, alpha]`` is Hermitian.
+
+    References
+    ----------
+    .. [Wang2006] X. Wang, J. R. Yates, I. Souza, D. Vanderbilt,
+       "Ab initio calculation of the anomalous Hall conductivity by Wannier
+       interpolation", Phys. Rev. B 74, 195118 (2006).
+    """
+    if not pos_r_eff:
+        raise ValueError("pos_r_eff is empty; no position matrix to transform.")
+    items = list(pos_r_eff.items())
+    Rs = np.array([R for R, _ in items], dtype=float)  # (nR, 3)
+    X = np.stack([V for _, V in items], axis=0)  # (nR, 3, nw, nw)
+
+    k_red = np.atleast_2d(np.asarray(k_red, dtype=float))  # (Nk, 3)
+    phases = np.exp(2j * np.pi * (k_red @ Rs.T))  # (Nk, nR)
+    A = np.einsum("kr, ranm -> kanm", phases, X, optimize=True)  # (Nk, 3, nw, nw)
+
+    if not cartesian:
+        if lat is None:
+            raise ValueError("lat must be provided when cartesian=False.")
+        # r_red_i = sum_alpha r_cart_alpha * inv(lat)[alpha, i]
+        inv_lat = np.linalg.inv(np.asarray(lat, dtype=float))
+        A = np.einsum("kanm, ai -> kinm", A, inv_lat, optimize=True)
+
+    return A

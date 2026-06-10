@@ -3,7 +3,12 @@ from pathlib import Path
 import numpy as np
 
 from .tbmodel import TBModel
-from .io.w90 import load_w90_dataset, read_kpoint_path, read_bands_w90
+from .io.w90 import (
+    load_w90_dataset,
+    read_kpoint_path,
+    read_bands_w90,
+    wannier_connection_ft,
+)
 from .io.qe import read_bands_qe
 from .lattice import Lattice
 from .utils import _red_to_cart, deprecated, kpath_distance
@@ -34,11 +39,20 @@ class W90:
     - ``prefix.win``
     - ``prefix_hr.dat``
     - ``prefix_centres.xyz``
+    - ``prefix_tb.dat`` (optional)
     - ``prefix_band.kpt`` (optional)
     - ``prefix_band.dat`` (optional)
 
     The ``prefix.win`` file provides general input to Wannier90 and is here
     primarily to obtain the lattice vectors.
+
+    The optional file ``prefix_tb.dat`` (produced by ``write_tb = .true.``)
+    additionally contains the off-diagonal position matrix elements
+    :math:`\langle 0n | {\bf r} | {\bf R}m \rangle`. When present these are
+    stored in :attr:`pos_r` and exposed through :meth:`wannier_centers` and
+    :meth:`berry_connection_wann`; they lift the diagonal-position-operator
+    approximation discussed in the warning below. A legacy ``prefix_r.dat`` is
+    accepted as a fallback source for the same data.
 
     To ensure the required files ``prefix_hr.dat`` and ``prefix_centres.xyz``
     are written, include the following flags in the ``prefix.win`` file::
@@ -148,6 +162,10 @@ class W90:
         self.ham_r = {
             R: {"h": blk.h, "deg": blk.degeneracy} for R, blk in ds.ham_r.items()
         }
+        # Off-diagonal position matrix <0n|r|Rm> (Cartesian, Angstrom), keyed by
+        # R as (3, num_wan, num_wan) complex arrays. None unless the Wannier90
+        # run wrote prefix_tb.dat (write_tb) or a legacy prefix_r.dat.
+        self.pos_r = ds.pos_r
         self.xyz_cen = ds.centres_xyz
         self.red_cen = ds.centres_red
         self.lattice = Lattice(self.lat, self.red_cen, periodic_dirs=...)
@@ -166,6 +184,152 @@ class W90:
         for R in R_set:
             if R != (0, 0, 0) and (-R[0], -R[1], -R[2]) not in R_set:
                 raise ValueError(f"Did not find negative R for R = {R}!")
+
+    @property
+    def has_position_matrix(self) -> bool:
+        r"""Whether off-diagonal position matrix elements are available.
+
+        ``True`` only if Wannier90 was run with ``write_tb = .true.`` (producing
+        ``prefix_tb.dat``) or a legacy ``prefix_r.dat`` was found. When ``True``
+        the centers and Berry connection of the Wannier functions are known
+        exactly (not under the diagonal-position approximation).
+        """
+        return self.pos_r is not None
+
+    def _pos_r_eff(self) -> dict:
+        """Position matrix divided by Wigner-Seitz degeneracy, keyed by R.
+
+        Mirrors how :meth:`model` divides ``H(R)`` by its degeneracy, so the
+        Bloch sum becomes a plain sum over ``R``.
+        """
+        if self.pos_r is None:
+            raise ValueError(
+                "No position matrix available. Re-run Wannier90 with "
+                "write_tb = .true. (writes prefix_tb.dat) or provide prefix_r.dat."
+            )
+        out = {}
+        for R, X in self.pos_r.items():
+            deg = float(self.ham_r[R]["deg"]) if R in self.ham_r else 1.0
+            out[R] = X / deg
+        return out
+
+    def position_matrix(self, cartesian: bool = True) -> dict:
+        r"""Off-diagonal position matrix elements of the Wannier functions.
+
+        Returns the real-space position matrix
+        :math:`\langle 0n | r_\alpha | \mathbf{R}m \rangle` read from
+        ``prefix_tb.dat`` (Wannier90 ``write_tb = .true.``) or the legacy
+        ``prefix_r.dat``. These are the "external" data, beyond the Hamiltonian
+        :math:`H(\mathbf{R})`, that lift the diagonal-position approximation;
+        they drive :meth:`pythtb.TBModel.berry_curvature`'s
+        ``include_external`` correction.
+
+        For the Bloch-summed (k-space) Wannier-gauge Berry connection
+        :math:`\mathcal{A}^{(\mathrm{W})}(\mathbf{k})`, use
+        :meth:`berry_connection_wann`. The :math:`\mathbf{R}=0` diagonal of this
+        matrix is returned by :meth:`wannier_centers`.
+
+        .. versionadded:: 2.0.0
+
+        Parameters
+        ----------
+        cartesian : bool, optional
+            If True (default), the operator index :math:`\alpha` is Cartesian
+            (x, y, z) in angstroms. If False, it is expressed in reduced lattice
+            components.
+
+        Returns
+        -------
+        pos_r : dict[tuple[int, int, int], numpy.ndarray]
+            Mapping from lattice vector ``R`` to a complex array of shape
+            ``(3, num_wan, num_wan)`` holding
+            :math:`\langle 0n | r_\alpha | \mathbf{R}m \rangle`.
+
+        Raises
+        ------
+        ValueError
+            If no position matrix is available (see
+            :attr:`has_position_matrix`).
+        """
+        if self.pos_r is None:
+            raise ValueError(
+                "No position matrix available. Re-run Wannier90 with "
+                "write_tb = .true. (writes prefix_tb.dat) or provide prefix_r.dat."
+            )
+        if cartesian:
+            return {R: X.copy() for R, X in self.pos_r.items()}
+        # r_red_i = sum_alpha r_cart_alpha * inv(lat)[alpha, i]
+        inv_lat = np.linalg.inv(self.lat)
+        return {
+            R: np.einsum("anm, ai -> inm", X, inv_lat) for R, X in self.pos_r.items()
+        }
+
+    def wannier_centers(self) -> np.ndarray:
+        r"""Wannier function centers from the position matrix.
+
+        Returns the diagonal of the :math:`\mathbf{R} = 0` position block,
+        :math:`\langle 0n | \mathbf{r} | 0n \rangle`, which are the true Wannier
+        centers. These coincide (up to numerical precision) with the values in
+        ``prefix_centres.xyz``.
+
+        Returns
+        -------
+        centers : numpy.ndarray
+            Array of shape ``(num_wan, 3)`` in angstroms.
+        """
+        X0 = self._pos_r_eff()[(0, 0, 0)]  # (3, num_wan, num_wan)
+        return np.real(np.einsum("ann -> na", X0))
+
+    def berry_connection_wann(self, k_pts, cartesian: bool = True) -> np.ndarray:
+        r"""Berry connection of the Wannier functions in the Wannier gauge.
+
+        Fourier transforms the off-diagonal position matrix onto reduced
+        k-points:
+
+        .. math::
+
+            \mathcal{A}^{(\mathrm{W})}_{\alpha}(\mathbf{k})_{nm}
+            = \sum_{\mathbf{R}} e^{i 2\pi \mathbf{k}\cdot\mathbf{R}}
+              \langle 0n | r_\alpha | \mathbf{R}m \rangle .
+
+        This is the building block that the diagonal-position approximation in
+        :class:`pythtb.TBModel` is missing. It is the matrix whose
+        eigenvector-rotated form enters the Berry curvature / anomalous Hall
+        conductivity in the Wannier-interpolation scheme of [1]_.
+
+        .. versionadded:: 2.0.0
+
+        Parameters
+        ----------
+        k_pts : array_like
+            Reduced k-points of shape ``(Nk, 3)`` (or a single ``(3,)`` point).
+        cartesian : bool, optional
+            If True (default), the operator index :math:`\alpha` is Cartesian.
+            If False, it is expressed in reduced lattice components.
+
+        Returns
+        -------
+        A : numpy.ndarray
+            Array of shape ``(Nk, 3, num_wan, num_wan)``. Each ``A[k, alpha]``
+            is Hermitian.
+
+        Notes
+        -----
+        The Bloch convention here matches Wannier90 (a plain :math:`e^{i\mathbf{k}
+        \cdot \mathbf{R}}` sum over the stored ``R`` vectors). It does **not**
+        include the intra-cell :math:`\boldsymbol{\tau}` phases that
+        :meth:`pythtb.TBModel.hamiltonian` uses in convention I; combine the two
+        consistently when computing geometric quantities.
+
+        References
+        ----------
+        .. [1] X. Wang, J. R. Yates, I. Souza, D. Vanderbilt,
+           *Phys. Rev. B* **74**, 195118 (2006).
+        """
+        k = np.atleast_2d(np.asarray(k_pts, dtype=float))
+        return wannier_connection_ft(
+            self._pos_r_eff(), k, lat=self.lat, cartesian=cartesian
+        )
 
     @staticmethod
     def _wrap01(x: np.ndarray) -> np.ndarray:
@@ -306,6 +470,15 @@ class W90:
         # remember that this model was computed from w90
         tb._from_w90 = True
         tb._assume_position_operator_diagonal = False
+
+        # Carry the Wannier real-space data onto the model so TBModel can apply
+        # the off-diagonal position-matrix correction in berry_curvature(). We
+        # store the raw blocks (H(R), degeneracies, and, if write_tb / _r.dat
+        # was present, <0n|r|Rm>); the consumers divide by the degeneracy.
+        tb._ham_r = {R: blk["h"].copy() for R, blk in self.ham_r.items()}
+        tb._ham_deg = {R: int(blk["deg"]) for R, blk in self.ham_r.items()}
+        if self.pos_r is not None:
+            tb._pos_r = {R: X.copy() for R, X in self.pos_r.items()}
 
         # Onsites
         hr0 = self.ham_r[(0, 0, 0)]
