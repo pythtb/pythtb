@@ -6,15 +6,15 @@
         "status": "pass"
     },
     "three_site_cycle": {
-        "last_pass": "2026-03-31T15:34:54.932000",
-        "pythtb_version": "2.0.2.dev31",
-        "python_version": "3.12.11",
+        "last_pass": "2026-06-10T11:00:34.310653",
+        "pythtb_version": "2.0.3.dev2",
+        "python_version": "3.13.2",
         "status": "pass"
     },
     "three_site_cycle_fin": {
-        "last_pass": "2026-03-31T15:34:55.205875",
-        "pythtb_version": "2.0.2.dev31",
-        "python_version": "3.12.11",
+        "last_pass": "2026-06-10T11:00:34.528928",
+        "pythtb_version": "2.0.3.dev2",
+        "python_version": "3.13.2",
         "status": "pass"
     }
 }

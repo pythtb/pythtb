@@ -1,0 +1,41 @@
+# Quantum ESPRESSO outputs (regeneratable, large)
+*/out/
+*.xml
+*.save/
+
+# Wannier90 / pw2wannier90 intermediates (regeneratable, large)
+*.mmn
+*.amn
+*.eig
+*.chk
+*.nnkp
+*.unk*
+*.spn
+*_wsvec.dat
+*.werr
+*.bvec
+
+# Large Fe real-space data: regenerate with Fe/run.sh
+Fe/Fe_tb.dat
+Fe/Fe_hr.dat
+Fe/Fe_HH_R.dat
+Fe/Fe_AA_R.dat
+
+# effective-model scratch
+hBN/eff/
+
+# compiled shim (built from dotfix.c by run.sh)
+*.dylib
+
+# postw90 gnuplot/python plot helpers (clutter)
+*-curv_*.gnu
+*-curv_*.py
+
+# logs and caches
+*.log
+**/__pycache__/
+
+# Keep (committed as small regression fixtures):
+#   hBN/hBN.win, hBN/hBN_tb.dat, hBN/hBN_centres.xyz, hBN/hBN-curv.dat
+#   */*-curv.dat, */*.wout, */*.png, the generators, run.sh, verify.py
+!hBN/hBN_tb.dat

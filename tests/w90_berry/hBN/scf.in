@@ -1,0 +1,29 @@
+&control
+    calculation = 'scf'
+    prefix      = 'hBN'
+    outdir      = './out'
+    pseudo_dir  = '/Users/treycole/Codes/qe-7.4.1/pseudo'
+    verbosity   = 'high'
+/
+&system
+    ibrav     = 4
+    A         = 2.504
+    C         = 10.0
+    nat       = 2
+    ntyp      = 2
+    ecutwfc   = 50.0
+    ecutrho   = 400.0
+    occupations = 'fixed'
+/
+&electrons
+    conv_thr     = 1.0d-10
+    mixing_beta  = 0.7
+/
+ATOMIC_SPECIES
+    B  10.811  B.pbe-n-rrkjus_psl.1.0.0.UPF
+    N  14.007  N.pbe-n-rrkjus_psl.1.0.0.UPF
+ATOMIC_POSITIONS crystal
+    B  0.0000000000  0.0000000000  0.5000000000
+    N  0.3333333333  0.6666666667  0.5000000000
+K_POINTS automatic
+    12 12 1 0 0 0
