@@ -1765,6 +1765,41 @@ class TBModel:
 
         return scalars, sweep_names, sweep_values
 
+    @staticmethod
+    def _sweep_evaluate(scalars, sweep_names, sweep_values, build_fn, n_lead):
+        """Evaluate ``build_fn`` over the cartesian product of parameter sweeps.
+
+        ``build_fn(assignments)`` is called once per point of the sweep grid
+        (with ``assignments`` mapping every parameter name to a scalar) and must
+        return a tuple of arrays whose shapes do not depend on the assignment.
+        Each output is stacked over the grid with the sweep axes inserted after
+        that output's first ``n_lead[i]`` axes — e.g. ``n_lead=(1,)`` turns a
+        per-point ``(Nk, n, n)`` result into ``(Nk, l1, ..., lp, n, n)``.
+
+        Returns the tuple of stacked arrays.
+        """
+        axis_lengths = [len(ax) for ax in sweep_values]
+        n_blocks = int(np.prod(axis_lengths, dtype=int))
+        stacked_flat = None
+        assign = scalars.copy()  # update scalar mappings in-place per point
+        for flat_idx, multi in enumerate(np.ndindex(*axis_lengths)):
+            for a, name in enumerate(sweep_names):
+                assign[name] = sweep_values[a][multi[a]]
+            blocks = build_fn(assign)
+            if stacked_flat is None:
+                stacked_flat = [
+                    np.empty((n_blocks, *b.shape), dtype=b.dtype) for b in blocks
+                ]
+            for out, b in zip(stacked_flat, blocks):
+                out[flat_idx] = b
+
+        p = len(axis_lengths)
+        results = []
+        for out, lead in zip(stacked_flat, n_lead, strict=True):
+            out = out.reshape(*axis_lengths, *out.shape[1:])
+            results.append(np.moveaxis(out, range(p), range(lead, lead + p)))
+        return tuple(results)
+
     def _evaluate_params(self, assignments: dict):
         """Evaluate the model with given parameter assignments.
 
@@ -3029,64 +3064,34 @@ class TBModel:
         # sweep_values: list of arrays/lists of values to sweep over
         scalars, sweep_names, sweep_values = self._params_to_sweep(params)
 
-        # No sweep axes, resolve scalar parameters only
-        if not sweep_values:
-            hop_amps, i_idx, j_idx, R_vecs, site = self._evaluate_params(scalars)
-            if self.dim_k == 0:
-                H = self._hamiltonian_finite(
-                    hop_amps, i_idx, j_idx, site, flatten_spin=flatten_spin_axis
-                )
-            else:
-                H = self._hamiltonian_periodic(
-                    k_arr,
-                    hop_amps,
-                    i_idx,
-                    j_idx,
-                    R_vecs,
-                    site,
-                    flatten_spin=flatten_spin_axis,
-                )
-            return H
-
-        # param sweeps: cartesian product, then reshape with lambda at the end
-        axis_lengths = [len(ax) for ax in sweep_values]
-        n_blocks = int(np.prod(axis_lengths, dtype=int))
-        stacked_flat = None
-        base_shape = None
-        assign = scalars.copy()
-        for flat_idx, multi in enumerate(np.ndindex(*axis_lengths)):
-            for a, name in enumerate(sweep_names):
-                assign[name] = sweep_values[a][multi[a]]
-
-            # ---- assemble H from immutable arrays ----
+        def build_H(assign):
             hop_amps, i_idx, j_idx, R_vecs, site = self._evaluate_params(assign)
             if self.dim_k == 0:
-                H = self._hamiltonian_finite(
+                return self._hamiltonian_finite(
                     hop_amps, i_idx, j_idx, site, flatten_spin=flatten_spin_axis
                 )
-            else:
-                H = self._hamiltonian_periodic(
-                    k_arr,
-                    hop_amps,
-                    i_idx,
-                    j_idx,
-                    R_vecs,
-                    site,
-                    flatten_spin=flatten_spin_axis,
-                )
+            return self._hamiltonian_periodic(
+                k_arr,
+                hop_amps,
+                i_idx,
+                j_idx,
+                R_vecs,
+                site,
+                flatten_spin=flatten_spin_axis,
+            )
 
-            if base_shape is None:
-                base_shape = H.shape
-                stacked_flat = np.empty((n_blocks, *base_shape), dtype=H.dtype)
-            stacked_flat[flat_idx] = H
+        # No sweep axes, resolve scalar parameters only
+        if not sweep_values:
+            return build_H(scalars)
 
-        stacked = stacked_flat.reshape(*axis_lengths, *base_shape)
-
-        if axis_lengths and self.dim_k != 0:
-            p = len(axis_lengths)
-            b = len(base_shape)  # typically (Nk, nstate, nstate)
-            perm = (p,) + tuple(range(p)) + tuple(range(p + 1, p + b))
-            stacked = np.transpose(stacked, perm)
+        # param sweeps: cartesian product; sweep axes follow the k-axis (if any)
+        (stacked,) = self._sweep_evaluate(
+            scalars,
+            sweep_names,
+            sweep_values,
+            lambda assign: (build_H(assign),),
+            n_lead=(0 if self.dim_k == 0 else 1,),
+        )
 
         self._H = stacked
 
@@ -3475,50 +3480,11 @@ class TBModel:
         # Determine if we need to compute Hamiltonian for lambda derivatives
         needs_ham = _return_ham or bool(sweep_meta)
 
-        # No sweeps: just evaluate in place
-        if not sweep_values:
-            hop_amps, i_idx, j_idx, R_vecs, site_energies = self._evaluate_params(
-                scalars
-            )
-            v = self._velocity_k(
-                k_arr,
-                hop_amps,
-                i_idx,
-                j_idx,
-                R_vecs,
-                site_energies=site_energies,
-                cartesian=cartesian,
-                flatten_spin_axis=flatten_spin_axis,
-                return_ham=needs_ham,
-            )
-            if needs_ham:
-                vel, ham = v
-                return (vel, ham) if _return_ham else vel
-            return v
-
-        # Parameter sweeps: cartesian product,
-        # then reshape to (*param_shape, dim_k, Nk, norb, norb) at end
-        axis_lengths = [len(ax) for ax in sweep_values]
-        n_blocks = int(np.prod(axis_lengths, dtype=int))
-        vel_flat = None
-        base_shape = None
-        ham_flat = None
-        ham_shape = None
-        assign = scalars.copy()  # update scalar mappings in-place per point
-
-        for flat_idx, multi in enumerate(np.ndindex(*axis_lengths)):
-            for a, name in enumerate(sweep_names):
-                # Evaluate velocity on user grid, not normalized grid
-                assign[name] = raw_axes[a][multi[a]]
-
-            # Retrive hoppings, orbital indices, R-vectors
-            # for this parameter combination
+        def build_v(assign):
             hop_amps, i_idx, j_idx, R_vecs, site_energies = self._evaluate_params(
                 assign
             )
-
-            # Build velocity operator
-            v = self._velocity_k(
+            out = self._velocity_k(
                 k_arr,
                 hop_amps,
                 i_idx,
@@ -3529,55 +3495,28 @@ class TBModel:
                 flatten_spin_axis=flatten_spin_axis,
                 return_ham=needs_ham,
             )
+            return out if needs_ham else (out,)
 
-            # Unpack velocity and Hamiltonian if needed
+        # No sweeps: just evaluate in place
+        if not sweep_values:
+            v = build_v(scalars)
             if needs_ham:
                 vel, ham = v
-                if ham_shape is None:
-                    ham_shape = ham.shape
-                    ham_flat = np.empty((n_blocks, *ham_shape), dtype=ham.dtype)
-                ham_flat[flat_idx] = ham
-            else:
-                vel = v
+                return (vel, ham) if _return_ham else vel
+            return v[0]
 
-            # Record base shape first time e.g. (dim_k, Nk, norb, norb)
-            if base_shape is None:
-                base_shape = vel.shape
-                vel_flat = np.empty((n_blocks, *base_shape), dtype=vel.dtype)
-            vel_flat[flat_idx] = vel
-
-        # Stack all velocity blocks along new leading axis: (*param_shapes, *base_shape)
-        stacked = vel_flat.reshape(*axis_lengths, *base_shape)
-        # Move param axes to be after k-axis
-        if axis_lengths:
-            p = len(axis_lengths)  # number of param axes
-            b = len(base_shape)  # e.g. 4 when base is (dim_k, Nk, norb, norb)
-            perm = (
-                p,  # dim_k
-                p + 1,  # Nk
-                *range(p),  # all param axes in original order
-                *range(p + 2, p + b),  # remaining matrix axes (e.g. norb, norb)
-            )
-            stacked = np.transpose(stacked, perm)
-
-        # Final velocity array with shape (dim_k, Nk, l1, ..., norb, norb)
-        # where l1, ... are parameter sweep axes
-        vel_k = stacked
-
-        # Stack Hamiltonian blocks if needed
-        ham = None
+        # Parameter sweeps: cartesian product, with the sweep axes placed after
+        # the (dim_k, Nk) axes of the velocity and the Nk axis of the Hamiltonian.
+        # Evaluate on the raw user grid, not the normalized grid.
         if needs_ham:
-            # Stack all hamiltonian blocks along new leading axis: (*param_shapes, *ham_shape)
-            ham_stacked = ham_flat.reshape(*axis_lengths, *ham_shape)
-            # Move param axes to be after k-axis
-            if axis_lengths:
-                p = len(axis_lengths)  # number of param axes
-                b = len(ham_shape)  # e.g. 3 when base is (Nk, norb, norb)
-                perm = (p,) + tuple(range(p)) + tuple(range(p + 1, p + b))
-                ham_stacked = np.transpose(ham_stacked, perm)
-
-            # Final hamiltonian array
-            ham = ham_stacked
+            vel_k, ham = self._sweep_evaluate(
+                scalars, sweep_names, raw_axes, build_v, n_lead=(2, 1)
+            )
+        else:
+            ham = None
+            (vel_k,) = self._sweep_evaluate(
+                scalars, sweep_names, raw_axes, build_v, n_lead=(2,)
+            )
 
         # If no param derivatives needed, return now
         if not sweep_meta:
