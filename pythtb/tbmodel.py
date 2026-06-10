@@ -210,6 +210,15 @@ class TBModel:
         self.assume_position_operator_diagonal = True
         self._from_w90 = False
 
+        # Wannier real-space data, populated only by W90.model(): the raw
+        # Hamiltonian blocks H(R) (_ham_r), their Wigner-Seitz degeneracies
+        # (_ham_deg), and the off-diagonal position matrix <0n|r|Rm> (_pos_r,
+        # raw (3, norb, norb) arrays). These drive the position-matrix
+        # correction in berry_curvature(); _pos_r requires write_tb.
+        self._ham_r = None
+        self._ham_deg = None
+        self._pos_r = None
+
         # Initialize onsite energies to zero
         if not spinful:
             self._site_energies = np.zeros((self.norb), dtype=float)
@@ -563,6 +572,71 @@ class TBModel:
         if not isinstance(value, bool):
             raise ValueError("assume_position_operator_diagonal must be a boolean.")
         self._assume_position_operator_diagonal = value
+
+    @property
+    def has_wannier_position(self) -> bool:
+        r"""Whether the off-diagonal Wannier position matrix is available.
+
+        ``True`` only for models built by :meth:`pythtb.W90.model` from a
+        Wannier90 run with ``write_tb = .true.`` (or a legacy ``prefix_r.dat``).
+        When ``True``, :meth:`wannier_berry_connection` can be used to obtain the
+        exact Berry connection rather than the diagonal-position approximation.
+        """
+        return self._pos_r is not None
+
+    def wannier_berry_connection(self, k_pts, cartesian: bool = True) -> np.ndarray:
+        r"""Wannier-gauge Berry connection :math:`\mathcal{A}^{(\mathrm{W})}(\mathbf{k})`.
+
+        Bloch sum of the off-diagonal Wannier position matrix,
+
+        .. math::
+
+            \mathcal{A}^{(\mathrm{W})}_{\alpha}(\mathbf{k})_{nm}
+            = \sum_{\mathbf{R}} e^{i 2\pi \mathbf{k}\cdot\mathbf{R}}
+              \langle 0n | r_\alpha | \mathbf{R}m \rangle ,
+
+        evaluated in the orbital (Wannier) basis. This is the quantity dropped by
+        the diagonal-position approximation; rotating it into the eigenbasis of
+        :meth:`hamiltonian` supplies the missing gauge-covariant term in the
+        Berry connection, curvature, and anomalous Hall conductivity
+        (Wannier-interpolation scheme of Wang *et al.*, PRB **74**, 195118).
+
+        .. versionadded:: 2.0.0
+
+        Parameters
+        ----------
+        k_pts : array_like
+            Reduced k-points of shape ``(Nk, dim_r)`` (or a single point).
+        cartesian : bool, optional
+            If True (default), the operator index is Cartesian; if False, it is
+            expressed in reduced lattice components.
+
+        Returns
+        -------
+        A : numpy.ndarray
+            Array of shape ``(Nk, 3, norb, norb)``; each ``A[k, alpha]`` is
+            Hermitian.
+
+        Raises
+        ------
+        ValueError
+            If the model carries no Wannier position matrix
+            (see :attr:`has_wannier_position`).
+        """
+        if self._pos_r is None:
+            raise ValueError(
+                "This model has no Wannier position matrix. Build it with "
+                "W90.model() from a run that used write_tb = .true."
+            )
+        from .io.w90 import wannier_connection_ft
+
+        # _pos_r is stored raw; divide by the Wigner-Seitz degeneracy so the
+        # Bloch sum is a plain sum over R.
+        pos_eff = {R: X / float(self._ham_deg[R]) for R, X in self._pos_r.items()}
+        k = np.atleast_2d(np.asarray(k_pts, dtype=float))
+        return wannier_connection_ft(
+            pos_eff, k, lat=self.lattice.lat_vecs, cartesian=cartesian
+        )
 
     @deprecated(
         "The 'display()' method is deprecated and will be removed in a future release. "
@@ -3788,17 +3862,47 @@ class TBModel:
         occ_idxs: np.ndarray | None = None,
         non_abelian: bool = False,
         use_tensorflow: bool = False,
+        fermi: float | None = None,
     ) -> np.ndarray:
         r"""Compute the quantum geometric tensor Q from the velocity operator.
 
         This function computes the quantum geometric tensor (QGT) from the velocity operator
         and the eigenvalues and eigenvectors of the Hamiltonian.
+
+        If ``fermi`` is given the occupation is set per k-point by the Fermi
+        level (``f_m = E_m < fermi``) using an occupation-weighted sum over band
+        pairs, ``Q_{ab} = sum_{m,l} f_m (1 - f_l) v_{a,ml} v_{b,lm}/(E_m-E_l)^2``,
+        which handles metals (k-dependent occupied count). Only the band-summed
+        (``non_abelian=False``) tensor is defined in that case.
         """
         if self.dim_k != 0:
             # if only one k_point, remove that redundant axis
             if eigvals.shape[0] == 1:
                 eigvals = eigvals[0]
                 eigvecs = eigvecs[0]
+
+        # Fermi-level occupation: occupation-weighted (masked) band sum. This
+        # generalizes the fixed occ/cond slicing to a k-dependent occupied set,
+        # and reduces to it when there is a gap.
+        if fermi is not None:
+            if non_abelian:
+                raise ValueError(
+                    "A Fermi level gives a k-dependent occupied dimension; "
+                    "non_abelian=True needs a fixed band set via occ_idxs."
+                )
+            evecs_conj = eigvecs.conj()[np.newaxis, ...]
+            evecs_T = eigvecs.swapaxes(-2, -1)[np.newaxis, ...]
+            v_rot = np.matmul(evecs_conj, np.matmul(v, evecs_T))  # eigenbasis
+            occ = eigvals < fermi  # (..., n_states)
+            mask = occ[..., :, None] & (~occ[..., None, :])  # occ_m & empty_l
+            dE = eigvals[..., :, None] - eigvals[..., None, :]
+            inv2 = np.divide(
+                1.0, dE * dE, out=np.zeros_like(dE), where=np.abs(dE) > 1e-12
+            )
+            W = mask * inv2
+            vT = np.swapaxes(v_rot, -1, -2)  # v_{b,lm} = vT[b, ..., m, l]
+            Q = np.einsum("...ml, a...ml, b...ml -> ab...", W, v_rot, vT, optimize=True)
+            return Q if plane is None else Q[plane]
 
         # Identify occupied bands
         n_eigs = eigvecs.shape[-2]
@@ -3936,6 +4040,7 @@ class TBModel:
         *,
         cartesian: bool = False,
         non_abelian: bool = False,
+        fermi: float | None = None,
         param_periods: dict[str, float] | None = None,
         diff_scheme: str = "central",
         diff_order: int = 2,
@@ -4090,6 +4195,7 @@ class TBModel:
             occ_idxs=occ_idxs,
             non_abelian=non_abelian,
             use_tensorflow=use_tensorflow,
+            fermi=fermi,
         )
 
     def berry_curvature(
@@ -4100,6 +4206,8 @@ class TBModel:
         *,
         cartesian: bool = False,
         non_abelian: bool = False,
+        include_external: bool | None = None,
+        fermi: float | None = None,
         param_periods: dict[str, float] | None = None,
         diff_scheme: str = "central",
         diff_order: int = 2,
@@ -4147,6 +4255,36 @@ class TBModel:
             If True, returns the full Berry curvature tensor (non-abelian case).
             If False, returns the band-trace of the Berry curvature tensor (abelian case).
             Default is False. This will affect the shape of the returned array.
+        include_external : bool or None, optional
+            Include the *external* off-diagonal position-matrix elements
+            :math:`\langle 0n|\mathbf{r}|Rm\rangle` (read from a Wannier90
+            ``write_tb`` run; see :meth:`pythtb.W90.position_matrix`). These are
+            the data beyond ``H(R)`` that the diagonal-position approximation
+            drops; with them the band-summed Berry curvature matches the
+            underlying first-principles result (Wannier-interpolation scheme of
+            Wang *et al.*, PRB **74**, 195118; validated against ``postw90``).
+
+            - ``None`` (default): auto -- the correction is applied when the
+              model carries a position matrix (built by :meth:`pythtb.W90.model`
+              from a ``write_tb`` run), and skipped otherwise.
+            - ``True``: require the position matrix (error if absent).
+            - ``False``: force the diagonal approximation.
+
+            Works for both the band-summed (``non_abelian=False``) and the full
+            non-Abelian (``non_abelian=True``) curvature; parameter sweeps are
+            not supported with the correction. The non-Abelian tensor needs a
+            fixed band group via ``occ_idxs`` (not ``fermi``).
+
+            .. versionadded:: 2.1.0
+        fermi : float or None, optional
+            Fermi energy (eV) setting a **per-k** occupation
+            (``f_m = E_m < fermi``) via an occupation-weighted band sum, which is
+            the correct choice for metals (k-dependent occupied count). Used for
+            the band-summed curvature only; ``non_abelian=True`` needs a fixed
+            band group via ``occ_idxs`` instead. If omitted, ``occ_idxs`` selects
+            a fixed occupied set.
+
+            .. versionadded:: 2.1.0
         param_periods : dict[str, float], optional
             Optional map ``{param_name: period}`` for swept parameters. When supplied,
             assumes the parameter is cyclic and trims any duplicated endpoints, or endpoints
@@ -4233,28 +4371,209 @@ class TBModel:
               i.e. ``dim_k + n_params >= 2`` where ``n_params`` is the number of varying parameters
               set with lists of values.
         """
+        # Resolve whether to include the external off-diagonal position matrix.
+        if include_external is None:
+            include_external = self._pos_r is not None
+        if include_external:
+            if self._pos_r is None:
+                raise ValueError(
+                    "include_external=True requires a Wannier position matrix; "
+                    "build the model with W90.model() from a write_tb run."
+                )
+            if params:
+                raise ValueError("include_external does not support parameter sweeps.")
+        if fermi is not None and non_abelian:
+            raise ValueError(
+                "A Fermi level gives a k-dependent occupied dimension; "
+                "non_abelian=True needs a fixed band set via occ_idxs."
+            )
+
+        # Internal contribution B^I: the (diagonal-position) Kubo Berry curvature,
+        # i.e. the anti-symmetric part of the quantum geometric tensor. With a
+        # Fermi level the occupation is per-k (metals); otherwise occ_idxs.
         Q = self.quantum_geometric_tensor(
             k_pts,
             occ_idxs=occ_idxs,
             cartesian=cartesian,
             non_abelian=non_abelian,
+            fermi=fermi,
             param_periods=param_periods,
             diff_scheme=diff_scheme,
             diff_order=diff_order,
             use_tensorflow=use_tensorflow,
             **params,
         )
-        # Berry curvature is the anti-symmetric part of the quantum geometric tensor
         if non_abelian:
             Omega = 1j * (Q - np.swapaxes(Q, -1, -2).conj())
         else:
             Omega = -2 * Q.imag
 
+        # External contribution B^X + B^E from the off-diagonal position matrix,
+        # in the same convention (and gauge) as the internal QGT term.
+        if include_external:
+            ext = self._berry_curvature_external(
+                k_pts,
+                occ_idxs=occ_idxs,
+                fermi=fermi,
+                cartesian=cartesian,
+                non_abelian=non_abelian,
+            )
+            if non_abelian:
+                Omega = Omega + ext  # (dim, dim, Nk, n_occ, n_occ)
+            else:
+                Omega = Omega + ext  # already band-summed (dim, dim, Nk)
+
         if plane is not None:
-            # Restrict to specified plane
             mu, nu = plane
             Omega = Omega[mu, nu]
         return Omega
+
+    def _berry_curvature_external(
+        self, k_pts, *, occ_idxs, fermi, cartesian, non_abelian
+    ):
+        r"""External (off-diagonal position-matrix) Berry curvature ``B^X + B^E``.
+
+        The convention-I Wannier-interpolation external terms (Vanderbilt notes;
+        Wang *et al.*), built from the position matrix
+        :math:`\langle 0n|r|Rm\rangle` in the **same convention and gauge** as the
+        internal :meth:`quantum_geometric_tensor` term, so the two add to the full
+        gauge-covariant curvature. In the Hamiltonian gauge (occupied ``m,n``,
+        empty ``c``), with the internal connection ``d`` from :meth:`velocity`, the
+        external connection ``a`` and its curl ``omega`` from the position matrix:
+
+        .. math::
+
+            B^X_{\mu\nu,mn} &= i\sum_c (d^*_{\mu,cm}(-i a_{\nu,cn})
+                + (-i a_{\mu,cm})^* d_{\nu,cn} - \mu\!\leftrightarrow\!\nu),\\
+            B^E_{\mu\nu,mn} &= \bar\Omega_{\mu\nu,mn} - i[a_\mu, a_\nu]_{mn}.
+
+        Validated: the band trace reproduces ``postw90``'s external ``J0+J1`` and
+        the full non-Abelian matrix matches a finite-difference Wilson loop.
+
+        Returns
+        -------
+        ext : ndarray
+            If ``non_abelian`` is True, the matrix ``(dim, dim, Nk, n_occ, n_occ)``
+            (fixed band group ``occ_idxs``). Otherwise the band-summed tensor
+            ``(dim, dim, Nk)``, with the occupation set by ``fermi`` (per-k) or by
+            ``occ_idxs`` (fixed). Antisymmetric in the Cartesian axes.
+        """
+        alpha_ax, beta_ax = (1, 2, 0), (2, 0, 1)  # Omega_g -> (alpha, beta)
+        N = self.norb
+        if occ_idxs is None and fermi is None:
+            occ_idxs = np.arange(N // 2)
+
+        # Real-space position data: Hermitianized <0n|r|Rm> with the centers
+        # removed (convention I: X^I(R) = <0n| r - tau_n |Rm>, i.e. zero the R=0
+        # diagonal, since tau = Wannier center for a W90 model).
+        Rs = list(self._pos_r.keys())
+        R_int = np.array(Rs, dtype=float)
+        Rc = R_int @ self.lattice.lat_vecs  # Cartesian R
+        inv_deg = np.array([1.0 / float(self._ham_deg[R]) for R in Rs])
+        Rset = set(Rs)
+        XI = np.zeros((len(Rs), 3, N, N), complex)
+        for j, R in enumerate(Rs):
+            negR = (-R[0], -R[1], -R[2])
+            Pn = self._pos_r[negR] if negR in Rset else np.zeros_like(self._pos_r[R])
+            XI[j] = 0.5 * (self._pos_r[R] + np.conj(np.transpose(Pn, (0, 2, 1))))
+            if R == (0, 0, 0):
+                for ax in range(3):
+                    np.fill_diagonal(XI[j, ax], 0.0)
+
+        tau_red = self.orb_vecs
+        tau_cart = self.get_orb_vecs(cartesian=True)
+        # Cartesian bond vectors b_{nm}(R) = R + tau_m - tau_n.
+        bnd = (
+            Rc[:, None, None, :]
+            + tau_cart[None, None, :, :]
+            - tau_cart[None, :, None, :]
+        )
+
+        k = np.atleast_2d(np.asarray(k_pts, dtype=float))
+        H_k = self.hamiltonian(k)  # (Nk, N, N), convention I
+        V_k = self.velocity(k, cartesian=True)  # (3, Nk, N, N) = dH/dk_cart
+
+        if non_abelian:
+            o = np.sort(np.asarray(occ_idxs, dtype=int))
+            cc = np.setdiff1d(np.arange(N), o)
+            out = np.zeros((k.shape[0], 3, 3, o.size, o.size), complex)
+        else:
+            out = np.zeros((k.shape[0], 3, 3))
+            if fermi is None:  # fixed band group as a 0/1 occupation
+                occ_fixed = np.zeros(N, bool)
+                occ_fixed[np.asarray(occ_idxs, dtype=int)] = True
+
+        for ik in range(k.shape[0]):
+            kk = k[ik]
+            phR = np.exp(2j * np.pi * (R_int @ kk)) * inv_deg
+            D = np.exp(2j * np.pi * (tau_red @ kk))
+            Dph = np.conj(D)[:, None] * D[None, :]  # e^{2 pi i k.(tau_m - tau_n)}
+            Aext = np.einsum("r, raij -> aij", phR, XI) * Dph[None]
+            E, U = np.linalg.eigh(H_k[ik])
+            Uh = U.conj().T
+            v = np.einsum(
+                "ij, ajk, kl -> ail", Uh, V_k[:, ik], U
+            )  # velocity, eigenbasis
+            a = np.einsum("ij, ajk, kl -> ail", Uh, Aext, U)  # external conn
+            dE = E[None, :] - E[:, None]
+            inv = np.divide(1.0, dE, out=np.zeros_like(dE), where=np.abs(dE) > 1e-9)
+            d = v * inv[None]
+
+            if not non_abelian:
+                f = (E < fermi) if fermi is not None else occ_fixed
+                ff = f.astype(float)
+                # occupation mask M[m, c] = f_m (1 - f_c): occupied -> empty
+                Mf = ff[:, None] * (1.0 - ff)[None, :]
+
+            for g in range(3):
+                al, be = alpha_ax[g], beta_ax[g]
+                # external curl bar-Omega_g = d_al A_be - d_be A_al (orbital), rotated
+                om = (
+                    np.einsum("r, rij, rij -> ij", phR, 1j * bnd[..., al], XI[:, be])
+                    - np.einsum("r, rij, rij -> ij", phR, 1j * bnd[..., be], XI[:, al])
+                ) * Dph
+                omz = Uh @ om @ U
+
+                if non_abelian:
+
+                    def _FX(p, q):
+                        return np.einsum(
+                            "cm, cn -> mn",
+                            d[p][np.ix_(cc, o)].conj(),
+                            -1j * a[q][np.ix_(cc, o)],
+                        ) + np.einsum(
+                            "cm, cn -> mn",
+                            (-1j * a[p][np.ix_(cc, o)]).conj(),
+                            d[q][np.ix_(cc, o)],
+                        )
+
+                    BX = 1j * (_FX(al, be) - _FX(be, al))
+                    ao_al, ao_be = a[al][np.ix_(o, o)], a[be][np.ix_(o, o)]
+                    BE = omz[np.ix_(o, o)] - 1j * (ao_al @ ao_be - ao_be @ ao_al)
+                    B = BX + BE
+                    out[ik, al, be] = B
+                    out[ik, be, al] = -B
+                else:
+                    # B^E trace J0 = Tr[f . bar-Omega]; the [a,a] commutator trace is 0
+                    J0 = np.einsum("m, mm ->", ff, omz)
+
+                    # B^X trace J1 = i (S_{al,be} - S_{be,al}), masked over (m, c)
+                    def _S(p, q):
+                        return -1j * np.einsum(
+                            "mc, cm, cm ->", Mf, d[p].conj(), a[q]
+                        ) + 1j * np.einsum("mc, cm, cm ->", Mf, a[p].conj(), d[q])
+
+                    J1 = 1j * (_S(al, be) - _S(be, al))
+                    val = np.real(J0 + J1)
+                    out[ik, al, be] = val
+                    out[ik, be, al] = -val
+
+        ext = np.moveaxis(out, 0, 2)  # (3, 3, Nk[, n_occ, n_occ])
+        if not cartesian:
+            Brec = self.recip_lat_vecs
+            sub = "abkmn -> uvkmn" if non_abelian else "abk -> uvk"
+            ext = np.einsum(f"ua, vb, {sub}", Brec, Brec, ext, optimize=True)
+        return ext
 
     def quantum_metric(
         self,
