@@ -3,7 +3,7 @@ import logging
 from .wfarray import WFArray
 from .visualization import plot_centers, plot_decay, plot_density
 from .mesh import Mesh
-from .utils import mat_exp, copydoc
+from .utils import mat_exp, copydoc, import_tensorflow
 from itertools import product
 from typing import TYPE_CHECKING
 
@@ -1269,12 +1269,7 @@ class Wannier:
         Q_nbr_min = np.copy(Q_nbr)  # for start of iteration
 
         if tf_speedup:
-            try:
-                import tensorflow as tf
-            except ImportError:
-                raise ImportError(
-                    "TensorFlow must be installed to use tf_speedup option."
-                )
+            tf = import_tensorflow()
 
         #### Start of minimization iteration ####
         for i in range(iter_num):
@@ -1499,12 +1494,7 @@ class Wannier:
         P_nbr_min = np.copy(P_nbr)  # for start of iteration
 
         if tf_speedup:
-            try:
-                import tensorflow as tf
-            except ImportError:
-                raise ImportError(
-                    "TensorFlow must be installed to use tf_speedup option."
-                )
+            tf = import_tensorflow()
 
         for i in range(iter_num):
             # states spanning optimal subspace minimizing gauge invariant spread

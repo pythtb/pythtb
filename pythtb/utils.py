@@ -14,6 +14,18 @@ __all__ = [
 ]
 
 
+def import_tensorflow():
+    """Import and return the TensorFlow module, with a helpful error if absent."""
+    try:
+        import tensorflow as tf
+    except ImportError as exc:
+        raise ImportError(
+            "TensorFlow is not installed. Please install it or disable the "
+            "TensorFlow option (use_tensorflow/tf_speedup) for this call."
+        ) from exc
+    return tf
+
+
 # deprecation decorator
 def deprecated(message: str, category=FutureWarning):
     """

@@ -13,6 +13,7 @@ from .utils import (
     deprecated,
     copydoc,
     finite_difference,
+    import_tensorflow,
     levi_civita,
 )
 from .lattice import Lattice
@@ -3112,12 +3113,7 @@ class TBModel:
             raise ValueError("Hamiltonian matrix is not Hermitian.")
 
         if use_tensorflow:
-            try:
-                import tensorflow as tf
-            except ImportError as e:
-                raise ImportError(
-                    "TensorFlow is not installed. Please install TensorFlow or set use_tensorflow=False."
-                ) from e
+            tf = import_tensorflow()
 
             if use_32_bit:
                 ham_tf = tf.convert_to_tensor(ham, dtype=tf.complex64)
@@ -3740,7 +3736,6 @@ class TBModel:
         plane: tuple[int, int] = None,
         occ_idxs: np.ndarray | None = None,
         non_abelian: bool = False,
-        use_tensorflow: bool = False,
         fermi: float | None = None,
     ) -> np.ndarray:
         r"""Compute the quantum geometric tensor Q from the velocity operator.
@@ -3792,115 +3787,40 @@ class TBModel:
         # Identify conduction bands as remainder of band indices (assumes gapped)
         cond_idxs = np.setdiff1d(np.arange(n_eigs), occ_idxs)
 
-        if use_tensorflow:
-            try:
-                import tensorflow as tf
-            except ImportError as e:
-                raise ImportError(
-                    "TensorFlow is not installed. Please install TensorFlow to use this feature."
-                ) from e
+        # Occupied and conduction energies
+        E_occ = np.take(eigvals, occ_idxs, axis=-1)
+        E_cond = np.take(eigvals, cond_idxs, axis=-1)
 
-            v_tf = tf.constant(v, dtype=tf.complex64)
-            evals_tf = tf.constant(eigvals, dtype=tf.complex64)
-            evecs_tf = tf.constant(eigvecs, dtype=tf.complex64)
+        # Delta_{nm} = E_n - E_m (occ - cond)
+        delta_occ_cond = E_occ[..., np.newaxis] - E_cond[..., np.newaxis, :]
+        if np.any(np.isclose(delta_occ_cond, 0.0)):
+            raise ZeroDivisionError("Degenerate occupied/conduction bands encountered.")
+        inv_delta_occ_cond = np.divide(1.0, delta_occ_cond)  # (..., n_occ, n_cond)
+        inv_delta_cond_occ = np.swapaxes(
+            inv_delta_occ_cond, -2, -1
+        )  # (..., n_cond, n_occ)
 
-            # Transpose eigenvectors for matmul
-            r = tf.rank(evecs_tf)  # number of axes
-            # Transpose last two axes
-            evecs_T_tf = tf.transpose(
-                evecs_tf, tf.concat([tf.range(r - 2), [r - 1, r - 2]], 0)
-            )
-            # Conjugate eigenvectors
-            evecs_conj_tf = tf.math.conj(evecs_tf)
+        # newaxis for Cartesian direction
+        evecs_conj = eigvecs.conj()[np.newaxis, ...]
+        # transpose for matmul
+        evecs_T = eigvecs.swapaxes(-2, -1)[np.newaxis, ...]
+        v_evecT = np.matmul(v, evecs_T)  # intermediate array
+        # Project vk into energy eigenbasis
+        v_rot = np.matmul(evecs_conj, v_evecT)  # (dim_k, n_kpts, n_states, n_states)
 
-            E_occ = tf.gather(evals_tf, occ_idxs, axis=-1)
-            E_cond = tf.gather(evals_tf, cond_idxs, axis=-1)
+        # Extract relevant submatrices
+        v_occ_cond = v_rot[..., occ_idxs, :][
+            ..., :, cond_idxs
+        ]  # shape (dim_k, Nk, n_occ, n_con)
+        v_cond_occ = v_rot[..., cond_idxs, :][
+            ..., :, occ_idxs
+        ]  # shape (dim_k, Nk, n_con, n_occ)
 
-            # Delta_{nm} = E_n - E_m (occ - cond)
-            delta_occ_cond = E_occ[..., :, None] - E_cond[..., None, :]
+        # premultiply by energy denominators
+        v_occ_cond *= inv_delta_occ_cond
+        v_cond_occ *= inv_delta_cond_occ
 
-            # Degeneracy guard: abort if any denominator is (near) zero
-            tol = tf.constant(1e-12, dtype=delta_occ_cond.dtype.real_dtype)
-            if tf.reduce_any(tf.math.abs(delta_occ_cond) < tol).numpy():
-                raise ZeroDivisionError(
-                    "Degenerate occupied/conduction bands encountered."
-                )
-
-            inv_delta_occ_cond = tf.math.reciprocal(delta_occ_cond)
-
-            # reuse the same denominators for the conjugate block by swapping the last axes
-            rank = inv_delta_occ_cond.shape.rank
-            perm = list(range(rank))
-            perm[-2], perm[-1] = perm[-1], perm[-2]
-            inv_delta_cond_occ = tf.transpose(inv_delta_occ_cond, perm=perm)
-
-            # Rotate velocity operators to energy eigenbasis
-            v_rot_tf = tf.matmul(
-                evecs_conj_tf[None, ...],  # (1, n_kpts, n_beta, n_state, n_state)
-                tf.matmul(
-                    v_tf,  # (dim_k+n_param, n_kpts, n_beta, n_state, n_state)
-                    evecs_T_tf[None, ...],  # (1, n_kpts, n_beta, n_state, n_state)
-                ),
-            )  # (dim_k+n_param, n_kpts, n_beta, n_state, n_state)
-
-            # Extract relevant submatrices
-            v_occ_cond_tf = tf.gather(
-                tf.gather(v_rot_tf, occ_idxs, axis=-2), cond_idxs, axis=-1
-            )
-            v_cond_occ_tf = tf.gather(
-                tf.gather(v_rot_tf, cond_idxs, axis=-2), occ_idxs, axis=-1
-            )
-
-            # premultiply by energy denominators
-            v_occ_cond_tf *= inv_delta_occ_cond
-            v_cond_occ_tf *= inv_delta_cond_occ
-
-            # Compute Berry curvature
-            # newaxis for Cartesian direction
-            # shape (dim_k+n_param, dim_k+n_param, nk, *shape_sweeps, n_occ, n_occ)
-            Q = tf.matmul(v_occ_cond_tf[:, None], v_cond_occ_tf[None, :])
-
-            # Convert final result to NumPy
-            Q = Q.numpy()
-        else:
-            # Occupied and conduction energies
-            E_occ = np.take(eigvals, occ_idxs, axis=-1)
-            E_cond = np.take(eigvals, cond_idxs, axis=-1)
-
-            # Delta_{nm} = E_n - E_m (occ - cond)
-            delta_occ_cond = E_occ[..., np.newaxis] - E_cond[..., np.newaxis, :]
-            if np.any(np.isclose(delta_occ_cond, 0.0)):
-                raise ZeroDivisionError(
-                    "Degenerate occupied/conduction bands encountered."
-                )
-            inv_delta_occ_cond = np.divide(1.0, delta_occ_cond)  # (..., n_occ, n_cond)
-            inv_delta_cond_occ = np.swapaxes(
-                inv_delta_occ_cond, -2, -1
-            )  # (..., n_cond, n_occ)
-
-            # newaxis for Cartesian direction
-            evecs_conj = eigvecs.conj()[np.newaxis, ...]
-            # transpose for matmul
-            evecs_T = eigvecs.swapaxes(-2, -1)[np.newaxis, ...]
-            v_evecT = np.matmul(v, evecs_T)  # intermediate array
-            # Project vk into energy eigenbasis
-            v_rot = np.matmul(
-                evecs_conj, v_evecT
-            )  # (dim_k, n_kpts, n_states, n_states)
-
-            # Extract relevant submatrices
-            v_occ_cond = v_rot[..., occ_idxs, :][
-                ..., :, cond_idxs
-            ]  # shape (dim_k, Nk, n_occ, n_con)
-            v_cond_occ = v_rot[..., cond_idxs, :][
-                ..., :, occ_idxs
-            ]  # shape (dim_k, Nk, n_con, n_occ)
-
-            # premultiply by energy denominators
-            v_occ_cond *= inv_delta_occ_cond
-            v_cond_occ *= inv_delta_cond_occ
-
-            Q = np.matmul(v_occ_cond[:, None], v_cond_occ[None, :])
+        Q = np.matmul(v_occ_cond[:, None], v_cond_occ[None, :])
 
         if not non_abelian:
             Q = np.trace(Q, axis1=-1, axis2=-2)
@@ -3991,8 +3911,8 @@ class TBModel:
             and a positive integer for "forward" scheme.
             This parameter is only relevant when passing varying parameters.
         use_tensorflow: bool, optional
-            If True, will use TensorFlow to speed up linear algebra routines.
-            Requires TensorFlow to be installed. Default is False.
+            If True, diagonalize the Hamiltonian with the TensorFlow eigensolver
+            (e.g. on GPU). Requires TensorFlow to be installed. Default is False.
         **params :
             Keyword arguments mapping parameter names to value(s). Each value can be a scalar
             or a 1D array of values. If any values are array-like,
@@ -4073,7 +3993,6 @@ class TBModel:
             plane=plane,
             occ_idxs=occ_idxs,
             non_abelian=non_abelian,
-            use_tensorflow=use_tensorflow,
             fermi=fermi,
         )
 
@@ -4181,8 +4100,8 @@ class TBModel:
             and a positive integer for "forward" scheme.
             This parameter is only relevant when passing varying parameters.
         use_tensorflow: bool, optional
-            If True, will use TensorFlow to speed up linear algebra routines.
-            Requires TensorFlow to be installed. Default is False.
+            If True, diagonalize the Hamiltonian with the TensorFlow eigensolver
+            (e.g. on GPU). Requires TensorFlow to be installed. Default is False.
         **params :
             Keyword arguments mapping parameter names to value(s). Each value can be a scalar
             or a 1D array of values. If any values are array-like,
@@ -4527,8 +4446,8 @@ class TBModel:
             and a positive integer for "forward" scheme.
             This parameter is only relevant when passing varying parameters.
         use_tensorflow: bool, optional
-            If True, will use TensorFlow to speed up linear algebra routines.
-            Requires TensorFlow to be installed. Default is False.
+            If True, diagonalize the Hamiltonian with the TensorFlow eigensolver
+            (e.g. on GPU). Requires TensorFlow to be installed. Default is False.
         **params :
             Keyword arguments mapping parameter names to value(s). Each value can be a scalar
             or a 1D array of values. If any values are array-like,
