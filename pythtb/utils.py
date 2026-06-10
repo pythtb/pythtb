@@ -1,8 +1,6 @@
 import numpy as np
 from math import factorial
 from itertools import permutations
-from itertools import combinations_with_replacement as comb
-from itertools import product
 import functools
 import warnings
 
@@ -14,32 +12,6 @@ __all__ = [
     "pauli_decompose",
     "get_trial_wfs",
 ]
-
-_TF_CACHE = None  # module-level cache so we import once
-
-
-def get_tensorflow():
-    """Return the TensorFlow routines we need, importing lazily on demand."""
-    global _TF_CACHE
-    if _TF_CACHE is not None:
-        return _TF_CACHE
-
-    try:
-        import tensorflow as tf
-    except ImportError as exc:
-        raise ImportError(
-            "TensorFlow support requires `pip install pythtb[speedup]` "
-            "or a manual tensorflow install."
-        ) from exc
-
-    _TF_CACHE = {
-        "convert_to_tensor": tf.convert_to_tensor,
-        "eigvalsh": tf.linalg.eigvalsh,
-        "eigh": tf.linalg.eigh,
-        "complex64": tf.complex64,
-        "complex128": tf.complex128,
-    }
-    return _TF_CACHE
 
 
 # deprecation decorator
@@ -110,38 +82,6 @@ def get_trial_wfs(tf_list, norb, nspin=1):
             tfs[j] /= np.linalg.norm(tfs[j])
 
     return tfs
-
-
-def detect_degeneracies(eigenvalues, tol=1e-8):
-    """
-    Detects degeneracies in a list of eigenvalues.
-
-    Parameters:
-        eigenvalues (array): List or array of eigenvalues (assumed sorted).
-        tol (float): Tolerance for identifying degeneracy.
-
-    Returns:
-        degenerate_groups (list of lists): Indices of degenerate eigenvalues.
-    """
-    eigenvalues = np.array(eigenvalues)
-    # sort eigenvalues if not already sorted
-    if not np.all(np.diff(eigenvalues) >= 0):
-        eigenvalues = np.sort(eigenvalues)
-    degenerate_groups = []
-    current_group = [0]
-
-    for i in range(1, len(eigenvalues)):
-        if abs(eigenvalues[i] - eigenvalues[i - 1]) < tol:
-            current_group.append(i)
-        else:
-            if len(current_group) > 1:
-                degenerate_groups.append(current_group)
-            current_group = [i]
-
-    if len(current_group) > 1:
-        degenerate_groups.append(current_group)
-
-    return degenerate_groups
 
 
 def mat_exp(M):
@@ -221,98 +161,6 @@ def kpath_distance(
     return x
 
 
-def get_k_shell(model, nks, N_sh: int, report: bool = False):
-    """Generates shells of k-points around the Gamma point.
-
-    Returns array of vectors connecting the origin to nearest neighboring k-points
-    in the mesh, along with vectors of reduced coordinates.
-
-    Parameters
-    ----------
-    N_sh : int
-        Number of nearest neighbor shells.
-    report : bool
-        If True, prints a summary of the k-shell.
-
-    Returns
-    -------
-        k_shell : list[np.ndarray[float]]
-            List of arrays of vectors in inverse units of lattice vectors
-            connecting nearest neighbor k-mesh points.
-        idx_shell : list[np.ndarray[int]]
-            List of arrays of vectors of integers used for indexing the nearest
-            neighboring k-mesh points to a given k-mesh point.
-    """
-    recip_lat_vecs = model.recip_lat_vecs
-    dim_k = model.dim_k
-    # basis vectors connecting neighboring mesh points (in inverse Cartesian units)
-    dk = np.array([recip_lat_vecs[i] / nk for i, nk in enumerate(nks)])
-    # array of integers e.g. in 2D for N_sh = 1 would be [0,1], [1,0], [0,-1], [-1,0]
-    nnbr_idx = list(product(list(range(-N_sh, N_sh + 1)), repeat=dim_k))
-    nnbr_idx.remove((0,) * dim_k)
-    nnbr_idx = np.array(nnbr_idx)
-    # vectors connecting k-points near Gamma point (in inverse lattice vector units)
-    b_vecs = np.array([nnbr_idx[i] @ dk for i in range(nnbr_idx.shape[0])])
-    # distances to points around Gamma
-    dists = np.array([np.vdot(b_vecs[i], b_vecs[i]) for i in range(b_vecs.shape[0])])
-    # remove numerical noise
-    dists = dists.round(10)
-
-    # sorting by distance
-    sorted_idxs = np.argsort(dists)
-    dists_sorted = dists[sorted_idxs]
-    b_vecs_sorted = b_vecs[sorted_idxs]
-    nnbr_idx_sorted = nnbr_idx[sorted_idxs]
-
-    unique_dists = sorted(list(set(dists)))  # removes repeated distances
-    keep_dists = unique_dists[:N_sh]  # keep only distances up to N_sh away
-    # keep only b_vecs in N_sh shells
-    k_shell = [
-        b_vecs_sorted[np.isin(dists_sorted, keep_dists[i])]
-        for i in range(len(keep_dists))
-    ]
-    idx_shell = [
-        nnbr_idx_sorted[np.isin(dists_sorted, keep_dists[i])]
-        for i in range(len(keep_dists))
-    ]
-
-    if report:
-        dist_degen = {ud: len(k_shell[i]) for i, ud in enumerate(keep_dists)}
-        print("k-shell report:")
-        print("--------------")
-        print(f"Reciprocal lattice vectors: {recip_lat_vecs}")
-        print(f"Distances and degeneracies: {dist_degen}")
-        print(f"k-shells: {k_shell}")
-        print(f"idx-shells: {idx_shell}")
-
-    return k_shell, idx_shell
-
-
-def get_fd_weights(model, nks, dim_k, N_sh=1, report=False):
-    """Generates the finite difference weights on a k-shell."""
-    k_shell, idx_shell = get_k_shell(model, nks, N_sh=N_sh, report=report)
-    cart_idx = list(comb(range(dim_k), 2))
-    n_comb = len(cart_idx)
-
-    A = np.zeros((n_comb, N_sh))
-    q = np.zeros((n_comb))
-
-    for j, (alpha, beta) in enumerate(cart_idx):
-        if alpha == beta:
-            q[j] = 1
-        for s in range(N_sh):
-            b_star = k_shell[s]
-            for i in range(b_star.shape[0]):
-                b = b_star[i]
-                A[j, s] += b[alpha] * b[beta]
-
-    U, D, Vt = np.linalg.svd(A, full_matrices=False)
-    w = (Vt.T @ np.linalg.inv(np.diag(D)) @ U.T) @ q
-    if report:
-        print(f"Finite difference weights: {w}")
-    return w, k_shell, idx_shell
-
-
 def finite_diff_coeffs(order, derivative_order=1, mode="central"):
     """
     Compute finite difference coefficients using the inverse of the Vandermonde matrix.
@@ -349,18 +197,6 @@ def finite_diff_coeffs(order, derivative_order=1, mode="central"):
 
     coeffs = np.linalg.solve(A, b)  # Solve system Ax = b
     return coeffs, stencil
-
-
-def finite_difference_periodic(M, axis, delta, order, mode="central"):
-    coeffs, stencil = finite_diff_coeffs(order=order, mode=mode)
-
-    fd_sum = np.zeros_like(M)
-
-    for s, c in zip(stencil, coeffs):
-        fd_sum += c * np.roll(M, shift=-s, axis=axis)
-
-    v = fd_sum / (delta)
-    return v
 
 
 def finite_difference(
@@ -547,52 +383,6 @@ def pauli_decompose(M):
     return [a0, a1, a2, a3]
 
 
-def twf_generator(model, twf_list):
-    # number of trial functions to define
-    num_tf = len(twf_list)
-    if model.nspin == 2:
-        tfs = np.zeros([num_tf, model.norb, 2], dtype=complex)
-        for j, tf in enumerate(twf_list):
-            assert isinstance(tf, (list, np.ndarray)), (
-                "Trial function must be a list of tuples"
-            )
-            for orb, spin, amp in tf:
-                tfs[j, orb, spin] = amp
-            tfs[j] /= np.linalg.norm(tfs[j])
-
-    elif model.nspin == 1:
-        # initialize array containing tfs = "trial functions"
-        tfs = np.zeros([num_tf, model.norb], dtype=complex)
-        for j, tf in enumerate(twf_list):
-            assert isinstance(tf, (list, np.ndarray)), (
-                "Trial function must be a list of tuples"
-            )
-            for site, amp in tf:
-                tfs[j, site] = amp
-            tfs[j] /= np.linalg.norm(tfs[j])
-
-    return tfs
-
-
-def no_2pi(x, clos):
-    "Make x as close to clos by adding or removing 2pi"
-    while abs(clos - x) > np.pi:
-        if clos - x > np.pi:
-            x += 2.0 * np.pi
-        elif clos - x < -1.0 * np.pi:
-            x -= 2.0 * np.pi
-    return x
-
-
-def _maybe_pad(arr, axis, keep):
-    """Repeat the first slice along `axis` when `keep` is True."""
-    if not keep:
-        return arr
-    first = np.take(arr, indices=0, axis=axis)
-    first = np.expand_dims(first, axis=axis)
-    return np.concatenate([arr, first], axis=axis)
-
-
 def _cart_to_red(a_vecs, cart):
     "Convert cartesian vectors cart to reduced coordinates of a1,a2,a3 vectors"
     # (a1, a2, a3) = tmp
@@ -659,112 +449,3 @@ def _offdiag_approximation_warning_and_stop():
 
 """
     )
-
-
-def compute_d4k_and_d2k(delta_k):
-    """
-    Computes the 4D volume element d^4k and the 2D plaquette areas d^2k for a given set of difference vectors in 4D space.
-
-    Parameters:
-    delta_k (numpy.ndarray): A 4x4 matrix where each row is a 4D difference vector.
-
-    Returns:
-    tuple: (d4k, plaquette_areas) where
-        - d4k is the absolute determinant of delta_k (4D volume element).
-        - plaquette_areas is a dictionary with keys (i, j) and values representing d^2k_{ij}.
-    """
-    # Compute d^4k as the determinant of the 4x4 difference matrix
-    d4k = np.abs(np.linalg.det(delta_k))
-
-    # Function to compute 2D plaquette area in 4D space
-    def compute_plaquette_area(v1, v2):
-        """Compute the 2D plaquette area spanned by two 4D vectors."""
-        area_squared = 0.0
-        # Sum over all unique (m, n) pairs where m < n
-        for m in range(4):
-            for n in range(m + 1, 4):
-                area_squared += (v1[m] * v2[n] - v1[n] * v2[m]) ** 2
-        return np.sqrt(area_squared)
-
-    # Compute all unique plaquette areas
-    plaquette_areas = {}
-    for i in range(4):
-        for j in range(i + 1, 4):
-            plaquette_areas[(i, j)] = compute_plaquette_area(delta_k[i], delta_k[j])
-
-    return d4k, plaquette_areas
-
-
-def _wf_dpr(wf1, wf2):
-    """calculate dot product between two wavefunctions.
-    wf1 and wf2 are of the form [orbital,spin]"""
-    return np.dot(wf1.flatten().conjugate(), wf2.flatten())
-
-
-def _one_berry_loop(wf, berry_evals=False):
-    """Do one Berry phase calculation (also returns a product of M
-    matrices).  Always returns numbers between -pi and pi.  wf has
-    format [kpnt,band,orbital,spin] and kpnt has to be one dimensional.
-    Assumes that first and last k-point are the same. Therefore if
-    there are n wavefunctions in total, will calculate phase along n-1
-    links only!  If berry_evals is True then will compute phases for
-    individual states, these corresponds to 1d hybrid Wannier
-    function centers. Otherwise just return one number, Berry phase."""
-    # number of occupied states
-    nocc = wf.shape[1]
-    # temporary matrices
-    prd = np.identity(nocc, dtype=complex)
-    ovr = np.zeros([nocc, nocc], dtype=complex)
-    # go over all pairs of k-points, assuming that last point is overcounted!
-    for i in range(wf.shape[0] - 1):
-        # generate overlap matrix, go over all bands
-        for j in range(nocc):
-            for k in range(nocc):
-                ovr[j, k] = _wf_dpr(wf[i, j, :], wf[i + 1, k, :])
-        # only find Berry phase
-        if not berry_evals:
-            # multiply overlap matrices
-            prd = np.dot(prd, ovr)
-        # also find phases of individual eigenvalues
-        else:
-            # cleanup matrices with SVD then take product
-            matU, sing, matV = np.linalg.svd(ovr)
-            prd = np.dot(prd, np.dot(matU, matV))
-    # calculate Berry phase
-    if not berry_evals:
-        det = np.linalg.det(prd)
-        pha = (-1.0) * np.angle(det)
-        return pha
-    # calculate phases of all eigenvalues
-    else:
-        evals = np.linalg.eigvals(prd)
-        eval_pha = (-1.0) * np.angle(evals)
-        # sort these numbers as well
-        eval_pha = np.sort(eval_pha)
-        return eval_pha
-
-
-def _one_flux_plane(wfs2d):
-    "Compute fluxes on a two-dimensional plane of states."
-    # size of the mesh
-    nk0 = wfs2d.shape[0]
-    nk1 = wfs2d.shape[1]
-
-    # here store flux through each plaquette of the mesh
-    all_phases = np.zeros((nk0 - 1, nk1 - 1), dtype=float)
-
-    # go over all plaquettes
-    for i in range(nk0 - 1):
-        for j in range(nk1 - 1):
-            # generate a small loop made out of four pieces
-            wf_use = []
-            wf_use.append(wfs2d[i, j])
-            wf_use.append(wfs2d[i + 1, j])
-            wf_use.append(wfs2d[i + 1, j + 1])
-            wf_use.append(wfs2d[i, j + 1])
-            wf_use.append(wfs2d[i, j])
-            wf_use = np.array(wf_use, dtype=complex)
-            # calculate phase around one plaquette
-            all_phases[i, j] = _one_berry_loop(wf_use)
-
-    return all_phases
