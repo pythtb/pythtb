@@ -3285,7 +3285,9 @@ class TBModel:
 
             return eigvals, eigvecs
         else:
-            eigvals = self._sol_ham(ham, return_eigvecs=return_eigvecs)
+            eigvals = self._sol_ham(
+                ham, return_eigvecs=return_eigvecs, use_tensorflow=use_tensorflow
+            )
 
             if self.dim_k != 0:
                 # if only one k_point, remove that redundant axis (reproduces solve_one)
