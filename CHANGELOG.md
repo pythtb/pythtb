@@ -5,6 +5,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ------
 
+## [Unreleased]
+
+### Fixed
+- `TBModel.solve_ham` now honors `use_tensorflow=True` when `return_eigvecs=False`; previously the flag was silently ignored on that path
+
+### Improved
+- Unified the spinless and spinful assembly kernels in `TBModel.hamiltonian()` and `TBModel.velocity()` behind shared helpers, removing duplicated code paths (results are bit-for-bit identical)
+- Parameter-sweep evaluation in `TBModel.hamiltonian()` and `TBModel.velocity()` now goes through a single shared helper
+- `TBModel.quantum_geometric_tensor()` and related methods now always evaluate the tensor algebra in double precision; with `use_tensorflow=True` the previous implementation silently used single precision (complex64). The flag now dispatches only the Hamiltonian eigensolver
+- TensorFlow imports are centralized in a single helper with a consistent error message when TensorFlow is unavailable
+
+### Removed
+- Removed unused internal helper functions from `pythtb.utils` (`get_tensorflow`, `detect_degeneracies`, `get_k_shell`, `get_fd_weights`, `finite_difference_periodic`, `twf_generator`, `no_2pi`, `compute_d4k_and_d2k`, and private Berry-loop helpers superseded by `WFArray`)
+
 ## [2.0.2] - 2026-04-21
 
 ### Fixed
