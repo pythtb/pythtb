@@ -77,6 +77,9 @@ class W90Dataset:
         array of shape ``(3, num_wan, num_wan)`` in Cartesian coordinates
         (angstroms). Populated only when ``prefix_tb.dat`` (``write_tb``) or
         ``prefix_r.dat`` is available; otherwise ``None``.
+
+        .. versionadded:: 2.1.0
+
     kpath_nodes_red : numpy.ndarray | None
         Reduced coordinates of the ``kpoint_path`` nodes, if present.
     kpath_labels : list[str] | None
@@ -266,6 +269,8 @@ def read_tb(
     Wannier functions and are required to compute Berry-phase-like quantities
     that match the underlying first-principles result.
 
+    .. versionadded:: 2.1.0
+
     Parameters
     ----------
     root : Path or str
@@ -400,6 +405,8 @@ def read_r(
     This is the position-only counterpart to :func:`read_hr`, written by older
     Wannier90 runs (e.g. with ``transl_inv`` / ``write_rmn``). Prefer
     :func:`read_tb` when ``prefix_tb.dat`` is available.
+
+    .. versionadded:: 2.1.0
 
     Parameters
     ----------
@@ -545,6 +552,10 @@ def load_w90_dataset(
 ) -> W90Dataset:
     """Gather lattice, centre, and Hamiltonian data into a :class:`W90Dataset`.
 
+    .. versionchanged:: 2.1.0
+        Also loads the Wannier position matrix into :attr:`W90Dataset.pos_r`
+        when ``prefix_tb.dat`` or ``prefix_r.dat`` is available.
+
     Parameters
     ----------
     root : Path or str
@@ -669,6 +680,8 @@ def wannier_connection_ft(
     eigenvectors of :math:`H(\mathbf{k})` (and adding the usual gauge-covariant
     term) yields the smooth Berry connection used for Berry curvature and the
     anomalous Hall conductivity.
+
+    .. versionadded:: 2.1.0
 
     Parameters
     ----------

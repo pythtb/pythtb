@@ -315,7 +315,7 @@ class TBModel:
         )
 
     def __str__(self):
-        r"""Return a human‑readable summary string.
+        r"""Return a human-readable summary string.
 
         Returns
         -------
@@ -563,7 +563,7 @@ class TBModel:
 
     @property
     def parameters(self):
-        """Parameter providers registered on on‑site and hopping terms.
+        """Parameter providers registered on on-site and hopping terms.
 
         Returns
         -------
@@ -644,6 +644,8 @@ class TBModel:
         Wannier90 run with ``write_tb = .true.`` (or a legacy ``prefix_r.dat``).
         When ``True``, :meth:`wannier_berry_connection` can be used to obtain the
         exact Berry connection rather than the diagonal-position approximation.
+
+        .. versionadded:: 2.1.0
         """
         return self._pos_r is not None
 
@@ -664,7 +666,7 @@ class TBModel:
         Berry connection, curvature, and anomalous Hall conductivity
         (Wannier-interpolation scheme of Wang *et al.*, PRB **74**, 195118).
 
-        .. versionadded:: 2.0.0
+        .. versionadded:: 2.1.0
 
         Parameters
         ----------

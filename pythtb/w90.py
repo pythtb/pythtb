@@ -193,6 +193,8 @@ class W90:
         ``prefix_tb.dat``) or a legacy ``prefix_r.dat`` was found. When ``True``
         the centers and Berry connection of the Wannier functions are known
         exactly (not under the diagonal-position approximation).
+
+        .. versionadded:: 2.1.0
         """
         return self.pos_r is not None
 
@@ -229,7 +231,7 @@ class W90:
         :meth:`berry_connection_wann`. The :math:`\mathbf{R}=0` diagonal of this
         matrix is returned by :meth:`wannier_centers`.
 
-        .. versionadded:: 2.0.0
+        .. versionadded:: 2.1.0
 
         Parameters
         ----------
@@ -272,6 +274,8 @@ class W90:
         centers. These coincide (up to numerical precision) with the values in
         ``prefix_centres.xyz``.
 
+        .. versionadded:: 2.1.0
+
         Returns
         -------
         centers : numpy.ndarray
@@ -297,7 +301,7 @@ class W90:
         eigenvector-rotated form enters the Berry curvature / anomalous Hall
         conductivity in the Wannier-interpolation scheme of [1]_.
 
-        .. versionadded:: 2.0.0
+        .. versionadded:: 2.1.0
 
         Parameters
         ----------
