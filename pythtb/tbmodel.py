@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 import copy
+from dataclasses import dataclass
 from functools import lru_cache
 import logging
 import warnings
@@ -74,6 +75,67 @@ def _describe_provider(provider):
             )
             return f"callable {name} (source unavailable)"
     return repr(provider)
+
+
+@dataclass(frozen=True)
+class _ParameterSweep:
+    """Scalar parameter assignments plus optional cartesian sweep axes."""
+
+    scalars: dict[str, object]
+    names: tuple[str, ...]
+    axes: tuple[object, ...]
+
+    @property
+    def has_axes(self) -> bool:
+        return bool(self.axes)
+
+    def evaluate(self, build_fn, n_lead: tuple[int, ...], *, axes=None):
+        """Evaluate ``build_fn`` once or over the cartesian product of axes.
+
+        ``build_fn(assignments)`` must return a tuple of arrays. Sweep axes are
+        inserted after the first ``n_lead[i]`` dimensions of each returned array.
+        """
+        eval_axes = self.axes if axes is None else tuple(axes)
+        if len(eval_axes) != len(self.names):
+            raise ValueError("Number of parameter sweep axes must match names.")
+        if not eval_axes:
+            return tuple(build_fn(self.scalars))
+
+        axis_lengths = [len(axis) for axis in eval_axes]
+        n_blocks = int(np.prod(axis_lengths, dtype=int))
+        stacked_flat = None
+        assignments = self.scalars.copy()
+
+        for flat_idx, multi_idx in enumerate(np.ndindex(*axis_lengths)):
+            for axis_idx, name in enumerate(self.names):
+                assignments[name] = eval_axes[axis_idx][multi_idx[axis_idx]]
+
+            blocks = tuple(build_fn(assignments))
+            if stacked_flat is None:
+                stacked_flat = [
+                    np.empty((n_blocks, *block.shape), dtype=block.dtype)
+                    for block in blocks
+                ]
+            for out, block in zip(stacked_flat, blocks, strict=True):
+                out[flat_idx] = block
+
+        p = len(axis_lengths)
+        results = []
+        for out, lead in zip(stacked_flat, n_lead, strict=True):
+            out = out.reshape(*axis_lengths, *out.shape[1:])
+            results.append(np.moveaxis(out, range(p), range(lead, lead + p)))
+        return tuple(results)
+
+
+@dataclass(frozen=True)
+class _ParameterDerivativeSpec:
+    """Finite-difference metadata for one swept parameter."""
+
+    name: str
+    sweep_index: int
+    step: float
+    periodic: bool
+    trimmed: bool
 
 
 class TBModel:
@@ -1699,13 +1761,10 @@ class TBModel:
         onsite_terms = getattr(self, "_onsite_param_terms", {})
         return any(term is not None for term in onsite_terms.values())
 
-    def _params_to_sweep(self, params: dict):
-        """Partition parameters into scalars and sweeps."""
-        # Partition params into scalars vs sweeps (1D arrays/lists)
+    def _params_to_sweep(self, params: dict) -> _ParameterSweep:
+        """Partition parameters into scalar assignments and sweep axes."""
         sweep_names: list[str] = []
-        sweep_values: list[
-            list[object]
-        ] = []  # list of per-parameter lists of scalar values
+        sweep_values: list[list[object]] = []
         scalars: dict[str, object] = {}
 
         for name, raw in params.items():
@@ -1764,42 +1823,11 @@ class TBModel:
                     "Expected scalar, list, tuple, or numpy.ndarray."
                 )
 
-        return scalars, sweep_names, sweep_values
-
-    @staticmethod
-    def _sweep_evaluate(scalars, sweep_names, sweep_values, build_fn, n_lead):
-        """Evaluate ``build_fn`` over the cartesian product of parameter sweeps.
-
-        ``build_fn(assignments)`` is called once per point of the sweep grid
-        (with ``assignments`` mapping every parameter name to a scalar) and must
-        return a tuple of arrays whose shapes do not depend on the assignment.
-        Each output is stacked over the grid with the sweep axes inserted after
-        that output's first ``n_lead[i]`` axes — e.g. ``n_lead=(1,)`` turns a
-        per-point ``(Nk, n, n)`` result into ``(Nk, l1, ..., lp, n, n)``.
-
-        Returns the tuple of stacked arrays.
-        """
-        axis_lengths = [len(ax) for ax in sweep_values]
-        n_blocks = int(np.prod(axis_lengths, dtype=int))
-        stacked_flat = None
-        assign = scalars.copy()  # update scalar mappings in-place per point
-        for flat_idx, multi in enumerate(np.ndindex(*axis_lengths)):
-            for a, name in enumerate(sweep_names):
-                assign[name] = sweep_values[a][multi[a]]
-            blocks = build_fn(assign)
-            if stacked_flat is None:
-                stacked_flat = [
-                    np.empty((n_blocks, *b.shape), dtype=b.dtype) for b in blocks
-                ]
-            for out, b in zip(stacked_flat, blocks):
-                out[flat_idx] = b
-
-        p = len(axis_lengths)
-        results = []
-        for out, lead in zip(stacked_flat, n_lead, strict=True):
-            out = out.reshape(*axis_lengths, *out.shape[1:])
-            results.append(np.moveaxis(out, range(p), range(lead, lead + p)))
-        return tuple(results)
+        return _ParameterSweep(
+            scalars=scalars,
+            names=tuple(sweep_names),
+            axes=tuple(tuple(values) for values in sweep_values),
+        )
 
     def _evaluate_params(self, assignments: dict):
         """Evaluate the model with given parameter assignments.
@@ -1947,6 +1975,94 @@ class TBModel:
                 trimmed = True
 
         return arr.copy(), step, periodic, trimmed
+
+    def _velocity_sweep_axes(
+        self, sweep: _ParameterSweep, param_periods: Mapping[str, float]
+    ) -> tuple[list[np.ndarray], list[_ParameterDerivativeSpec]]:
+        """Return evaluation axes and finite-difference metadata for velocity."""
+        raw_axes: list[np.ndarray] = []
+        derivative_specs: list[_ParameterDerivativeSpec] = []
+
+        for idx, name in enumerate(sweep.names):
+            axis_array = np.asarray(sweep.axes[idx], dtype=float)
+            raw_axes.append(axis_array.copy())
+            if axis_array.ndim != 1 or axis_array.size < 2:
+                continue
+
+            _, step, periodic, trimmed = self._normalize_parameter_axis(
+                axis_array,
+                name=name,
+                period=param_periods.get(name),
+            )
+            derivative_specs.append(
+                _ParameterDerivativeSpec(
+                    name=name,
+                    sweep_index=idx,
+                    step=step,
+                    periodic=periodic,
+                    trimmed=trimmed,
+                )
+            )
+
+        return raw_axes, derivative_specs
+
+    def _finite_difference_parameter_hamiltonian(
+        self,
+        ham: np.ndarray,
+        spec: _ParameterDerivativeSpec,
+        *,
+        diff_scheme: str,
+        diff_order: int,
+    ) -> np.ndarray:
+        """Differentiate a Hamiltonian stack along one parameter sweep axis."""
+        sweep_axis = 1 + spec.sweep_index  # axis 0 is Nk; parameters follow.
+        if spec.trimmed:
+            logger.debug(
+                "velocity: trimming repeated endpoint for periodic parameter '%s' "
+                "before differentiating Hamiltonian.",
+                spec.name,
+            )
+            slicer = [slice(None)] * ham.ndim
+            slicer[sweep_axis] = slice(0, -1)
+            ham_fd = ham[tuple(slicer)]
+        else:
+            ham_fd = ham
+
+        dH = finite_difference(
+            ham_fd,
+            axis=sweep_axis,
+            delta=spec.step,
+            order=diff_order,
+            mode=diff_scheme,
+            periodic=spec.periodic,
+        )
+
+        if spec.trimmed and spec.periodic:
+            first_slice = np.take(dH, indices=0, axis=sweep_axis)
+            first_slice = np.expand_dims(first_slice, axis=sweep_axis)
+            dH = np.concatenate([dH, first_slice], axis=sweep_axis)
+        return dH
+
+    def _append_parameter_velocity_components(
+        self,
+        vel_k: np.ndarray,
+        ham: np.ndarray,
+        derivative_specs: list[_ParameterDerivativeSpec],
+        *,
+        diff_scheme: str,
+        diff_order: int,
+    ) -> np.ndarray:
+        """Append finite-difference parameter derivatives after k-derivatives."""
+        components = [vel_k]
+        for spec in derivative_specs:
+            dH = self._finite_difference_parameter_hamiltonian(
+                ham,
+                spec,
+                diff_scheme=diff_scheme,
+                diff_order=diff_order,
+            )
+            components.append(dH[np.newaxis, ...])
+        return np.concatenate(components, axis=0)
 
     def _eval_expr_to_block(self, expr: str, **assignments):
         """Evaluate a string expression with the given parameter values and cast it to a block."""
@@ -3059,11 +3175,7 @@ class TBModel:
             else:
                 k_arr = self._normalize_kpoints(k_pts)
 
-        # Partition params into scalars vs sweeps (1D arrays/lists)
-        # scalars: dict of param_name -> scalar value
-        # sweep_names: list of param names to sweep over
-        # sweep_values: list of arrays/lists of values to sweep over
-        scalars, sweep_names, sweep_values = self._params_to_sweep(params)
+        sweep = self._params_to_sweep(params)
 
         def build_H(assign):
             hop_amps, i_idx, j_idx, R_vecs, site = self._evaluate_params(assign)
@@ -3081,22 +3193,16 @@ class TBModel:
                 flatten_spin=flatten_spin_axis,
             )
 
-        # No sweep axes, resolve scalar parameters only
-        if not sweep_values:
-            return build_H(scalars)
+        if not sweep.has_axes:
+            return build_H(sweep.scalars)
 
-        # param sweeps: cartesian product; sweep axes follow the k-axis (if any)
-        (stacked,) = self._sweep_evaluate(
-            scalars,
-            sweep_names,
-            sweep_values,
+        (ham,) = sweep.evaluate(
             lambda assign: (build_H(assign),),
             n_lead=(0 if self.dim_k == 0 else 1,),
         )
 
-        self._H = stacked
-
-        return stacked
+        self._H = ham
+        return ham
 
     def _sol_ham(
         self,
@@ -3452,31 +3558,12 @@ class TBModel:
         else:
             k_arr = self._normalize_kpoints(k_pts)
 
-        # Partition params into scalars vs sweeps (1D arrays/lists)
-        # scalars: dict of param_name -> scalar value
-        # sweep_names: list of param names to sweep over
-        # sweep_values: list of arrays/lists of values to sweep over
-        scalars, sweep_names, sweep_values = self._params_to_sweep(params)
-
+        sweep = self._params_to_sweep(params)
         param_periods = dict(param_periods or {})
-
-        raw_axes: list[np.ndarray] = []
-        sweep_meta: dict[str, tuple[float, bool, bool, list[float]]] = {}
-        for idx, name in enumerate(sweep_names):
-            axis_array = np.asarray(sweep_values[idx], dtype=float)
-            raw_axes.append(axis_array.copy())  # preserve the user’s grid
-            if axis_array.ndim != 1 or axis_array.size < 2:
-                continue
-
-            normalized, step, periodic, trimmed = self._normalize_parameter_axis(
-                axis_array,
-                name=name,
-                period=param_periods.get(name),
-            )
-            sweep_meta[name] = (step, periodic, trimmed, normalized.tolist())
+        raw_axes, derivative_specs = self._velocity_sweep_axes(sweep, param_periods)
 
         # Determine if we need to compute Hamiltonian for lambda derivatives
-        needs_ham = _return_ham or bool(sweep_meta)
+        needs_ham = _return_ham or bool(derivative_specs)
 
         def build_v(assign):
             hop_amps, i_idx, j_idx, R_vecs, site_energies = self._evaluate_params(
@@ -3495,76 +3582,33 @@ class TBModel:
             )
             return out if needs_ham else (out,)
 
-        # No sweeps: just evaluate in place
-        if not sweep_values:
-            v = build_v(scalars)
+        if not sweep.has_axes:
+            result = build_v(sweep.scalars)
             if needs_ham:
-                vel, ham = v
+                vel, ham = result
                 return (vel, ham) if _return_ham else vel
-            return v[0]
+            return result[0]
 
         # Parameter sweeps: cartesian product, with the sweep axes placed after
         # the (dim_k, Nk) axes of the velocity and the Nk axis of the Hamiltonian.
         # Evaluate on the raw user grid, not the normalized grid.
         if needs_ham:
-            vel_k, ham = self._sweep_evaluate(
-                scalars, sweep_names, raw_axes, build_v, n_lead=(2, 1)
-            )
+            vel_k, ham = sweep.evaluate(build_v, n_lead=(2, 1), axes=raw_axes)
         else:
             ham = None
-            (vel_k,) = self._sweep_evaluate(
-                scalars, sweep_names, raw_axes, build_v, n_lead=(2,)
-            )
+            (vel_k,) = sweep.evaluate(build_v, n_lead=(2,), axes=raw_axes)
 
         # If no param derivatives needed, return now
-        if not sweep_meta:
+        if not derivative_specs:
             return (vel_k, ham) if _return_ham else vel_k
 
-        ######### Compute parameter derivatives via finite differences #########
-
-        # The velocity output currently has shape (dim_k, Nk, l1, ..., norb, norb).
-        # Append parameter-derivatives after the existing k components.
-        vel_components = [vel_k]
-        for idx, name in enumerate(sweep_names):
-            meta = sweep_meta.get(name)
-            if meta is None:
-                continue  # non-numeric sweep; skip
-
-            step, periodic, trimmed, _ = meta
-            # Axis of Hamiltonian corresponding to this parameter sweep
-            sweep_axis = 1 + idx  # axis 0 is Nk, axis 1 begins the param sweeps
-
-            if trimmed:
-                logger.debug(
-                    "velocity: Endpoint detected on periodic parameter"
-                    f"Trimming last '{name}' before differentiating Hamiltonian."
-                )
-                # drop the repeated endpoint before taking finite differences
-                slicer = [slice(None)] * ham.ndim
-                slicer[sweep_axis] = slice(0, -1)
-                ham_fd = ham[tuple(slicer)]
-            else:
-                ham_fd = ham
-
-            dH = finite_difference(
-                ham_fd,
-                axis=sweep_axis,
-                delta=step,
-                order=diff_order,
-                mode=diff_scheme,
-                periodic=periodic,
-            )
-
-            # Re-append the first slice so the derivative array matches the user grid
-            # Derivative at the endpoint is same as at the start for periodic params
-            if trimmed and periodic:
-                first_slice = np.take(dH, indices=0, axis=sweep_axis)
-                first_slice = np.expand_dims(first_slice, axis=sweep_axis)
-                dH = np.concatenate([dH, first_slice], axis=sweep_axis)
-
-            vel_components.append(dH[np.newaxis, ...])  # prepend new derivative axis
-
-        vel_full = np.concatenate(vel_components, axis=0)
+        vel_full = self._append_parameter_velocity_components(
+            vel_k,
+            ham,
+            derivative_specs,
+            diff_scheme=diff_scheme,
+            diff_order=diff_order,
+        )
         return (vel_full, ham) if _return_ham else vel_full
 
     def velocity(
@@ -4724,15 +4768,15 @@ class TBModel:
         params = dict(params)
         self._check_missing_parameters(params)
 
-        scalars, sweep_names, sweep_values = self._params_to_sweep(params)
+        sweep = self._params_to_sweep(params)
 
         # Take first and only swept parameter as adiabatic axis
-        if len(sweep_names) != 1:
+        if len(sweep.names) != 1:
             raise ValueError(
                 "axion_angle expects exactly one swept (array-valued) parameter."
             )
-        sweep_name = sweep_names[0]
-        lambda_vals_raw = np.asarray(sweep_values[0], dtype=float)
+        sweep_name = sweep.names[0]
+        lambda_vals_raw = np.asarray(sweep.axes[0], dtype=float)
 
         # Trim end points if they duplicate the start (periodic)
         period_dict = param_periods or {}
@@ -4744,7 +4788,6 @@ class TBModel:
             name=sweep_name,
             period=period_dict.get(sweep_name, None),
         )
-        sweep_values[0] = list(lambda_vals)
 
         nkx, nky, nkz = map(int, nks)
         if min(nkx, nky, nkz) < 2:
@@ -4757,7 +4800,7 @@ class TBModel:
         )
 
         # Assemble kwargs for berry_curvature (scalars + the sweep)
-        bc_kwargs = {name: value for name, value in scalars.items()}
+        bc_kwargs = {name: value for name, value in sweep.scalars.items()}
         bc_kwargs[sweep_name] = lambda_vals
 
         # evaluate the non-Abelian 4D Berry curvature
@@ -4938,19 +4981,19 @@ class TBModel:
 
         params = dict(params)
         self._check_missing_parameters(params)
-        scalars, sweep_names, sweep_axes = self._params_to_sweep(params)
+        sweep = self._params_to_sweep(params)
         param_periods = dict(param_periods or {})
 
         param_steps: list[float] = []
         param_lengths: list[int] = []
         param_trimmed: list[bool] = []
-        eval_kwargs = scalars.copy()
+        eval_kwargs = sweep.scalars.copy()
 
         # Inspect each parameter sweep. _normalize_parameter_axis returns the unique
         # grid (trimmed if cyclic) plus the uniform spacing. We call it to obtain
         # spacing metadata, but we still evaluate the curvature on the *raw* grid
         # so "spectator" axes (not integrated) see exactly the points they requested.
-        for name, axis_vals in zip(sweep_names, sweep_axes, strict=True):
+        for name, axis_vals in zip(sweep.names, sweep.axes, strict=True):
             values = np.asarray(axis_vals, dtype=float)
             if values.ndim != 1 or values.size < 2:
                 raise ValueError(
