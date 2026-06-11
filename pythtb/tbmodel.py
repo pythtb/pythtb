@@ -3833,6 +3833,49 @@ class TBModel:
                 raise ValueError("plane must be a tuple of length 2.")
             return Q[plane]
 
+    def _qgt_states(
+        self,
+        k_pts,
+        *,
+        cartesian: bool,
+        param_periods: dict[str, float] | None,
+        diff_scheme: str,
+        diff_order: int,
+        use_tensorflow: bool,
+        **params,
+    ):
+        """Velocity operator and eigensystem shared by the geometry methods.
+
+        Builds the Hamiltonian and its derivatives in a single pass and
+        diagonalizes once, so callers (:meth:`quantum_geometric_tensor`,
+        :meth:`berry_curvature`, :meth:`quantum_metric`) never repeat the
+        eigensolve for the same k-points.
+        """
+        v, ham = self._velocity(
+            k_pts,
+            cartesian=cartesian,
+            flatten_spin_axis=True,
+            param_periods=param_periods,
+            diff_scheme=diff_scheme,
+            diff_order=diff_order,
+            _return_ham=True,
+            **params,
+        )  # (dim_k + dim_lam , Nk, *lam_shape, nstate, nstate)
+
+        if v.shape[0] < 2:
+            raise ValueError(
+                "Quantum geometric tensor requires at least two independent "
+                "coordinates (crystal momenta and/or varying parameters)."
+            )
+
+        eigvals, eigvecs = self._sol_ham(
+            ham,
+            return_eigvecs=True,
+            flatten_spin_axis=True,
+            use_tensorflow=use_tensorflow,
+        )
+        return v, eigvals, eigvecs
+
     def quantum_geometric_tensor(
         self,
         k_pts,
@@ -3964,28 +4007,14 @@ class TBModel:
               set with lists of values.
 
         """
-        v, ham = self._velocity(
+        v, eigvals, eigvecs = self._qgt_states(
             k_pts,
             cartesian=cartesian,
-            flatten_spin_axis=True,
             param_periods=param_periods,
             diff_scheme=diff_scheme,
             diff_order=diff_order,
-            _return_ham=True,
-            **params,
-        )  # (dim_k + dim_lam , Nk, *lam_shape, nstate, nstate)
-
-        if v.shape[0] < 2:
-            raise ValueError(
-                "Quantum geometric tensor requires at least two independent "
-                "coordinates (crystal momenta and/or varying parameters)."
-            )
-
-        eigvals, eigvecs = self._sol_ham(
-            ham,
-            return_eigvecs=True,
-            flatten_spin_axis=True,
             use_tensorflow=use_tensorflow,
+            **params,
         )
 
         return self._quantum_geometric_tensor(
@@ -4188,20 +4217,29 @@ class TBModel:
                 "non_abelian=True needs a fixed band set via occ_idxs."
             )
 
-        # Internal contribution B^I: the (diagonal-position) Kubo Berry curvature,
-        # i.e. the anti-symmetric part of the quantum geometric tensor. With a
-        # Fermi level the occupation is per-k (metals); otherwise occ_idxs.
-        Q = self.quantum_geometric_tensor(
+        # Build dH/dk (and H) once and diagonalize once; the eigensystem and
+        # velocity are shared by the internal (Kubo) term and the external
+        # position-matrix term so no stage repeats the eigensolve.
+        v, eigvals, eigvecs = self._qgt_states(
             k_pts,
-            occ_idxs=occ_idxs,
             cartesian=cartesian,
-            non_abelian=non_abelian,
-            fermi=fermi,
             param_periods=param_periods,
             diff_scheme=diff_scheme,
             diff_order=diff_order,
             use_tensorflow=use_tensorflow,
             **params,
+        )
+
+        # Internal contribution B^I: the (diagonal-position) Kubo Berry curvature,
+        # i.e. the anti-symmetric part of the quantum geometric tensor. With a
+        # Fermi level the occupation is per-k (metals); otherwise occ_idxs.
+        Q = self._quantum_geometric_tensor(
+            v,
+            eigvals,
+            eigvecs,
+            occ_idxs=occ_idxs,
+            non_abelian=non_abelian,
+            fermi=fermi,
         )
         if non_abelian:
             Omega = 1j * (Q - np.swapaxes(Q, -1, -2).conj())
@@ -4211,17 +4249,19 @@ class TBModel:
         # External contribution B^X + B^E from the off-diagonal position matrix,
         # in the same convention (and gauge) as the internal QGT term.
         if include_external:
+            k_arr = self._normalize_kpoints(k_pts)
             ext = self._berry_curvature_external(
-                k_pts,
+                k_arr,
+                v,
+                eigvals,
+                eigvecs,
                 occ_idxs=occ_idxs,
                 fermi=fermi,
                 cartesian=cartesian,
                 non_abelian=non_abelian,
             )
-            if non_abelian:
-                Omega = Omega + ext  # (dim, dim, Nk, n_occ, n_occ)
-            else:
-                Omega = Omega + ext  # already band-summed (dim, dim, Nk)
+            Omega = Omega + ext  # non-Abelian: (dim, dim, Nk, n_occ, n_occ);
+            # band-summed: (dim, dim, Nk)
 
         if plane is not None:
             mu, nu = plane
@@ -4229,7 +4269,7 @@ class TBModel:
         return Omega
 
     def _berry_curvature_external(
-        self, k_pts, *, occ_idxs, fermi, cartesian, non_abelian
+        self, k_arr, v, eigvals, eigvecs, *, occ_idxs, fermi, cartesian, non_abelian
     ):
         r"""External (off-diagonal position-matrix) Berry curvature ``B^X + B^E``.
 
@@ -4247,8 +4287,21 @@ class TBModel:
                 + (-i a_{\mu,cm})^* d_{\nu,cn} - \mu\!\leftrightarrow\!\nu),\\
             B^E_{\mu\nu,mn} &= \bar\Omega_{\mu\nu,mn} - i[a_\mu, a_\nu]_{mn}.
 
+        Vectorized over k-points and reusing the velocity operator and
+        eigensystem computed by the caller (see :meth:`_qgt_states`), so it
+        performs no additional Hamiltonian build or diagonalization.
+
         Validated: the band trace reproduces ``postw90``'s external ``J0+J1`` and
         the full non-Abelian matrix matches a finite-difference Wilson loop.
+
+        Parameters
+        ----------
+        k_arr : (Nk, 3) ndarray
+            Normalized reduced k-points (used for the Bloch sums).
+        v : (3, Nk, N, N) ndarray
+            ``dH/dk`` in the same ``cartesian`` convention as the caller.
+        eigvals, eigvecs : ndarray
+            Eigensystem from :meth:`_sol_ham` (eigenvector ``n`` in row ``n``).
 
         Returns
         -------
@@ -4260,15 +4313,17 @@ class TBModel:
         """
         alpha_ax, beta_ax = (1, 2, 0), (2, 0, 1)  # Omega_g -> (alpha, beta)
         N = self.norb
+        n_k = k_arr.shape[0]
         if occ_idxs is None and fermi is None:
             occ_idxs = np.arange(N // 2)
 
         # Real-space position data: Hermitianized <0n|r|Rm> with the centers
         # removed (convention I: X^I(R) = <0n| r - tau_n |Rm>, i.e. zero the R=0
-        # diagonal, since tau = Wannier center for a W90 model).
+        # diagonal, since tau = Wannier center for a W90 model) and the
+        # Wigner-Seitz degeneracy folded in.
         Rs = list(self._pos_r.keys())
         R_int = np.array(Rs, dtype=float)
-        Rc = R_int @ self.lattice.lat_vecs  # Cartesian R
+        R_cart = R_int @ self.lattice.lat_vecs
         inv_deg = np.array([1.0 / float(self._ham_deg[R]) for R in Rs])
         Rset = set(Rs)
         XI = np.zeros((len(Rs), 3, N, N), complex)
@@ -4279,100 +4334,107 @@ class TBModel:
             if R == (0, 0, 0):
                 for ax in range(3):
                     np.fill_diagonal(XI[j, ax], 0.0)
+        XI *= inv_deg[:, None, None, None]
 
-        tau_red = self.orb_vecs
+        # Cartesian bond vectors b_{nm}(R) = R + tau_m - tau_n and the
+        # k-independent curl weights, so that the external curl is the plain
+        # Bloch sum bar-Omega_g(k) = sum_R e^{2 pi i k.R} W_g(R) (times the
+        # intra-cell tau phases).
         tau_cart = self.get_orb_vecs(cartesian=True)
-        # Cartesian bond vectors b_{nm}(R) = R + tau_m - tau_n.
         bnd = (
-            Rc[:, None, None, :]
+            R_cart[:, None, None, :]
             + tau_cart[None, None, :, :]
             - tau_cart[None, :, None, :]
         )
+        Wg = np.empty_like(XI)
+        for g in range(3):
+            al, be = alpha_ax[g], beta_ax[g]
+            Wg[:, g] = 1j * (bnd[..., al] * XI[:, be] - bnd[..., be] * XI[:, al])
 
-        k = np.atleast_2d(np.asarray(k_pts, dtype=float))
-        H_k = self.hamiltonian(k)  # (Nk, N, N), convention I
-        V_k = self.velocity(k, cartesian=True)  # (3, Nk, N, N) = dH/dk_cart
+        # Bloch sums over the whole k-batch (convention I).
+        n_R = len(Rs)
+        phR = np.exp(2j * np.pi * (k_arr @ R_int.T))  # (Nk, n_R)
+        Aex = (phR @ XI.reshape(n_R, -1)).reshape(n_k, 3, N, N)
+        Om = (phR @ Wg.reshape(n_R, -1)).reshape(n_k, 3, N, N)
+        Dk = np.exp(2j * np.pi * (k_arr @ np.asarray(self.orb_vecs, float).T))
+        Dph = np.conj(Dk)[:, :, None] * Dk[:, None, :]  # e^{2 pi i k.(tau_m - tau_n)}
+        Aex *= Dph[:, None]
+        Om *= Dph[:, None]
+
+        if not cartesian:
+            # Match the caller's reduced axes (same convention as v): the
+            # connection converts as a one-form, the curl components as the
+            # dual of a two-form (cofactor matrix of B).
+            Brec = self.recip_lat_vecs
+            Aex = np.einsum("ua, kaij -> kuij", Brec, Aex)
+            M2 = np.linalg.det(Brec) * np.linalg.inv(Brec).T
+            Om = np.einsum("ua, kaij -> kuij", M2, Om)
+
+        # Rotate to the eigenbasis (eigenvector n in row n) and build the
+        # internal connection d with guarded energy denominators.
+        Vc = eigvecs.conj()
+        Vt = eigvecs.swapaxes(-1, -2)
+        a = np.moveaxis(Vc[:, None] @ Aex @ Vt[:, None], 1, 0)  # (3, Nk, N, N)
+        omz = np.moveaxis(Vc[:, None] @ Om @ Vt[:, None], 1, 0)
+        v_rot = Vc[None] @ v @ Vt[None]  # (3, Nk, N, N)
+        dE = eigvals[..., None, :] - eigvals[..., :, None]  # dE[k, m, n] = E_n - E_m
+        inv = np.divide(1.0, dE, out=np.zeros_like(dE), where=np.abs(dE) > 1e-9)
+        d = v_rot * inv[None]
 
         if non_abelian:
             o = np.sort(np.asarray(occ_idxs, dtype=int))
             cc = np.setdiff1d(np.arange(N), o)
-            out = np.zeros((k.shape[0], 3, 3, o.size, o.size), complex)
-        else:
-            out = np.zeros((k.shape[0], 3, 3))
-            if fermi is None:  # fixed band group as a 0/1 occupation
-                occ_fixed = np.zeros(N, bool)
-                occ_fixed[np.asarray(occ_idxs, dtype=int)] = True
+            a_co = a[:, :, cc[:, None], o[None, :]]  # (3, Nk, n_cond, n_occ)
+            a_oo = a[:, :, o[:, None], o[None, :]]
+            omz_oo = omz[:, :, o[:, None], o[None, :]]
+            d_co = d[:, :, cc[:, None], o[None, :]]
 
-        for ik in range(k.shape[0]):
-            kk = k[ik]
-            phR = np.exp(2j * np.pi * (R_int @ kk)) * inv_deg
-            D = np.exp(2j * np.pi * (tau_red @ kk))
-            Dph = np.conj(D)[:, None] * D[None, :]  # e^{2 pi i k.(tau_m - tau_n)}
-            Aext = np.einsum("r, raij -> aij", phR, XI) * Dph[None]
-            E, U = np.linalg.eigh(H_k[ik])
-            Uh = U.conj().T
-            v = np.einsum(
-                "ij, ajk, kl -> ail", Uh, V_k[:, ik], U
-            )  # velocity, eigenbasis
-            a = np.einsum("ij, ajk, kl -> ail", Uh, Aext, U)  # external conn
-            dE = E[None, :] - E[:, None]
-            inv = np.divide(1.0, dE, out=np.zeros_like(dE), where=np.abs(dE) > 1e-9)
-            d = v * inv[None]
+            def _adj(X):
+                return X.conj().swapaxes(-1, -2)
 
-            if not non_abelian:
-                f = (E < fermi) if fermi is not None else occ_fixed
-                ff = f.astype(float)
-                # occupation mask M[m, c] = f_m (1 - f_c): occupied -> empty
-                Mf = ff[:, None] * (1.0 - ff)[None, :]
-
+            ext = np.zeros((3, 3, n_k, o.size, o.size), dtype=complex)
             for g in range(3):
                 al, be = alpha_ax[g], beta_ax[g]
-                # external curl bar-Omega_g = d_al A_be - d_be A_al (orbital), rotated
-                om = (
-                    np.einsum("r, rij, rij -> ij", phR, 1j * bnd[..., al], XI[:, be])
-                    - np.einsum("r, rij, rij -> ij", phR, 1j * bnd[..., be], XI[:, al])
-                ) * Dph
-                omz = Uh @ om @ U
+                FX_ab = (
+                    _adj(d_co[al]) @ (-1j * a_co[be]) + _adj(-1j * a_co[al]) @ d_co[be]
+                )
+                FX_ba = (
+                    _adj(d_co[be]) @ (-1j * a_co[al]) + _adj(-1j * a_co[be]) @ d_co[al]
+                )
+                BX = 1j * (FX_ab - FX_ba)
+                BE = omz_oo[g] - 1j * (a_oo[al] @ a_oo[be] - a_oo[be] @ a_oo[al])
+                ext[al, be] = BX + BE
+                ext[be, al] = -(BX + BE)
+            return ext
 
-                if non_abelian:
+        # Band-summed: occupation set per-k by the Fermi level (metals) or by
+        # the fixed band group as a 0/1 occupation.
+        if fermi is not None:
+            ff = (eigvals < fermi).astype(float)  # (Nk, N)
+        else:
+            occ_fixed = np.zeros(N, dtype=bool)
+            occ_fixed[np.asarray(occ_idxs, dtype=int)] = True
+            ff = np.broadcast_to(occ_fixed.astype(float), (n_k, N))
+        # occupation mask M[k, m, c] = f_m (1 - f_c): occupied -> empty
+        Mf = ff[:, :, None] * (1.0 - ff)[:, None, :]
 
-                    def _FX(p, q):
-                        return np.einsum(
-                            "cm, cn -> mn",
-                            d[p][np.ix_(cc, o)].conj(),
-                            -1j * a[q][np.ix_(cc, o)],
-                        ) + np.einsum(
-                            "cm, cn -> mn",
-                            (-1j * a[p][np.ix_(cc, o)]).conj(),
-                            d[q][np.ix_(cc, o)],
-                        )
+        def _S(p, q):
+            # B^X trace ingredients, masked over (m, c)
+            return -1j * np.einsum(
+                "kmc, kcm, kcm -> k", Mf, d[p].conj(), a[q], optimize=True
+            ) + 1j * np.einsum(
+                "kmc, kcm, kcm -> k", Mf, a[p].conj(), d[q], optimize=True
+            )
 
-                    BX = 1j * (_FX(al, be) - _FX(be, al))
-                    ao_al, ao_be = a[al][np.ix_(o, o)], a[be][np.ix_(o, o)]
-                    BE = omz[np.ix_(o, o)] - 1j * (ao_al @ ao_be - ao_be @ ao_al)
-                    B = BX + BE
-                    out[ik, al, be] = B
-                    out[ik, be, al] = -B
-                else:
-                    # B^E trace J0 = Tr[f . bar-Omega]; the [a,a] commutator trace is 0
-                    J0 = np.einsum("m, mm ->", ff, omz)
-
-                    # B^X trace J1 = i (S_{al,be} - S_{be,al}), masked over (m, c)
-                    def _S(p, q):
-                        return -1j * np.einsum(
-                            "mc, cm, cm ->", Mf, d[p].conj(), a[q]
-                        ) + 1j * np.einsum("mc, cm, cm ->", Mf, a[p].conj(), d[q])
-
-                    J1 = 1j * (_S(al, be) - _S(be, al))
-                    val = np.real(J0 + J1)
-                    out[ik, al, be] = val
-                    out[ik, be, al] = -val
-
-        ext = np.moveaxis(out, 0, 2)  # (3, 3, Nk[, n_occ, n_occ])
-        if not cartesian:
-            Brec = self.recip_lat_vecs
-            sub = "abkmn -> uvkmn" if non_abelian else "abk -> uvk"
-            ext = np.einsum(f"ua, vb, {sub}", Brec, Brec, ext, optimize=True)
+        ext = np.zeros((3, 3, n_k))
+        for g in range(3):
+            al, be = alpha_ax[g], beta_ax[g]
+            # B^E trace J0 = Tr[f . bar-Omega]; the [a,a] commutator trace is 0
+            J0 = np.einsum("km, kmm -> k", ff, omz[g])
+            J1 = 1j * (_S(al, be) - _S(be, al))
+            val = np.real(J0 + J1)
+            ext[al, be] = val
+            ext[be, al] = -val
         return ext
 
     def quantum_metric(

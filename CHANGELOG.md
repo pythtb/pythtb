@@ -7,10 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added Wannier90 off-diagonal position-matrix support from `write_tb` (`prefix_tb.dat`) and legacy `prefix_r.dat` files. The new data is exposed through `W90.position_matrix()`, `W90.wannier_centers()`, `W90.berry_connection_wann()`, `TBModel.wannier_berry_connection()`, and availability checks `W90.has_position_matrix` / `TBModel.has_wannier_position`.
+- Added low-level Wannier90 helpers `pythtb.io.w90.read_tb()`, `pythtb.io.w90.read_r()`, and `pythtb.io.w90.wannier_connection_ft()` for reading and Fourier transforming Wannier position matrices.
+- Added `TBModel.berry_curvature(include_external=...)` to include Wannier90 external position-matrix corrections when available, and `TBModel.berry_curvature(fermi=...)` for per-k occupations in metals.
+
 ### Fixed
 - `TBModel.solve_ham` now honors `use_tensorflow=True` when `return_eigvecs=False`; previously the flag was silently ignored on that path
 
 ### Improved
+- Vectorized the external position-matrix Berry-curvature terms over k-points (previously a per-k Python loop), and restructured `TBModel.berry_curvature()` so the Hamiltonian, velocity, and eigensystem are computed once and shared between the internal Kubo term and the external correction — `include_external=True` no longer rebuilds or re-diagonalizes anything
 - Unified the spinless and spinful assembly kernels in `TBModel.hamiltonian()` and `TBModel.velocity()` behind shared helpers, removing duplicated code paths (results are bit-for-bit identical)
 - Parameter-sweep evaluation in `TBModel.hamiltonian()` and `TBModel.velocity()` now goes through a single shared helper
 - `TBModel.quantum_geometric_tensor()` and related methods now always evaluate the tensor algebra in double precision; with `use_tensorflow=True` the previous implementation silently used single precision (complex64). The flag now dispatches only the Hamiltonian eigensolver
@@ -371,6 +377,5 @@ For the most part, the code should be backward-compatible with version 1.5.
 
 
 ## [1.5] - 2012-06-
-
 
 
