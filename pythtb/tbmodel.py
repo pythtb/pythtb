@@ -549,8 +549,8 @@ class TBModel:
         evaluated in the orbital (Wannier) basis. This is the quantity dropped by
         the diagonal-position approximation; rotating it into the eigenbasis of
         :meth:`hamiltonian` supplies the missing gauge-covariant term in the
-        Berry connection, curvature, and anomalous Hall conductivity
-        (Wannier-interpolation scheme of Wang *et al.*, PRB **74**, 195118).
+        Berry connection, curvature, and anomalous Hall conductivity in the
+        Wannier-interpolation scheme of [1]_.
 
         .. versionadded:: 2.1.0
 
@@ -573,6 +573,17 @@ class TBModel:
         ValueError
             If the model carries no Wannier position matrix
             (see :attr:`has_wannier_position`).
+
+        See Also
+        --------
+        pythtb.W90.berry_connection_wann : Same quantity computed directly from
+            a :class:`pythtb.W90` instance.
+
+        References
+        ----------
+        .. [1] X. Wang, J. R. Yates, I. Souza, D. Vanderbilt,
+           "Ab initio calculation of the anomalous Hall conductivity
+           by Wannier interpolation", *Phys. Rev. B* **74**, 195118 (2006).
         """
         if self._pos_r is None:
             raise ValueError(
@@ -3765,21 +3776,37 @@ class TBModel:
     ):
         r"""Compute the Berry curvature in energy eigenbasis via Kubo formula.
 
-        The Berry curvature is computed as the anti-Hermitian part of the quantum
-        geometric tensor :math:`Q_{\mu \nu}(k)` from :meth:`quantum_geometric_tensor`,
-        i.e., in the non-Abelian case (``non_abelian=True``):
+        The Berry curvature of the occupied band group is evaluated directly
+        from the velocity operator :math:`\partial_\mu H_k` (see :meth:`velocity`)
+        via the Kubo formula. In the Abelian case (``non_abelian=False``, default)
+        it is the band-summed curvature
 
         .. math::
 
-            \Omega_{\mu \nu;\ mn}(k) =  i \left( Q_{\mu \nu;\ mn}(k) - Q_{\mu \nu;\ nm}^*(k) \right)
+           \Omega_{\mu \nu}(k) = -2\, \mathrm{Im} \sum_{m \in \text{occ}}
+           \sum_{l \notin \text{occ}}
+           \frac{
+               \langle u_{mk} | \partial_{\mu} H_k | u_{lk} \rangle
+               \langle u_{lk} | \partial_{\nu} H_k | u_{mk} \rangle
+           }{
+               (E_{mk} - E_{lk})^2
+           }
 
-        In the Abelian case (``non_abelian=False``), the Berry curvature is given by the
-        band-trace of the above quantity. This reduces to the well-known expression for the
-        Berry curvature in terms of the quantum geometric tensor.
+        In the non-Abelian case (``non_abelian=True``), the full matrix-valued
+        curvature over the occupied band group is returned: for
+        :math:`(m, n) \in \text{occ}`,
 
         .. math::
 
-           \Omega_{\mu \nu}(k) = -2 \mathrm{Im} \, Q_{\mu \nu}(k),
+            \Omega_{\mu \nu;\ mn}(k) =  i\sum_{l \notin \text{occ}}
+            \frac{
+                \langle u_{mk} | \partial_{\mu} H_k | u_{lk} \rangle
+                \langle u_{lk} | \partial_{\nu} H_k | u_{nk} \rangle
+                -
+                \mu \leftrightarrow \nu
+            }{
+                (E_{nk} - E_{lk})(E_{mk} - E_{lk})
+            }
 
         By specifying the ``plane`` parameter, we choose a particular :math:`(\mu, \nu)` pair
         of the Berry curvature tensor to return.
@@ -3882,23 +3909,16 @@ class TBModel:
 
         Notes
         -----
-        - The Berry curvature is computed using the Kubo formula, which
-          requires knowledge of :math:`\partial_\mu H_k`. This operator
-          is computed using the gradient of the Hamiltonian provided by :func:`velocity`.
-        - Specifically, for :math:`(m,n) \in \text{occ}`, the non-Abelian Berry curvature tensor
-          is given by (when ``non_abelian=True``):
+        - The Berry curvature is the anti-Hermitian part of the quantum geometric
+          tensor :math:`Q_{\mu \nu}(k)` of :meth:`quantum_geometric_tensor`: in the
+          non-Abelian case
 
           .. math::
 
-            \Omega_{\mu \nu;\ mn}(k) =  i\sum_{l \notin \text{occ}}
-            \frac{
-                \langle u_{mk} | \partial_{\mu} H_k | u_{lk} \rangle
-                \langle u_{lk} | \partial_{\nu} H_k | u_{nk} \rangle
-                -
-                \mu \leftrightarrow \nu
-            }{
-                (E_{nk} - E_{lk})(E_{mk} - E_{lk})
-            }
+            \Omega_{\mu \nu;\ mn}(k) =  i \left( Q_{\mu \nu;\ mn}(k) - Q_{\mu \nu;\ nm}^*(k) \right)
+
+          and the Abelian curvature is its band trace,
+          :math:`\Omega_{\mu \nu}(k) = -2 \mathrm{Im} \, Q_{\mu \nu}(k)`.
         - This quantity is anti-symmetric under :math:`\mu \leftrightarrow \nu`.
         - When using parameter sweeps via ``params``, the Berry curvature is computed
           at all combinations of parameter values, and the resulting array has
@@ -4173,24 +4193,40 @@ class TBModel:
     ):
         r"""Quantum metric in the energy eigenbasis computed via Kubo formula.
 
-        The quantum metric is computed as the Hermitian part of the quantum
-        geometric tensor :math:`Q_{\mu \nu}(k)` from :meth:`quantum_geometric_tensor`,
-        i.e., in the non-Abelian case (``non_abelian=True``):
+        The quantum metric of the occupied band group is evaluated directly
+        from the velocity operator :math:`\partial_\mu H_k` (see :meth:`velocity`)
+        via the Kubo formula. In the Abelian case (``non_abelian=False``, default)
+        it is the band-summed metric
 
         .. math::
 
-            g_{\mu \nu;\ mn}(k) =  \frac{1}{2} \left( Q_{\mu \nu;\ mn}(k)  + Q_{\mu \nu;\ nm}^*(k) \right)
+           g_{\mu \nu}(k) = \mathrm{Re} \sum_{m \in \text{occ}}
+           \sum_{l \notin \text{occ}}
+           \frac{
+               \langle u_{mk} | \partial_{\mu} H_k | u_{lk} \rangle
+               \langle u_{lk} | \partial_{\nu} H_k | u_{mk} \rangle
+           }{
+               (E_{mk} - E_{lk})^2
+           }
 
-        In the Abelian case (``non_abelian=False``), the quantum metric is given by the
-        band-trace of the above quantity. This reduces to the well-known expression for the
-        quantum metric in terms of the quantum geometric tensor.
+        In the non-Abelian case (``non_abelian=True``), the full matrix-valued
+        metric over the occupied band group is returned: for
+        :math:`(m, n) \in \text{occ}`,
 
         .. math::
 
-           g_{\mu \nu}(k) = \mathrm{Re} \, Q_{\mu \nu}(k),
+            g_{\mu \nu;\ mn}(k) =  \frac{1}{2} \sum_{l \notin \text{occ}}
+            \frac{
+                \langle u_{mk} | \partial_{\mu} H_k | u_{lk} \rangle
+                \langle u_{lk} | \partial_{\nu} H_k | u_{nk} \rangle
+                +
+                \mu \leftrightarrow \nu
+            }{
+                (E_{nk} - E_{lk})(E_{mk} - E_{lk})
+            }
 
         By specifying the ``plane`` parameter, we choose a particular :math:`(\mu, \nu)` pair
-        of the Berry curvature tensor to return.
+        of the quantum metric tensor to return.
 
         .. versionadded:: 2.0.0
 
@@ -4261,24 +4297,16 @@ class TBModel:
 
         Notes
         -----
-        - The quantum metric is computed using the Kubo formula, which
-          requires knowledge of :math:`\partial_\mu H_k`. This operator
-          is computed using the gradient of the Hamiltonian provided by :func:`velocity`.
-        - Specifically, for :math:`(m,n) \in \text{occ}`, the non-Abelian quantum metric tensor
-          is given by (when ``non_abelian=True``):
+        - The quantum metric is the Hermitian part of the quantum geometric
+          tensor :math:`Q_{\mu \nu}(k)` of :meth:`quantum_geometric_tensor`: in the
+          non-Abelian case
 
           .. math::
 
-            g_{\mu \nu;\ mn}(k) =  \frac{1}{2} \sum_{l \notin \text{occ}}
-            \frac{
-                \langle u_{mk} | \partial_{\mu} H_k | u_{lk} \rangle
-                \langle u_{lk} | \partial_{\nu} H_k | u_{nk} \rangle
-                +
-                \mu \leftrightarrow \nu
-            }{
-                (E_{nk} - E_{lk})(E_{mk} - E_{lk})
-            }
+            g_{\mu \nu;\ mn}(k) =  \frac{1}{2} \left( Q_{\mu \nu;\ mn}(k)  + Q_{\mu \nu;\ nm}^*(k) \right)
 
+          and the Abelian metric is its band trace,
+          :math:`g_{\mu \nu}(k) = \mathrm{Re} \, Q_{\mu \nu}(k)`.
         - This quantity is symmetric under :math:`\mu \leftrightarrow \nu`.
         - When using parameter sweeps via ``params``, the quantum metric is computed
           at all combinations of parameter values, and the resulting array has
