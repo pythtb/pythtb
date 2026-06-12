@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Parameter registration, bookkeeping, and evaluation moved into the new `pythtb.parameters` module (`ParamTerm`, `ParameterRegistry`): providers are normalized once at registration (strings parsed and compiled, callable signatures resolved), replacing per-evaluation introspection scattered through `TBModel`
+- Parameter-sweep partitioning, the sweep grid evaluator, and finite-difference axis metadata are unified in `pythtb.parameters.SweepSpec`/`AxisFD`/`normalize_axis`, shared by `hamiltonian()`, `velocity()`, `chern_number()`, and `axion_angle()`
+- Parameter value shapes are now validated strictly: scalars, 1-D sweeps, `(1, n)` vector values, `(2, 2)` matrix values (spinful), and `(n, 4)` Pauli-vector sweeps (spinful) are accepted; anything else raises a `ValueError`. Previously some 2-D and higher-dimensional inputs were silently ignored
 
 ### Improved
 - Vectorized the external position-matrix Berry-curvature terms over k-points (previously a per-k Python loop), and restructured `TBModel.berry_curvature()` so the Hamiltonian, velocity, and eigensystem are computed once and shared between the internal Kubo term and the external correction — `include_external=True` no longer rebuilds or re-diagonalizes anything

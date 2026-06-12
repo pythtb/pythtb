@@ -89,12 +89,10 @@ def test_ribbon():
 
 
 def test_parameter_normalization():
-    from pythtb.tbmodel import TBModel, Lattice
+    from pythtb.parameters import normalize_axis
 
-    lat = Lattice([[1]], [[0]], periodic_dirs=[0])
-    tb = TBModel(lat)
     # parameter with period 2pi
-    vals, step, periodic, trimmed = tb._normalize_parameter_axis(
+    vals, step, periodic, trimmed = normalize_axis(
         np.linspace(0, 2 * np.pi, 5, endpoint=True),
         name="beta",
         period=2 * np.pi,
