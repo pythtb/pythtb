@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Parameter value shapes are now validated strictly: scalars, 1-D sweeps, `(1, n)` vector values, `(2, 2)` matrix values (spinful), and `(n, 4)` Pauli-vector sweeps (spinful) are accepted; anything else raises a `ValueError`. Previously some 2-D and higher-dimensional inputs were silently ignored
 
 ### Improved
+- `W90` construction now caches the parsed Hamiltonian/position arrays in `{prefix}_pythtb_cache.npz` next to the Wannier90 files (keyed on source modification time and size), turning minutes of text parsing into a sub-second load for large models; pass `cache=False` to opt out
 - Vectorized the external position-matrix Berry-curvature terms over k-points (previously a per-k Python loop), and restructured `TBModel.berry_curvature()` so the Hamiltonian, velocity, and eigensystem are computed once and shared between the internal Kubo term and the external correction — `include_external=True` no longer rebuilds or re-diagonalizes anything
 - Unified the spinless and spinful assembly kernels in `TBModel.hamiltonian()` and `TBModel.velocity()` behind shared helpers, removing duplicated code paths (results are bit-for-bit identical)
 - Parameter-sweep evaluation in `TBModel.hamiltonian()` and `TBModel.velocity()` now goes through a single shared helper

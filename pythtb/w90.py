@@ -83,6 +83,14 @@ class W90:
         This is the prefix used by `Wannier90` code.
         Typically the input to the `Wannier90` code is name ``prefix.win``.
 
+    cache : bool, optional
+        If True (default), the parsed Hamiltonian/position arrays are cached
+        in ``{prefix}_pythtb_cache.npz`` next to the Wannier90 files and
+        reused while those files are unchanged, making repeat construction
+        nearly instant for large models. Pass ``False`` to always re-parse.
+
+        .. versionadded:: 2.1.0
+
     See Also
     --------
     :ref:`w90-nb`
@@ -142,7 +150,7 @@ class W90:
             G. Pizzi et al., J. Phys. Cond. Matt. 32,  165902 (2020).
     """
 
-    def __init__(self, path, prefix):
+    def __init__(self, path, prefix, *, cache: bool = True):
         self.folder = Path(path).expanduser()
         if not self.folder.exists():
             raise FileNotFoundError(f"Wannier90 folder not found: {self.folder}")
@@ -150,7 +158,11 @@ class W90:
         self.prefix = prefix
 
         ds = load_w90_dataset(
-            self.path, self.prefix, include_bands=False, include_win_lines=True
+            self.path,
+            self.prefix,
+            include_bands=False,
+            include_win_lines=True,
+            cache=cache,
         )
 
         # Raw win lines are needed for optional k-path labels in bands_w90.

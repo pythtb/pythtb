@@ -543,18 +543,117 @@ def read_kpoint_path(win_lines: List[str], *, latex=True):
 
 
 # convenience: assemble dataset
+# Bump when the cache layout changes so stale files are ignored, not misread.
+_CACHE_VERSION = 1
+
+
+def _hr_pos_sources(root: Path, prefix: str) -> list:
+    """(name, mtime_ns, size) for each Hamiltonian/position source present."""
+    sig = []
+    for name in (f"{prefix}_tb.dat", f"{prefix}_hr.dat", f"{prefix}_r.dat"):
+        p = root / name
+        if p.exists():
+            st = p.stat()
+            sig.append((name, st.st_mtime_ns, st.st_size))
+    return sig
+
+
+def _read_hr_pos(root: Path, prefix: str):
+    """Parse ``H(R)`` and, when available, the position matrix from disk.
+
+    Prefers ``prefix_tb.dat`` (``write_tb``): it carries both ``H(R)`` and the
+    position matrix ``<0n|r|Rm>``. Falls back to ``prefix_hr.dat``, optionally
+    augmented by a legacy ``prefix_r.dat`` for the position matrix.
+    """
+    if (root / f"{prefix}_tb.dat").exists():
+        num_wan, ham_r, pos_r, _lat_tb = read_tb(root, prefix)
+        return num_wan, ham_r, pos_r
+    num_wan, ham_r = read_hr(root, prefix)
+    pos_r: Optional[Dict[Tuple[int, int, int], np.ndarray]] = None
+    if (root / f"{prefix}_r.dat").exists():
+        try:
+            pos_r = read_r(root, prefix, num_wan)
+        except (W90ParseError, W90ConsistencyError):
+            pos_r = None
+    return num_wan, ham_r, pos_r
+
+
+def _load_hr_pos_cached(root: Path, prefix: str, *, cache: bool = True):
+    """Cached wrapper around :func:`_read_hr_pos`.
+
+    The parsed arrays are stored in ``{prefix}_pythtb_cache.npz`` next to the
+    Wannier90 files, keyed on the source files' modification times and sizes.
+    Reading and writing the cache is best-effort: any failure (unreadable or
+    stale file, read-only directory) falls back to a fresh parse.
+    """
+    if not cache:
+        return _read_hr_pos(root, prefix)
+
+    cache_path = root / f"{prefix}_pythtb_cache.npz"
+    signature = repr((_CACHE_VERSION, _hr_pos_sources(root, prefix)))
+
+    if cache_path.exists():
+        try:
+            with np.load(cache_path, allow_pickle=False) as data:
+                if str(data["signature"]) == signature:
+                    R_list = data["R_list"]
+                    deg = data["deg"]
+                    H = data["H"]
+                    ham_r = {
+                        tuple(map(int, R_list[k])): HRBlock(
+                            h=H[k], degeneracy=int(deg[k])
+                        )
+                        for k in range(R_list.shape[0])
+                    }
+                    pos_r = None
+                    if bool(data["has_pos"]):
+                        pos_R = data["pos_R_list"]
+                        pos = data["pos"]
+                        pos_r = {
+                            tuple(map(int, pos_R[k])): pos[k]
+                            for k in range(pos_R.shape[0])
+                        }
+                    return int(data["num_wan"]), ham_r, pos_r
+        except Exception:
+            pass  # unreadable or stale cache: re-parse below
+
+    num_wan, ham_r, pos_r = _read_hr_pos(root, prefix)
+
+    try:
+        Rs = list(ham_r)
+        payload = {
+            "signature": np.array(signature),
+            "num_wan": np.int64(num_wan),
+            "R_list": np.array(Rs, dtype=np.int64),
+            "deg": np.array([ham_r[R].degeneracy for R in Rs], dtype=np.int64),
+            "H": np.stack([ham_r[R].h for R in Rs]),
+            "has_pos": np.bool_(pos_r is not None),
+        }
+        if pos_r is not None:
+            pos_Rs = list(pos_r)
+            payload["pos_R_list"] = np.array(pos_Rs, dtype=np.int64)
+            payload["pos"] = np.stack([pos_r[R] for R in pos_Rs])
+        np.savez(cache_path, **payload)
+    except Exception:
+        pass  # cache is an optimization only; never fail the load over it
+
+    return num_wan, ham_r, pos_r
+
+
 def load_w90_dataset(
     root: Path | str,
     prefix: str,
     *,
     include_bands: bool = True,
     include_win_lines: bool = False,
+    cache: bool = True,
 ) -> W90Dataset:
     """Gather lattice, centre, and Hamiltonian data into a :class:`W90Dataset`.
 
     .. versionchanged:: 2.1.0
         Also loads the Wannier position matrix into :attr:`W90Dataset.pos_r`
-        when ``prefix_tb.dat`` or ``prefix_r.dat`` is available.
+        when ``prefix_tb.dat`` or ``prefix_r.dat`` is available, and caches the
+        parsed Hamiltonian/position arrays (see ``cache``).
 
     Parameters
     ----------
@@ -562,6 +661,16 @@ def load_w90_dataset(
         Directory containing the Wannier90 files.
     prefix : str
         Prefix used in the Wannier90 file names.
+    cache : bool, optional
+        If True (default), store the parsed ``H(R)``/position arrays in
+        ``{prefix}_pythtb_cache.npz`` next to the Wannier90 files and reuse
+        them while the source files are unchanged (keyed on their
+        modification time and size). The text files are large (one row per
+        matrix element), so this turns minutes of re-parsing into a
+        sub-second load. The cache is best-effort: if the directory is not
+        writable the parse result is simply not cached.
+
+        .. versionadded:: 2.1.0
 
     Returns
     -------
@@ -572,19 +681,7 @@ def load_w90_dataset(
     win = read_win(root, prefix)
     lat = parse_unit_cell_cart(win)
 
-    # Prefer prefix_tb.dat (write_tb): it carries both H(R) and the position
-    # matrix <0n|r|Rm>. Fall back to prefix_hr.dat, optionally augmented by a
-    # legacy prefix_r.dat for the position matrix.
-    pos_r: Optional[Dict[Tuple[int, int, int], np.ndarray]] = None
-    if (root / f"{prefix}_tb.dat").exists():
-        num_wan, ham_r, pos_r, _lat_tb = read_tb(root, prefix)
-    else:
-        num_wan, ham_r = read_hr(root, prefix)
-        if (root / f"{prefix}_r.dat").exists():
-            try:
-                pos_r = read_r(root, prefix, num_wan)
-            except (W90ParseError, W90ConsistencyError):
-                pos_r = None
+    num_wan, ham_r, pos_r = _load_hr_pos_cached(root, prefix, cache=cache)
     centres_xyz = read_centres(root, prefix, num_wan)
     centres_red = _cart_to_red(lat[0], lat[1], lat[2], centres_xyz)
     k_nodes, k_labels = read_kpoint_path(win, latex=True)

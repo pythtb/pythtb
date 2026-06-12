@@ -190,3 +190,5 @@ _build/
 
 *.egg-info/
 scrap
+*_pythtb_cache.npz
+
