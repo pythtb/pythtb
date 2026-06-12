@@ -13,7 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `TBModel.berry_curvature(include_external=...)` to include Wannier90 external position-matrix corrections when available, and `TBModel.berry_curvature(fermi=...)` for per-k occupations in metals.
 
 ### Fixed
+- String parameter providers are now genuine expressions: `set_hop("t1*0.5", ...)` or `set_onsite(["d", "-d"])` work and report their free parameter names (`t1`, `d`). Previously the bookkeeping treated the whole string as a single parameter name while evaluation tried to interpret it as an expression, so any non-identifier string failed
+- Invalid string expressions and callables without named parameters now raise at `set_hop`/`set_onsite` time instead of failing later at evaluation
 - `TBModel.solve_ham` now honors `use_tensorflow=True` when `return_eigvecs=False`; previously the flag was silently ignored on that path
+
+### Changed
+- Parameter registration, bookkeeping, and evaluation moved into the new `pythtb.parameters` module (`ParamTerm`, `ParameterRegistry`): providers are normalized once at registration (strings parsed and compiled, callable signatures resolved), replacing per-evaluation introspection scattered through `TBModel`
 
 ### Improved
 - Vectorized the external position-matrix Berry-curvature terms over k-points (previously a per-k Python loop), and restructured `TBModel.berry_curvature()` so the Hamiltonian, velocity, and eigensystem are computed once and shared between the internal Kubo term and the external correction — `include_external=True` no longer rebuilds or re-diagonalizes anything

@@ -1,11 +1,9 @@
 from collections.abc import Mapping
 import copy
 from dataclasses import dataclass
-from functools import lru_cache
 import logging
 import warnings
 import numpy as np
-import inspect
 from typing import Callable
 from .visualization import plot_bands, plot_tbmodel, plot_tbmodel_3d
 from .utils import (
@@ -19,6 +17,7 @@ from .utils import (
 )
 from .lattice import Lattice
 from .hoptable import HoppingTable
+from .parameters import ParameterRegistry
 
 # set up logging
 logger = logging.getLogger(__name__)
@@ -31,50 +30,6 @@ SIGMA0 = np.array([[1, 0], [0, 1]], dtype=complex)
 SIGMAX = np.array([[0, 1], [1, 0]], dtype=complex)
 SIGMAY = np.array([[0, -1j], [1j, 0]], dtype=complex)
 SIGMAZ = np.array([[1, 0], [0, -1]], dtype=complex)
-
-
-@lru_cache(maxsize=None)
-def _callable_signature_info(f):
-    sig = inspect.signature(f)
-    accepts_kwargs = any(p.kind == p.VAR_KEYWORD for p in sig.parameters.values())
-    required = tuple(
-        name
-        for name, param in sig.parameters.items()
-        if param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY)
-        and param.default is inspect._empty
-    )
-    return accepts_kwargs, required
-
-
-def _iter_params_of_callable(f):
-    """Yield explicit parameter names (ignore *args/**kwargs)."""
-    yield from _callable_signature_info(f)[1]
-
-
-def _call_provider(prov, params):
-    """Call a provider with only the kwargs it actually declares (unless it has **kwargs)."""
-    if not callable(prov):
-        raise TypeError("Provider is not callable.")
-    accepts_kwargs, required = _callable_signature_info(prov)
-    if accepts_kwargs:
-        return prov(**params)  # accepts anything
-    kwargs = {k: params[k] for k in required if k in params}
-    return prov(**kwargs)
-
-
-def _describe_provider(provider):
-    if isinstance(provider, str):
-        return f"'{provider}'"
-    if callable(provider):
-        try:
-            src = inspect.getsource(provider).strip()
-            return src
-        except (OSError, TypeError, AttributeError):
-            name = getattr(
-                provider, "__qualname__", getattr(provider, "__name__", repr(provider))
-            )
-            return f"callable {name} (source unavailable)"
-    return repr(provider)
 
 
 @dataclass(frozen=True)
@@ -298,8 +253,7 @@ class TBModel:
         # Initialize hoppings container
         self._hoptable = HoppingTable(self.dim_r, spinful=spinful)
 
-        self._onsite_param_terms = {}
-        self._hopping_param_terms = {}
+        self._param_registry = ParameterRegistry()
 
     def __repr__(self):
         r"""Return a concise representation of the model.
@@ -578,29 +532,23 @@ class TBModel:
             - ``function`` (optional): the callable itself
         """
         out = []
-        for idx, provider in getattr(self, "_onsite_param_terms", {}).items():
-            if provider is None:
-                continue
-            names = self._provider_names(provider, ctx=f"onsite[{idx}]")
-            desc = {"kind": "onsite", "orbitals": int(idx), "names": names}
-            if callable(provider):
-                desc["source"] = _describe_provider(provider)
-                desc["function"] = provider
+        for idx, term in self._param_registry.onsite.items():
+            desc = {"kind": "onsite", "orbitals": int(idx), "names": term.names}
+            if callable(term.provider):
+                desc["source"] = term.describe()
+                desc["function"] = term.provider
             out.append(desc)
 
-        for (i, j, R), provider in getattr(self, "_hopping_param_terms", {}).items():
-            if provider is None:
-                continue
-            names = self._provider_names(provider, ctx=f"hopping[{i},{j},{tuple(R)}]")
+        for (i, j, R), term in self._param_registry.hoppings.items():
             desc = {
                 "kind": "hopping",
                 "orbitals": (i, j),
                 "R": tuple(R),
-                "names": names,
+                "names": term.names,
             }
-            if callable(provider):
-                desc["source"] = _describe_provider(provider)
-                desc["function"] = provider
+            if callable(term.provider):
+                desc["source"] = term.describe()
+                desc["function"] = term.provider
             out.append(desc)
 
         return out
@@ -766,14 +714,12 @@ class TBModel:
         if not short:
             # Print Site Energies
             output.append("Site energies:")
-            onsite_params = getattr(self, "_onsite_param_terms", {})
+            onsite_params = self._param_registry.onsite
 
             for i, site in enumerate(self._site_energies):
-                onsite_param_term = onsite_params.get(i)
-                if onsite_param_term:
-                    output.append(
-                        f"  <{i:^3}| H |{i:^3}> = {_describe_provider(onsite_param_term)}"
-                    )
+                onsite_term = onsite_params.get(i)
+                if onsite_term is not None:
+                    output.append(f"  <{i:^3}| H |{i:^3}> = {onsite_term.describe()}")
                     continue
 
                 if not self.spinful:
@@ -804,9 +750,9 @@ class TBModel:
                 out_str += amp_str
                 output.append(out_str)
 
-            param_hops = getattr(self, "_hopping_param_terms", {})
+            param_hops = self._param_registry.hoppings
             if param_hops:
-                for (hop_from, hop_to, R_tup), provider in param_hops.items():
+                for (hop_from, hop_to, R_tup), term in param_hops.items():
                     coords = (
                         ", ".join(f"{value:^5.1f}" for value in R_tup)
                         if len(R_tup)
@@ -814,7 +760,7 @@ class TBModel:
                     )
                     disp = f" + [{coords}] " if (coords and self.dim_k) else ""
                     output.append(
-                        f"  <{hop_from:^3}| H |{hop_to:^3}{disp}> = {_describe_provider(provider)}"
+                        f"  <{hop_from:^3}| H |{hop_to:^3}{disp}> = {term.describe()}"
                     )
 
             output.append("Hopping distances:")
@@ -1167,16 +1113,14 @@ class TBModel:
                     self._site_energies[idx] = payload
                     self._site_energies_specified[idx] = True
                     # Clear any previous param providers
-                    self._onsite_param_terms.pop(idx, None)
+                    self._param_registry.discard(onsite_idx=idx)
                 else:
                     # callable/expr -> store for later evaluation
                     self._site_energies[idx] = (
                         0  # numeric placeholder, unused at build time
                     )
                     self._site_energies_specified[idx] = False
-                    self._onsite_param_terms[idx] = (
-                        payload  # payload is callable or str
-                    )
+                    self._param_registry.register_onsite(idx, payload)
 
         elif mode == "add":
             for idx, (kind, payload) in zip(indices, processed):
@@ -1184,7 +1128,7 @@ class TBModel:
                     self._site_energies[idx] += payload
                     self._site_energies_specified[idx] = True
                     # 'add' with a concrete block keeps any prior callable/expr ignored at build time
-                    self._onsite_param_terms.pop(idx, None)
+                    self._param_registry.discard(onsite_idx=idx)
                 else:
                     # Adding a callable/expr: we interpret as "replace provider" (cannot 'add' unevaluated safely).
                     logger.warning(
@@ -1192,7 +1136,7 @@ class TBModel:
                     )
                     self._site_energies[idx] = 0
                     self._site_energies_specified[idx] = False
-                    self._onsite_param_terms[idx] = payload
+                    self._param_registry.register_onsite(idx, payload)
         else:
             raise ValueError("Mode should be either 'set' or 'add'.")
 
@@ -1507,7 +1451,7 @@ class TBModel:
         if not allow_conjugate_pair:
             conj_key = (ind_j, ind_i, tuple((-R_vec).tolist()))
             conj_idx = table.find(ind_j, ind_i, -R_vec)
-            conj_in_providers = conj_key in getattr(self, "_hopping_param_terms", {})
+            conj_in_providers = conj_key in self._param_registry.hoppings
             if conj_idx is not None or conj_in_providers:
                 # If we're updating the exact same entry, allow it; otherwise error
                 if existing_idx is None and key != conj_key:
@@ -1515,10 +1459,6 @@ class TBModel:
                         f"Conjugate element already specified for i={ind_i}, j={ind_j}, R={R_vec.tolist()}. "
                         "Either avoid double entry or set allow_conjugate_pair=True."
                     )
-
-        # Ensure provider dict exists
-        if not hasattr(self, "_hopping_param_terms"):
-            self._hopping_param_terms = {}
 
         if kind in ("callable", "expr"):
             # Provider path (deferred evaluation). We don't mix numeric state with parameters.
@@ -1529,18 +1469,18 @@ class TBModel:
             # Remove any prior numeric or provider entry for this key
             if existing_idx is not None:
                 table.remove(existing_idx)
-            self._hopping_param_terms[key] = payload  # callable or str
+            self._param_registry.register_hopping(key, payload)
             return
 
         # Numeric/matrix path
         hop_use = payload  # already canonicalized by _val_to_block
 
         # If a provider existed at this key, numeric input overrides it
-        if key in self._hopping_param_terms:
+        if key in self._param_registry.hoppings:
             logger.warning(
                 f"Overriding existing param-dependent hopping at {key} with a numeric block."
             )
-            self._hopping_param_terms.pop(key, None)
+            self._param_registry.discard(hop_key=key)
 
         if mode == "set":
             if existing_idx is not None:
@@ -1722,28 +1662,16 @@ class TBModel:
         return block
 
     def _clear_param_terms(self, onsite_idx=None, hop_key=None):
-        if onsite_idx is not None:
-            self._onsite_param_terms.pop(onsite_idx, None)
-        if hop_key is not None:
-            canonical = tuple(hop_key) if len(hop_key) == 3 else hop_key
-            self._hopping_param_terms.pop(canonical, None)
-
-    def _provider_names(self, provider, *, ctx):
-        if callable(provider):
-            params = tuple(_iter_params_of_callable(provider))
-            if not params:
-                raise ValueError(f"{ctx} callable must declare at least one parameter.")
-            return params
-        if isinstance(provider, str):
-            return (provider,)
-        raise TypeError(f"Unsupported {ctx} provider type: {type(provider)}")
+        """Remove parameter providers attached to an onsite index or hopping key."""
+        self._param_registry.discard(onsite_idx=onsite_idx, hop_key=hop_key)
 
     def _check_missing_parameters(self, params: dict):
-        """Check for missing parameters in the provided dictionary."""
-        if not params and not self._has_parameterized_terms():
+        """Validate provided parameter names against the registered terms."""
+        registry = self._param_registry
+        if not params and not registry:
             return
 
-        required = {name for entry in self.parameters for name in entry["names"]}
+        required = set(registry.names)
         provided = set(params.keys())
 
         unknown = provided - required
@@ -1758,10 +1686,7 @@ class TBModel:
 
     def _has_parameterized_terms(self) -> bool:
         """Return True if any onsite/hopping provider is parameterized."""
-        if bool(getattr(self, "_hopping_param_terms", {})):
-            return True
-        onsite_terms = getattr(self, "_onsite_param_terms", {})
-        return any(term is not None for term in onsite_terms.values())
+        return bool(self._param_registry)
 
     def _params_to_sweep(self, params: dict) -> _ParameterSweep:
         """Partition parameters into scalar assignments and sweep axes."""
@@ -1858,10 +1783,10 @@ class TBModel:
         """
         # ---- copy base hops and onsite only when dynamic providers need it ----
         base_hop_amps, base_i_idx, base_j_idx, base_R_vecs = self._hoptable.components()
-        onsite_terms = getattr(self, "_onsite_param_terms", {})
-        hopping_terms = getattr(self, "_hopping_param_terms", {})
+        onsite_terms = self._param_registry.onsite
+        hopping_terms = self._param_registry.hoppings
 
-        has_dynamic_onsite = any(term is not None for term in onsite_terms.values())
+        has_dynamic_onsite = bool(onsite_terms)
         has_dynamic_hops = bool(hopping_terms)
 
         if not has_dynamic_onsite and not has_dynamic_hops:
@@ -1882,15 +1807,7 @@ class TBModel:
             site = np.asarray(self._site_energies, dtype=complex).copy()
             # ---- onsite providers ----
             for idx, term in onsite_terms.items():
-                if term is None:
-                    continue
-                if callable(term):
-                    val = _call_provider(term, assignments)
-                    block = self._val_to_block(val)
-                elif isinstance(term, str):
-                    block = self._eval_expr_to_block(term, **assignments)
-                else:
-                    raise TypeError("Unsupported onsite provider type.")
+                block = self._val_to_block(term.evaluate(assignments))
                 if self.nspin == 2 and not is_Hermitian(block):
                     raise ValueError(
                         f"Onsite callable for site {idx} returned non-Hermitian 2×2."
@@ -1918,13 +1835,7 @@ class TBModel:
 
             out_idx = n_base
             for key, term in hopping_terms.items():
-                if callable(term):
-                    val = _call_provider(term, assignments)
-                    block = self._val_to_block(val)
-                elif isinstance(term, str):
-                    block = self._eval_expr_to_block(term, **assignments)
-                else:
-                    raise TypeError("Unsupported hopping provider type.")
+                block = self._val_to_block(term.evaluate(assignments))
                 hop_amps[out_idx] = np.asarray(block, dtype=complex)
                 i_idx[out_idx] = key[0]
                 j_idx[out_idx] = key[1]
@@ -2066,21 +1977,6 @@ class TBModel:
             components.append(dH[np.newaxis, ...])
         return np.concatenate(components, axis=0)
 
-    def _eval_expr_to_block(self, expr: str, **assignments):
-        """Evaluate a string expression with the given parameter values and cast it to a block."""
-        env = {"np": np, "numpy": np, "pi": np.pi, "complex": complex, "float": float}
-        env.update(assignments)
-        try:
-            value = eval(expr, {"__builtins__": {}}, env)
-        except NameError as exc:
-            missing = exc.args[0].split("'")[1]
-            raise ValueError(
-                f"Expression '{expr}' needs a value for parameter '{missing}'."
-            ) from None
-        except Exception as exc:
-            raise ValueError(f"Could not evaluate expression '{expr}': {exc}") from exc
-        return self._val_to_block(value)
-
     def set_parameters(self, params=None, /, **kwargs):
         r"""
         Materialize parameterized on-site and hopping terms at fixed scalar values.
@@ -2162,34 +2058,18 @@ class TBModel:
             cleaned[name] = value
 
         # onsite
-        for idx, provider in list(getattr(self, "_onsite_param_terms", {}).items()):
-            if provider is None:
+        for idx, term in list(self._param_registry.onsite.items()):
+            if not term.covered_by(cleaned):
                 continue
-            names = self._provider_names(provider, ctx=f"onsite[{idx}]")
-            if any(name not in cleaned for name in names):
-                continue
-            if callable(provider):
-                block = _call_provider(
-                    provider, {name: cleaned[name] for name in names}
-                )
-            else:
-                block = cleaned[names[0]]
+            block = term.evaluate(cleaned)
             self.set_onsite(block, ind_i=idx, mode="set")  # reuse existing validation
 
         # hoppings
-        for key, provider in list(getattr(self, "_hopping_param_terms", {}).items()):
-            if provider is None:
+        for key, term in list(self._param_registry.hoppings.items()):
+            if not term.covered_by(cleaned):
                 continue
             i, j, R = key
-            names = self._provider_names(provider, ctx=f"hopping[{i},{j},{tuple(R)}]")
-            if any(name not in cleaned for name in names):
-                continue
-            if callable(provider):
-                block = _call_provider(
-                    provider, {name: cleaned[name] for name in names}
-                )
-            else:
-                block = cleaned[names[0]]
+            block = term.evaluate(cleaned)
 
             if self.dim_k == 0:
                 self.set_hop(block, i, j, mode="set", allow_conjugate_pair=True)
@@ -2433,13 +2313,12 @@ class TBModel:
         cut_model.set_onsite(onsite, mode="set")
 
         # replicate parameterised onsite providers
-        onsite_providers = getattr(self, "_onsite_param_terms", {})
+        onsite_providers = self._param_registry.onsite
         if onsite_providers:
             for c in range(num_cells):
                 base = c * self.norb
-                for idx, provider in onsite_providers.items():
-                    if provider:
-                        cut_model.set_onsite(provider, ind_i=base + idx, mode="set")
+                for idx, term in onsite_providers.items():
+                    cut_model.set_onsite(term.provider, ind_i=base + idx, mode="set")
 
         # remember if came from w90
         cut_model.assume_position_operator_diagonal = (
@@ -2483,11 +2362,11 @@ class TBModel:
                     )
 
         # replicate parameterised hoppings
-        param_hops = getattr(self, "_hopping_param_terms", {})
+        param_hops = self._param_registry.hoppings
         if param_hops:
             for c in range(num_cells):
                 base = c * self.norb
-                for (ind_i, ind_j, R_tuple), provider in param_hops.items():
+                for (ind_i, ind_j, R_tuple), term in param_hops.items():
                     R_vec = np.array(R_tuple, dtype=int)
                     jump_fin = int(R_vec[periodic_dir])
 
@@ -2508,7 +2387,7 @@ class TBModel:
                         hj = hj % (self.norb * num_cells)
 
                     cut_model.set_hop(
-                        provider,
+                        term.provider,
                         hi,
                         hj,
                         R_arg,
@@ -2819,11 +2698,11 @@ class TBModel:
                     amp_use, hi, hj, sc_part, mode="add", allow_conjugate_pair=True
                 )
 
-        param_hops = getattr(self, "_hopping_param_terms", {})
+        param_hops = self._param_registry.hoppings
         if param_hops:
             for offset, cur_sc_vec in enumerate(sc_vec):
                 base = offset * self.norb
-                for (ind_i, ind_j, R_tuple), provider in param_hops.items():
+                for (ind_i, ind_j, R_tuple), term in param_hops.items():
                     R_vec = np.array(R_tuple, dtype=float)
                     total_disp = cur_sc_vec + R_vec
                     red_disp = total_disp @ red_transform
@@ -2839,7 +2718,7 @@ class TBModel:
                     hj = int(ind_j) + pair_idx * self.norb
 
                     sc_tb.set_hop(
-                        provider,
+                        term.provider,
                         hi,
                         hj,
                         sc_part,
