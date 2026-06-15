@@ -1,3 +1,5 @@
+"""Graphene: two-site honeycomb tight-binding model."""
+
 import numpy as np
 from pythtb import TBModel, Lattice
 

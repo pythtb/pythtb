@@ -85,6 +85,7 @@ class ParamTerm:
 
     @classmethod
     def from_provider(cls, provider, *, ctx: str) -> "ParamTerm":
+        """Normalize a string expression or callable into a :class:`ParamTerm`."""
         if isinstance(provider, str):
             names = _expr_free_names(provider)
             code = compile(provider, f"<pythtb parameter {ctx}>", "eval")
@@ -136,6 +137,7 @@ class ParamTerm:
         return set(self.names) <= set(given)
 
     def describe(self) -> str:
+        """Human-readable description of the provider for info displays."""
         if isinstance(self.provider, str):
             return f"'{self.provider}'"
         try:
@@ -153,24 +155,29 @@ class ParameterRegistry:
     """Parameterized on-site and hopping terms registered on one model."""
 
     def __init__(self):
+        """Create an empty registry."""
         self.onsite: dict[int, ParamTerm] = {}
         self.hoppings: dict[tuple, ParamTerm] = {}
 
     def __bool__(self) -> bool:
+        """True when any parameterized term is registered."""
         return bool(self.onsite) or bool(self.hoppings)
 
     def register_onsite(self, idx: int, provider) -> ParamTerm:
+        """Normalize and store a provider for the on-site term at ``idx``."""
         term = ParamTerm.from_provider(provider, ctx=f"onsite[{idx}]")
         self.onsite[idx] = term
         return term
 
     def register_hopping(self, key: tuple, provider) -> ParamTerm:
+        """Normalize and store a provider for the hopping at ``key = (i, j, R)``."""
         i, j, R = key[0], key[1], tuple(key[2])
         term = ParamTerm.from_provider(provider, ctx=f"hopping[{i},{j},{R}]")
         self.hoppings[key] = term
         return term
 
     def discard(self, *, onsite_idx=None, hop_key=None) -> None:
+        """Remove the provider at an on-site index and/or hopping key, if present."""
         if onsite_idx is not None:
             self.onsite.pop(onsite_idx, None)
         if hop_key is not None:
@@ -191,6 +198,7 @@ class ParameterRegistry:
         return tuple(n for n in self.names if n not in set(given))
 
     def copy(self) -> "ParameterRegistry":
+        """Shallow copy sharing the (immutable) term objects."""
         new = ParameterRegistry()
         new.onsite = dict(self.onsite)
         new.hoppings = dict(self.hoppings)
@@ -316,9 +324,11 @@ class SweepSpec:
 
     @property
     def has_axes(self) -> bool:
+        """True when at least one parameter is swept over an axis."""
         return bool(self.axes)
 
     def assignment_names(self) -> tuple[str, ...]:
+        """All parameter names this call assigns (scalars first, then sweeps)."""
         return tuple(self.scalars) + self.names
 
     def fd_axes(

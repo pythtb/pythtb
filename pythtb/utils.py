@@ -1,3 +1,5 @@
+"""Small numerical and bookkeeping helpers shared across PythTB modules."""
+
 import numpy as np
 from math import factorial
 from itertools import permutations
@@ -49,6 +51,8 @@ def deprecated(message: str, category=FutureWarning):
 
 
 def copydoc(src):
+    """Decorator copying ``src``'s docstring onto the decorated function."""
+
     def deco(dst):
         dst.__doc__ = src.__doc__
         return dst
@@ -97,6 +101,7 @@ def get_trial_wfs(tf_list, norb, nspin=1):
 
 
 def mat_exp(M):
+    """Matrix exponential via eigendecomposition (batched over leading axes)."""
     eigvals, eigvecs = np.linalg.eig(M)
     U = eigvecs
     U_inv = np.linalg.inv(U)
@@ -437,6 +442,7 @@ class PositionOperatorApproximationError(Exception):
 
 
 def _offdiag_approximation_warning_and_stop():
+    """Raise :class:`PositionOperatorApproximationError` with guidance for W90 models."""
     raise PositionOperatorApproximationError(
         """
 

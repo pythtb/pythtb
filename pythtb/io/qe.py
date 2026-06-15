@@ -28,6 +28,7 @@ __all__ = [
 
 
 def _qe_is_k_marker(s: str) -> bool:
+    """True if a line is a QE k-point marker (exactly three floats)."""
     # line with exactly three floats → k marker
     try:
         vals = [float(x) for x in s.split()]

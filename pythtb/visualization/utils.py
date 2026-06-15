@@ -1,8 +1,11 @@
+"""Shared helpers for the plotting backends (lazy imports and 2D projection)."""
+
 import numpy as np
 from ..utils import pauli_decompose
 
 
 def _require_mpl():
+    """Import and return ``matplotlib.pyplot`` with a clear error if absent."""
     try:
         import matplotlib.pyplot as plt
 
@@ -14,6 +17,7 @@ def _require_mpl():
 
 
 def _require_plotly():
+    """Import and return ``plotly.graph_objects`` with a clear error if absent."""
     try:
         import plotly.graph_objects as go
 
@@ -105,6 +109,7 @@ def _pauli_decompose_str(M, precision=3, use_unicode=False) -> str:
 
 
 def _proj(v, proj_plane=None):
+    """Project a vector onto 2D plotting coordinates (optionally onto ``proj_plane``)."""
     v = np.array(v, dtype=float)
     if v.ndim != 1:
         raise ValueError("Input vector must be 1D.")

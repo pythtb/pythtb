@@ -1,3 +1,5 @@
+"""Haldane model: graphene with complex second-neighbor hoppings (a Chern insulator)."""
+
 from pythtb import TBModel, Lattice
 import numpy as np
 

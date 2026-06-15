@@ -1,3 +1,5 @@
+"""Fu-Kane-Mele model: a 3D topological insulator on the diamond lattice."""
+
 import numpy as np
 from pythtb import TBModel, Lattice
 

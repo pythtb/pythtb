@@ -1,3 +1,13 @@
+"""Tight-binding models: construction, solution, and quantum geometry.
+
+Defines :class:`TBModel`, the central object of PythTB. A model is built from
+a :class:`pythtb.Lattice` plus on-site energies and hoppings (possibly
+parameterized; see :mod:`pythtb.parameters`) and provides Bloch Hamiltonians,
+eigensolutions, band velocities, and the quantum-geometric quantities derived
+from them (Berry curvature, quantum metric, Chern numbers, axion angle). The
+legacy ``tb_model`` alias for PythTB <= 1.8 lives here as well.
+"""
+
 from collections.abc import Mapping
 import copy
 import logging
@@ -157,6 +167,7 @@ class TBModel:
     """
 
     def __init__(self, lattice: Lattice, spinful: bool = False):
+        """Initialize an empty model on ``lattice`` (no hoppings, zero on-site energies)."""
         self._lattice = lattice
         self._spinful = spinful
         self._nspin = 2 if spinful else 1
@@ -518,6 +529,7 @@ class TBModel:
 
     @assume_position_operator_diagonal.setter
     def assume_position_operator_diagonal(self, value: bool):
+        """Set whether the position operator is treated as orbital-diagonal."""
         if not isinstance(value, bool):
             raise ValueError("assume_position_operator_diagonal must be a boolean.")
         self._assume_position_operator_diagonal = value
@@ -1009,6 +1021,7 @@ class TBModel:
             mode = "set"
 
         def _process_single(val):
+            """Classify one on-site entry as a numeric block or a deferred provider."""
             # Accept callables (e.g., lambdas) – defer checks to evaluation time
             if callable(val):
                 return ("callable", val)
@@ -1383,6 +1396,7 @@ class TBModel:
         existing_idx = table.find(ind_i, ind_j, R_vec)
 
         def _process_amp(val):
+            """Classify one hopping amplitude as a numeric block or a deferred provider."""
             # Accept callables (e.g., lambdas) – defer evaluation to build time
             if callable(val):
                 return ("callable", val)
@@ -1552,6 +1566,7 @@ class TBModel:
                 )
 
     def _append_hops(self, hop_amps, i_idx, j_idx, R_vecs):
+        """Append a batch of hoppings (amplitudes, orbital pairs, R vectors) to the table."""
         hop_amps = np.asarray(hop_amps)
         i_idx = np.asarray(i_idx, dtype=int)
         j_idx = np.asarray(j_idx, dtype=int)
@@ -2683,6 +2698,7 @@ class TBModel:
     def _hamiltonian_finite(
         self, hop_amps, i_idx, j_idx, site_energies, *, flatten_spin: bool
     ):
+        """Assemble the real-space Hamiltonian of a finite (``dim_k == 0``) model."""
         norb = self.norb
 
         if not self.spinful:
@@ -2740,6 +2756,7 @@ class TBModel:
         *,
         flatten_spin: bool,
     ):
+        """Assemble Bloch Hamiltonians H(k) on a batch of k-points (convention I)."""
         norb = self._lattice.norb
         nspin = self.nspin
         M = norb * nspin
@@ -2865,6 +2882,7 @@ class TBModel:
         sweep = SweepSpec.from_params(params, spinful=self.spinful)
 
         def build_H(assign):
+            """Assemble H(k) for one set of resolved scalar parameter values."""
             hop_amps, i_idx, j_idx, R_vecs, site = self._evaluate_params(assign)
             if self.dim_k == 0:
                 return self._hamiltonian_finite(
@@ -3253,6 +3271,7 @@ class TBModel:
         needs_ham = _return_ham or bool(derivative_specs)
 
         def build_v(assign):
+            """Assemble the velocity (and Hamiltonian) for one resolved parameter set."""
             hop_amps, i_idx, j_idx, R_vecs, site_energies = self._evaluate_params(
                 assign
             )
@@ -4130,6 +4149,7 @@ class TBModel:
             d_co = d[:, :, cc[:, None], o[None, :]]
 
             def _adj(X):
+                """Batched conjugate transpose of the last two axes."""
                 return X.conj().swapaxes(-1, -2)
 
             ext = np.zeros((3, 3, n_k, o.size, o.size), dtype=complex)
@@ -4159,6 +4179,7 @@ class TBModel:
         Mf = ff[:, :, None] * (1.0 - ff)[:, None, :]
 
         def _S(p, q):
+            """Masked (occupied->empty) velocity-connection trace for the B^X term."""
             # B^X trace ingredients, masked over (m, c)
             return -1j * np.einsum(
                 "kmc, kcm, kcm -> k", Mf, d[p].conj(), a[q], optimize=True
@@ -4766,6 +4787,7 @@ class TBModel:
 
         # Plaquette area in each direction: k-axes are spaced by 1/nk (reduced units).
         def _step(idx: int) -> float:
+            """Finite-difference step along coordinate ``idx`` (k-axis or parameter axis)."""
             if idx < self.dim_k:
                 return 1.0 / nks[idx]
             return param_steps[idx - self.dim_k]
@@ -4779,6 +4801,7 @@ class TBModel:
 
     @staticmethod
     def _permutation_sign(indices: list[int]) -> int:
+        """Sign of the permutation taking ``indices`` to sorted order."""
         perm = list(indices)
         sign = 1
         for i in range(len(perm)):
@@ -5357,6 +5380,7 @@ class tb_model(TBModel):
     """
 
     def __init__(self, dim_k, dim_r, lat=None, orb=None, per=None, nspin=1):
+        """Translate the v1.x constructor arguments into a Lattice and defer to TBModel."""
         warnings.warn(
             "pythtb.tb_model is deprecated and will be removed in a future release. "
             "Use TBModel instead.",

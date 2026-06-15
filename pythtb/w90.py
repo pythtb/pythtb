@@ -1,3 +1,11 @@
+"""Import tight-binding models and band data from Wannier90 output.
+
+Defines :class:`W90`, which parses Wannier90 files (``*_hr.dat``, optional
+``*_tb.dat``/``*_r.dat`` position matrices, centres, and band data) and turns
+them into a :class:`pythtb.TBModel` via :meth:`W90.model`, with helpers for
+Wannier centres, the Wannier-gauge Berry connection, and band comparison.
+"""
+
 from pathlib import Path
 
 import numpy as np
@@ -151,6 +159,7 @@ class W90:
     """
 
     def __init__(self, path, prefix, *, cache: bool = True):
+        """Load Wannier90 output from ``path`` with the given file ``prefix``."""
         self.folder = Path(path).expanduser()
         if not self.folder.exists():
             raise FileNotFoundError(f"Wannier90 folder not found: {self.folder}")
@@ -192,6 +201,7 @@ class W90:
         self._dist_cache = {}
 
     def _validate_hr_symmetry(self):
+        """Check that every lattice vector R in H(R) has its partner -R."""
         R_set = set(self.ham_r.keys())
         for R in R_set:
             if R != (0, 0, 0) and (-R[0], -R[1], -R[2]) not in R_set:
@@ -349,6 +359,7 @@ class W90:
 
     @staticmethod
     def _wrap01(x: np.ndarray) -> np.ndarray:
+        """Wrap reduced coordinates into [0, 1) (snapping 1.0 to 0.0)."""
         out = np.mod(x, 1.0)
         # snap 1.0 → 0.0 to avoid 2π glitches
         out[np.isclose(out, 1.0, atol=1e-12)] = 0.0
@@ -510,6 +521,7 @@ class W90:
 
         # Helper to decide if we should process an R (to avoid double counting)
         def _use_R(R):
+            """True for the canonical half of each (R, -R) pair, so each is counted once."""
             r1, r2, r3 = R
             if r1 != 0:
                 return r1 > 0

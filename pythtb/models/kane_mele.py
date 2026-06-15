@@ -1,3 +1,5 @@
+"""Kane-Mele model: graphene with spin-orbit coupling (a quantum spin Hall insulator)."""
+
 from pythtb import TBModel, Lattice
 import numpy as np
 

@@ -1,3 +1,11 @@
+"""PythTB: construction and analysis of tight-binding models.
+
+The main entry points are :class:`pythtb.TBModel` (build and solve models),
+:class:`pythtb.WFArray` (states on k/parameter meshes and Berry-phase
+quantities), :class:`pythtb.W90` (import Wannier90 calculations), and
+:class:`pythtb.Wannier` (construct maximally localized Wannier functions).
+"""
+
 __version__ = "2.0.0"
 __author__ = "Trey Cole, Sinisa Coh, David Vanderbilt"
 __license__ = "GPL-3.0"

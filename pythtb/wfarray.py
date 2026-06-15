@@ -1,3 +1,12 @@
+"""Wavefunction arrays on k/parameter meshes and Berry-phase quantities.
+
+Defines :class:`WFArray`, a container for Bloch states evaluated on a
+:class:`pythtb.Mesh` of k-points (and optional adiabatic parameters). It
+manages boundary conditions and gauge bookkeeping, and computes
+overlap-based quantities: Berry phases, Wilson loops, Berry flux and
+curvature, Chern numbers, and hybrid Wannier centers.
+"""
+
 from .tbmodel import TBModel
 from .mesh import Mesh
 from .lattice import Lattice
@@ -160,6 +169,7 @@ class WFArray:
     def __init__(
         self, lattice: Lattice, mesh: Mesh, nstates: int = None, spinful: bool = False
     ):
+        """Allocate a state array for ``nstates`` bands on ``mesh`` over ``lattice``."""
         if not isinstance(lattice, Lattice):
             raise TypeError("lattice must be of type pythtb.Lattice")
         if not isinstance(mesh, Mesh):
@@ -210,9 +220,11 @@ class WFArray:
         self._energies = None
 
     def __getitem__(self, index):
+        """Direct (read) access to the underlying state array."""
         return self._wfs[index]
 
     def __setitem__(self, index, value):
+        """Assign states at a mesh index (validates and syncs looped boundaries)."""
         if not isinstance(value, (list, np.ndarray)):
             raise TypeError("Value must be a list or numpy array!")
 
@@ -267,6 +279,7 @@ class WFArray:
         return state_idx
 
     def _invalidate_caches(self):
+        """Drop cached projectors/overlaps after the stored states change."""
         for attr in ("_P", "_Q", "_P_nbr", "_Q_nbr", "_Mmn"):
             if hasattr(self, attr):
                 delattr(self, attr)
@@ -929,6 +942,7 @@ class WFArray:
         return (u, psi) if return_psi else u
 
     def _nbr_projectors(self, return_Q: bool = False):
+        """Band projectors at first-shell neighbor k-points (for spread/metric sums)."""
         if self.dim_k == 0:
             raise NotImplementedError(
                 "Nearest neighbor projectors are not defined for 0D k-space."
@@ -3547,6 +3561,7 @@ class WFArray:
                 )
 
     def _trace_metric(self):
+        """k-summed trace of the quantum metric from neighbor projectors."""
         P = self.projectors()
         _, Q_nbr = self._nbr_projectors(return_Q=True)
 
@@ -3564,6 +3579,7 @@ class WFArray:
         return w_b[0] * np.sum(T_kb, axis=-1)
 
     def _omega_til(self):
+        """Gauge-dependent part of the Wannier spread from the overlap matrices."""
         Mmn = self._Mmn
         w_b, k_shell, _ = self.lattice.k_shell_weights(self.mesh.shape_k, n_shell=1)
         w_b = w_b[0]

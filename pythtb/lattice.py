@@ -1,3 +1,11 @@
+"""Lattice geometry: unit cells, orbital positions, and k-space paths.
+
+Defines :class:`Lattice`, which stores the real-space lattice vectors,
+orbital positions (reduced coordinates), and periodic directions of a model,
+and provides the derived geometry: reciprocal vectors, neighbor shells,
+uniform k-meshes, and high-symmetry k-paths.
+"""
+
 import numpy as np
 import logging
 import copy
@@ -71,6 +79,7 @@ class Lattice:
         orb_vecs: np.ndarray,
         periodic_dirs: Iterable[int] | Literal["all"] | EllipsisType = [],
     ):
+        """Build a lattice from lattice vectors, orbital positions, and periodic dirs."""
         self._periodic_dirs = []  # temporary placeholder for lat_vecs setter
         self.lat_vecs = lat_vecs
 
@@ -91,6 +100,7 @@ class Lattice:
         self._nsuper = [1 for _ in range(self.dim_r)]  # default supercell sizes
 
     def __eq__(self, value):
+        """Lattices are equal when vectors, orbitals, and periodic directions match."""
         if not isinstance(value, Lattice):
             return False
         return (
@@ -100,6 +110,7 @@ class Lattice:
         )
 
     def _set_orb_vecs(self, orb_vecs):
+        """Validate orbital positions (or a count of origin orbitals) and store them."""
         if isinstance(orb_vecs, int):
             if orb_vecs < 0:
                 raise ValueError("Number of orbitals must be positive.")
@@ -124,6 +135,7 @@ class Lattice:
             self._orb_vecs_cart = orb_vecs @ self._lat_vectors
 
     def _set_lat_vecs(self, lat_vecs):
+        """Validate the ``(dim_r, dim_r)`` lattice-vector matrix and store it."""
         if isinstance(lat_vecs, (list, np.ndarray)):
             lat_vecs = np.array(lat_vecs, dtype=float)
         else:
@@ -185,14 +197,17 @@ class Lattice:
 
     @lat_vecs.setter
     def lat_vecs(self, new_lat_vecs: np.ndarray):
+        """Replace the lattice vectors (revalidating shape/volume)."""
         self._set_lat_vecs(new_lat_vecs)
 
     @orb_vecs.setter
     def orb_vecs(self, new_orb_vecs: np.ndarray):
+        """Replace the orbital positions (revalidating shape)."""
         self._set_orb_vecs(new_orb_vecs)
 
     @periodic_dirs.setter
     def periodic_dirs(self, new_per: list[int]):
+        """Set the periodic directions, validating them against the lattice."""
         if not isinstance(new_per, (list, tuple, np.ndarray)):
             raise TypeError("periodic_dirs must be a list of integers.")
         new_per = list(new_per)
@@ -270,9 +285,11 @@ class Lattice:
         return self._cell_vol
 
     def __str__(self) -> str:
+        """Multi-line lattice report (same as ``info(show=False)``)."""
         return self.info(show=False)
 
     def _report_list(self) -> list:
+        """Assemble the lines of the lattice report used by ``info``/``__str__``."""
         output = []
         header = (
             "----------------------------------------\n"
@@ -1095,6 +1112,7 @@ class Lattice:
         B = self.recip_lat_vecs
 
         def shift_to_dk_cart(s):
+            """Cartesian k-shift for integer mesh steps ``s`` along each periodic dir."""
             # s: (dim_k, ), delta_k = sum (s_mu /nks_mu) b_mu
             coeffs = s / nks.astype(float)  # (dim_k,)
             return coeffs @ B  # (dim_r,)

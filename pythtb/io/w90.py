@@ -115,6 +115,7 @@ class W90Dataset:
 
 
 def _read_text(path: Path) -> List[str]:
+    """Read a text file into a list of lines (raises if missing)."""
     try:
         with path.open("r", encoding="utf-8", errors="ignore") as f:
             return f.readlines()
@@ -123,6 +124,7 @@ def _read_text(path: Path) -> List[str]:
 
 
 def _extract_block(lines: List[str], name: str) -> List[str]:
+    """Return the lines inside a ``begin <name> ... end <name>`` block of a .win file."""
     begin, end = f"begin {name}".lower(), f"end {name}".lower()
     in_block, out = False, []
     for raw in lines:
@@ -179,6 +181,7 @@ def read_centres(root: Path, prefix: str, num_wan: int) -> np.ndarray:
 
 
 def _cart_to_red(a1, a2, a3, xyz):
+    """Convert Cartesian coordinates to reduced coordinates of the given lattice."""
     # Here a1..a3 are direct lattice vectors; reduced = xyz @ inv(lat)
     Lat = np.vstack([a1, a2, a3])
     return np.asarray(xyz) @ np.linalg.inv(Lat)
@@ -249,6 +252,7 @@ _INT_RE = re.compile(r"^[+-]?\d+$")
 
 
 def _all_ints(tokens: List[str]) -> bool:
+    """True if every whitespace token parses as an integer."""
     return all(_INT_RE.match(t) for t in tokens)
 
 
@@ -359,6 +363,7 @@ def read_tb(
     nw2 = num_wan * num_wan
 
     def _check_rows(R, rows, kind):
+        """Validate that an R-block has exactly num_wan**2 rows."""
         if len(rows) != nw2:
             raise W90ConsistencyError(
                 f"_tb.dat {kind} block for R={R} has {len(rows)} rows; expected {nw2}."
@@ -464,6 +469,7 @@ _KPOINT_LABEL_PATTERN = re.compile(r"^(?P<base>[^\d]+?)(?P<suffix>\d+)?$", re.UN
 
 
 def _format_k_label(label: str) -> str:
+    """Map a Wannier90 k-point label to its LaTeX form (e.g. 'G' -> r'\\Gamma')."""
     special = {
         "g": r"\Gamma",
         "gamma": r"\Gamma",

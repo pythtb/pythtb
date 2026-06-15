@@ -620,6 +620,7 @@ def plot_tbmodel_3d(
     fig = go.Figure(data=traces, layout=layout)
 
     def get_pretty_model_info_str():
+        """Build the HTML model-info panel shown beside the 3D plot."""
         lines = []
         lines.append("<b>Tight-Binding Model Information</b><br>")
         lines.append("<br>")
@@ -658,6 +659,7 @@ def plot_tbmodel_3d(
         )
 
     def _in_ipython() -> bool:
+        """True when running inside an IPython/Jupyter session."""
         try:
             from IPython import get_ipython  # type: ignore
 
@@ -666,6 +668,7 @@ def plot_tbmodel_3d(
             return False
 
     def _display_plotly_html(fig) -> None:
+        """Render a Plotly figure as inline HTML (MathJax-safe for Jupyter/myst-nb)."""
         # Safe for myst-nb + Jupyter; keeps MathJax intact
         from IPython.display import HTML, display  # type: ignore
 

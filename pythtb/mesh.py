@@ -1,3 +1,10 @@
+"""Meshes of k-points and adiabatic parameters for :class:`pythtb.WFArray`.
+
+Defines :class:`Axis` (one direction of a mesh: a crystal-momentum or
+parameter axis, with loop/endpoint/BZ-winding bookkeeping) and :class:`Mesh`,
+the grid of points that wavefunction arrays are solved on.
+"""
+
 import numpy as np
 from typing import Optional
 
@@ -61,6 +68,7 @@ class Axis:
 
     @size.setter
     def size(self, value: int) -> None:
+        """Validate and set the number of points along the axis."""
         if value < 0:
             raise ValueError("Axis size must be non-negative.")
         if not isinstance(value, int):
@@ -74,6 +82,7 @@ class Axis:
 
     @name.setter
     def name(self, value: str) -> None:
+        """Validate and set the axis label."""
         if not isinstance(value, str):
             raise TypeError("Axis name must be a string.")
         self._name = value
@@ -172,9 +181,11 @@ class Axis:
             self._wind_bz_comps.remove(comp_idx)
 
     def __str__(self) -> str:
+        """Compact one-line summary of the axis."""
         return f"Axis(type={self.type}, name={self.name}, size={self.size})"
 
     def __repr__(self) -> str:
+        """Alias of :meth:`__str__`."""
         return self.__str__()
 
 
@@ -270,6 +281,7 @@ class Mesh:
         axis_names: list[str] = None,
         dim_k: int = None,
     ):
+        """Create empty axes of the given types ('k' or 'l') with optional names."""
         # Naming axes
         for kind in axis_types:
             if kind not in ["k", "l"]:
@@ -799,12 +811,15 @@ class Mesh:
 
         # Helpers
         def _fmt_tuple(t):
+            """Format a tuple as ``(a, b, ...)`` for the report."""
             return "(" + ", ".join(str(x) for x in t) + ")"
 
         def _fmt_list(lst):
+            """Format a list as ``[a, b, ...]`` for the report."""
             return "[" + ", ".join(str(x) for x in lst) + "]"
 
         def _yn(val):
+            """Render a boolean as ``yes``/``no`` for the report."""
             return "yes" if bool(val) else "no"
 
         # Mesh type
@@ -867,6 +882,7 @@ class Mesh:
             return "\n".join(lines)
 
     def __str__(self) -> str:
+        """Multi-line mesh report (same as ``info(show=False)``)."""
         # Pretty, multi-line view for print(mesh)
         return self.info(show=False)
 
@@ -1262,6 +1278,7 @@ class Mesh:
             )
 
         def _normalize_opt(value, n, label, expect_type):
+            """Broadcast a scalar option to all ``n`` axes, or validate a per-axis list."""
             if n == 0:
                 return []
             if isinstance(value, expect_type):

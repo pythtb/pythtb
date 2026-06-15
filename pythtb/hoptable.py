@@ -1,3 +1,5 @@
+"""Array-backed storage for the hopping terms of a :class:`pythtb.TBModel`."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -27,6 +29,7 @@ class HoppingTable:
     )
 
     def __post_init__(self):
+        """Initialize empty storage (delegates to :meth:`clear`)."""
         # Start with empty arrays so subsequent append/extend operations can
         # assume the storage is already initialised.
         self.clear()
@@ -35,10 +38,12 @@ class HoppingTable:
     # core protocol
     # ------------------------------------------------------------------
     def __len__(self) -> int:
+        """Number of stored hoppings."""
         # Number of stored hoppings equals the length of any column.
         return self.from_idx.shape[0]
 
     def __iter__(self):
+        """Iterate over hoppings as ``(amplitude, i, j, R)`` tuples."""
         # Yield each hopping as (amplitude, i, j, R) for convenient unpacking.
         for idx in range(len(self)):
             yield (

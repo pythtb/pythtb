@@ -317,6 +317,7 @@ def plot_lattice_3d(
     fig = go.Figure(data=traces, layout=layout)
 
     def get_pretty_model_info_str():
+        """Build the HTML lattice-info panel shown beside the plot."""
         lines = []
         lines.append("<b>Lattice Vectors:</b><br>")
         for i, vec in enumerate(lattice.lat_vecs):

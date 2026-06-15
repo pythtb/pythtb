@@ -1,3 +1,5 @@
+"""Su-Schrieffer-Heeger model: 1D chain with alternating hoppings."""
+
 from pythtb import TBModel, Lattice
 
 

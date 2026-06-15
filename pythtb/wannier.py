@@ -1,3 +1,11 @@
+"""Maximally localized Wannier functions from a :class:`pythtb.WFArray`.
+
+Defines :class:`Wannier`, which takes solved Bloch states on a toroidal
+k-mesh and constructs Wannier functions: subspace selection/disentanglement,
+spread minimization, and the resulting centres, spreads, and real-space
+densities, plus interpolated band structures.
+"""
+
 import numpy as np
 import logging
 from .wfarray import WFArray
@@ -57,6 +65,7 @@ class Wannier:
     """
 
     def __init__(self, bloch_states: WFArray):
+        """Initialize from solved Bloch states on a toroidal k-mesh (a :class:`WFArray`)."""
         self._wfa: WFArray = bloch_states
 
         if not self.mesh.is_k_torus:

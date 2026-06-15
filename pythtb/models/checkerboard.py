@@ -1,3 +1,5 @@
+"""Checkerboard lattice: two-site square-lattice tight-binding model."""
+
 from pythtb import TBModel, Lattice
 
 
