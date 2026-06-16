@@ -24,7 +24,7 @@ from .utils import (
     import_tensorflow,
     levi_civita,
 )
-from .lattice import Lattice
+from .lattice import Lattice, _normalize_orb_indices
 from .hoptable import HoppingTable
 from .parameters import AxisFD, ParameterRegistry, SweepSpec, normalize_axis
 
@@ -1111,17 +1111,12 @@ class TBModel:
         phases.imag = np.sin(angle)
         return phases
 
-    def _add_spinful_onsite_blocks(
-        self, ham: np.ndarray, site_energies: np.ndarray
-    ) -> None:
-        """Add onsite 2x2 spin blocks on orbital-diagonal positions."""
-        rows = np.arange(self.norb * self.nspin).reshape(self.norb, self.nspin)
-        ham[:, rows[:, :, None], rows[:, None, :]] += site_energies[None, :, :, :]
-
     def _add_onsite_to_flat(self, ham: np.ndarray, site_energies: np.ndarray) -> None:
         """Add onsite energies to a batched (..., M, M) flattened-spin Hamiltonian."""
         if self.spinful:
-            self._add_spinful_onsite_blocks(ham, site_energies)
+            # Add onsite 2x2 spin blocks on orbital-diagonal positions.
+            rows = np.arange(self.norb * self.nspin).reshape(self.norb, self.nspin)
+            ham[:, rows[:, :, None], rows[:, None, :]] += site_energies[None, :, :, :]
         else:
             diag = np.arange(self.norb)
             ham[:, diag, diag] += site_energies
@@ -1625,10 +1620,6 @@ class TBModel:
             )
         return block
 
-    def _clear_param_terms(self, onsite_idx=None, hop_key=None):
-        """Remove parameter providers attached to an onsite index or hopping key."""
-        self._param_registry.discard(onsite_idx=onsite_idx, hop_key=hop_key)
-
     def _check_missing_parameters(self, params: dict):
         """Validate provided parameter names against the registered terms."""
         registry = self._param_registry
@@ -1647,10 +1638,6 @@ class TBModel:
             raise ValueError(
                 "Missing parameter value(s): " + ", ".join(sorted(missing))
             )
-
-    def _has_parameterized_terms(self) -> bool:
-        """Return True if any onsite/hopping provider is parameterized."""
-        return bool(self._param_registry)
 
     def _evaluate_params(self, assignments: dict):
         """Evaluate the model with given parameter assignments.
@@ -1740,43 +1727,6 @@ class TBModel:
 
         return hop_amps, i_idx, j_idx, R_vecs, site
 
-    def _finite_difference_parameter_hamiltonian(
-        self,
-        ham: np.ndarray,
-        spec: AxisFD,
-        *,
-        diff_scheme: str,
-        diff_order: int,
-    ) -> np.ndarray:
-        """Differentiate a Hamiltonian stack along one parameter sweep axis."""
-        sweep_axis = 1 + spec.index  # axis 0 is Nk; parameters follow.
-        if spec.trimmed:
-            logger.debug(
-                "velocity: trimming repeated endpoint for periodic parameter '%s' "
-                "before differentiating Hamiltonian.",
-                spec.name,
-            )
-            slicer = [slice(None)] * ham.ndim
-            slicer[sweep_axis] = slice(0, -1)
-            ham_fd = ham[tuple(slicer)]
-        else:
-            ham_fd = ham
-
-        dH = finite_difference(
-            ham_fd,
-            axis=sweep_axis,
-            delta=spec.step,
-            order=diff_order,
-            mode=diff_scheme,
-            periodic=spec.periodic,
-        )
-
-        if spec.trimmed and spec.periodic:
-            first_slice = np.take(dH, indices=0, axis=sweep_axis)
-            first_slice = np.expand_dims(first_slice, axis=sweep_axis)
-            dH = np.concatenate([dH, first_slice], axis=sweep_axis)
-        return dH
-
     def _append_parameter_velocity_components(
         self,
         vel_k: np.ndarray,
@@ -1786,15 +1736,39 @@ class TBModel:
         diff_scheme: str,
         diff_order: int,
     ) -> np.ndarray:
-        """Append finite-difference parameter derivatives after k-derivatives."""
+        """Append finite-difference parameter derivatives after k-derivatives.
+
+        Each spec differentiates the Hamiltonian stack along one parameter sweep
+        axis; the resulting dH/dlambda slices are stacked after the k-derivatives.
+        """
         components = [vel_k]
         for spec in derivative_specs:
-            dH = self._finite_difference_parameter_hamiltonian(
-                ham,
-                spec,
-                diff_scheme=diff_scheme,
-                diff_order=diff_order,
+            sweep_axis = 1 + spec.index  # axis 0 is Nk; parameters follow.
+            if spec.trimmed:
+                logger.debug(
+                    "velocity: trimming repeated endpoint for periodic parameter '%s' "
+                    "before differentiating Hamiltonian.",
+                    spec.name,
+                )
+                slicer = [slice(None)] * ham.ndim
+                slicer[sweep_axis] = slice(0, -1)
+                ham_fd = ham[tuple(slicer)]
+            else:
+                ham_fd = ham
+
+            dH = finite_difference(
+                ham_fd,
+                axis=sweep_axis,
+                delta=spec.step,
+                order=diff_order,
+                mode=diff_scheme,
+                periodic=spec.periodic,
             )
+
+            if spec.trimmed and spec.periodic:
+                first_slice = np.take(dH, indices=0, axis=sweep_axis)
+                first_slice = np.expand_dims(first_slice, axis=sweep_axis)
+                dH = np.concatenate([dH, first_slice], axis=sweep_axis)
             components.append(dH[np.newaxis, ...])
         return np.concatenate(components, axis=0)
 
@@ -2015,25 +1989,7 @@ class TBModel:
         >>> small_model = original_model.remove_orb([2,5])
 
         """
-        if isinstance(to_remove, int):
-            indices = [to_remove]
-        elif isinstance(to_remove, (list, np.ndarray)):
-            indices = list(to_remove)
-        else:
-            raise TypeError("to_remove must be an integer or a list of integers.")
-
-        for index in indices:
-            if not isinstance(index, int):
-                raise TypeError("All indices in to_remove must be integers.")
-            if index < 0 or index >= self.norb:
-                raise ValueError("Index out of bounds.")
-
-        # check that all indices are unique
-        if len(indices) != len(set(indices)):
-            raise ValueError("All indices in to_remove must be unique.")
-
-        # put the orbitals to be removed in descending order
-        orb_index = sorted(indices, reverse=True)
+        orb_index = _normalize_orb_indices(to_remove, self.norb)
 
         self._lattice.remove_orb(orb_index)
 
@@ -2649,52 +2605,6 @@ class TBModel:
 
         raise ValueError(f"k_pts must have shape (Nk, {dim_k}) or ({dim_k},).")
 
-    def _H_to_per_gauge(self, H_flat, k_vals):
-        r"""
-        Transform Hamiltonian to periodic gauge so that :math:`H(\mathbf{k}+\mathbf{G}) = H(\mathbf{k})`.
-
-        If ``nspin = 2``, ``H_flat`` should only be flat along `k` and _NOT_ spin.
-
-        Parameters
-        ----------
-        H_flat : np.ndarray
-            Hamiltonian flattened along the k-direction, shape (Nk, nstate, nstate[, nspin]).
-        k_vals : np.ndarray
-            Array of k-point values, shape (Nk, dim_k).
-
-        Returns
-        -------
-        np.ndarray
-            Hamiltonian in periodic gauge, shape (Nk, nstate, nstate[, nspin]).
-
-        Notes
-        -----
-        The transformation applies phase factors to ensure periodicity in reciprocal space.
-        """
-        if k_vals.ndim != 2:
-            raise ValueError(
-                f"Invalid k_vals shape: {k_vals.shape}. Expected (Nk, dim_k)."
-            )
-        if k_vals.shape[1] != self.dim_k:
-            raise ValueError(
-                f"Invalid k_vals shape: {k_vals.shape}. Expected (Nk, {self.dim_k})."
-            )
-
-        if self.dim_k == 0:
-            logger.warning(
-                "No periodic directions in k-space. Returning H_flat unchanged."
-            )
-            return H_flat
-
-        orb_vecs = self._orb_vecs  # reduced units
-        orb_vec_diff = orb_vecs[:, None, :] - orb_vecs[None, :, :]
-        orb_vec_diff = orb_vec_diff[..., self.periodic_dirs]
-        orb_phase = self._phases_from_reduced_dot_products(
-            np.matmul(orb_vec_diff, k_vals.T)
-        ).transpose(2, 0, 1)
-        H_per_flat = H_flat * orb_phase
-        return H_per_flat
-
     def _hamiltonian_finite(
         self, hop_amps, i_idx, j_idx, site_energies, *, flatten_spin: bool
     ):
@@ -3213,110 +3123,6 @@ class TBModel:
             vel = vel.reshape(dim_k, n_kpts, norb, nspin, norb, nspin)
         return vel
 
-    def _velocity(
-        self,
-        k_pts: np.ndarray,
-        cartesian: bool = False,
-        flatten_spin_axis: bool = False,
-        *,
-        param_periods: dict[str, float] | None = None,
-        diff_scheme: str = "central",
-        diff_order: int = 2,
-        _return_ham: bool = False,
-        **params,
-    ) -> np.ndarray:
-        """Compute velocity operator dH/dk and dH/dλ at given k-points.
-
-        Private method called by .velocity(). Allows returning Hamiltonian for internal use.
-        See .velocity() for full docstring.
-
-        Notes
-        -----
-        - The velocity operator with respect to k is computed analytically using ._velocity_k().
-        - The velocity operator with respect to parameters is computed via finite differences.
-        - The finite difference function dynamically uses central, forward, or backward schemes
-          depending on the periodicty and position within the parameter axis. If the parameters
-          are not periodic and the point is at the edge of the axis, forward or backward differences
-          are used as appropriate.
-        - Parameter sweeps that are detected as cyclic (either because
-          ``param_periods[name]`` is provided or because the first and last samples
-          of the sweep coincide) have their duplicated endpoint removed internally
-          by :func:`pythtb.parameters.normalize_axis` before the finite-difference stencil
-          is built. The returned velocity tensor is re-expanded onto the original
-          grid, so the parameter axes seen by the caller keep the user-supplied
-          length even though the derivative itself is computed from the trimmed set.
-          Trim the endpoint yourself if you need the unique samples for post-processing.
-        """
-
-        # Check params
-        if params is not None:
-            params = dict(params)
-            self._check_missing_parameters(params)
-        else:
-            params = {}
-
-        # Normalize k-points to correct shape
-        if self.dim_k == 0:
-            raise NotImplementedError(
-                "Velocity operator is not defined for systems with dim_k=0."
-            )
-        else:
-            k_arr = self._normalize_kpoints(k_pts)
-
-        sweep = SweepSpec.from_params(params, spinful=self.spinful)
-        param_periods = dict(param_periods or {})
-        raw_axes, derivative_specs = sweep.fd_axes(param_periods)
-
-        # Determine if we need to compute Hamiltonian for lambda derivatives
-        needs_ham = _return_ham or bool(derivative_specs)
-
-        def build_v(assign):
-            """Assemble the velocity (and Hamiltonian) for one resolved parameter set."""
-            hop_amps, i_idx, j_idx, R_vecs, site_energies = self._evaluate_params(
-                assign
-            )
-            out = self._velocity_k(
-                k_arr,
-                hop_amps,
-                i_idx,
-                j_idx,
-                R_vecs,
-                site_energies=site_energies,
-                cartesian=cartesian,
-                flatten_spin_axis=flatten_spin_axis,
-                return_ham=needs_ham,
-            )
-            return out if needs_ham else (out,)
-
-        if not sweep.has_axes:
-            result = build_v(sweep.scalars)
-            if needs_ham:
-                vel, ham = result
-                return (vel, ham) if _return_ham else vel
-            return result[0]
-
-        # Parameter sweeps: cartesian product, with the sweep axes placed after
-        # the (dim_k, Nk) axes of the velocity and the Nk axis of the Hamiltonian.
-        # Evaluate on the raw user grid, not the normalized grid.
-        if needs_ham:
-            vel_k, ham = sweep.evaluate(build_v, n_lead=(2, 1), axes=raw_axes)
-        else:
-            ham = None
-            (vel_k,) = sweep.evaluate(build_v, n_lead=(2,), axes=raw_axes)
-
-        # If no param derivatives needed, return now
-        if not derivative_specs:
-            return (vel_k, ham) if _return_ham else vel_k
-
-        vel_full = self._append_parameter_velocity_components(
-            vel_k,
-            ham,
-            derivative_specs,
-            diff_scheme=diff_scheme,
-            diff_order=diff_order,
-        )
-        return (vel_full, ham) if _return_ham else vel_full
-
     def velocity(
         self,
         k_pts: np.ndarray,
@@ -3326,6 +3132,7 @@ class TBModel:
         param_periods: dict[str, float] | None = None,
         diff_scheme: str = "central",
         diff_order: int = 2,
+        _return_ham: bool = False,
         **params,
     ) -> np.ndarray:
         r"""Generate the velocity operator in the orbital basis.
@@ -3470,15 +3277,91 @@ class TBModel:
         ... param_periods={"mA": 2*np.pi}
         ... )
         """
-        return self._velocity(
-            k_pts,
-            cartesian=cartesian,
-            flatten_spin_axis=flatten_spin_axis,
-            param_periods=param_periods,
+        # Implementation notes:
+        # - The velocity operator with respect to k is computed analytically using
+        #   ._velocity_k(); the velocity with respect to parameters is computed via
+        #   finite differences.
+        # - The finite difference dynamically uses central, forward, or backward
+        #   schemes depending on the periodicity and position within the parameter
+        #   axis. If the parameters are not periodic and the point is at the edge of
+        #   the axis, forward or backward differences are used as appropriate.
+        # - Parameter sweeps detected as cyclic (either because ``param_periods[name]``
+        #   is provided or because the first and last samples coincide) have their
+        #   duplicated endpoint removed internally before the finite-difference stencil
+        #   is built. The returned velocity tensor is re-expanded onto the original
+        #   grid, so the parameter axes seen by the caller keep the user-supplied
+        #   length even though the derivative is computed from the trimmed set.
+        # ``_return_ham`` is a private flag letting internal callers (the quantum
+        # geometry methods) reuse the Hamiltonian assembled here for diagonalization.
+
+        # Check params
+        if params is not None:
+            params = dict(params)
+            self._check_missing_parameters(params)
+        else:
+            params = {}
+
+        # Normalize k-points to correct shape
+        if self.dim_k == 0:
+            raise NotImplementedError(
+                "Velocity operator is not defined for systems with dim_k=0."
+            )
+        else:
+            k_arr = self._normalize_kpoints(k_pts)
+
+        sweep = SweepSpec.from_params(params, spinful=self.spinful)
+        param_periods = dict(param_periods or {})
+        raw_axes, derivative_specs = sweep.fd_axes(param_periods)
+
+        # Determine if we need to compute Hamiltonian for lambda derivatives
+        needs_ham = _return_ham or bool(derivative_specs)
+
+        def build_v(assign):
+            """Assemble the velocity (and Hamiltonian) for one resolved parameter set."""
+            hop_amps, i_idx, j_idx, R_vecs, site_energies = self._evaluate_params(
+                assign
+            )
+            out = self._velocity_k(
+                k_arr,
+                hop_amps,
+                i_idx,
+                j_idx,
+                R_vecs,
+                site_energies=site_energies,
+                cartesian=cartesian,
+                flatten_spin_axis=flatten_spin_axis,
+                return_ham=needs_ham,
+            )
+            return out if needs_ham else (out,)
+
+        if not sweep.has_axes:
+            result = build_v(sweep.scalars)
+            if needs_ham:
+                vel, ham = result
+                return (vel, ham) if _return_ham else vel
+            return result[0]
+
+        # Parameter sweeps: cartesian product, with the sweep axes placed after
+        # the (dim_k, Nk) axes of the velocity and the Nk axis of the Hamiltonian.
+        # Evaluate on the raw user grid, not the normalized grid.
+        if needs_ham:
+            vel_k, ham = sweep.evaluate(build_v, n_lead=(2, 1), axes=raw_axes)
+        else:
+            ham = None
+            (vel_k,) = sweep.evaluate(build_v, n_lead=(2,), axes=raw_axes)
+
+        # If no param derivatives needed, return now
+        if not derivative_specs:
+            return (vel_k, ham) if _return_ham else vel_k
+
+        vel_full = self._append_parameter_velocity_components(
+            vel_k,
+            ham,
+            derivative_specs,
             diff_scheme=diff_scheme,
             diff_order=diff_order,
-            **params,
         )
+        return (vel_full, ham) if _return_ham else vel_full
 
     def _quantum_geometric_tensor(
         self,
@@ -3601,7 +3484,7 @@ class TBModel:
         :meth:`berry_curvature`, :meth:`quantum_metric`) never repeat the
         eigensolve for the same k-points.
         """
-        v, ham = self._velocity(
+        v, ham = self.velocity(
             k_pts,
             cartesian=cartesian,
             flatten_spin_axis=True,
@@ -3924,6 +3807,7 @@ class TBModel:
         quantum_geometric_tensor : Computes the quantum geometric tensor.
         quantum_metric : Computes the quantum metric tensor.
         velocity : Computes the velocity operator used in the Kubo formula.
+        WFArray.berry_curvature : Discrete (Fukui-Hatsugai-Suzuki plaquette) curvature from wavefunctions sampled on a mesh, as opposed to this analytic Kubo evaluation at given k-points.
         :ref:`quantum-geom-tens-nb` : Jupyter notebook tutorial on quantum geometric tensor.
 
         Notes
@@ -4672,6 +4556,7 @@ class TBModel:
         See Also
         --------
         berry_curvature : Computes the Berry curvature used in the integrand.
+        WFArray.chern_number : Discrete Berry-flux summation over a closed mesh, as opposed to this analytic Kubo-curvature integral.
 
         Notes
         -----
@@ -4798,18 +4683,6 @@ class TBModel:
         if spectator_lengths:
             return np.real_if_close(integrated.reshape(spectator_lengths))
         return float(np.real_if_close(integrated))
-
-    @staticmethod
-    def _permutation_sign(indices: list[int]) -> int:
-        """Sign of the permutation taking ``indices`` to sorted order."""
-        perm = list(indices)
-        sign = 1
-        for i in range(len(perm)):
-            for j in range(i + 1, len(perm)):
-                if perm[i] > perm[j]:
-                    perm[i], perm[j] = perm[j], perm[i]
-                    sign *= -1
-        return sign
 
     # TODO: Handle params lists
     def local_chern_marker(
