@@ -265,6 +265,20 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Methods
 -------
 .. autosummary::
@@ -312,8 +326,13 @@ Methods
    pythtb.TBModel.velocity
    pythtb.TBModel.visualize
    pythtb.TBModel.visualize_3d
+   pythtb.TBModel.wannier_berry_connection
    pythtb.TBModel.with_parameters
    
+
+
+
+
 
 
 
@@ -417,6 +436,7 @@ Attributes
    pythtb.TBModel.dim_k
    pythtb.TBModel.dim_r
    pythtb.TBModel.from_w90
+   pythtb.TBModel.has_wannier_position
    pythtb.TBModel.hoppings
    pythtb.TBModel.lat_vecs
    pythtb.TBModel.lattice

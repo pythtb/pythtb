@@ -1,7 +1,11 @@
-﻿pythtb.io.w90.W90Dataset
+pythtb.io.w90.W90Dataset
 ========================
 
 .. autoclass:: pythtb.io.w90.W90Dataset
+
+
+
+
 
 
 
@@ -137,6 +141,7 @@ Attributes
    pythtb.io.w90.W90Dataset.kpath_labels
    pythtb.io.w90.W90Dataset.kpath_nodes_red
    pythtb.io.w90.W90Dataset.meta
+   pythtb.io.w90.W90Dataset.pos_r
    pythtb.io.w90.W90Dataset.win_lines
    pythtb.io.w90.W90Dataset.prefix
    pythtb.io.w90.W90Dataset.root

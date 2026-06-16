@@ -1,6 +1,6 @@
 # 📋 Test Status Report
 
-Last updated on **2026-06-10 at 11:00:37**
+Last updated on **2026-06-16 at 00:58:45**
 
 ---
 
@@ -8,205 +8,222 @@ Last updated on **2026-06-10 at 11:00:37**
   - **test_examples/**
     - **0dim/**
       - **test_0dim/**
-        - ✅ `test_example` — *2026-06-10 11:00:37*
+        - ✅ `test_example` — *2026-06-15 23:18:42*
     - **bn_ribbon_berry/**
       - **test_bn_ribbon_berry/**
-        - ✅ `test_example` — *2026-06-10 11:00:37*
+        - ✅ `test_example` — *2026-06-15 23:18:42*
     - **buckled_layer/**
       - **test_buckled_layer/**
-        - ✅ `test_example` — *2026-06-10 11:00:37*
+        - ✅ `test_example` — *2026-06-15 23:18:42*
     - **checkerboard/**
       - **test_checkerboard/**
-        - ✅ `test_example` — *2026-06-10 11:00:37*
+        - ✅ `test_example` — *2026-06-15 23:18:42*
     - **cubic_slab_hwf/**
       - **test_cubic_slab_hwf/**
-        - ✅ `test_example` — *2026-06-10 11:00:37*
+        - ✅ `test_example` — *2026-06-15 23:18:42*
     - **graphene/**
       - **cone/**
         - **test_cone/**
-          - ✅ `test_example` — *2026-06-10 11:00:37*
+          - ✅ `test_example` — *2026-06-15 23:18:42*
         - **test_cone_hardcode/**
-          - ✅ `test_answer` — *2026-06-10 11:00:37*
+          - ✅ `test_answer` — *2026-06-15 23:18:42*
       - **graphene/**
         - **test_graphene/**
-          - ✅ `test_example` — *2026-06-10 11:00:37*
+          - ✅ `test_example` — *2026-06-15 23:18:42*
     - **haldane/**
       - **edge/**
         - **test_edge/**
-          - ✅ `test_example` — *2026-06-10 11:00:37*
+          - ✅ `test_example` — *2026-06-15 23:18:42*
       - **haldane/**
         - **test_haldane/**
-          - ✅ `test_example` — *2026-06-10 11:00:37*
+          - ✅ `test_example` — *2026-06-15 23:18:42*
       - **haldane_bp/**
         - **test_haldane_bp/**
-          - ✅ `test_example` — *2026-06-10 11:00:37*
+          - ✅ `test_example` — *2026-06-15 23:18:42*
       - **haldane_fin/**
         - **test_haldane_fin/**
-          - ✅ `test_example` — *2026-06-10 11:00:37*
+          - ✅ `test_example` — *2026-06-15 23:18:42*
       - **haldane_hwf/**
         - **test_haldane_hwf/**
-          - ✅ `test_example` — *2026-06-10 11:00:37*
+          - ✅ `test_example` — *2026-06-15 23:18:42*
     - **kane_mele/**
       - **test_kane_mele/**
-        - ✅ `test_example` — *2026-06-10 11:00:37*
+        - ✅ `test_example` — *2026-06-15 23:18:42*
     - **simple/**
       - **test_simple/**
-        - ✅ `test_example` — *2026-06-10 11:00:37*
+        - ✅ `test_example` — *2026-06-15 23:18:42*
     - **ssh/**
       - **test_ssh/**
-        - ✅ `test_example` — *2026-06-10 11:00:37*
+        - ✅ `test_example` — *2026-06-15 23:18:42*
     - **supercell/**
       - **test_supercell/**
-        - ✅ `test_example` — *2026-06-10 11:00:37*
+        - ✅ `test_example` — *2026-06-15 23:18:42*
     - **three_site/**
       - **three_site_cycle/**
         - **test_three_site_cycle/**
-          - ✅ `test_example[-1-2]` — *2026-06-10 11:00:37*
+          - ✅ `test_example[-1-2]` — *2026-06-15 23:18:42*
       - **three_site_cycle_fin/**
         - **test_three_site_cycle_fin/**
-          - ✅ `test_example[-1.3-2.0]` — *2026-06-10 11:00:37*
+          - ✅ `test_example[-1.3-2.0]` — *2026-06-15 23:18:42*
     - **trestle/**
       - **test_trestle/**
-        - ✅ `test_example` — *2026-06-10 11:00:37*
+        - ✅ `test_example` — *2026-06-15 23:18:42*
   - **test_lattice/**
     - **test_lattice_init/**
-      - ✅ `test_all_shortcuts[all]` — *2026-06-10 11:00:37*
-      - ✅ `test_all_shortcuts[shortcut0]` — *2026-06-10 11:00:37*
-      - ✅ `test_default_is_finite` — *2026-06-10 11:00:37*
-      - ✅ `test_explicit_empty_list_is_allowed` — *2026-06-10 11:00:37*
-      - ✅ `test_invalid_periodic_index_raises` — *2026-06-10 11:00:37*
-      - ✅ `test_periodic_dirs_setter_recomputes_reciprocal` — *2026-06-10 11:00:37*
+      - ✅ `test_all_shortcuts[all]` — *2026-06-15 23:18:42*
+      - ✅ `test_all_shortcuts[shortcut0]` — *2026-06-15 23:18:42*
+      - ✅ `test_default_is_finite` — *2026-06-15 23:18:42*
+      - ✅ `test_explicit_empty_list_is_allowed` — *2026-06-15 23:18:42*
+      - ✅ `test_invalid_periodic_index_raises` — *2026-06-15 23:18:42*
+      - ✅ `test_periodic_dirs_setter_recomputes_reciprocal` — *2026-06-15 23:18:42*
   - **test_package/**
-    - ✅ `test_version_exists_and_format` — *2026-06-10 11:00:37*
+    - ✅ `test_version_exists_and_format` — *2026-06-15 23:18:42*
   - **test_tbmodel/**
     - **test_different_modes/**
-      - ✅ `test_modes` — *2026-06-10 11:00:37*
+      - ✅ `test_modes` — *2026-06-15 23:18:42*
     - **test_dimr_dimk_different/**
-      - ✅ `test_slab` — *2026-06-10 11:00:37*
+      - ✅ `test_slab` — *2026-06-15 23:18:42*
     - **test_ham_vel/**
-      - ✅ `test_1d_two_orbitals` — *2026-06-10 11:00:37*
-      - ✅ `test_2d_checkerboard_single_k` — *2026-06-10 11:00:37*
+      - ✅ `test_1d_two_orbitals` — *2026-06-15 23:18:42*
+      - ✅ `test_2d_checkerboard_single_k` — *2026-06-15 23:18:42*
       - ✅ `test_cached_periodic_geometry_compresses_duplicate_phase_columns` — *2026-03-19 15:04:32*
-      - ✅ `test_hamiltonian_spinful` — *2026-06-10 11:00:37*
-      - ✅ `test_hamiltonian_spinless` — *2026-06-10 11:00:37*
-      - ✅ `test_hermiticity` — *2026-06-10 11:00:37*
+      - ✅ `test_hamiltonian_spinful` — *2026-06-15 23:18:42*
+      - ✅ `test_hamiltonian_spinless` — *2026-06-15 23:18:42*
+      - ✅ `test_hermiticity` — *2026-06-15 23:18:42*
       - ✅ `test_phase_helpers_match_direct_exp_and_repeated_columns` — *2026-03-19 15:04:32*
-      - ✅ `test_phases_from_reduced_dot_products` — *2026-06-10 11:00:37*
-      - ✅ `test_velocity_parametric_fkm` — *2026-06-10 11:00:37*
-      - ✅ `test_velocity_parametric_ssh` — *2026-06-10 11:00:37*
+      - ✅ `test_phases_from_reduced_dot_products` — *2026-06-15 23:18:42*
+      - ✅ `test_velocity_parametric_fkm` — *2026-06-15 23:18:42*
+      - ✅ `test_velocity_parametric_ssh` — *2026-06-15 23:18:42*
     - **test_initialization/**
-      - ✅ `test_origin_orbs[periodic_dirs0-lat_vecs0-0-False]` — *2026-06-10 11:00:37*
-      - ✅ `test_origin_orbs[periodic_dirs1-lat_vecs1-5-False]` — *2026-06-10 11:00:37*
-      - ✅ `test_origin_orbs[periodic_dirs2-lat_vecs2-4-False]` — *2026-06-10 11:00:37*
-      - ✅ `test_origin_orbs[periodic_dirs3-lat_vecs3-0-True]` — *2026-06-10 11:00:37*
-      - ✅ `test_origin_orbs[periodic_dirs4-lat_vecs4-10-True]` — *2026-06-10 11:00:37*
-      - ✅ `test_origin_orbs[periodic_dirs5-lat_vecs5-1-True]` — *2026-06-10 11:00:37*
-      - ✅ `test_origin_orbs[periodic_dirs6-lat_vecs6-1-1]` — *2026-06-10 11:00:37*
-      - ✅ `test_origin_orbs[periodic_dirs7-lat_vecs7-2-1]` — *2026-06-10 11:00:37*
-      - ✅ `test_origin_orbs[periodic_dirs8-lat_vecs8-4-False]` — *2026-06-10 11:00:37*
-      - ✅ `test_origin_orbs[periodic_dirs9-lat_vecs9-2-False]` — *2026-06-10 11:00:37*
-      - ✅ `test_tbmodel_initialization[periodic_dirs0-lat_vecs0-orbital_pos0-False]` — *2026-06-10 11:00:37*
-      - ✅ `test_tbmodel_initialization[periodic_dirs1-lat_vecs1-orbital_pos1-False]` — *2026-06-10 11:00:37*
-      - ✅ `test_tbmodel_initialization[periodic_dirs10-lat_vecs10-orbital_pos10-True]` — *2026-06-10 11:00:37*
-      - ✅ `test_tbmodel_initialization[periodic_dirs11-lat_vecs11-orbital_pos11-True]` — *2026-06-10 11:00:37*
-      - ✅ `test_tbmodel_initialization[periodic_dirs12-lat_vecs12-orbital_pos12-True]` — *2026-06-10 11:00:37*
-      - ✅ `test_tbmodel_initialization[periodic_dirs13-lat_vecs13-orbital_pos13-True]` — *2026-06-10 11:00:37*
-      - ✅ `test_tbmodel_initialization[periodic_dirs2-lat_vecs2-orbital_pos2-False]` — *2026-06-10 11:00:37*
-      - ✅ `test_tbmodel_initialization[periodic_dirs3-lat_vecs3-orbital_pos3-False]` — *2026-06-10 11:00:37*
-      - ✅ `test_tbmodel_initialization[periodic_dirs4-lat_vecs4-orbital_pos4-False]` — *2026-06-10 11:00:37*
-      - ✅ `test_tbmodel_initialization[periodic_dirs5-lat_vecs5-orbital_pos5-False]` — *2026-06-10 11:00:37*
-      - ✅ `test_tbmodel_initialization[periodic_dirs6-lat_vecs6-orbital_pos6-False]` — *2026-06-10 11:00:37*
-      - ✅ `test_tbmodel_initialization[periodic_dirs7-lat_vecs7-orbital_pos7-True]` — *2026-06-10 11:00:37*
-      - ✅ `test_tbmodel_initialization[periodic_dirs8-lat_vecs8-orbital_pos8-True]` — *2026-06-10 11:00:37*
-      - ✅ `test_tbmodel_initialization[periodic_dirs9-lat_vecs9-orbital_pos9-True]` — *2026-06-10 11:00:37*
+      - ✅ `test_origin_orbs[periodic_dirs0-lat_vecs0-0-False]` — *2026-06-15 23:18:42*
+      - ✅ `test_origin_orbs[periodic_dirs1-lat_vecs1-5-False]` — *2026-06-15 23:18:42*
+      - ✅ `test_origin_orbs[periodic_dirs2-lat_vecs2-4-False]` — *2026-06-15 23:18:42*
+      - ✅ `test_origin_orbs[periodic_dirs3-lat_vecs3-0-True]` — *2026-06-15 23:18:42*
+      - ✅ `test_origin_orbs[periodic_dirs4-lat_vecs4-10-True]` — *2026-06-15 23:18:42*
+      - ✅ `test_origin_orbs[periodic_dirs5-lat_vecs5-1-True]` — *2026-06-15 23:18:42*
+      - ✅ `test_origin_orbs[periodic_dirs6-lat_vecs6-1-1]` — *2026-06-15 23:18:42*
+      - ✅ `test_origin_orbs[periodic_dirs7-lat_vecs7-2-1]` — *2026-06-15 23:18:42*
+      - ✅ `test_origin_orbs[periodic_dirs8-lat_vecs8-4-False]` — *2026-06-15 23:18:42*
+      - ✅ `test_origin_orbs[periodic_dirs9-lat_vecs9-2-False]` — *2026-06-15 23:18:42*
+      - ✅ `test_tbmodel_initialization[periodic_dirs0-lat_vecs0-orbital_pos0-False]` — *2026-06-15 23:18:42*
+      - ✅ `test_tbmodel_initialization[periodic_dirs1-lat_vecs1-orbital_pos1-False]` — *2026-06-15 23:18:42*
+      - ✅ `test_tbmodel_initialization[periodic_dirs10-lat_vecs10-orbital_pos10-True]` — *2026-06-15 23:18:42*
+      - ✅ `test_tbmodel_initialization[periodic_dirs11-lat_vecs11-orbital_pos11-True]` — *2026-06-15 23:18:42*
+      - ✅ `test_tbmodel_initialization[periodic_dirs12-lat_vecs12-orbital_pos12-True]` — *2026-06-15 23:18:42*
+      - ✅ `test_tbmodel_initialization[periodic_dirs13-lat_vecs13-orbital_pos13-True]` — *2026-06-15 23:18:42*
+      - ✅ `test_tbmodel_initialization[periodic_dirs2-lat_vecs2-orbital_pos2-False]` — *2026-06-15 23:18:42*
+      - ✅ `test_tbmodel_initialization[periodic_dirs3-lat_vecs3-orbital_pos3-False]` — *2026-06-15 23:18:42*
+      - ✅ `test_tbmodel_initialization[periodic_dirs4-lat_vecs4-orbital_pos4-False]` — *2026-06-15 23:18:42*
+      - ✅ `test_tbmodel_initialization[periodic_dirs5-lat_vecs5-orbital_pos5-False]` — *2026-06-15 23:18:42*
+      - ✅ `test_tbmodel_initialization[periodic_dirs6-lat_vecs6-orbital_pos6-False]` — *2026-06-15 23:18:42*
+      - ✅ `test_tbmodel_initialization[periodic_dirs7-lat_vecs7-orbital_pos7-True]` — *2026-06-15 23:18:42*
+      - ✅ `test_tbmodel_initialization[periodic_dirs8-lat_vecs8-orbital_pos8-True]` — *2026-06-15 23:18:42*
+      - ✅ `test_tbmodel_initialization[periodic_dirs9-lat_vecs9-orbital_pos9-True]` — *2026-06-15 23:18:42*
     - **test_invariants_tbmodel/**
-      - ✅ `test_berry_curvature_second_chern` — *2026-06-10 11:00:37*
-      - ✅ `test_chern_haldane` — *2026-06-10 11:00:37*
+      - ✅ `test_berry_curvature_second_chern` — *2026-06-15 23:18:42*
+      - ✅ `test_chern_haldane` — *2026-06-15 23:18:42*
     - **test_non_periodic/**
-      - ✅ `test_centers` — *2026-06-10 11:00:37*
+      - ✅ `test_centers` — *2026-06-15 23:18:42*
     - **test_parameterize/**
-      - ✅ `test_parameter_normalization` — *2026-06-10 11:00:37*
-      - ✅ `test_ribbon` — *2026-06-10 11:00:37*
+      - ✅ `test_parameter_normalization` — *2026-06-16 00:58:45*
+      - ✅ `test_ribbon` — *2026-06-16 00:58:45*
+    - **test_parameters_module/**
+      - ✅ `test_callable_signature_resolved_once` — *2026-06-16 00:58:45*
+      - ✅ `test_evaluate_grid_axis_placement` — *2026-06-16 00:58:45*
+      - ✅ `test_expression_missing_value_is_helpful` — *2026-06-16 00:58:45*
+      - ✅ `test_expression_term_free_names_and_eval` — *2026-06-16 00:58:45*
+      - ✅ `test_fd_axes_metadata_periodic_trim` — *2026-06-16 00:58:45*
+      - ✅ `test_invalid_expression_fails_at_registration` — *2026-06-16 00:58:45*
+      - ✅ `test_model_with_expression_providers` — *2026-06-16 00:58:45*
+      - ✅ `test_negated_name_is_an_expression` — *2026-06-16 00:58:45*
+      - ✅ `test_normalize_axis_rejects_nonuniform` — *2026-06-16 00:58:45*
+      - ✅ `test_partition_pauli_requires_spinful` — *2026-06-16 00:58:45*
+      - ✅ `test_partition_rejects_bad_shapes` — *2026-06-16 00:58:45*
+      - ✅ `test_partition_scalars_and_axes` — *2026-06-16 00:58:45*
     - **test_set_onsite/**
-      - ✅ `test_set_onsite[False]` — *2026-06-10 11:00:37*
-      - ✅ `test_set_onsite[True]` — *2026-06-10 11:00:37*
+      - ✅ `test_set_onsite[False]` — *2026-06-15 23:18:42*
+      - ✅ `test_set_onsite[True]` — *2026-06-15 23:18:42*
     - **test_spin/**
-      - ✅ `test_spin` — *2026-06-10 11:00:37*
+      - ✅ `test_spin` — *2026-06-15 23:18:42*
   - **test_w90/**
     - **test_berry_reference/**
-      - ✅ `test_hBN_berry_curvature_matches_postw90` — *2026-06-10 11:00:37*
-      - ✅ `test_hBN_nonabelian_matches_wilson_loop` — *2026-06-10 11:00:37*
-      - ✅ `test_hBN_wannier_centers_match_centres_file` — *2026-06-10 11:00:37*
+      - ✅ `test_hBN_berry_curvature_matches_postw90` — *2026-06-15 23:18:42*
+      - ✅ `test_hBN_nonabelian_matches_wilson_loop` — *2026-06-15 23:18:42*
+      - ✅ `test_hBN_wannier_centers_match_centres_file` — *2026-06-15 23:18:42*
+    - **test_loader_cache/**
+      - ✅ `test_cache_invalidated_by_source_change` — *2026-06-15 23:18:42*
+      - ✅ `test_cache_roundtrip` — *2026-06-15 23:18:42*
+      - ✅ `test_corrupt_cache_falls_back` — *2026-06-15 23:18:42*
     - **test_read_tb/**
-      - ✅ `test_berry_connection_hermitian` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_connection_matches_manual_sum` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_connection_requires_position` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_curvature_correction_auto_and_complete_manifold` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_curvature_correction_requires_position` — *2026-06-10 11:00:37*
+      - ✅ `test_berry_connection_hermitian` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_connection_matches_manual_sum` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_connection_requires_position` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_curvature_correction_auto_and_complete_manifold` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_curvature_correction_requires_position` — *2026-06-15 23:18:42*
       - ✅ `test_berry_curvature_external_rejects_fermi` — *2026-06-08 17:17:00*
-      - ✅ `test_berry_curvature_fermi_occupation` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_curvature_full_tensor_antisymmetric` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_curvature_non_abelian` — *2026-06-10 11:00:37*
+      - ✅ `test_berry_curvature_fermi_occupation` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_curvature_full_tensor_antisymmetric` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_curvature_non_abelian` — *2026-06-15 23:18:42*
       - ❌ `test_berry_curvature_non_abelian_needs_occ_idxs` — *2026-06-08 16:55:12*
-      - ✅ `test_berry_curvature_non_abelian_rejects_fermi` — *2026-06-10 11:00:37*
+      - ✅ `test_berry_curvature_non_abelian_rejects_fermi` — *2026-06-15 23:18:42*
       - ✅ `test_berry_curvature_real_and_finite` — *2026-06-05 16:27:15*
       - ✅ `test_berry_curvature_shape_and_complete_manifold` — *2026-06-05 16:27:15*
-      - ✅ `test_model_carries_position_matrix` — *2026-06-10 11:00:37*
-      - ✅ `test_model_without_position_has_no_connection` — *2026-06-10 11:00:37*
-      - ✅ `test_position_matrix_accessor` — *2026-06-10 11:00:37*
-      - ✅ `test_position_matrix_requires_data` — *2026-06-10 11:00:37*
-      - ✅ `test_read_r_matches_tb` — *2026-06-10 11:00:37*
-      - ✅ `test_read_tb_missing` — *2026-06-10 11:00:37*
-      - ✅ `test_read_tb_roundtrip` — *2026-06-10 11:00:37*
-      - ✅ `test_w90_falls_back_without_tb` — *2026-06-10 11:00:37*
-      - ✅ `test_w90_has_position_matrix` — *2026-06-10 11:00:37*
-      - ✅ `test_wannier_centers_match_centres_file` — *2026-06-10 11:00:37*
+      - ✅ `test_model_carries_position_matrix` — *2026-06-15 23:18:42*
+      - ✅ `test_model_without_position_has_no_connection` — *2026-06-15 23:18:42*
+      - ✅ `test_position_matrix_accessor` — *2026-06-15 23:18:42*
+      - ✅ `test_position_matrix_requires_data` — *2026-06-15 23:18:42*
+      - ✅ `test_read_r_matches_tb` — *2026-06-15 23:18:42*
+      - ✅ `test_read_tb_missing` — *2026-06-15 23:18:42*
+      - ✅ `test_read_tb_roundtrip` — *2026-06-15 23:18:42*
+      - ✅ `test_w90_falls_back_without_tb` — *2026-06-15 23:18:42*
+      - ✅ `test_w90_has_position_matrix` — *2026-06-15 23:18:42*
+      - ✅ `test_wannier_centers_match_centres_file` — *2026-06-15 23:18:42*
     - **w90/**
       - **w90_quick/**
         - **test/**
           - ❌ `test_example` — *2026-03-08 07:53:31*
   - **test_wannier/**
     - **test_spinful/**
-      - ✅ `test_spinful_project` — *2026-06-10 11:00:37*
+      - ✅ `test_spinful_project` — *2026-06-15 23:18:42*
   - **test_wfarray/**
     - **test_invariants_wfa/**
-      - ✅ `test_chern_haldane[False]` — *2026-06-10 11:00:37*
-      - ✅ `test_chern_haldane[True]` — *2026-06-10 11:00:37*
+      - ✅ `test_chern_haldane[False]` — *2026-06-15 23:18:42*
+      - ✅ `test_chern_haldane[True]` — *2026-06-15 23:18:42*
     - **test_links/**
-      - ✅ `test_berry_connection_cartesian_step` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_connection_finite_diff[-1.0]` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_connection_finite_diff[-2.0]` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_connection_finite_diff[0.0]` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_connection_finite_diff[1.0]` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_connection_finite_diff[2.0]` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_connection_hermiticity` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_connection_invalid_state_idx` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_connection_phase[-1.0]` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_connection_phase[-2.0]` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_connection_phase[0.0]` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_connection_phase[1.0]` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_connection_phase[2.0]` — *2026-06-10 11:00:37*
-      - ✅ `test_links_periodic_without_endpoints` — *2026-06-10 11:00:37*
-      - ✅ `test_links_zero_out_closed_endpoint` — *2026-06-10 11:00:37*
+      - ✅ `test_berry_connection_cartesian_step` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_connection_finite_diff[-1.0]` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_connection_finite_diff[-2.0]` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_connection_finite_diff[0.0]` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_connection_finite_diff[1.0]` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_connection_finite_diff[2.0]` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_connection_hermiticity` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_connection_invalid_state_idx` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_connection_phase[-1.0]` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_connection_phase[-2.0]` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_connection_phase[0.0]` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_connection_phase[1.0]` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_connection_phase[2.0]` — *2026-06-15 23:18:42*
+      - ✅ `test_links_periodic_without_endpoints` — *2026-06-15 23:18:42*
+      - ✅ `test_links_zero_out_closed_endpoint` — *2026-06-15 23:18:42*
     - **test_mesh_perm_wfa/**
-      - ✅ `test_berry_flux_handles_axis_reordering` — *2026-06-10 11:00:37*
-      - ✅ `test_berry_phase_handles_axis_reordering` — *2026-06-10 11:00:37*
-      - ✅ `test_links_with_reordered_axes` — *2026-06-10 11:00:37*
-      - ✅ `test_roll_states_with_pbc_axis_reordering` — *2026-06-10 11:00:37*
-      - ✅ `test_solve_model_respects_arbitrary_axis_order` — *2026-06-10 11:00:37*
+      - ✅ `test_berry_flux_handles_axis_reordering` — *2026-06-15 23:18:42*
+      - ✅ `test_berry_phase_handles_axis_reordering` — *2026-06-15 23:18:42*
+      - ✅ `test_links_with_reordered_axes` — *2026-06-15 23:18:42*
+      - ✅ `test_roll_states_with_pbc_axis_reordering` — *2026-06-15 23:18:42*
+      - ✅ `test_solve_model_respects_arbitrary_axis_order` — *2026-06-15 23:18:42*
     - **test_wfa_init/**
-      - ✅ `test_wfa_initialization` — *2026-06-10 11:00:37*
-      - ✅ `test_wfa_initialization_spinful` — *2026-06-10 11:00:37*
-      - ✅ `test_wfarray_allows_single_point_lambda_axis` — *2026-06-10 11:00:37*
-      - ✅ `test_wfarray_rejects_loop_axis_with_single_point` — *2026-06-10 11:00:37*
+      - ✅ `test_wfa_initialization` — *2026-06-15 23:18:42*
+      - ✅ `test_wfa_initialization_spinful` — *2026-06-15 23:18:42*
+      - ✅ `test_wfarray_allows_single_point_lambda_axis` — *2026-06-15 23:18:42*
+      - ✅ `test_wfarray_rejects_loop_axis_with_single_point` — *2026-06-15 23:18:42*
     - **test_wfa_mutation/**
-      - ✅ `test_set_states_enforces_closed_axis_phase` — *2026-06-10 11:00:37*
-      - ✅ `test_setitem_does_not_touch_open_axis` — *2026-06-10 11:00:37*
+      - ✅ `test_set_states_enforces_closed_axis_phase` — *2026-06-15 23:18:42*
+      - ✅ `test_setitem_does_not_touch_open_axis` — *2026-06-15 23:18:42*
   - **tests_mesh/**
     - **test_mesh_build_grid/**
-      - ✅ `test_mesh_axis_type_ordering` — *2026-06-10 11:00:37*
-      - ✅ `test_mesh_k_and_param_points_match_axis_order` — *2026-06-10 11:00:37*
+      - ✅ `test_mesh_axis_type_ordering` — *2026-06-15 23:18:42*
+      - ✅ `test_mesh_k_and_param_points_match_axis_order` — *2026-06-15 23:18:42*
     - **test_mesh_init/**
-      - ✅ `test_mesh_axis_type_ordering` — *2026-06-10 11:00:37*
-      - ✅ `test_mesh_init` — *2026-06-10 11:00:37*
-      - ✅ `test_mesh_k_and_param_points_match_axis_order` — *2026-06-10 11:00:37*
+      - ✅ `test_mesh_axis_type_ordering` — *2026-06-15 23:18:42*
+      - ✅ `test_mesh_init` — *2026-06-15 23:18:42*
+      - ✅ `test_mesh_k_and_param_points_match_axis_order` — *2026-06-15 23:18:42*
