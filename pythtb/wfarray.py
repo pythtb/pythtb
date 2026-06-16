@@ -3097,6 +3097,7 @@ class WFArray:
         See Also
         --------
         :meth:`berry_flux` : For details and formalism on the Berry flux tensor.
+        TBModel.berry_curvature : Analytic (Kubo) curvature from the velocity operator at arbitrary k-points, as opposed to this discrete plaquette estimate on a sampled mesh.
 
         Notes
         -----
@@ -3209,6 +3210,7 @@ class WFArray:
         See Also
         --------
         :meth:`berry_flux` : For details and formalism on the Berry flux tensor.
+        TBModel.chern_number : Analytic Kubo-curvature integral evaluated at given k-points, as opposed to this discrete Berry-flux summation over a stored mesh.
 
         Notes
         -----
