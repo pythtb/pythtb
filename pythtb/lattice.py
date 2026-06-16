@@ -35,6 +35,35 @@ def _parse_kpts(kpts, dim):
     return arr
 
 
+def _normalize_orb_indices(to_remove, norb: int) -> list[int]:
+    """Validate orbital-removal indices and return them sorted descending.
+
+    Accepts a single integer or a list/array of integers, checks that every
+    index is an ``int`` within ``[0, norb)`` and that there are no duplicates,
+    then returns the indices in descending order so callers can delete them
+    one-by-one without reindexing surprises.
+    """
+    if isinstance(to_remove, int):
+        indices = [to_remove]
+    elif isinstance(to_remove, (list, np.ndarray)):
+        indices = list(to_remove)
+    else:
+        raise TypeError("to_remove must be an integer or a list of integers.")
+
+    for index in indices:
+        if not isinstance(index, int):
+            raise TypeError("All indices in to_remove must be integers.")
+        if index < 0 or index >= norb:
+            raise ValueError("Index out of bounds.")
+
+    # check that all indices are unique
+    if len(indices) != len(set(indices)):
+        raise ValueError("All indices in to_remove must be unique.")
+
+    # put the orbitals to be removed in descending order
+    return sorted(indices, reverse=True)
+
+
 class Lattice:
     r"""Store lattice and orbital information.
 
@@ -587,25 +616,7 @@ class Lattice:
         - The number of orbitals ``norb`` is updated accordingly.
         - Raises an error if the index is out of bounds.
         """
-        if isinstance(to_remove, int):
-            indices = [to_remove]
-        elif isinstance(to_remove, (list, np.ndarray)):
-            indices = list(to_remove)
-        else:
-            raise TypeError("to_remove must be an integer or a list of integers.")
-
-        for index in indices:
-            if not isinstance(index, int):
-                raise TypeError("All indices in to_remove must be integers.")
-            if index < 0 or index >= self.norb:
-                raise ValueError("Index out of bounds.")
-
-        # check that all indices are unique
-        if len(indices) != len(set(indices)):
-            raise ValueError("All indices in to_remove must be unique.")
-
-        # put the orbitals to be removed in descending order
-        orb_index = sorted(indices, reverse=True)
+        orb_index = _normalize_orb_indices(to_remove, self.norb)
 
         # remove indices one by one
         for i, orb_ind in enumerate(orb_index):
