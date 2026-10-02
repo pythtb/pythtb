@@ -1,3 +1,9 @@
+/* use explicit monospace fonts for reliable code rendering */
+html {
+  --pst-font-family-monospace:
+    Consolas, "Courier New", monospace
+}
+
 /* hide the mobile sponsor bar */
 #rtd-sponsor, .wy-nav-footer { display: none !important; }
 
