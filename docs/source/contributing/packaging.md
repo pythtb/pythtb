@@ -44,9 +44,8 @@ pytest -n auto
 sphinx-build docs/source docs/build/html
 ```
 
-3. Version number updated in `pythtb/__init__.py`
-4. `CHANGELOG.md` updated
-5. Release notes added 
+3. `CHANGELOG.md` updated
+4. Release notes added 
 - Add release notes in `docs/source/release/` and update toctree in `docs/source/release.md`
 
 Once all of the changes are in place, we can proceed to release.
@@ -55,7 +54,7 @@ Once all of the changes are in place, we can proceed to release.
 
 Our releases are driven by GitHub Actions plus PyPI Trusted Publishing. No long-lived PyPI token exists in the repository (or on contributor machines); instead the workflow requests a short-lived token via OIDC and targets the protected `pypi-prod` environment. Because only release managers can push tags to the upstream repo _and_ approve that environment, accidental or manual uploads are effectively prevented.
 
-1. Commit the version bump, changelog, and release notes:
+1. Commit the changelog and release notes. The version number comes from the git tag (via `setuptools_scm`), so there is no version string to bump:
    ```bash
    git commit -m "Release X.Y.Z"
    ```

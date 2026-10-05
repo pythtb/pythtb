@@ -1,4 +1,11 @@
-__version__ = "2.0.0"
+from importlib.metadata import PackageNotFoundError, version as _version
+
+try:
+    __version__ = _version("pythtb")
+except PackageNotFoundError:  # source tree that isn't installed
+    __version__ = "0.0.0"
+del _version, PackageNotFoundError
+
 __author__ = "Trey Cole, Sinisa Coh, David Vanderbilt"
 __license__ = "GPL-3.0"
 

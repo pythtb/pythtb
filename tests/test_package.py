@@ -14,3 +14,10 @@ def test_version_exists_and_format():
     assert isinstance(version, str) and version, (
         "__version__ should be a non-empty string"
     )
+
+
+def test_version_matches_installed_metadata():
+    # __version__ must track the installed package version (set from the git tag)
+    from importlib.metadata import version
+
+    assert pythtb.__version__ == version("pythtb")
