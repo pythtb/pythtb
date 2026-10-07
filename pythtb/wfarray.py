@@ -2403,7 +2403,9 @@ class WFArray:
         dim_k = self.mesh.dim_k
 
         for ax in axis_idx:
-            delta_vec = []
+            # Keep every component (zeros included) so the step stays aligned
+            # with the reduced coordinates for the Cartesian transform below.
+            delta_vec = np.zeros(dim_tot)
 
             for comp in range(dim_tot):
                 arr = self.mesh.get_axis_range(ax, comp)
@@ -2411,9 +2413,9 @@ class WFArray:
                     continue
                 diff = arr[1] - arr[0]
                 if not np.isclose(diff, 0.0):
-                    delta_vec.append(diff)
+                    delta_vec[comp] = diff
 
-            if not delta_vec:
+            if not np.any(delta_vec):
                 raise ValueError(
                     f"Could not determine step size along axis {ax} for Berry connection."
                 )

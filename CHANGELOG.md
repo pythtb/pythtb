@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Fixed `AttributeError` in `TBModel.visualize_3d()` and `Lattice.visualize_3d()` on Matplotlib >= 3.9, which removed `matplotlib.cm.get_cmap()`
+- Fixed `ValueError` in `WFArray.berry_connection(cartesian=True)` on multi-dimensional k-grids, where zero components of the per-axis k-step were dropped before the Cartesian transform (#102)
 
 ## [2.0.2] - 2026-04-21
 

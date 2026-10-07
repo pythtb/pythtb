@@ -173,3 +173,36 @@ def test_berry_connection_cartesian_step():
 
     np.testing.assert_allclose(A_red, expected_red, rtol=1e-12, atol=1e-12)
     np.testing.assert_allclose(A_cart, expected_cart, rtol=1e-12, atol=1e-12)
+
+
+def test_berry_connection_cartesian_2d_grid():
+    """Regression for #102: cartesian=True on a 2D grid with a non-orthogonal lattice."""
+    lattice = Lattice(
+        lat_vecs=[[1, 0], [0.5, np.sqrt(3) / 2]],
+        orb_vecs=[[0, 0]],
+        periodic_dirs=[0, 1],
+    )
+    mesh = Mesh(["k", "k"], dim_k=2)
+    mesh.build_grid(shape=(6, 5))
+    wfa = WFArray(lattice, mesh)
+    gradient = np.array([0.3, -0.2])  # phase ramp in reduced k
+    phases = np.exp(2j * np.pi * (mesh.points @ gradient))
+    wfa.set_states(phases[..., None, None])
+
+    A_red = wfa.berry_connection(axis_idx=[0, 1], cartesian=False)
+    A_cart = wfa.berry_connection(axis_idx=[0, 1], cartesian=True)
+    assert A_cart.shape == A_red.shape == (2, 6, 5, 1, 1)
+
+    recip = lattice.recip_lat_vecs
+    for mu, n in enumerate(mesh.shape_axes):
+        dk_red = 1.0 / n
+        dk_cart = np.linalg.norm(dk_red * recip[mu])
+        expected_red = -2 * np.pi * gradient[mu]
+        # interior links only (the wrap-around link carries the 2*pi*gradient jump)
+        np.testing.assert_allclose(
+            np.take(A_red[mu], range(n - 1), axis=mu)[..., 0, 0].real, expected_red
+        )
+        np.testing.assert_allclose(
+            np.take(A_cart[mu], range(n - 1), axis=mu)[..., 0, 0].real,
+            expected_red * dk_red / dk_cart,
+        )
