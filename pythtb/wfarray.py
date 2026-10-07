@@ -2359,9 +2359,18 @@ class WFArray:
             If True, also return the link unitaries :math:`U_{\mu}`.
             Default is False.
         cartesian : bool, optional
-            If True, compute the step size :math:`\Delta k_\mu` in Cartesian space
-            (using the reciprocal lattice vectors) rather than in reduced coordinates.
-            Default is False.
+            If True, return the k-space connection in Cartesian units. When the
+            k-axes in ``axis_idx`` span all of k-space (e.g. a full k-grid), they are
+            combined into Cartesian components
+            :math:`A_\alpha = \frac{1}{2\pi}\sum_j a_{j\alpha} A_j`, where
+            :math:`\mathbf{a}_j` are the periodic lattice vectors. Otherwise (e.g. a
+            1D path through a 2D Brillouin zone), each axis gives the component along
+            its own Cartesian direction,
+            :math:`\mathbf{A}\cdot\hat{\boldsymbol{\delta}}_\mu`. Default is False.
+
+            .. versionchanged:: 2.0.3
+               Full k-grids now return Cartesian components :math:`A_x, A_y, \dots`
+               rather than projections onto the reciprocal lattice directions.
 
         Returns
         -------
@@ -2369,9 +2378,13 @@ class WFArray:
             Non-Abelian connection with shape: ``(n_mu, *mesh_shape, nstate, nstate)``,
             where ``n_mu = len(axis_idx)`` (or ``WFArray.naxes`` if ``axis_idx=None``)
             and ``nstate = len(state_idx)`` (or ``WFArray.nstates`` if ``state_idx=None``).
+            If ``cartesian=True`` and the k-axes span k-space, the leading axis instead
+            holds the ``dim_r`` Cartesian components followed by the remaining
+            (:math:`\lambda`) axes of ``axis_idx`` in their given order.
 
         U : ndarray, optional
-            The link unitaries with same shape (returned if ``return_unitaries=True``).
+            The link unitaries, one per mesh axis in ``axis_idx``
+            (returned if ``return_unitaries=True``).
 
         See Also
         --------
@@ -2391,77 +2404,91 @@ class WFArray:
             state_idx=state_idx, axis_idx=axis_idx
         )  # (n_mu, ..., nstate, nstate)
 
-        # Build dk per mu
         if axis_idx is None:
             axis_idx = np.arange(self.naxes, dtype=int)
         else:
             axis_idx = np.atleast_1d(axis_idx)
 
-        # Compute spacings
-        step_list = []
+        # Step vector of each mesh axis in (k_1..k_dk, lambda_1..) coordinates
         dim_tot = self.mesh.dim_k + self.mesh.dim_lambda
         dim_k = self.mesh.dim_k
+        steps = np.zeros((len(axis_idx), dim_tot))
 
-        for ax in axis_idx:
-            # Keep every component (zeros included) so the step stays aligned
-            # with the reduced coordinates for the Cartesian transform below.
-            delta_vec = np.zeros(dim_tot)
-
+        for i_mu, ax in enumerate(axis_idx):
             for comp in range(dim_tot):
                 arr = self.mesh.get_axis_range(ax, comp)
                 if arr.size < 2:
                     continue
                 diff = arr[1] - arr[0]
                 if not np.isclose(diff, 0.0):
-                    delta_vec[comp] = diff
+                    steps[i_mu, comp] = diff
 
-            if not np.any(delta_vec):
+            if not np.any(steps[i_mu]):
                 raise ValueError(
                     f"Could not determine step size along axis {ax} for Berry connection."
                 )
 
-            if cartesian and dim_k:
-                reduced = delta_vec[:dim_k]  # reduced k-step
-                cart = reduced @ self.lattice.recip_lat_vecs  # Cartesian k-step
-                combined = np.concatenate([cart, delta_vec[dim_k:]])
-                step_list.append(np.linalg.norm(combined))
-            else:
-                # reduced step (first varying component)
-                nonzero = np.flatnonzero(delta_vec)
-                step_list.append(delta_vec[nonzero[0]])
-
-        dk = np.asarray(step_list, dtype=float)
-
-        # Compute A_mu from U_mu
-        # We'll handle boundaries (NaNs) by masking rows; leave A as NaN there.
-        A = np.empty_like(U, dtype=complex)
-
-        # A = (1/(i dk)) * log(U) via eigen-decomposition
-        # (unitary U is normal -> unitarily diagonalizable:
-        # U = V diag(e^{i theta}) V^dagger, log U = V diag(i theta) V^dagger)
-        for i_mu, dki in enumerate(dk):
+        # Link phases Phi_mu = -log(U_mu) / i  (~ A . delta_kappa_mu) via
+        # eigen-decomposition (unitary U is normal -> unitarily diagonalizable:
+        # U = V diag(e^{i theta}) V^dagger, log U = V diag(i theta) V^dagger).
+        # Boundaries (NaN links) are left as NaN.
+        Phi = np.empty_like(U, dtype=complex)
+        for i_mu in range(len(axis_idx)):
             Ui = U[i_mu]
-            Ai = np.empty_like(Ui, dtype=complex)
             # flatten batch, do per-matrix eig, then reshape back
             batch_shape = Ui.shape[:-2]
             nB = Ui.shape[-1]
             Ui_flat = Ui.reshape((-1, nB, nB))
-            Ai_flat = Ai.reshape((-1, nB, nB))
+            Phi_flat = np.empty_like(Ui_flat, dtype=complex)
 
-            # mask boundaries: where any entry is NaN, fill A with NaN and skip eig
+            # mask boundaries: where any entry is NaN, fill with NaN and skip eig
             invalid = np.isnan(Ui_flat[..., 0, 0])
 
             for p in range(Ui_flat.shape[0]):
                 if invalid[p]:
-                    Ai_flat[p, :, :] = np.nan + 0j
+                    Phi_flat[p, :, :] = np.nan + 0j
                     continue
                 w, V = np.linalg.eig(Ui_flat[p])
                 # principal phases in (-pi, pi]
                 theta = np.angle(w)
                 logU = (V * (1j * theta)) @ V.conj().T
-                Ai_flat[p] = -logU / (1j * dki)
+                Phi_flat[p] = -logU / 1j
 
-            A[i_mu] = Ai_flat.reshape(batch_shape + (nB, nB))
+            Phi[i_mu] = Phi_flat.reshape(batch_shape + (nB, nB))
+
+        # Reduced step of each axis (first varying component)
+        dk = np.array([s[np.flatnonzero(s)[0]] for s in steps])
+
+        k_axes = np.flatnonzero(np.any(steps[:, :dim_k], axis=1))
+        D = steps[k_axes, :dim_k]
+        if (
+            cartesian
+            and dim_k
+            and len(k_axes) == dim_k
+            and np.linalg.matrix_rank(D) == dim_k
+        ):
+            # The k-axes span k-space: solve Phi_k = D @ A_red for the reduced
+            # components, then A_cart = sum_j a_j A_red_j / (2 pi).
+            if np.any(steps[k_axes, dim_k:]):
+                raise ValueError(
+                    "cartesian=True requires mesh k-axes that do not also step in "
+                    "lambda."
+                )
+            lat_per = self.lattice.lat_vecs[self.lattice.periodic_dirs]
+            M = lat_per.T @ np.linalg.inv(D) / (2 * np.pi)  # (dim_r, dim_k)
+            A_cart = np.einsum("aj,j...->a...", M, Phi[k_axes])
+
+            other = np.setdiff1d(np.arange(len(axis_idx)), k_axes)
+            A_other = Phi[other] / dk[other].reshape((-1,) + (1,) * (Phi.ndim - 1))
+            A = np.concatenate([A_cart, A_other], axis=0)
+        else:
+            if cartesian and dim_k:
+                # Component along each axis's Cartesian direction
+                cart = steps[:, :dim_k] @ self.lattice.recip_lat_vecs
+                dk = np.linalg.norm(
+                    np.concatenate([cart, steps[:, dim_k:]], axis=1), axis=1
+                )
+            A = Phi / dk.reshape((-1,) + (1,) * (Phi.ndim - 1))
 
         return (A, U) if return_unitaries else A
 

@@ -176,7 +176,7 @@ def test_berry_connection_cartesian_step():
 
 
 def test_berry_connection_cartesian_2d_grid():
-    """Regression for #102: cartesian=True on a 2D grid with a non-orthogonal lattice."""
+    """cartesian=True on a full 2D grid of a non-orthogonal lattice gives (A_x, A_y) (#102)."""
     lattice = Lattice(
         lat_vecs=[[1, 0], [0.5, np.sqrt(3) / 2]],
         orb_vecs=[[0, 0]],
@@ -185,24 +185,39 @@ def test_berry_connection_cartesian_2d_grid():
     mesh = Mesh(["k", "k"], dim_k=2)
     mesh.build_grid(shape=(6, 5))
     wfa = WFArray(lattice, mesh)
-    gradient = np.array([0.3, -0.2])  # phase ramp in reduced k
+    # exp(2 pi i kappa.g) = exp(i k.r0) with r0 = sum_j g_j a_j, so A = -r0
+    gradient = np.array([0.3, -0.2])
     phases = np.exp(2j * np.pi * (mesh.points @ gradient))
     wfa.set_states(phases[..., None, None])
+    r0 = gradient @ lattice.lat_vecs
 
     A_red = wfa.berry_connection(axis_idx=[0, 1], cartesian=False)
     A_cart = wfa.berry_connection(axis_idx=[0, 1], cartesian=True)
     assert A_cart.shape == A_red.shape == (2, 6, 5, 1, 1)
 
-    recip = lattice.recip_lat_vecs
-    for mu, n in enumerate(mesh.shape_axes):
-        dk_red = 1.0 / n
-        dk_cart = np.linalg.norm(dk_red * recip[mu])
-        expected_red = -2 * np.pi * gradient[mu]
-        # interior links only (the wrap-around link carries the 2*pi*gradient jump)
-        np.testing.assert_allclose(
-            np.take(A_red[mu], range(n - 1), axis=mu)[..., 0, 0].real, expected_red
-        )
-        np.testing.assert_allclose(
-            np.take(A_cart[mu], range(n - 1), axis=mu)[..., 0, 0].real,
-            expected_red * dk_red / dk_cart,
-        )
+    # interior only (the wrap-around links carry the 2*pi*gradient jump)
+    interior = (slice(None), slice(0, 5), slice(0, 4), 0, 0)
+    for mu in range(2):
+        np.testing.assert_allclose(A_red[interior][mu].real, -2 * np.pi * gradient[mu])
+        np.testing.assert_allclose(A_cart[interior][mu].real, -r0[mu], atol=1e-12)
+
+    # axis order does not change the Cartesian components
+    A_swap = wfa.berry_connection(axis_idx=[1, 0], cartesian=True)
+    np.testing.assert_allclose(A_swap[interior], A_cart[interior], atol=1e-12)
+
+
+def test_berry_connection_cartesian_with_lambda_axis():
+    """Cartesian k-components come first, followed by lambda axes in reduced units."""
+    lattice = Lattice(lat_vecs=[[2.0]], orb_vecs=[[0.0]], periodic_dirs=[0])
+    mesh = Mesh(["l", "k"], dim_k=1)
+    mesh.build_grid(shape=(4, 6))
+    wfa = WFArray(lattice, mesh)
+    g_lam, g_k = 0.1, 0.25
+    lam, k = mesh.points[..., 1], mesh.points[..., 0]
+    phases = np.exp(2j * np.pi * (g_lam * lam + g_k * k))
+    wfa.set_states(phases[..., None, None])
+
+    A = wfa.berry_connection(cartesian=True)
+    assert A.shape == (2, 4, 6, 1, 1)
+    np.testing.assert_allclose(A[0, :, :-1, 0, 0].real, -g_k * 2.0, atol=1e-12)
+    np.testing.assert_allclose(A[1, :-1, :, 0, 0].real, -2 * np.pi * g_lam)

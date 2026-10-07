@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Fixed `AttributeError` in `TBModel.visualize_3d()` and `Lattice.visualize_3d()` on Matplotlib >= 3.9, which removed `matplotlib.cm.get_cmap()`
 - Fixed `ValueError` in `WFArray.berry_connection(cartesian=True)` on multi-dimensional k-grids, where zero components of the per-axis k-step were dropped before the Cartesian transform (#102)
+- Fixed `WFArray.berry_connection(cartesian=True)` returning projections onto the reciprocal lattice directions instead of Cartesian components on non-orthogonal lattices. When the selected k-axes span k-space, the connection is now returned as $A_x, A_y, \dots$ (followed by any $\lambda$ axes); along paths that do not span k-space, the component along each axis's Cartesian direction is returned as before
 
 ## [2.0.2] - 2026-04-21
 
