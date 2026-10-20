@@ -45,7 +45,8 @@ docs = [
   "sphinx-gallery",
   "numpydoc",
   "sphinx-togglebutton",
-  "sphinx-notfound-page"
+  "sphinx-notfound-page",
+  "sphinx-autobuild"
 ]
 tests = ["pytest"]
 dev = [
