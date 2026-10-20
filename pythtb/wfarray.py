@@ -2325,25 +2325,64 @@ class WFArray:
     ):
         r"""Berry connection from parallel-transport links.
 
-        This routine evaluates the (non-Abelian) Berry connection on the
-        reduced parameter mesh. For each mesh direction :math:`\mu` in
-        ``axis_idx``, the connection is obtained from the parallel-transport link
-        unitaries :math:`U_{\mu}(\boldsymbol{\kappa})` returned by
-        :meth:`links`, using the discrete finite-difference approximation:
+        The Berry connection of the states selected by ``state_idx`` is the
+        matrix-valued (non-Abelian) field
+
+        .. math::
+
+            A_{\mu,mn}(\boldsymbol{\kappa})
+            \;=\;
+            i\,\langle u_m(\boldsymbol{\kappa}) \mid
+            \partial_{\kappa_\mu} u_n(\boldsymbol{\kappa}) \rangle,
+
+        defined over the mesh
+        :math:`\boldsymbol{\kappa} = (\kappa_1,\dots,\kappa_{d_k};\,\lambda_1,\dots,\lambda_{d_\lambda})`,
+        where the reduced k-coordinates :math:`\kappa_j` run over :math:`[0, 1)`
+        across the Brillouin zone. On the discrete mesh it is approximated from
+        the parallel-transport link unitaries :math:`U_{\mu}(\boldsymbol{\kappa})`
+        returned by :meth:`links`. For small steps
+        :math:`U_\mu \approx \exp(-i A_\mu \Delta\kappa_\mu)`, so
 
         .. math::
 
             A_{\mu}(\boldsymbol{\kappa})
-            \;=\;
+            \;\approx\;
             -\frac{1}{i\,\Delta \kappa_{\mu}}
             \log\!\big[\,U_{\mu}(\boldsymbol{\kappa})\,\big],
 
-        where :math:`\Delta \kappa_{\mu}` is the step size (in reduced coordinates)
-        between adjacent points along direction :math:`\mu`. The result is a
-        matrix-valued, non-Abelian connection defined over the full reduced mesh
-        :math:`\boldsymbol{\kappa} = (k_1,\dots,k_{d_k};\,\lambda_1,\dots,\lambda_{d_\lambda})`,
-        with the final two array axes spanning the band subspace specified by
-        ``state_idx``.
+        where :math:`\Delta \kappa_{\mu}` is the step between adjacent points
+        along direction :math:`\mu`. This recovers the continuum connection with
+        error :math:`\mathcal{O}(\Delta\kappa_\mu)` when the states vary smoothly
+        between neighboring mesh points. The final two array axes span the states
+        in ``state_idx``.
+
+        .. warning::
+
+            The Berry connection is **gauge dependent**. Under a gauge change
+            :math:`|u_n(\boldsymbol{\kappa})\rangle \to
+            \sum_m |u_m(\boldsymbol{\kappa})\rangle\, W_{mn}(\boldsymbol{\kappa})`
+            it transforms as
+
+            .. math::
+
+                A_\mu \;\to\; W^\dagger A_\mu W + i\, W^\dagger \partial_\mu W,
+
+            so its values depend on the phases (and, for several states, the
+            unitary mixing) of the states stored in the :class:`WFArray`. States
+            from :meth:`solve_model` carry whatever phases the eigensolver
+            returns at each mesh point, and these are not guaranteed to vary
+            smoothly. In that case :math:`A_\mu` can be dominated by gauge noise
+            and does not approximate a smooth continuum connection. Pointwise
+            values, such as a map of :math:`A_x(\mathbf{k})`, are therefore not
+            physical on their own.
+
+            Berry phases around closed loops (:meth:`berry_phase`,
+            :meth:`wilson_loop`) and Berry flux, curvature and Chern numbers
+            (:meth:`berry_flux`, :meth:`berry_curvature`, :meth:`chern_number`)
+            are gauge invariant and unaffected. Interpret :math:`A_\mu` pointwise
+            only after fixing a smooth gauge, for example with
+            :meth:`Wannier.project` or :meth:`Wannier.maxloc` and the resulting
+            :attr:`Wannier.tilde_states`.
 
         .. versionadded:: 2.0.0
 
@@ -2359,14 +2398,41 @@ class WFArray:
             If True, also return the link unitaries :math:`U_{\mu}`.
             Default is False.
         cartesian : bool, optional
-            If True, return the k-space connection in Cartesian units. When the
-            k-axes in ``axis_idx`` span all of k-space (e.g. a full k-grid), they are
-            combined into Cartesian components
-            :math:`A_\alpha = \frac{1}{2\pi}\sum_j a_{j\alpha} A_j`, where
-            :math:`\mathbf{a}_j` are the periodic lattice vectors. Otherwise (e.g. a
-            1D path through a 2D Brillouin zone), each axis gives the component along
-            its own Cartesian direction,
-            :math:`\mathbf{A}\cdot\hat{\boldsymbol{\delta}}_\mu`. Default is False.
+            Coordinates of the k-space components, which set how they are
+            integrated into a Berry phase. Both choices describe the same
+            connection and give the same phase. Default is False.
+
+            If False, the components are with respect to the mesh coordinates,
+            so a phase is accumulated as
+
+            .. math::
+
+                \phi = \int_{\mathcal{C}} \sum_\mu A_\mu\, d\kappa_\mu
+                \;\approx\; \sum_{\boldsymbol{\kappa}\in\mathcal{C}}
+                A_\mu(\boldsymbol{\kappa})\, \Delta\kappa_\mu,
+
+            e.g. :math:`\phi = \int_0^1 A_j\, d\kappa_j` across the Brillouin
+            zone along reduced direction :math:`j`.
+
+            If True and the k-axes in ``axis_idx`` span all of k-space (e.g. a
+            full k-grid), they are combined into the Cartesian vector
+            :math:`\mathbf{A}(\mathbf{k})`, which has units of length and is
+            integrated against the Cartesian measure,
+
+            .. math::
+
+                \phi = \int_{\mathcal{C}} \mathbf{A}\cdot d\mathbf{k},
+                \qquad d\mathbf{k} = \sum_j \mathbf{b}_j\, d\kappa_j .
+
+            The two are related by :math:`A_j = \mathbf{b}_j\cdot\mathbf{A}` and
+            :math:`\mathbf{A} = \frac{1}{2\pi}\sum_j \mathbf{a}_j A_j`, where
+            :math:`\mathbf{a}_j` and :math:`\mathbf{b}_j` are the periodic
+            lattice and reciprocal lattice vectors. If the k-axes do not span
+            k-space (e.g. a 1D path through a 2D Brillouin zone), each axis
+            instead gives the component along its own Cartesian direction,
+            :math:`\mathbf{A}\cdot\hat{\boldsymbol{\delta}}_\mu`, integrated
+            against the Cartesian step length :math:`|\Delta\mathbf{k}_\mu|`.
+            :math:`\lambda` components are unaffected by this flag.
 
             .. versionchanged:: 2.0.3
                Full k-grids now return Cartesian components :math:`A_x, A_y, \dots`
@@ -2395,7 +2461,14 @@ class WFArray:
         - The connection is Hermitian, :math:`A_\mu^\dagger = A_\mu`.
         - The logarithm is computed using spectral decomposition of the unitaries
           :math:`U = V \, \text{diag}(e^{i\theta_n}) \, V^\dagger`, with principal phases
-          :math:`\theta_n` in :math:`(-\pi, \pi]`.
+          :math:`\theta_n` in :math:`(-\pi, \pi]`. The result is meaningful only
+          when the true phase change per step is smaller than :math:`\pi`, i.e.
+          the mesh is fine compared with how quickly the gauge varies.
+        - For several states, summing :math:`\mathrm{Tr}\,A_\mu\,\Delta\kappa_\mu`
+          around a closed loop gives the total Berry phase modulo :math:`2\pi`
+          (since :math:`\mathrm{Tr}\log U = \log\det U`). The individual
+          Wilson-loop phases are not sums of the connection; use
+          :meth:`wilson_loop` or :meth:`berry_phase` for those.
         - Entries of the connection at invalid boundaries
           (where links are NaN; see :meth:`links`) remain NaN.
         """

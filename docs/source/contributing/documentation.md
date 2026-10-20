@@ -78,6 +78,14 @@ make dirhtml
 
 This produces a directory structure in `_build/dirhtml/` that mirrors the source structure, which can be useful for hosting on certain web servers.
 
+__Option 3: Live-reloading server__
+
+```bash
+make livehtml
+```
+
+This serves the docs at <http://127.0.0.1:8000> and rebuilds and refreshes the page whenever a file in `docs/source/` or `pythtb/` changes. Requires `sphinx-autobuild` (included in the `docs` extras). Pass extra options through `O`, e.g. `make livehtml O="--port 8001 --open-browser"`. If a docstring edit doesn't appear, add `O="-E"` to force a fresh environment.
+
 __Making Clean Builds__
 
 Use 
